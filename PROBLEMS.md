@@ -37159,3 +37159,113 @@ Platform caps (X, LinkedIn) still trim the *question* in their words; the
 title is never what gets cut.
 
 `tests/test_sharing.py`, `tests/test_share_and_save_endpoints.py`.
+
+## 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14)
+
+**What was asked.** A PDF, "11.14.26 Implementations": custom cover pictures
+for playlists with "a thumbnail ... the default if no picture is added"; a mix
+card that "hints what's in the mix, previews a headline, and automatically
+reorders the episodes (and displayed tiles on cover) to be in order of most
+trending/relevant stories ... so you don't hear the same order every day",
+with six options to choose from; "fix the layout of the clarifying search.
+Also add a pill to type in your own"; the tutorial "too big ... it covers the
+whole thing ... on some phones and not on others"; "the box of where you type
+in the message is too big"; and "on every page ... if you type enter on
+keyboard, it should act as a submit button".
+
+**Custom covers already existed** (§306, §498: the naming screen, the mix
+page's cover, its ⋯ menu, on both clients). What was missing was the default:
+a coverless mix drew a folder. It now draws `thumbs[0]`, today's lead
+picture (web `coverOf`, iOS `Mix.shownCover`), and the folder only when
+there is no picture at all. R5's small corner stays the mix's own photo or
+its folder, since today's picture is already the big one beside it.
+
+**Today's order** (`mix_today.py`, `app._mix_today`, `signals.coverage`).
+Each item is scored from what is held: a game gone final since last heard
+(3), trending since last heard (2), its story in the Trending edition (1),
+outlets carrying today's widest story about it on a log scale to 40 (up to
+1.5), today's episode written (0.75, `ready_first`), and the listener's taste
+for its subjects scaled within the mix (up to 1). Heard today goes last.
+Ties take the owner's order turned one place a day, so a mix of equals still
+opens on a different topic each morning and never reshuffles on a reload.
+Served as new fields - `today_order`, `today_why` per item, `headline`,
+`thumbs` - on every route through `_mix_out`; the list reads the taste
+profile once (a test counts). A failure leaves them out and is logged.
+`items` stays in the owner's order: it is what they drag and what a reorder
+sends back. Play, a row's play button (on from that row) and "Start with what
+changed" follow today's order on the web and the iPhone; "or play all from
+the top" keeps the owner's. The weights are starting values.
+
+**The card: option A, the stacked deck.** Six options went to the owner as
+an artifact (stacked deck, mosaic, lead story, playlist rows, front page,
+carousel), each with and without a photo and on two days; the owner picked
+A. The list is two to a row (`mixCardAHTML`, iOS `MixDeckCard` in a
+two-column grid): the cover is the mix's colour (one of six, by its id - a
+colour, never a picture) with today's first three stories fanned on it, best
+on top (`cover_tiles`: picture, topic, written), the name across the bottom,
+and today's headline under the card in the colour and icon of why it leads.
+With a photo of its own the photo fills the square and the stack moves to
+its top-right corner. "New today" (§550) sits top-left. This replaces §544's
+picture-name-arrow row and §545's R5 card in the list; R5's signals reach it
+as the headline's colour, and Q5 inside the mix is unchanged. The name is in
+Bricolage, not the serif of the owner's sketch, keeping `typefaces`.
+Public search results keep their row with the owner line.
+
+**"Which one do you mean?"** The question as asked in a mono line, the title,
+the readings as left-aligned rows of one shape however long, then a dashed
+"Type your own" pill that becomes a field in its place; Return or the arrow
+sends the words as the reading (the server already took any reading up to
+200 characters, §426). The iPhone's `ReadingCard` matches. The smoke run
+types one and checks `reading=` on the request.
+
+**The tour's card on the iPhone.** It was `ScrollsWhenTall` under
+`.frame(maxHeight:)`; a scroll view is flexible, and on some phones the card
+took the whole room with the words floating in its middle (the screenshot:
+"2 of 12" in a card from the header to the tab bar). The card is now pinned
+to its own height (`fixedSize`) at every size short of the accessibility
+ones, and scrolls only there, at an explicit height. The web's card was
+always content-height; checked at 375x667.
+
+**The message box on the iPhone.** A vertical `TextField` with
+`lineLimit(1...5)` under `.frame(maxHeight: 112)`: given the height the
+bottom inset offered, some phones drew it at five lines while empty. Pinned
+to its own height (`fixedSize`), one line to five as typed. The web's box
+was one row already.
+
+**Return submits.** The web: a field in a form submits by itself and a field
+with its own Enter handler keeps it; every other field names what Return
+does with `data-enter` - the button it presses (Next on the identity step,
+Save on the location page, Continue in Go Deeper and on the activation card,
+Start chat) when that button is drawn and enabled, or `blur` where the
+results are already on screen (live searches, the VIBE! caption, a survey's
+words). One document listener reads it; never while an input method is
+composing, Shift+Return left alone. A test walks every text field in the
+page. The feedback report keeps Return as a new line (a long text). The
+iPhone: `ModalField(onReturn:)` (Start chat), the reset password form,
+the identity editor's handle and place fields, the location page, the
+activation card's place. Messages and the story reply already sent on
+Return (§590, §306) and still do; search already sent.
+
+**And the iOS build had been red since §608.** The tour's
+`.tourTarget(which == ...)` was pasted into `CategoryChip` as well as
+`PlayfamTabs`, and only the second has a `which`; every iOS build from #300
+on failed, so no build after 8 could be archived. The stray copy is gone.
+
+**Found by a second reader before merging.** Somebody else's public mix
+had no today's order (`/api/mixes/public/{id}` built its answer without
+`_mix_today`) and its Play would have started on the owner's first item; it
+now plays best first, with the viewer's history and taste when they have an
+account. The list re-read the stories and re-ran `specific_subject` per item:
+one read and one subject per story per request now
+(`_mix_today_context`; a test counts the calls). On the iPhone, "Type your
+own" set focus as its field was inserted, which SwiftUI can drop (focus now
+on the field's appear); the tour card, pinned below the accessibility sizes,
+could be clipped on a small phone at a large text size (it now measures its
+words and scrolls at the room's height only when taller); and Return in New
+message could look a handle up twice (one lookup at a time).
+
+Tests: `tests/test_mix_today_616.py`, `tests/test_owner_notes_1114.py`,
+`tests/test_mix_card_minimal.py` (option A), the reading check in
+`tools/smoke_preview.py`, whose mix-list checks now find `#mixList .mix-a`. **Not verified here:** the Swift
+compiles in `ios.yml`; the tour card and message box want a look on the
+phones that showed them.

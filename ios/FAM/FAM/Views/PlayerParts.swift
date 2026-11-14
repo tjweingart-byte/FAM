@@ -700,30 +700,136 @@ struct RefusalLayer: View {
     }
 }
 
-/// The question as it was typed, up to four of the server's readings as
-/// copper buttons, and Cancel (`askReading`).
+/// "Which one do you mean?" (`askReading`; the owner's 11.14 notes: "fix
+/// the layout ... add a pill to type in your own ... cleaner"): the
+/// question as asked, up to four of the server's readings as left-aligned
+/// choices of one shape however long, then a "Type your own" pill that
+/// opens a field in its place - Return or the arrow sends the words as the
+/// reading - and Cancel.
 struct ReadingCard: View {
     @EnvironmentObject private var model: AppModel
     let ask: ReadingAsk
+    /// The pill has become the field.
+    @State private var typing = false
+    @State private var own = ""
+    @FocusState private var focused: Bool
+
+    /// What was typed, as it is sent (`sendReadingOwn`): one space between
+    /// words, at most the 200 characters the server takes.
+    private var ownWords: String {
+        String(own.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ").prefix(200))
+    }
 
     var body: some View {
-        ModalTitle(text: "Which one do you mean?")
-        Text(ask.question)
-            .font(FAMFont.body(12.5))
-            .foregroundStyle(FAMColor.textMuted)
-            .lineSpacing(5)
+        if !ask.question.isEmpty {
+            Text("You asked \u{201C}\(ask.question)\u{201D}")
+                .monoLabel(9.5, color: FAMColor.textFaint, tracking: 0.8)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.bottom, 6)
+        }
+        Text("Which one do you mean?")
+            .font(FAMFont.heading(18, .medium))
+            .foregroundStyle(FAMColor.text)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.bottom, 14)
+            .accessibilityAddTraits(.isHeader)
         VStack(spacing: 8) {
             ForEach(ask.readings, id: \.self) { reading in
-                ModalButton(label: reading, primary: true, wide: true) { model.answerReading(reading) }
+                Button { model.answerReading(reading) } label: {
+                    HStack(spacing: 10) {
+                        Text(reading)
+                            .font(FAMFont.body(13.5, .semibold))
+                            .foregroundStyle(FAMColor.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        WebIcon(path: Icons.chevron, size: 14, line: 2.4)
+                            .foregroundStyle(FAMColor.copper)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .frame(minHeight: 46)
+                    .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.borderStrong))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.press)
             }
+            if typing { ownField } else { ownPill }
         }
-        HStack {
-            Spacer()
-            ModalButton(label: "Cancel") { model.answerReading(nil) }
+        Button { model.answerReading(nil) } label: {
+            Text("Cancel")
+                .font(FAMFont.body(12.5, .semibold))
+                .foregroundStyle(FAMColor.textMuted)
+                .padding(.horizontal, 18)
+                .frame(minHeight: 40)
+                .contentShape(Rectangle())
         }
-        .padding(.top, 8)
+        .buttonStyle(.press)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 6)
+    }
+
+    /// `.reading-own`: dashed, copper, centred.
+    private var ownPill: some View {
+        Button {
+            // Focus once the field is on screen (`ownField`'s onAppear): set
+            // in the same moment it is inserted, SwiftUI can drop it and the
+            // keyboard would wait for a second tap.
+            typing = true
+        } label: {
+            HStack(spacing: 8) {
+                WebIcon(path: Icons.pencil, size: 14, line: 2.2)
+                Text("Type your own")
+                    .font(FAMFont.body(13.5, .semibold))
+            }
+            .foregroundStyle(FAMColor.copper)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .overlay(RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(FAMColor.copper.opacity(0.55), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+            .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.press)
+    }
+
+    /// `.reading-own-row`: the field and its send arrow; Return sends.
+    private var ownField: some View {
+        HStack(spacing: 8) {
+            TextField("", text: $own,
+                      prompt: Text("Say which one you mean").foregroundColor(FAMColor.textFaint))
+                .font(FAMFont.body(15))
+                .foregroundStyle(FAMColor.text)
+                .focused($focused)
+                .submitLabel(.go)
+                .onSubmit { sendOwn() }
+                .accessibilityLabel("Which one you mean, in your own words")
+            Button { sendOwn() } label: {
+                WebIcon(path: Icons.arrowRight, size: 15, line: 2.6)
+                    .foregroundStyle(FAMColor.ink)
+                    .frame(width: 36, height: 36)
+                    .background(FAMColor.copper, in: Circle())
+            }
+            .buttonStyle(.press)
+            .disabled(ownWords.isEmpty)
+            .accessibilityLabel("Search this")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        .frame(minHeight: 46)
+        .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.copper, lineWidth: 1.5))
+        .onAppear {
+            DispatchQueue.main.async { focused = true }
+        }
+    }
+
+    private func sendOwn() {
+        let words = ownWords
+        guard !words.isEmpty else { return }
+        focused = false
+        model.answerReading(words)
     }
 }
 

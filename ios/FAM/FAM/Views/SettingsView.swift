@@ -708,6 +708,9 @@ struct ActivationCard: View {
             help(activation.help?.birthDate)
             FieldLabel(text: "Where you live", optional: true).padding(.top, 12)
             TextField("", text: $place, prompt: Text("Town or city").foregroundColor(FAMColor.textFaint))
+                // Return presses Continue once it can (the owner's 11.14 notes).
+                .submitLabel(.go)
+                .onSubmit { if dateSet && !working { submit(confirmed: false) } }
                 .youInput()
             help(activation.help?.location)
             FieldLabel(text: "Gender", optional: true).padding(.top, 12)

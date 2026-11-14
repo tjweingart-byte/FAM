@@ -809,6 +809,49 @@
   .save-cap{ text-transform:uppercase; letter-spacing:0.08em; }
   /* playFAM: a mix is a folder. The card shows what is inside without
      needing to be opened, because a folder you cannot see into is a guess. */
+  /* **A mix card is option A, the stacked deck** (§616, the owner's pick of
+     six on 11.14): two to a row; the cover is the mix's colour with today's
+     first three stories fanned on it, best on top, the name across the
+     bottom, and today's headline under the card. With a photo of its own,
+     the photo fills the square and the stack steps aside to a corner. */
+  .mix-a-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 11px; }
+  .mix-a{ min-width:0; cursor:pointer; }
+  .mix-a-cover{ position:relative; aspect-ratio:1; border-radius:18px; overflow:hidden;
+    background:var(--mix-hue, var(--surface-2)) center/cover no-repeat; }
+  .mix-a-cover.photo::after{ content:""; position:absolute; inset:45% 0 0; pointer-events:none;
+    background:linear-gradient(transparent, rgba(10,9,15,0.62)); }
+  .mix-a-stack{ position:absolute; inset:12% 15% 27%; }
+  .mix-a-cover.photo .mix-a-stack{ inset:7% 7% auto auto; width:34%; aspect-ratio:1; }
+  .mix-a-tile{ position:absolute; inset:0; border-radius:10px; overflow:hidden;
+    background:var(--surface-2) center/cover no-repeat; border:1.5px solid rgba(255,255,255,0.8);
+    box-shadow:0 6px 14px -6px rgba(0,0,0,0.6); }
+  .mix-a-cover.photo .mix-a-tile{ border-radius:6px; border-width:1px; }
+  .mix-a-tile.t1{ transform:translate(-9%, 4%) rotate(-7deg); }
+  .mix-a-tile.t2{ transform:translate(9%, 6%) rotate(7deg); }
+  .mix-a-cover.photo .mix-a-tile.t1{ transform:translate(-14%, 6%) rotate(-8deg); }
+  .mix-a-cover.photo .mix-a-tile.t2{ transform:translate(14%, 8%) rotate(8deg); }
+  .mix-a-ready{ position:absolute; top:5px; left:5px; font-family:'Geist Mono', monospace; font-size:7px;
+    letter-spacing:0.08em; background:var(--copper); color:var(--ink); border-radius:999px; padding:2px 5px; }
+  .mix-a-label{ position:absolute; left:5px; bottom:5px; max-width:calc(100% - 10px); font-family:'Geist Mono', monospace;
+    font-size:6.5px; letter-spacing:0.08em; text-transform:uppercase; background:rgba(244,239,228,0.92); color:#18151F;
+    border-radius:3px; padding:2px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mix-a-cover.photo .mix-a-ready, .mix-a-cover.photo .mix-a-label{ display:none; }
+  .mix-a-folder{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#18151F; opacity:0.55; }
+  .mix-a-folder svg{ width:34%; height:34%; }
+  .mix-a-name{ position:absolute; z-index:1; left:8px; right:8px; bottom:9px; text-align:center;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:16px; line-height:1.15; color:#FFFFFF;
+    text-shadow:0 1px 8px rgba(0,0,0,0.4); overflow-wrap:break-word;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .mix-a-new{ position:absolute; z-index:1; top:8px; left:8px; font-family:'Geist',sans-serif; font-size:9.5px; font-weight:700;
+    background:var(--copper); color:var(--ink); border-radius:999px; padding:3px 7px; }
+  .mix-a-line{ margin:7px 2px 0; font-size:11.5px; line-height:1.35; color:var(--text);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .mix-a-line b{ font-weight:700; color:var(--text-muted); }
+  .mix-a-line b.why-trending{ color:var(--sig-tr); }
+  .mix-a-line b.why-update{ color:var(--sig-up); }
+  .mix-a-line b.why-covered{ color:var(--copper); }
+  .mix-a-line svg{ display:inline-block; vertical-align:-2px; margin-right:3px; }
+  .mix-a-line.quiet{ color:var(--text-muted); }
   .mix-card{ display:flex; align-items:center; gap:13px; padding:13px 14px; margin-bottom:11px;
     background:var(--surface); border:1px solid var(--border); border-radius:14px; cursor:pointer; }
   .mix-folder{ flex:0 0 46px; height:46px; border-radius:12px; background:var(--paper);
@@ -2448,6 +2491,37 @@
   .modal-btn{ border:none; border-radius:20px; padding:9px 16px; font-family:'Geist',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
   .modal-btn.ghost{ background:transparent; color:var(--text-muted); }
   .modal-btn.primary{ background:var(--copper); color:var(--ink); }
+  /* "Which one do you mean?" (§426; the 11.14 notes: "fix the layout ... add
+     a pill to type in your own ... cleaner"). The question as asked, the
+     readings as left-aligned choices of one shape however long, then the
+     "Type your own" pill that opens a field in its own place. */
+  .reading-card{ width:86%; max-width:360px; padding:18px 16px 10px; }
+  .reading-asked{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-faint); margin:0 2px 6px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .reading-title{ font-size:18px; margin:0 2px 14px; line-height:1.2; }
+  .reading-choices{ display:flex; flex-direction:column; gap:8px; }
+  .reading-choice, .reading-own{ display:flex; align-items:center; gap:10px; width:100%;
+    min-height:46px; padding:11px 14px; border-radius:16px; text-align:left;
+    font-family:'Geist',sans-serif; font-size:13.5px; font-weight:600; line-height:1.3;
+    cursor:pointer; }
+  .reading-choice{ background:var(--surface-2); color:var(--text); border:1px solid var(--border-strong); }
+  .reading-choice span{ flex:1; min-width:0; overflow-wrap:break-word; }
+  .reading-choice svg{ flex:none; color:var(--copper); }
+  .reading-choice:active{ border-color:var(--copper); }
+  .reading-own{ margin-top:8px; justify-content:center; background:transparent; color:var(--copper);
+    border:1.5px dashed color-mix(in srgb, var(--copper) 55%, transparent); }
+  .reading-own-row{ display:flex; align-items:center; gap:8px; margin-top:8px; padding:4px 4px 4px 14px;
+    min-height:46px; border-radius:16px; background:var(--bg); border:1.5px solid var(--copper); }
+  .reading-own[hidden], .reading-own-row[hidden]{ display:none; }
+  .reading-own-input{ flex:1; min-width:0; border:none; outline:none; background:transparent;
+    color:var(--text); font-family:'Geist',sans-serif; font-size:16px; padding:8px 0; }
+  .reading-own-input::placeholder{ color:var(--text-faint); }
+  .reading-send{ flex:none; width:36px; height:36px; border-radius:50%; border:none; cursor:pointer;
+    background:var(--copper); color:var(--ink); display:flex; align-items:center; justify-content:center; }
+  .reading-send:disabled{ opacity:0.4; cursor:default; }
+  .reading-cancel{ display:block; margin:6px auto 0; padding:10px 18px; border:none; background:transparent;
+    color:var(--text-muted); font-family:'Geist',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; }
 
   .sheet-overlay{ align-items:flex-end; z-index:55; }
   .sheet-card{
@@ -4054,7 +4128,7 @@
 
             <div class="auth-field">
               <div class="auth-label">Your name <span class="auth-req" data-first-run>required</span></div>
-              <input class="modal-input" id="identityName" type="text"
+              <input class="modal-input" id="identityName" data-enter="identityNextBtn" type="text"
                      autocomplete="off" autocorrect="off" autocapitalize="words"
                      spellcheck="false" placeholder="Your name"
                      oninput="drawIdentityRequired()" style="margin-bottom:0;">
@@ -4063,7 +4137,7 @@
               <div class="auth-label">Username</div>
               <div class="id-handle">
                 <span class="id-at">@</span>
-                <input class="modal-input" id="identityHandle" type="text"
+                <input class="modal-input" id="identityHandle" data-enter="identityNextBtn" type="text"
                        autocomplete="off" autocorrect="off" autocapitalize="off"
                        spellcheck="false" placeholder="yourhandle"
                        oninput="cleanHandleInput(this)" style="margin-bottom:0;">
@@ -4079,7 +4153,7 @@
               <div class="phone-row">
                 <select class="modal-input phone-cc" id="identityPhoneCC"
                         aria-label="Country code"></select>
-                <input class="modal-input phone-num" id="identityPhone" type="tel"
+                <input class="modal-input phone-num" id="identityPhone" data-enter="identityNextBtn" type="tel"
                        inputmode="tel" autocomplete="tel-national" autocorrect="off"
                        autocapitalize="off" spellcheck="false"
                        placeholder="(888) 888-8888" style="margin-bottom:0;"
@@ -4119,16 +4193,16 @@
                  three are optional and the app works with none of them. -->
             <div class="auth-field">
               <div class="auth-label">Where you are <span class="auth-opt">optional</span></div>
-              <input class="modal-input" id="identityCity" type="text"
+              <input class="modal-input" id="identityCity" data-enter="identityNextBtn" type="text"
                      autocomplete="address-level2" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="City" style="margin-bottom:8px;">
               <div class="id-place-row">
-                <input class="modal-input" id="identityRegion" type="text"
+                <input class="modal-input" id="identityRegion" data-enter="identityNextBtn" type="text"
                        autocomplete="address-level1" autocorrect="off"
                        autocapitalize="words" spellcheck="false"
                        placeholder="State or region" style="margin-bottom:0;">
-                <input class="modal-input" id="identityCountry" type="text"
+                <input class="modal-input" id="identityCountry" data-enter="identityNextBtn" type="text"
                        autocomplete="country-name" autocorrect="off"
                        autocapitalize="words" spellcheck="false"
                        placeholder="Country" style="margin-bottom:0;">
@@ -4213,21 +4287,21 @@
 
             <div class="auth-field">
               <div class="auth-label">City</div>
-              <input class="modal-input" id="locCity" type="text"
+              <input class="modal-input" id="locCity" data-enter="locSaveBtn" type="text"
                      autocomplete="address-level2" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="City" style="margin-bottom:0;">
             </div>
             <div class="auth-field">
               <div class="auth-label">State or region</div>
-              <input class="modal-input" id="locRegion" type="text"
+              <input class="modal-input" id="locRegion" data-enter="locSaveBtn" type="text"
                      autocomplete="address-level1" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="State or region" style="margin-bottom:0;">
             </div>
             <div class="auth-field">
               <div class="auth-label">Country</div>
-              <input class="modal-input" id="locCountry" type="text"
+              <input class="modal-input" id="locCountry" data-enter="locSaveBtn" type="text"
                      autocomplete="country-name" autocorrect="off"
                      autocapitalize="words" spellcheck="false"
                      placeholder="Country" style="margin-bottom:0;">
@@ -4236,7 +4310,7 @@
           </div>
         </div>
         <div class="entry-dock">
-          <button class="entry-btn primary" onclick="saveLocation()">Save</button>
+          <button class="entry-btn primary" id="locSaveBtn" onclick="saveLocation()">Save</button>
         </div>
       </section>
 
@@ -4265,7 +4339,7 @@
           <h2>Friends</h2>
         </div>
         <div style="padding:0 18px 10px;">
-          <input class="modal-input" id="friendSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          <input class="modal-input" id="friendSearch" data-enter="blur" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Find someone by handle" style="margin-bottom:0;"
                  oninput="searchPeople()">
           <!-- For somebody not on FAM yet (10.1 packet, third set): the
@@ -4312,7 +4386,7 @@
         </div>
         <label class="yf-search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="mfsInput" type="search" autocomplete="off" spellcheck="false"
+          <input id="mfsInput" data-enter="blur" type="search" autocomplete="off" spellcheck="false"
                  placeholder="Search episodes people made" aria-label="Search episodes people made"
                  oninput="onMyFamSearchInput()">
         </label>
@@ -4890,7 +4964,7 @@
         </div>
         <label class="yf-search">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input id="msgSearch" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          <input id="msgSearch" data-enter="blur" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  placeholder="Search messages" aria-label="Search messages" oninput="renderThreadRows()">
         </label>
         <div class="scroll"><div id="threadList"></div></div>
@@ -5067,7 +5141,7 @@
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
-          <input class="modal-input" id="goDeeperInput" type="text" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="Or type your own follow-up">
+          <input class="modal-input" id="goDeeperInput" data-enter="goDeeperGo" type="text" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" data-autocorrect placeholder="Or type your own follow-up">
           <!-- How long the follow-up runs. Chosen here rather than inherited
                from the search length, because a follow-up is asked from every
                surface and only search has a length control of its own. The
@@ -5083,7 +5157,7 @@
           </div>
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeGoDeeper()">Cancel</button>
-            <button class="modal-btn primary" onclick="confirmGoDeeper()">Continue</button>
+            <button class="modal-btn primary" id="goDeeperGo" onclick="confirmGoDeeper()">Continue</button>
           </div>
         </div>
       </div>
@@ -5109,7 +5183,7 @@
               <button class="share-find" type="button" aria-label="Search your groups"
                       onclick="toggleShareFind('groups')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
             </div>
-            <input class="share-find-input" id="shareFindGroups" type="search" hidden
+            <input class="share-find-input" id="shareFindGroups" data-enter="blur" type="search" hidden
                    placeholder="Search your groups" autocomplete="off"
                    oninput="filterShareSection('groups')">
             <div class="share-contacts" id="shareGroups"></div>
@@ -5120,7 +5194,7 @@
               <button class="share-find" type="button" aria-label="Search your friends"
                       onclick="toggleShareFind('friends')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
             </div>
-            <input class="share-find-input" id="shareFindFriends" type="search" hidden
+            <input class="share-find-input" id="shareFindFriends" data-enter="blur" type="search" hidden
                    placeholder="Search your friends" autocomplete="off"
                    oninput="filterShareSection('friends')">
             <div class="share-contacts" id="shareContacts"></div>
@@ -5318,7 +5392,7 @@
                    oninput="vcsSetSize(this.value)">
           </div>
           <div class="vcs-fonts" id="vcsFonts" hidden></div>
-          <input class="vcs-caption" id="vcsCaption" type="text" maxlength="150"
+          <input class="vcs-caption" id="vcsCaption" data-enter="blur" type="text" maxlength="150"
                  placeholder="Add a caption&hellip;" aria-label="Caption" oninput="vcsCaptionInput(this.value)"
                  onfocus="vcsTool('text', true)">
           <div class="vcs-panel" id="vcsPanel" hidden></div>
@@ -5377,14 +5451,29 @@
 
       <!-- A name in the question means more than one thing (§426): which one?
            Asked before anything is searched; the choice plays the episode. -->
+      <!-- The 11.14 notes: cleaner, and a pill to type your own. The
+           question as asked, then each reading as a left-aligned choice,
+           then "Type your own", which opens a field in its place. -->
       <div class="modal-overlay" id="readingOverlay">
-        <div class="modal-card">
-          <div class="modal-title" id="readingTitle">Which one do you mean?</div>
-          <div class="limit-body" id="readingQuestion"></div>
-          <div class="modal-btns stack" id="readingChoices"></div>
-          <div class="modal-btns">
-            <button class="modal-btn ghost" onclick="answerReading('')">Cancel</button>
-          </div>
+        <div class="modal-card reading-card" role="dialog" aria-modal="true" aria-labelledby="readingTitle">
+          <div class="reading-asked" id="readingQuestion"></div>
+          <div class="modal-title reading-title" id="readingTitle">Which one do you mean?</div>
+          <div class="reading-choices" id="readingChoices"></div>
+          <button class="reading-own" id="readingOwnBtn" type="button" onclick="openReadingOwn()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+            Type your own
+          </button>
+          <form class="reading-own-row" id="readingOwnRow" hidden onsubmit="event.preventDefault(); sendReadingOwn();">
+            <input class="reading-own-input" id="readingOwnInput" type="text" maxlength="200"
+                   autocomplete="off" enterkeyhint="go" placeholder="Say which one you mean"
+                   aria-label="Which one you mean, in your own words" oninput="readingOwnTyped()">
+            <button class="reading-send" id="readingOwnSend" type="submit" aria-label="Search this" disabled>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+            </button>
+          </form>
+          <button class="reading-cancel" type="button" onclick="answerReading('')">Cancel</button>
         </div>
       </div>
 
@@ -5423,7 +5512,7 @@
                    oninput="activationReady()" onchange="activationReady()">
             <div class="act-help" id="actBirthHelp"></div>
             <label class="act-label" for="actPlace">Where you live <span class="auth-opt">optional</span></label>
-            <input class="modal-input act-input" id="actPlace" type="text"
+            <input class="modal-input act-input" id="actPlace" data-enter="actGo" type="text"
                    placeholder="Town or city" autocomplete="address-level2"
                    autocapitalize="words" spellcheck="false">
             <div class="act-help" id="actPlaceHelp"></div>
@@ -5475,10 +5564,10 @@
           <div class="gc-label" style="margin-bottom:8px;">Pick one or more friends</div>
           <div class="share-contacts" id="newChatContacts"></div>
           <div class="gc-picked" id="newChatPicked"></div>
-          <input class="modal-input" id="newChatGroupName" type="text" maxlength="60" hidden
+          <input class="modal-input" id="newChatGroupName" data-enter="newChatGo" type="text" maxlength="60" hidden
                  placeholder="Name the group (optional)" style="margin:10px 0 0;">
           <div class="gc-label" style="margin:16px 0 8px;">Or start a new conversation</div>
-          <input class="modal-input" id="newChatInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
+          <input class="modal-input" id="newChatInput" data-enter="newChatGo" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeNewChatModal()">Cancel</button>
             <button class="modal-btn primary" id="newChatGo" onclick="confirmNewChat()">Start chat</button>
@@ -7669,21 +7758,54 @@
       if(playSurface(t) === "search") pendingFromSearch = true;
       generate(key, albumContext);
     };
-    document.getElementById("readingQuestion").textContent = t.prompt || t.title || "";
+    var asked = t.prompt || t.title || "";
+    document.getElementById("readingQuestion").textContent = asked ? "You asked \u201c" + asked + "\u201d" : "";
     var box = document.getElementById("readingChoices");
     box.innerHTML = "";
     readings.slice(0, 4).forEach(function(r){
       var b = document.createElement("button");
-      b.className = "modal-btn primary";
-      b.textContent = r;
+      b.type = "button";
+      b.className = "reading-choice";
+      var words = document.createElement("span");
+      words.textContent = r;
+      b.appendChild(words);
+      b.insertAdjacentHTML("beforeend", '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" '
+        + 'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" '
+        + 'aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>');
       b.onclick = function(){ answerReading(r); };
       box.appendChild(b);
     });
+    // "Type your own" starts closed each time; its field is emptied.
+    var input = document.getElementById("readingOwnInput");
+    input.value = "";
+    readingOwnTyped();
+    document.getElementById("readingOwnRow").hidden = true;
+    document.getElementById("readingOwnBtn").hidden = false;
     document.getElementById("readingOverlay").classList.add("active");
+  }
+  // The pill becomes the field, in its place, focused.
+  function openReadingOwn(){
+    document.getElementById("readingOwnBtn").hidden = true;
+    document.getElementById("readingOwnRow").hidden = false;
+    var input = document.getElementById("readingOwnInput");
+    try { input.focus({ preventScroll: true }); } catch(e){ input.focus(); }
+  }
+  function readingOwnTyped(){
+    var input = document.getElementById("readingOwnInput");
+    document.getElementById("readingOwnSend").disabled = !input.value.trim();
+  }
+  // Return or the arrow: their words are the reading, sent like a choice
+  // (the server takes any reading up to 200 characters, `_validated_plan`).
+  function sendReadingOwn(){
+    var words = document.getElementById("readingOwnInput").value.replace(/\s+/g, " ").trim().slice(0, 200);
+    if(!words) return;
+    answerReading(words);
   }
   function answerReading(choice){
     var then = readingThen;
     readingThen = null;
+    var input = document.getElementById("readingOwnInput");
+    if(input) input.blur();
     document.getElementById("readingOverlay").classList.remove("active");
     if(choice && then) then(choice);
   }
@@ -9558,7 +9680,7 @@
       return;
     }
     panel.innerHTML = vcsPanelHead("MENTION")
-      + '<div class="vcs-people"><input class="modal-input" id="vcsPeopleSearch" type="text" placeholder="Search people you follow"'
+      + '<div class="vcs-people"><input class="modal-input" id="vcsPeopleSearch" data-enter="blur" type="text" placeholder="Search people you follow"'
       + ' autocomplete="off" autocapitalize="off" spellcheck="false" oninput="vcsPaintPeople(this.value)">'
       + '<div id="vcsPeopleList">' + list + '</div></div>';
   }
@@ -11076,6 +11198,29 @@
     closeModal();
     handler(val);
   });
+  // **Return submits, everywhere** (the owner's 11.14 notes: "on every
+  // page ... if you type enter on keyboard, it should act as a submit
+  // button"). A field inside a <form> submits by itself, and a field with
+  // its own Enter handler keeps it; every other field names what Return
+  // does with `data-enter`: the id of the button it presses (the screen's
+  // own Save / Next / Start chat - pressed only when it is drawn and
+  // enabled), or "blur" for a field whose results are already on screen
+  // (a live search, a caption), where Return puts the keyboard away.
+  // Never while an input method is composing a word, and Shift+Return is
+  // left alone. Messages keeps its own rule (Return sends, §590).
+  document.addEventListener("keydown", function(e){
+    if(e.key !== "Enter" || e.shiftKey || e.isComposing || e.defaultPrevented) return;
+    var el = e.target;
+    var go = el && el.getAttribute && el.getAttribute("data-enter");
+    if(!go) return;
+    e.preventDefault();
+    if(go !== "blur"){
+      var btn = document.getElementById(go);
+      if(btn && !btn.disabled && btn.offsetParent !== null){ btn.click(); return; }
+    }
+    el.blur();
+  });
+
   document.getElementById("modalInput").addEventListener("keydown", function(e){
     if(e.key === "Enter"){ document.getElementById("modalConfirmBtn").click(); }
   });
@@ -12326,17 +12471,11 @@
         renderMixesLocked();
       });
   }
-  // Drawn like a listener's own mix card: picture, name, arrow (11.10).
+  // Drawn like a listener's own mix card (option A, §616).
   function sampleMixCardHTML(m){
-    return '<div class="mix-card" onclick="openMix(\'sample\')">'
-      + '<div class="mix-folder">' + folderSVG() + '</div>'
-      + '<div class="mix-card-body">'
-      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-      + '</div>'
-      + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
-      + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
-      + '</div>';
+    return '<div class="mix-a-grid">' + mixCardAHTML(m, "openMix('sample')") + '</div>';
   }
+
 
   // Inside the example: its briefings and a play button, and none of the
   // controls that edit a mix - there is nothing kept to edit.
@@ -12383,29 +12522,55 @@
       + 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
   }
 
-  // R5 (the owner's pick, §545): the story's picture with the mix's own cover
-  // in its corner, ringed in the signal's colour; the name, and one line
-  // naming the topic and the story; and a pill saying which signal it is
-  // where the arrow was. With no picture approved for the story, the mix's
-  // own cover takes the ring and nothing sits in the corner.
-  function mixSignalCardHTML(m){
-    var s = m.signal, kind = s.kind === "update" ? "update" : "trending";
-    var own = '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>';
-    var pic = s.picture
-      ? '<img src="' + escapeHtml(s.picture) + '" alt="">'
-        + '<span class="mix-sig-own' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
-      : own;
-    var cls = kind === "update" ? "mix-card has-sig sig-update" : "mix-card has-sig sig-trending";
-    return '<div class="' + cls + '" onclick="openMix(\'' + m.id + '\')">'
-      + '<div class="mix-sig-pic">' + pic + '</div>'
-      + '<div class="mix-card-body">'
-      + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-sig-line">' + sigIconSVG(kind) + '<b>' + escapeHtml(s.topic) + '</b> \u00b7 '
-      + escapeHtml(s.headline) + '</div>'
+  // The mix's colour behind its stack (option A, §616): one of six, the
+  // same for a mix every time it is drawn. A colour, never a picture.
+  var MIX_HUES = ["#7FB8E0", "#F0A04B", "#9A86C9", "#7DBE9C", "#E58A74", "#D9B45C"];
+  function mixHue(id){
+    var h = 0, s = String(id || "");
+    for(var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return MIX_HUES[h % MIX_HUES.length];
+  }
+
+  // "↗ News · Carney promotes Asia trade deals": today's headline (§616),
+  // the icon and colour of why it leads (trending, a result in, most
+  // covered - §545's signals among them); else the topics in today's order.
+  function mixHeadlineHTML(m){
+    var h = m.headline;
+    if(h && h.title){
+      var why = h.why === "update" ? "update" : h.why === "trending" ? "trending" : h.why === "covered" ? "covered" : "";
+      var icon = why === "update" || why === "trending" ? sigIconSVG(why, 11)
+        : why === "covered" ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M4 18V9M10 18V5M16 18v-7M22 18H2"/></svg>' : "";
+      return '<div class="mix-a-line"><b class="' + (why ? "why-" + why : "") + '">' + icon
+        + escapeHtml(h.topic || "") + '</b>' + (h.topic ? ' \u00b7 ' : '') + escapeHtml(h.title) + '</div>';
+    }
+    var names = todayOrder(m).map(function(t){ return t.episode_title || t.title; }).filter(Boolean);
+    return '<div class="mix-a-line quiet">' + escapeHtml(names.length ? names.slice(0, 3).join(" \u00b7 ") : "No topics yet") + '</div>';
+  }
+
+  // **Option A, the stacked deck** (§616). The stack is today's order:
+  // whatever leads today sits on top (`cover_tiles`, best first, drawn last
+  // so it lands on top). No picture anywhere: the mix's colour and its folder.
+  function mixCardAHTML(m, open){
+    var tiles = (m.cover_tiles || []).slice(0, 3);
+    var photo = !!m.cover;
+    var stack = tiles.map(function(t, i){ return { t: t, i: i }; }).reverse().map(function(x){
+      return '<div class="mix-a-tile t' + x.i + '" style="background-image:url(' + x.t.picture + ')">'
+        + (x.i === 0 && x.t.ready ? '<span class="mix-a-ready">READY</span>' : '')
+        + (x.t.label ? '<span class="mix-a-label">' + escapeHtml(x.t.label) + '</span>' : '')
+        + '</div>';
+    }).join("");
+    var style = photo ? ' style="--mix-hue:' + mixHue(m.id) + '; background-image:url(' + m.cover + ')"'
+                      : ' style="--mix-hue:' + mixHue(m.id) + '"';
+    return '<div class="mix-a" role="button" tabindex="0" onclick="' + open + '"'
+      + ' onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); this.click(); }"'
+      + ' aria-label="' + escapeHtml(m.name) + '">'
+      + '<div class="mix-a-cover' + (photo ? " photo" : "") + '"' + style + '>'
+      + (tiles.length ? '<div class="mix-a-stack">' + stack + '</div>'
+                      : (photo ? '' : '<div class="mix-a-folder">' + folderSVG() + '</div>'))
+      + (open.indexOf("sample") < 0 && isFreshMix(m.id) ? '<span class="mix-a-new">New today</span>' : '')
+      + '<div class="mix-a-name">' + escapeHtml(m.name) + '</div>'
       + '</div>'
-      + '<span class="mix-pill">' + sigIconSVG(kind) + escapeHtml(s.label)
-      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" '
-      + 'stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>'
+      + mixHeadlineHTML(m)
       + '</div>';
   }
 
@@ -12423,24 +12588,14 @@
     // this screen carried both, so the same action sat twice on one page and
     // the second copy pushed every mix card down.
 
-    // **A mix card is its picture, its name and an arrow** (the owner, 11.10:
-    // "we just want the thumbnail of the playlist, the title of the playlist,
-    // and an arrow pointing right"). The briefing count, "daily", public or
-    // private, whose it was and the topic list are gone from this row; all of
-    // them are still on the mix's own page, one tap in.
-    html += mixes.map(function(m){
-      // R5 (§545): what changed since this listener last heard the mix.
-      if(m.signal) return mixSignalCardHTML(m);
-      return '<div class="mix-card" onclick="openMix(\'' + m.id + '\')">'
-        + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
-        + '<div class="mix-card-body">'
-        + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
-        + '</div>'
-        + (isFreshMix(m.id) ? '<span class="mix-new">New today</span>' : '')
-        + '<div class="mix-chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
-        + 'stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></div>'
-        + '</div>';
-    }).join("");
+    // **A mix card is option A, the stacked deck** (§616, the owner's pick
+    // of six on 11.14, after §544's picture-name-arrow row and §545's R5).
+    // Two to a row; everything else about the mix is on its own page.
+    if(mixes.length){
+      html += '<div class="mix-a-grid">' + mixes.map(function(m){
+        return mixCardAHTML(m, "openMix('" + m.id + "')");
+      }).join("") + '</div>';
+    }
     document.getElementById("mixList").innerHTML = html;
   }
 
@@ -12913,9 +13068,9 @@
     var nBrief = items.length;
     html += '<div class="mix-hero">'
       + (owner
-          ? '<button class="mix-hero-art' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m)
+          ? '<button class="mix-hero-art' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m)
             + ' onclick="coverTapped(\'' + m.id + '\')" aria-label="' + (m.cover ? "Change" : "Add") + ' cover photo">'
-          : '<div class="mix-hero-art static' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>')
+          : '<div class="mix-hero-art static' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m) + '>')
       + '<svg class="fold" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
       + 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
       + (owner ? '<span class="nm-cam" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -12949,7 +13104,7 @@
         + sigIconSVG(changed[0].signal && changed[0].signal.kind, 14)
         + (changed.length === 1 ? "Start with what changed" : "Start with the " + changed.length + " that changed")
         + '</button>'
-        + '<button class="mix-play-all" onclick="playMix()">or play all ' + items.length
+        + '<button class="mix-play-all" onclick="playMixListed()">or play all ' + items.length
         + ' from the top</button>';
     } else if(items.length){
       html += '<button class="mix-play" onclick="playMix()">'
@@ -12959,7 +13114,8 @@
     }
     if(items.length){
       html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
-        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
+        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        + ((m.today_order || []).length > 1 ? ' · plays best stories first' : '') + '</div>';
       html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
         // On a joint mix, the face of whoever added it (Spotify's).
         var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
@@ -13375,31 +13531,66 @@
       + escapeHtml(since.now.title) + '</span></div>';
   }
 
-  // "Start with what changed": the changed topics first, in the mix's own
-  // order, then the rest in theirs.
+  // "Start with what changed": the changed topics first, then the rest,
+  // each in today's order (§616).
   function playWhatChanged(){
     var m = mixById(currentMixId);
     if(!m || !m.items.length){ toast("Add a topic first"); return; }
-    var first = m.items.filter(function(t){ return t.since; });
-    var rest = m.items.filter(function(t){ return !t.since; });
+    var today = todayOrder(m);
+    var first = today.filter(function(t){ return t.since; });
+    var rest = today.filter(function(t){ return !t.since; });
     if(!first.length){ startMixQueue(m, 0); return; }
     mixPlay = { name: m.name || "myFAM", id: m.sample ? "" : m.id,
                 order: first.concat(rest), pos: 0, key: "" };
     playMixItem(mixPlay.order[0]);
   }
 
+  // A row's play button: that episode, then on through today's order.
   function playMixFrom(itemId){
     var m = mixById(currentMixId);
     if(!m) return;
     for(var i = 0; i < m.items.length; i++){
-      if(m.items[i].id === itemId){ startMixQueue(m, i); return; }
+      if(m.items[i].id === itemId){ startMixQueue(m, itemId); return; }
     }
   }
 
-  function startMixQueue(m, start){
-    var items = m.items.slice();
+  // "or play all N from the top": the list as drawn, the owner's order.
+  function playMixListed(){
+    var m = mixById(currentMixId);
+    if(!m || !m.items.length){ toast("Add a topic first"); return; }
+    startMixQueue(m, 0, true);
+  }
+
+  // Today's order (§616, the owner's 11.14 notes): best stories first, a
+  // new order every day - the server's `today_order`, worked out from what
+  // is trending, what has a result in, what is written and what this
+  // listener plays. The rows on the page stay in the owner's order (it is
+  // what they edit); this is what Play plays. An older server, or a mix it
+  // could not order, plays in the owner's order as before.
+  function todayOrder(m){
+    var ids = (m && m.today_order) || [];
+    var items = (m && m.items) || [];
+    if(!ids.length) return items.slice();
+    var left = {};
+    items.forEach(function(t){ left[t.id] = t; });
+    var out = [];
+    ids.forEach(function(id){ if(left[id]){ out.push(left[id]); delete left[id]; } });
+    items.forEach(function(t){ if(left[t.id]) out.push(t); });
+    return out;
+  }
+
+  // `start` is an item id (play from that one), else an index into the
+  // order; `listed` plays the owner's order ("or play all from the top").
+  function startMixQueue(m, start, listed){
+    var items = listed ? m.items.slice() : todayOrder(m);
+    var at = 0;
+    if(typeof start === "string"){
+      for(var i = 0; i < items.length; i++){ if(items[i].id === start){ at = i; break; } }
+    } else {
+      at = Math.max(0, Math.min(items.length - 1, start || 0));
+    }
     mixPlay = { name: m.name || "myFAM", id: m.sample ? "" : m.id,
-                order: items.slice(start).concat(items.slice(0, start)),
+                order: items.slice(at).concat(items.slice(0, at)),
                 pos: 0, key: "" };
     playMixItem(mixPlay.order[0]);
   }
@@ -14090,7 +14281,7 @@
     var entries = m.items || [];
     var names = entries.map(function(t){ return t.title; }).join(" · ");
     return '<div class="mix-card" onclick="openPublicMixAt(' + i + ')">'
-      + '<div class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
+      + '<div class="mix-folder' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</div>'
       + '<div class="mix-card-body">'
       + '<div class="mix-name">' + escapeHtml(m.name) + '</div>'
       + '<div class="mix-meta"><span class="mix-by">' + escapeHtml(ownerLabel(m.owner)) + '</span> · '
@@ -14150,7 +14341,7 @@
     var items = m.items || [];
     var o = m.owner || {};
     var html = '<div class="mix-hero">'
-      + '<div class="mix-hero-art static' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>'
+      + '<div class="mix-hero-art static' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m) + '>'
       + '<svg class="fold" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
       + 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>'
       + '</div><div>'
@@ -14169,12 +14360,13 @@
         + (m.added ? "In your myFAM" : "Add to myFAM") + '</button>';
     }
     if(items.length){
-      html += '<button class="mix-play" onclick="playPublicMix(0)">'
+      html += '<button class="mix-play" onclick="playPublicMix()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
         + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
         + (items.length === 1 ? " episode" : " episodes") + '</button>';
       html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
-        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>';
+        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        + ((m.today_order || []).length > 1 ? ' · plays best stories first' : '') + '</div>';
       html += items.map(function(t, i){
         return '<div class="mix-topic">'
           + '<div class="mix-topic-body">'
@@ -14199,9 +14391,13 @@
 
   // Played as a playlist exactly like one of your own - hearing a mix does
   // not need it to be yours first.
-  function playPublicMix(start){
+  // `row` is a row's index in the list as drawn (the owner's order): that
+  // episode, then on through today's order. No row: today's order from
+  // its first (§616).
+  function playPublicMix(row){
     if(!publicMix || !(publicMix.items || []).length) return;
-    startMixQueue(publicMix, start || 0);
+    var item = typeof row === "number" ? publicMix.items[row] : null;
+    startMixQueue(publicMix, item ? item.id : 0);
   }
 
   function mixFromList(where, i){
@@ -14494,8 +14690,16 @@
     document.getElementById("nmCoverHint").textContent =
       newMixCover ? "Tap to change the cover" : "Tap to add a cover photo";
   }
+  // What a mix's picture is (§616, the owner's 11.14 notes: "a thumbnail
+  // can be the default if no picture is added"): its own cover photo, else
+  // the picture of the first story in today's order (`thumbs`), else "" and
+  // the folder is drawn. Whether it has a photo of its own is `m.cover`.
+  function coverOf(m){
+    return (m && (m.cover || (m.thumbs || [])[0])) || "";
+  }
   function coverStyle(m){
-    return m && m.cover ? ' style="background-image:url(' + m.cover + ')"' : '';
+    var pic = coverOf(m);
+    return pic ? ' style="background-image:url(' + pic + ')"' : '';
   }
 
   // ---------------- Naming a new mix (11.7 packet) ----------------
@@ -21778,7 +21982,7 @@
   function mixPickRow(m){
     var n = (m.items || m.topics || []).length;
     return '<span class="mix-pick">'
-      + '<span class="mix-folder' + (m.cover ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
+      + '<span class="mix-folder' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m) + '>' + folderSVG() + '</span>'
       + '<span class="mix-pick-body"><span class="mix-pick-name">' + escapeHtml(m.name) + '</span>'
       + '<span class="mix-pick-meta">' + n + (n === 1 ? " briefing" : " briefings") + '</span></span></span>';
   }
@@ -24290,7 +24494,7 @@
       }).join("") + '</div>';
     }
     if(surveyTextWanted(q)){
-      html += '<input class="svy-text" type="text" maxlength="500" data-st="'
+      html += '<input class="svy-text" data-enter="blur" type="text" maxlength="500" data-st="'
         + escapeHtml(q.id) + '" placeholder="' + escapeHtml(surveyTextPlaceholder(q))
         + '" value="' + escapeHtml(a.text || "") + '" autocomplete="off">';
     }

@@ -236,8 +236,10 @@ def _user(client) -> str:
 
 
 def test_the_card_and_the_mix_draw_r5_and_q5():
-    assert "function mixSignalCardHTML(m)" in INDEX
-    assert "if(m.signal) return mixSignalCardHTML(m);" in INDEX
+    # The list's card is option A since §616 (the owner's pick of six); a
+    # signal reaches it as the headline's colour and icon. Q5 is unchanged.
+    assert "function mixCardAHTML(m, open)" in INDEX
+    assert 'h.why === "update" ? "update" : h.why === "trending"' in INDEX
     assert "function mixBubblesHTML(since)" in INDEX
     assert 'onclick="playWhatChanged()"' in INDEX and "or play all " in INDEX
 

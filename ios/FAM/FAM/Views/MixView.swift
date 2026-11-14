@@ -156,7 +156,7 @@ struct MixView: View {
             Group {
                 if mix.isOwner {
                     Button { tapCover(mix) } label: {
-                        MixArt(cover: mix.cover, size: 84, radius: 16)
+                        MixArt(cover: mix.shownCover, size: 84, radius: 16)
                             .shadow(color: .black.opacity(0.35), radius: 13, y: 12)
                             .overlay(alignment: .bottomTrailing) {
                                 CoverBadge(size: 24, glyph: 11, ring: 2).offset(x: 5, y: 5)
@@ -165,7 +165,7 @@ struct MixView: View {
                     .buttonStyle(.press)
                     .accessibilityLabel(mix.cover.isEmpty ? "Add cover photo" : "Change cover photo")
                 } else {
-                    MixArt(cover: mix.cover, size: 84, radius: 16)
+                    MixArt(cover: mix.shownCover, size: 84, radius: 16)
                 }
             }
             VStack(alignment: .leading, spacing: 0) {
@@ -286,7 +286,7 @@ struct MixView: View {
                 model.playMixChangedFirst(mix)
             }
             .padding(.top, 2)
-            MixPlayAllLink(count: mix.items.count) { model.playMix(mix) }
+            MixPlayAllLink(count: mix.items.count) { model.playMix(mix, listed: true) }
                 .padding(.top, 12)
         } else {
             MixPlayButton(count: mix.items.count) { model.playMix(mix) }

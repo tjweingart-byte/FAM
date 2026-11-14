@@ -352,7 +352,7 @@ struct PublicMixView: View {
                 if let mix {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 14) {
-                            MixArt(cover: mix.cover, size: 84, radius: 16)
+                            MixArt(cover: mix.shownCover, size: 84, radius: 16)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(mix.name).font(FAMFont.heading(17, .semibold)).foregroundStyle(FAMColor.text)
                                 Text("\(MixesModel.briefings(mix.items.count)) · daily")
@@ -512,7 +512,7 @@ struct AddToMixSheet: View {
     /// `.mix-pick`: a 42 pt tile on surface-2, the name, "{n} briefings".
     private func mixRow(_ mix: Mix) -> some View {
         HStack(spacing: 12) {
-            MixArt(cover: mix.cover, size: 42, radius: 8, tile: FAMColor.surface2,
+            MixArt(cover: mix.shownCover, size: 42, radius: 8, tile: FAMColor.surface2,
                    glyph: FAMColor.text, glyphSize: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(mix.name)

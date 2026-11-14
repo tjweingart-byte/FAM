@@ -1964,8 +1964,8 @@ def main() -> int:
         def dailyfam():
             ensure_account()
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
-            assert page.eval_on_selector_all(".mix-card", "e => e.length") >= 1
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            assert page.eval_on_selector_all("#mixList .mix-a", "e => e.length") >= 1
 
         def a_playlist_plays_through_and_then_stops():
             """§134. "Play all" used to play the first episode and stop, and
@@ -1980,7 +1980,7 @@ def main() -> int:
             """
             ensure_account()
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             name, count = page.evaluate(
@@ -2037,7 +2037,7 @@ def main() -> int:
             """
             ensure_account()
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             count = page.evaluate("() => mixById(currentMixId).items.length")
@@ -2439,6 +2439,29 @@ def main() -> int:
                     "the episode's other requests would not carry the reading"
                 assert page.evaluate("() => readingParam('Manchester United')") == \
                     "&reading=Manchester%20United"
+                # "Type your own" (the 11.14 notes): the pill opens a field
+                # in its place, and Return sends the typed words as the
+                # reading, exactly like a choice.
+                page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home');"
+                              " delete TOPICS['_custom']; sendSearch('how did United do', '')")
+                page.wait_for_timeout(900)
+                assert page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), \
+                    "the readings were not asked a second time"
+                assert page.is_visible("#readingOwnBtn") and not page.is_visible("#readingOwnRow")
+                page.click("#readingOwnBtn")
+                assert page.is_visible("#readingOwnRow") and not page.is_visible("#readingOwnBtn"), \
+                    "the pill did not open the field"
+                assert page.eval_on_selector("#readingOwnSend", "e => e.disabled"), \
+                    "an empty field could be sent"
+                page.fill("#readingOwnInput", "Utah United")
+                page.press("#readingOwnInput", "Enter")
+                page.wait_for_timeout(900)
+                assert not page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), \
+                    "Return did not send the typed reading"
+                last = page.evaluate("() => window.__readingCalls[window.__readingCalls.length - 1]")
+                assert "reading=Utah%20United" in last, f"the typed reading was not sent: {last}"
             finally:
                 page.evaluate("() => { window.fetch = window.__readingInner; "
                               "stopSpeech(); clearGenOverlay(); answerReading(''); }")
@@ -2846,8 +2869,8 @@ def main() -> int:
             **A long prompt is never shown whole** (the owner's "most important
             thing"): it goes in under a short name."""
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
-            page.evaluate("document.querySelectorAll('.mix-card')[0].click()")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("document.querySelectorAll('#mixList .mix-a')[0].click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.click("#mixBody .mix-add-topics")
             page.wait_for_selector("#screen-addtopics.active .mix-topic",
@@ -2887,7 +2910,7 @@ def main() -> int:
             Every step is a screen the listener meets, so every step is
             asserted on the screen rather than in a variable alone."""
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             assert page.is_visible("#newMixBtn"), "no Create new mix pill"
             assert "Create new mix" in page.inner_text("#newMixBtn")
             page.click("#newMixBtn")
@@ -3050,7 +3073,7 @@ def main() -> int:
             A private mix asks before it goes public, since the link opens it
             for whoever follows it."""
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             page.evaluate("openMix(mixes[0].id)")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.evaluate("openMixMenu()")
@@ -3547,9 +3570,9 @@ def main() -> int:
             The switch means **public** (at the owner's direction): on is
             Public with an open lock, off is Private with a closed one."""
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             page.wait_for_timeout(400)
-            page.evaluate("document.querySelectorAll('.mix-card')[0].click()")
+            page.evaluate("document.querySelectorAll('#mixList .mix-a')[0].click()")
             page.wait_for_timeout(500)
             switch = page.query_selector(".mix-switch")
             assert switch, "no public/private switch inside a mix"
@@ -3861,7 +3884,7 @@ def main() -> int:
                                      stopSpeech(); clearGenOverlay(); }""", plain)
 
             page.evaluate("openPlayFAM()")
-            page.wait_for_selector(".mix-card", timeout=10000, state="attached")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             count = page.evaluate("() => mixById(currentMixId).items.length")

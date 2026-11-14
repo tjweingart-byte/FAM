@@ -147,22 +147,16 @@ struct MyFAMView: View {
             if mixes.mixes.isEmpty {
                 EmptyNote(text: "No mixes yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
             } else {
-                ForEach(mixes.mixes) { mix in
-                    Button { path.append(.mix(mix.id)) } label: { listCard(mix) }
-                        .buttonStyle(.press)
+                // Option A, two to a row (§616, `.mix-a-grid`).
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 11, alignment: .top),
+                                    GridItem(.flexible(), spacing: 11, alignment: .top)],
+                          alignment: .leading, spacing: 16) {
+                    ForEach(mixes.mixes) { mix in
+                        Button { path.append(.mix(mix.id)) } label: { MixDeckCard(mix: mix) }
+                            .buttonStyle(.press)
+                    }
                 }
             }
-        }
-    }
-
-    /// A mix in the list: its picture, name and arrow (§544) - or, when one
-    /// of its topics changed since this listener last heard it, R5 (§545).
-    @ViewBuilder
-    private func listCard(_ mix: Mix) -> some View {
-        if let signal = mix.signal {
-            MixSignalCard(mix: mix, signal: signal)
-        } else {
-            MixCard(mix: mix, trailing: .chevron)
         }
     }
 
@@ -316,7 +310,7 @@ struct MixCard: View {
 
     var body: some View {
         HStack(spacing: 13) {
-            MixArt(cover: mix.cover)
+            MixArt(cover: mix.shownCover)
             VStack(alignment: .leading, spacing: 4) {
                 Text(mix.name)
                     .font(FAMFont.heading(14, .semibold))

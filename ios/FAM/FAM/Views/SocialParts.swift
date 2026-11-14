@@ -406,9 +406,15 @@ struct ModalField: View {
     let placeholder: String
     @Binding var text: String
     var plain = false
+    /// What Return does (the owner's 11.14 notes: "if you type enter on
+    /// keyboard, it should act as a submit button"): the card's own button,
+    /// pressed. nil puts the keyboard away, as a search filter wants.
+    var onReturn: (() -> Void)? = nil
 
     var body: some View {
         TextField("", text: $text, prompt: Text(placeholder).foregroundColor(FAMColor.textFaint))
+            .submitLabel(onReturn == nil ? .done : .go)
+            .onSubmit { onReturn?() }
             .font(FAMFont.body(13))
             .foregroundStyle(FAMColor.text)
             .textInputAutocapitalization(plain ? .never : .sentences)

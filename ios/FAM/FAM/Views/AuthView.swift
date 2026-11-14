@@ -470,6 +470,10 @@ struct ResetPasswordView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($focus, equals: .email)
+                        // Return presses the button, as the web's form does
+                        // (the owner's 11.14 notes).
+                        .submitLabel(.go)
+                        .onSubmit { if !working { Task { await go() } } }
                         .modifier(FieldBox())
                     if sent { codeFields }
                     // Under the fields, over the button, as the web's
@@ -559,6 +563,8 @@ struct ResetPasswordView: View {
                 .textContentType(.newPassword)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.go)
+                .onSubmit { if !working { Task { await go() } } }
                 Button { showPassword.toggle() } label: {
                     Image(systemName: showPassword ? "eye.slash" : "eye")
                         .foregroundStyle(FAMColor.textMuted)

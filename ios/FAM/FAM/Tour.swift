@@ -800,23 +800,22 @@ struct TourOverlay: View {
 }
 
 /// `.tour-card`: kicker and Skip, the art, the title, the words, then
-/// Back, "n of N" over its bar, and Next. At most the screen less 32 pt
-/// tall, scrolling inside past that (large text).
-private struct TourCard: View {
+/// Back, "n of N" over its bar, and Next. As tall as its words (`sized`),
+/// and when they outgrow the screen less 32 pt, that tall and scrolling.
+struct TourCard: View {
     @ObservedObject var tour: TourModel
     let step: TourStep
     let index: Int
     let maxHeight: CGFloat
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The words' own height (`sized`).
+    @State private var measured: CGFloat = 0
 
     private var last: Bool { index == TourModel.steps.count - 1 }
 
     var body: some View {
-        // One copy that scrolls only when taller than the room
-        // (`ScrollsWhenTall`, §589): never two copies swapped in and out.
-        ScrollsWhenTall { inner }
-        .frame(maxHeight: maxHeight)
+        sized
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 20))
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(FAMColor.borderStrong, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -836,6 +835,37 @@ private struct TourCard: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    /// **The card is as tall as its words** (the owner's 11.14 notes: "the
+    /// tutorial layout is too big and you can't see the screen because it
+    /// covers the whole thing ... on some phones and not on others"). The
+    /// card was `ScrollsWhenTall` under `.frame(maxHeight:)`: a scroll view
+    /// is flexible, and on some phones it took the whole height offered -
+    /// the room less 32 pt - with the words floating in the middle of it.
+    /// Now the words are pinned to their own height (`fixedSize`), which
+    /// nothing above can stretch, and measured; only when they are taller
+    /// than the room (a small phone at a large text size) do they scroll,
+    /// at exactly the room's height - never "as much as it is given". The
+    /// card has no field or picker, so swapping the two never drops a focus
+    /// (§589's reason for one copy).
+    @ViewBuilder private var sized: some View {
+        if measured > maxHeight && maxHeight > 0 {
+            ScrollView { measuredInner }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: maxHeight)
+        } else {
+            measuredInner.fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var measuredInner: some View {
+        inner
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { g in
+                Color.clear.preference(key: TourCardHeight.self, value: g.size.height)
+            })
+            .onPreferenceChange(TourCardHeight.self) { measured = $0 }
     }
 
     private var inner: some View {
@@ -965,3 +995,11 @@ private struct TourCard: View {
     }
 }
 
+
+/// The tour card's words' height (`TourCard.sized`).
+private struct TourCardHeight: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
