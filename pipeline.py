@@ -26,6 +26,7 @@ import time
 
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import pipeline_errors
+import voice_schedule
 import prefetch
 from agents import netenyahu
 from cache import (PRIVATE_ORIGIN, ScriptCache, build_cache, cache_key, canonical_key,
@@ -242,9 +243,17 @@ class GenerationStats:
                 "The listener hears silence here. Synthesis so far: %.1fs.",
                 played, made, self.synth_seconds)
             # The listener heard silence: on /admin's errors (§269).
+            # Which cause (§609): time queued behind other listeners on the
+            # shared worker, apart from time the worker spent voicing.
+            waiting = (f"; {self.voice_wait:.1f}s of {self.synth_seconds:.1f}s "
+                       "voicing was waiting for the worker"
+                       if self.voice_wait >= 0.05 else
+                       f"; voiced at {made / self.synth_seconds:.1f}x realtime, "
+                       "never waiting for the worker" if self.synth_seconds else "")
             pipeline_errors.record(
                 "episode", "voice fell behind",
-                f"silence {played:.1f}s into playback: {made:.1f}s of audio made",
+                f"silence {played:.1f}s into playback: {made:.1f}s of audio made"
+                + waiting,
                 self.query or self.title, pipeline_errors.NOTICE)
         return headroom
     cache: str = "off"
@@ -252,6 +261,9 @@ class GenerationStats:
     started_at: float = field(default_factory=time.perf_counter)
     #: Total seconds spent inside the speech engine.
     synth_seconds: float = 0.0
+    #: Of those, seconds spent waiting for a turn on the shared worker
+    #: behind other listeners' chunks (§609), not voicing.
+    voice_wait: float = 0.0
     #: Smallest margin between audio produced and wall clock. Negative means
     #: the listener heard silence.
     min_headroom: float = 999.0
@@ -707,7 +719,7 @@ class PodcastPipeline:
         # (`spoken_text`) and hard names respelled (`pronunciation`, §165);
         # the captions and the cache keep the digits and the real spelling.
         self._may_voice()
-        pcm = await self.engine.synth(voiced := speakable(respell(fit.text)), wpm, self.voice)
+        pcm = await self._synth(voiced := speakable(respell(fit.text)), wpm, stats, pace)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:
@@ -744,6 +756,25 @@ class PodcastPipeline:
             log.info("first audio ready after %.2fs", stats.first_audio_at)
         yield pcm
         yield gap
+
+    async def _synth(self, text: str, wpm: float, stats: "GenerationStats",
+                     pace: PaceController) -> bytes:
+        """`engine.synth`, telling a shared worker when this listener runs out
+        of audio (§609): now for the first chunk, else the audio already made
+        less what has been played. The worker serves the nearest silence
+        first, and how long this chunk waited for it is kept."""
+        if stats.first_audio_at:
+            played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
+            headroom = pace.elapsed - played
+        else:
+            headroom = 0.0
+        turn = voice_schedule.VoiceTurn(deadline=time.monotonic() + headroom)
+        token = voice_schedule.CURRENT.set(turn)
+        try:
+            return await self.engine.synth(text, wpm, self.voice)
+        finally:
+            voice_schedule.CURRENT.reset(token)
+            stats.voice_wait += turn.waited
 
     def _level_pace(self, pcm: bytes, voiced: str, stats: "GenerationStats") -> bytes:
         """The chunk at the episode's own pace (`pace_level`): only for an
@@ -813,7 +844,7 @@ class PodcastPipeline:
         stats.take_synthesis_mark(stats.marks)
         started = time.perf_counter()
         self._may_voice()
-        pcm = await self.engine.synth(voiced := speakable(respell(sentence)), wpm, self.voice)
+        pcm = await self._synth(voiced := speakable(respell(sentence)), wpm, stats, pace)
         synth_seconds = time.perf_counter() - started
         tts_done = stats.marks.mark("first_tts_complete")
         if not pcm:

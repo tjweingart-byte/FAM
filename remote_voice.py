@@ -91,6 +91,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from config import settings
+import voice_schedule
 from tts import TTSEngine, Voice
 
 
@@ -335,7 +336,7 @@ class RemoteChatterboxEngine(TTSEngine):
     #: call, so anything that must be reused - the connection pool, the
     #: concurrency gate, what the last real call proved - lives on the class.
     _client: Any = None
-    _gate: "asyncio.Semaphore | None" = None
+    _gate: "voice_schedule.DeadlineGate | None" = None
     _gate_size: int = 0
     _reachability = Reachability()
     #: When the last wake was sent, on `time.monotonic()`'s scale. The
@@ -496,7 +497,7 @@ class RemoteChatterboxEngine(TTSEngine):
             await client.aclose()
 
     @classmethod
-    def _semaphore(cls, size: int) -> asyncio.Semaphore:
+    def _semaphore(cls, size: int) -> "voice_schedule.DeadlineGate":
         """One generation at a time, times `size`.
 
         In-process Chatterbox serialises on `Semaphore(1)` because one card
@@ -504,9 +505,13 @@ class RemoteChatterboxEngine(TTSEngine):
         card, not of the interface, so a remote backend that fans out across
         workers sets its own ceiling. Rebuilt when the setting changes so a
         reconfigured limit is not ignored until restart.
+
+        Earliest deadline first, not first come (§609): when listeners share
+        the active worker, the chunk whose listener runs out of audio soonest
+        goes next (`voice_schedule`).
         """
         if cls._gate is None or cls._gate_size != size:
-            cls._gate = asyncio.Semaphore(size)
+            cls._gate = voice_schedule.DeadlineGate(size)
             cls._gate_size = size
         return cls._gate
 

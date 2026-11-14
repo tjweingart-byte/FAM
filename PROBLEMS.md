@@ -36843,3 +36843,36 @@ into `mixesTab`/`categoriesTab`, one per tab) with their `.tourTarget` tags.
 `test_ios_app_contract` still pins the iPhone's words to the web's. The
 iPhone gets the new tour in its next build; until then it shows the twelve.
 
+## 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14)
+
+Reported by the owner from /admin: 58 "voice fell behind" rows in 24 hours,
+142 in seven days, Friday the tallest bar - and the newest are the §602 kind,
+counted from the first audio, so they are real silence mid-episode.
+
+**Why, from the code.** §578 (Friday) set `REMOTE_VOICE_ACTIVE_WORKERS=1`,
+which caps chunks in flight at one *across the whole server*. Within an
+episode chunks were already voiced one after another, each paying its RunPod
+round trip; now every listener's chunks also queue behind every other
+listener's, on one card. Two people hearing new episodes at the same moment
+each get about half of it, three a third - the three rows at 04:23 PM, three
+different questions in one minute, are that. The queue was a plain
+`asyncio.Semaphore`: first come, first served, so an episode with thirty
+seconds in hand went ahead of one about to fall silent.
+
+**Now.** `voice_schedule.DeadlineGate` replaces the semaphore: the chunk
+whose listener runs out of audio soonest goes next (an episode's first chunk
+counts as now; calls with no listener queue last). `pipeline._synth` says the
+deadline through `voice_schedule.CURRENT`, set and reset around one `synth`
+call, and keeps how long the chunk waited (`GenerationStats.voice_wait`). A
+"voice fell behind" row now ends "Xs of Ys voicing was waiting for the
+worker", or, when it never waited, the realtime rate the worker managed - so
+the row says which of the two causes it was.
+
+**What it does not do:** add capacity. When more listeners are voiced at
+once than the active workers can keep ahead of, someone still hears a gap;
+the gate makes it fewer people. If the new rows mostly say "waiting", raise
+the console's Active workers and `REMOTE_VOICE_ACTIVE_WORKERS` to 2
+together (~$11 a day each, §578; never the concurrency alone). If they say
+"never waiting" under 1x, the endpoint's GPU class is too slow.
+
+`tests/test_voice_schedule_609.py`.

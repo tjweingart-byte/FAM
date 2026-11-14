@@ -70,8 +70,11 @@ def test_the_voice_is_handed_speakable_text():
     """Every synthesis call in the pipeline goes through `speakable`, and only
     the voice's input - the captions and the cache keep the digits."""
     source = inspect.getsource(pipeline)
-    calls = [line for line in source.splitlines() if "self.engine.synth(" in line]
+    # §609: the speaking paths call `self._synth`, which alone calls the engine.
+    calls = [line for line in source.splitlines() if "self._synth(" in line]
     assert calls and all("speakable(" in line for line in calls)
+    engine = [line for line in source.splitlines() if "self.engine.synth(" in line]
+    assert engine == ["            return await self.engine.synth(text, wpm, self.voice)"]
 
 
 def test_a_device_is_told_whether_it_may_keep_the_audio():
