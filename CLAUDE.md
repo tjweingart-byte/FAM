@@ -356,7 +356,7 @@ Caching and prefetch
 - **A heard episode is kept** (§173): history stores `episode_id` (key +
   sourced, `X-FAM-Episode`), replays with `?episode=`, never writing; a
   re-write archives the old row and audio; history pins two weeks; volatile
-  window 2h. [heard-is-kept] Sent: kept while its message/link is (§610). [sent-is-kept]
+  window 2h. [heard-is-kept] Sent/saved/vibed: kept while the row is (§610). [sent-is-kept]
 - **TTL comes from what the script was built on, not the question's words**
   - live status -> `outcome_dependent` -> window -> keyword floor; `in_progress`
   and a sports `recap`/`update` short of `final` never current (§182; an

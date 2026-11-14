@@ -3313,6 +3313,8 @@ class SaveRequest(BaseModel):
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
+    #: Which episode (§610): `X-FAM-Episode`, so Saved for Later replays it.
+    episode: str = Field("", max_length=80)
 
 
 class FolderRequest(BaseModel):
@@ -4356,7 +4358,9 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
     user = _require_account(request)
     try:
         item = SAVED.save(user, req.query, req.minutes, title=req.title,
-                          source=req.source, folder_id=req.folder_id)
+                          source=req.source, folder_id=req.folder_id,
+                          episode=_shared_episode(req.query, req.minutes,
+                                                  req.episode, user))
     except saved_mod.SavedError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # "Keep this for me" is taste, and the shelf was the only place in the app
@@ -10424,6 +10428,8 @@ class EchoRequest(BaseModel):
     line: Optional[str] = Field(None, max_length=2000)
     #: Where that sentence starts in the audio, in seconds.
     line_at: Optional[float] = Field(None, ge=0, le=3600)
+    #: Which episode (§610): `X-FAM-Episode`, so the vibe replays it.
+    episode: str = Field("", max_length=80)
 
 
 async def _check_photo(request: Request, user: str, data_url: Optional[str],
@@ -10504,7 +10510,9 @@ async def post_echo(req: EchoRequest, request: Request):
     try:
         echo = SOCIAL.echo(user, req.query, req.title, req.minutes, req.thread,
                            caption=req.caption, style=req.style, tags=tags,
-                           audience=audience, line=req.line, line_at=req.line_at)
+                           audience=audience, line=req.line, line_at=req.line_at,
+                           episode=_shared_episode(req.query, req.minutes,
+                                                   req.episode, user))
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Somebody tagged hears about it the way a share arrives: one message,
@@ -14155,9 +14163,13 @@ def _sent_episode_keys() -> set:
 
 
 def _sent_episode_ids() -> set:
-    """Every episode id a message or a share link names (§610)."""
+    """Every episode id a message, a share link, a saved row or a vibe names
+    (§610): each is kept, and replayed by id, as long as the row is."""
     ids = {episode for _q, _m, episode in MESSAGES.episodes() if episode}
     ids.update(SHARES.episode_ids())
+    # Saved and vibed episodes too (§610): kept as long as they are.
+    ids.update(SAVED.episode_ids())
+    ids.update(SOCIAL.vibed_episode_ids())
     return {e for e in ids if parse_episode_id(e) is not None}
 
 

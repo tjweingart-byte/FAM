@@ -208,3 +208,53 @@ def test_the_sweep_holds_a_minute_and_a_half_episode():
     assert "int(m or 0)" not in body
     msgs = (ROOT / "messages.py").read_text(encoding="utf-8")
     assert "(q, int(m or 0), e" not in msgs
+
+
+# --- saved and vibed episodes replay by id too ------------------------------
+
+def test_a_saved_row_names_its_episode(tmp_path):
+    import saved
+    store = saved.SavedStore(str(tmp_path / "s.db"))
+    ep = "1" * 64 + ".1700000610"
+    item = store.save("u", "why is the sky blue", 1.5, title="Sky", episode=ep)
+    assert item.episode == ep and item.as_dict()["episode"] == ep
+    newer = "1" * 64 + ".1700000999"
+    again = store.save("u", "why is the sky blue", 1.5, episode=newer)
+    assert again.id == item.id and again.episode == newer
+    assert store.save("u", "why is the sky blue", 1.5).episode == newer, \
+        "an older client's save keeps the id"
+    assert [i.episode for i in store.items("u")] == [newer]
+    assert store.episode_ids() == [newer]
+
+
+def test_a_vibe_names_its_episode_on_every_surface(tmp_path):
+    import social
+    store = social.SocialStore(str(tmp_path / "social.db"))
+    ep = "2" * 64 + ".1700000610"
+    echo = store.echo("u", "why is the sky blue", "Sky", 1.5, episode=ep)
+    assert echo.episode == ep and echo.as_dict()["episode"] == ep
+    assert store.echoes_by("u")[0].episode == ep
+    assert store.echo("u", "why is the sky blue", "Sky", 1.5).episode == ep
+    assert store.vibed_episode_ids() == [ep]
+    posts = store.vibe_posts("u", viewer="u") if hasattr(store, "vibe_posts") else None
+    if posts is not None:
+        assert posts[0]["episode"] == ep
+
+
+def test_saved_and_vibed_ids_are_held(monkeypatch):
+    monkeypatch.setattr(appmod.MESSAGES, "episodes", lambda: [])
+    monkeypatch.setattr(appmod.SHARES, "episode_ids", lambda: [])
+    monkeypatch.setattr(appmod.SAVED, "episode_ids", lambda: ["3" * 64 + ".1"])
+    monkeypatch.setattr(appmod.SOCIAL, "vibed_episode_ids", lambda: ["4" * 64 + ".2"])
+    assert appmod._sent_episode_ids() == {"3" * 64 + ".1", "4" * 64 + ".2"}
+
+
+def test_saved_and_vibes_send_and_replay_their_episode():
+    for fn in ("function playSaved(id){", "function playVibePost(i, at){",
+               "function playStory(){", "function playOwnVibe(v, i){"):
+        body = INDEX.split(fn, 1)[1].split("\n  }", 1)[0]
+        assert "askIfGone: !!" in body and "episode: " in body, fn
+    for fn in ("function saveStoryEpisode(ep){", "function saveVibePost(i){",
+               "function postVibeStory(){"):
+        body = INDEX.split(fn, 1)[1].split("\n  }", 1)[0]
+        assert "episode: " in body, fn

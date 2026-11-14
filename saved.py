@@ -102,12 +102,15 @@ class SavedItem:
     source: str
     created: float
     last_played: float
+    #: Which episode was saved (`cache.episode_id`, §610), or "".
+    episode: str = ""
 
     def as_dict(self) -> dict:
         return {
             "id": self.id, "folder_id": self.folder_id, "query": self.query,
             "minutes": self.minutes, "title": self.title, "source": self.source,
             "created": self.created, "last_played": self.last_played,
+            "episode": self.episode or "",
         }
 
 
@@ -246,6 +249,14 @@ class SavedStore:
                              " TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
+            # §610: which episode was saved, so Saved for Later replays it
+            # by id - kept, never written again - for as long as it is saved.
+            # '' on rows from before it, which play by their question.
+            try:
+                conn.execute("ALTER TABLE items ADD COLUMN episode"
+                             " TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Go Deeper tiles the listener closed with their X. Keyed on the
             # question alone, not the length: "not shown again" is about the
             # subject, and the same question offered back at another length
@@ -340,7 +351,8 @@ class SavedStore:
     # --- saving -----------------------------------------------------------
 
     def save(self, user_id: str, query: str, minutes: int, *, title: str = "",
-             source: str = "", folder_id: str = "", at: float = 0.0) -> SavedItem:
+             source: str = "", folder_id: str = "", at: float = 0.0,
+             episode: str = "") -> SavedItem:
         """Save an episode for later. Idempotent on (question, length).
 
         Saving something already saved moves it into the folder given rather
@@ -355,8 +367,14 @@ class SavedStore:
         folder_id = self._checked_folder(user_id, folder_id)
         now = at or time.time()
 
+        episode = str(episode or "").strip()[:80]
         existing = self.find(user_id, query, minutes)
         if existing:
+            # Saved again from a newer play: it names that episode (§610).
+            if episode and episode != existing.episode:
+                self._conn().execute("UPDATE items SET episode = ? WHERE id = ?",
+                                     (episode, existing.id))
+                existing = self.item(user_id, existing.id) or existing
             if folder_id and folder_id != existing.folder_id:
                 self._conn().execute(
                     "UPDATE items SET folder_id = ? WHERE id = ?",
@@ -367,8 +385,9 @@ class SavedStore:
         item_id = "sav_" + secrets.token_urlsafe(8)
         self._conn().execute(
             "INSERT INTO items (id, user_id, folder_id, query, minutes, title,"
-            " source, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (item_id, user_id, folder_id, query, minutes, title, source[:40], now))
+            " source, created, episode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (item_id, user_id, folder_id, query, minutes, title, source[:40], now,
+             episode))
         return self.item(user_id, item_id)
 
     def _checked_folder(self, user_id: str, folder_id: str,
@@ -392,7 +411,7 @@ class SavedStore:
         try:
             row = self._conn().execute(
                 "SELECT id, user_id, folder_id, query, minutes, title, source,"
-                " created, last_played"
+                " created, last_played, episode"
                 " FROM items WHERE id = ? AND user_id = ?",
                 (item_id, user_id)).fetchone()
         except Exception:
@@ -405,7 +424,7 @@ class SavedStore:
     def items(self, user_id: str, folder_id: Optional[str] = None,
               limit: int = 500) -> list[SavedItem]:
         sql = ("SELECT id, user_id, folder_id, query, minutes, title, source,"
-               " created, last_played"
+               " created, last_played, episode"
                " FROM items WHERE user_id = ?")
         args: list = [user_id]
         if folder_id is not None:
@@ -706,6 +725,12 @@ class SavedStore:
             "SELECT DISTINCT query, minutes FROM items").fetchall()
 
     # --- housekeeping -----------------------------------------------------
+
+    def episode_ids(self) -> list:
+        """Every episode id a saved row names (§610): the sweep keeps each
+        for as long as it is saved."""
+        return [r[0] for r in self._conn().execute(
+            "SELECT DISTINCT episode FROM items WHERE episode != ''").fetchall()]
 
     def forget(self, user_id: str) -> int:
         removed = 0
