@@ -57,6 +57,7 @@ import entitlements
 import episode_quality
 import pipeline_errors
 import spend_guard
+import voice_ahead as voice_ahead_mod
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
@@ -898,6 +899,14 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    # Voice ahead (§610): an always-on worker with nobody to voice voices the
+    # episodes the editions wrote, so a tap replays kept audio. Never on
+    # staging (it spends nothing) nor in demo mode (it keeps nothing); on a
+    # pay-per-second endpoint the loop runs and voices nothing, and says so.
+    if settings.voice_ahead and not DEMO_MODE and not spend_guard.enabled():
+        _BACKGROUND.add(asyncio.create_task(voice_ahead_mod.run_forever(
+            SCRIPT_CACHE, _ahead_voice, _make_pipeline,
+            lambda: engine_for_voice(None))))
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
     # What the first /api/health and the first myFAM would otherwise pay
@@ -2335,6 +2344,7 @@ def _health_report(request: Request) -> dict:
         # is the only thing that answers CLAUDE.md's open question about how
         # much to prefetch, and a prefetcher nobody checks is a standing bill.
         "prefetch": prefetch.report(),
+        "voice_ahead": voice_ahead_mod.report(),
         "prefetch_sources": prefetch_sources.report(),
         # Which streaming architecture this process is actually running, and
         # whether that was chosen or inherited. A deployment that has been
@@ -7026,20 +7036,39 @@ def _episode_voice(user: str, where: str, plan, asked: str,
         if not picked:
             slug = _kept_voice(plan, engine) or slug
     else:
-        key = _episode_key(plan)
-        store = SCRIPT_CACHE
-        try:
-            slug = store.voice_of(key) if (key and store is not None) else ""
-        except Exception:  # noqa: BLE001
-            slug = ""
-        if slug and not voice_bank.known(slug):
-            slug = ""
-        if not slug and where not in ("explore", "share"):
-            slug = voice_bank.random_slug()
-            if key and store is not None and hasattr(store, "set_voice"):
-                # First one wins: two listeners tapping one tile at once
-                # hear the same voice.
-                slug = store.set_voice(key, slug) or slug
+        slug = _drawn_slug(_episode_key(plan), draw=where not in ("explore", "share"))
+    if not slug or voice_bank.is_default(slug):
+        return None
+    return f"{engine}:{slug}"
+
+
+def _drawn_slug(key: str, draw: bool = True) -> str:
+    """The bank voice kept beside `key`'s script, or (with `draw`) one drawn
+    at random and kept, so the next play is the same voice and replays its
+    kept audio. The one definition a tap and voicing ahead (§610) share."""
+    store = SCRIPT_CACHE
+    try:
+        slug = store.voice_of(key) if (key and store is not None) else ""
+    except Exception:  # noqa: BLE001
+        slug = ""
+    if slug and not voice_bank.known(slug):
+        slug = ""
+    if not slug and draw:
+        slug = voice_bank.random_slug()
+        if key and store is not None and hasattr(store, "set_voice"):
+            # First one wins: two listeners tapping one tile at once
+            # hear the same voice.
+            slug = store.set_voice(key, slug) or slug
+    return slug
+
+
+def _ahead_voice(key: str) -> Optional[str]:
+    """The voice a tap on this written-ahead episode would play (§610): the
+    browse surfaces' draw, exactly as `_episode_voice` makes it."""
+    engine = _voice_engine()
+    if not engine:
+        return None
+    slug = _drawn_slug(key)
     if not slug or voice_bank.is_default(slug):
         return None
     return f"{engine}:{slug}"
