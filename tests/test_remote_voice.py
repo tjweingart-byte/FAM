@@ -66,6 +66,7 @@ def configure(monkeypatch, **overrides):
         "remote_voice_id": "",
         "remote_voice_wake_interval": 60.0,
         "remote_voice_active_workers": 0,
+        "remote_voice_flex_workers": 0,
         # The ladder is part of this engine's configuration now: `diagnose()`
         # asks it whether an address can be *found* when none is set. Pinned
         # here rather than inherited from the environment so a test describes
@@ -911,3 +912,37 @@ def test_negative_active_workers_are_refused():
     with pytest.raises(ValueError, match="REMOTE_VOICE_ACTIVE_WORKERS"):
         dataclasses.replace(config.settings, voice_backend="remote",
                             remote_voice_active_workers=-1)
+
+
+# --- flex workers beside the active one (§610) --------------------------------
+
+def test_flex_workers_raise_the_chunks_in_flight(monkeypatch):
+    """Max workers 4, Active 1: up to four chunks in flight, the three past
+    the active worker queued at RunPod to start flex workers."""
+    configure(monkeypatch, remote_voice_concurrency=4,
+              remote_voice_active_workers=1, remote_voice_flex_workers=3)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 4
+    configure(monkeypatch, remote_voice_concurrency=2,
+              remote_voice_active_workers=1, remote_voice_flex_workers=3)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 2
+
+
+def test_flex_workers_still_send_no_wake(monkeypatch):
+    configure(monkeypatch, remote_voice_active_workers=1,
+              remote_voice_flex_workers=3)
+    client = install(monkeypatch, AssertionError("woke an active worker"))
+    run(RemoteChatterboxEngine.wake(force=True))
+    assert client.posts == []
+
+
+def test_flex_workers_mean_nothing_without_an_active_worker(monkeypatch):
+    configure(monkeypatch, remote_voice_concurrency=4,
+              remote_voice_active_workers=0, remote_voice_flex_workers=3)
+    assert remote_voice.RemoteConfig.from_settings().concurrency == 4
+    assert remote_voice.flex_workers() == 0
+
+
+def test_negative_flex_workers_are_refused():
+    with pytest.raises(ValueError, match="REMOTE_VOICE_FLEX_WORKERS"):
+        dataclasses.replace(config.settings, voice_backend="remote",
+                            remote_voice_flex_workers=-1)

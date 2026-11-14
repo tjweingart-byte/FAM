@@ -36876,3 +36876,30 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 "never waiting" under 1x, the endpoint's GPU class is too slow.
 
 `tests/test_voice_schedule_609.py`.
+
+## 610. Flex workers beside the active one, when the owner chooses (2026-11-14)
+
+The owner, after §609: raise RunPod's flex workers rather than the always-on
+ones - Max workers 4, Active 1.
+
+Raising Max workers alone changes nothing: §578 caps chunks in flight at the
+active workers, so nothing ever queues at RunPod and no flex worker is ever
+started. `REMOTE_VOICE_FLEX_WORKERS` (default 0, `render.yaml` sets 3 for
+`fam`) is the console's Max workers less its Active workers; with an active
+worker, chunks in flight are active + flex, capped by
+`REMOTE_VOICE_CONCURRENCY`. The ones past the active worker wait in RunPod's
+queue, which hands each to whichever worker frees first or starts a flex one.
+Still no wake jobs. `/api/health`'s `remote_voice` reports `flex_workers`.
+
+**Per episode:** an episode voices its chunks one after another
+(`_speak_phase6`), so it never holds more than one worker at a time; four in
+flight means four listeners' episodes, and the §609 gate still decides who
+goes first. Flex workers are only started when episodes overlap.
+
+**The cost:** a flex worker is billed per second for its boot, the chunk and
+its idle timeout - the §578 bill, but only while listeners overlap. FlashBoot
+on, idle timeout ~30 s, and the console kept equal to this setting.
+
+`tests/test_remote_voice.py` (flex workers raise the chunks in flight and are
+capped by the concurrency; still no wake; nothing without an active worker;
+a negative count is refused).

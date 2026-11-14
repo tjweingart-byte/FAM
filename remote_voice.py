@@ -162,6 +162,14 @@ def active_workers() -> int:
     return max(0, int(settings.remote_voice_active_workers or 0))
 
 
+def flex_workers() -> int:
+    """Flex workers FAM may make RunPod start beside the active ones (§610);
+    only counted with an active worker, on the RunPod transport."""
+    if not active_workers():
+        return 0
+    return max(0, int(settings.remote_voice_flex_workers or 0))
+
+
 def _concurrency(transport: str) -> int:
     """Chunks in flight at once, across every listener in this process.
 
@@ -169,10 +177,13 @@ def _concurrency(transport: str) -> int:
     behind a busy active worker makes RunPod boot a flex worker, billed for
     its boot (~73 s cold, §329), the chunk and its idle timeout - which made
     an always-on worker cost several times its own price (§578).
+
+    Plus `REMOTE_VOICE_FLEX_WORKERS` (§610), when the owner chooses to let
+    a busy moment start flex workers rather than queue in FAM.
     """
     size = max(1, int(settings.remote_voice_concurrency))
     active = active_workers() if transport == "runpod" else 0
-    return min(size, active) if active else size
+    return min(size, active + flex_workers()) if active else size
 
 
 @dataclass(frozen=True)
@@ -1089,6 +1100,7 @@ def report() -> dict:
         "detail": detail,
         "transport": config.transport,
         "active_workers": active_workers(),
+        "flex_workers": flex_workers(),
         "concurrency": config.concurrency,
         "sample_rate": config.sample_rate,
         # Where it points, never what authorises it.
