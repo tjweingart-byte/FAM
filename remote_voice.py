@@ -348,6 +348,9 @@ class RemoteChatterboxEngine(TTSEngine):
     #: concurrency gate, what the last real call proved - lives on the class.
     _client: Any = None
     _gate: "voice_schedule.DeadlineGate | None" = None
+    #: Its workers are shared by every listener, so an episode is voiced just
+    #: in time rather than as far ahead as it can (§611).
+    shares_workers = True
     _gate_size: int = 0
     _reachability = Reachability()
     #: When the last wake was sent, on `time.monotonic()`'s scale. The

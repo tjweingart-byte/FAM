@@ -74,6 +74,7 @@ import image_check
 import moderation as moderation_mod
 import saved as saved_mod
 import sharing
+import live_keep
 from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, as_minutes,
                     describe_key, key_source, settings)
 import prefetch
@@ -4313,6 +4314,8 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
     # who use the feature most.
     EVENTS.record(topics_mod.Event(
         user, "save", "", req.query, topics_mod.tags_for_text(req.query)))
+    # Saved while it plays: finished and kept even if they leave (§611).
+    live_keep.hold(req.query, req.minutes)
     return {"ok": True, "saved": True, "item": item.as_dict()}
 
 
@@ -4535,6 +4538,8 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         share = SHARES.create(user, req.query, req.minutes, req.title)
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Shared while it plays: finished and kept even if they leave (§611).
+    live_keep.hold(req.query, req.minutes)
     url, public = _share_url(share["id"], request)
     rendered = {t.key: sharing.render(
         t.key, title=share["title"], question=share["query"],
@@ -10459,6 +10464,8 @@ async def post_echo(req: EchoRequest, request: Request):
     if _remembers(request):
         EVENTS.record(topics_mod.Event(
             user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
+    # Vibed while it plays: finished and kept even if they leave (§611).
+    live_keep.hold(req.query, req.minutes)
     return echo.as_dict()
 
 
@@ -12520,12 +12527,19 @@ async def audio(
             # Except a link's fallback that replayed kept audio (§252): the
             # link already wrote this tap's row, and this one spent nothing.
             if not (link_failed and stats.cache == "hit" and stats.audio == "stored"):
-                _record_usage(
-                    user, stats.usage,
-                    surface=_surface(cached_only, topic_id, context),
-                    minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
-                    cache_hit=stats.cache == "hit",
-                )
+                def ledger() -> None:
+                    _record_usage(
+                        user, stats.usage,
+                        surface=_surface(cached_only, topic_id, context),
+                        minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
+                        cache_hit=stats.cache == "hit",
+                    )
+                # Saved, shared or vibed and left part-way (§611): still
+                # being written and voiced, so its row waits for the finish.
+                if stats.detached:
+                    stats.after_background.append(ledger)
+                else:
+                    ledger()
 
     # Recorded here rather than client-side: audio is being served, so the
     # play is a fact. A dropped event costs one weak signal, never the episode.
