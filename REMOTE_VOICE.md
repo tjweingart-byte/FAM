@@ -168,7 +168,7 @@ every queued chunk boots a flex worker beside the active one, billed for its
 boot and idle timeout, which made one active worker cost ~$40 a day. Max
 workers 1-2 and a short idle timeout (~5 s) keep any flex worker cheap.
 
-*Letting a busy moment start flex workers (§610):* set
+*Letting a busy moment start flex workers (§611):* set
 `REMOTE_VOICE_FLEX_WORKERS` to the console's Max workers less its Active
 workers. Up to active + flex chunks are then in flight; the ones past the
 active worker queue at RunPod and start a flex worker, billed per second for

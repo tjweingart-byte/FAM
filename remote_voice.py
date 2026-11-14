@@ -163,7 +163,7 @@ def active_workers() -> int:
 
 
 def flex_workers() -> int:
-    """Flex workers FAM may make RunPod start beside the active ones (§610);
+    """Flex workers FAM may make RunPod start beside the active ones (§611);
     only counted with an active worker, on the RunPod transport."""
     if not active_workers():
         return 0
@@ -178,7 +178,7 @@ def _concurrency(transport: str) -> int:
     its boot (~73 s cold, §329), the chunk and its idle timeout - which made
     an always-on worker cost several times its own price (§578).
 
-    Plus `REMOTE_VOICE_FLEX_WORKERS` (§610), when the owner chooses to let
+    Plus `REMOTE_VOICE_FLEX_WORKERS` (§611), when the owner chooses to let
     a busy moment start flex workers rather than queue in FAM.
     """
     size = max(1, int(settings.remote_voice_concurrency))
@@ -349,7 +349,7 @@ class RemoteChatterboxEngine(TTSEngine):
     _client: Any = None
     _gate: "voice_schedule.DeadlineGate | None" = None
     #: Its workers are shared by every listener, so an episode is voiced just
-    #: in time rather than as far ahead as it can (§611).
+    #: in time rather than as far ahead as it can (§612).
     shares_workers = True
     _gate_size: int = 0
     _reachability = Reachability()

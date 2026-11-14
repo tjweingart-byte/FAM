@@ -1834,7 +1834,7 @@ class Settings:
     # a chunk queued behind a busy active worker makes RunPod boot a flex
     # worker, billed for its boot, the chunk and its idle timeout.
     remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
-    # Flex workers FAM may make RunPod start beside the active ones (§610):
+    # Flex workers FAM may make RunPod start beside the active ones (§611):
     # the console's Max workers less its Active workers. With an active
     # worker, chunks in flight are the active plus these (capped by
     # REMOTE_VOICE_CONCURRENCY); one over the active count waits in RunPod's
@@ -1842,11 +1842,11 @@ class Settings:
     # billed per second for its boot, the chunk and the idle timeout. 0 keeps
     # §578: nothing ever queues, so no flex worker ever starts.
     remote_voice_flex_workers: int = _env_int("REMOTE_VOICE_FLEX_WORKERS", 0)
-    # Just-in-time voicing on a shared worker (§611): an episode waits while
+    # Just-in-time voicing on a shared worker (§612): an episode waits while
     # its listener already has this many seconds of audio in hand, so the
     # worker serves somebody else, and an episode left part-way voices no
     # more than this past where they stopped. 0 voices as far ahead as it
-    # can (before §611). Never applies to a voice on this machine.
+    # can (before §612). Never applies to a voice on this machine.
     voice_ahead_seconds: float = _env_float("VOICE_AHEAD_SECONDS", 25.0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how

@@ -165,7 +165,7 @@ class _Pump:
             pass
 
 
-#: Episodes being finished after their listener left (§611), held so the
+#: Episodes being finished after their listener left (§612), held so the
 #: event loop does not collect them part-way.
 _FINISHING: set = set()
 
@@ -283,10 +283,10 @@ class GenerationStats:
     #: behind other listeners' chunks (§609), not voicing.
     voice_wait: float = 0.0
     #: True once the listener left an episode that is being finished in the
-    #: background because it was saved, shared or vibed (§611): its chunks
+    #: background because it was saved, shared or vibed (§612): its chunks
     #: are voiced behind every live listener and never paced.
     detached: bool = False
-    #: Called once a background finish ends (§611), so whatever needs the
+    #: Called once a background finish ends (§612), so whatever needs the
     #: final numbers - the ledger row - is written when they are final.
     after_background: list = field(default_factory=list, repr=False, compare=False)
     #: Smallest margin between audio produced and wall clock. Negative means
@@ -790,7 +790,7 @@ class PodcastPipeline:
         less what has been played. The worker serves the nearest silence
         first, and how long this chunk waited for it is kept."""
         if stats.detached:
-            deadline = voice_schedule.NO_DEADLINE  # nobody is listening (§611)
+            deadline = voice_schedule.NO_DEADLINE  # nobody is listening (§612)
         elif stats.first_audio_at:
             played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
             deadline = time.monotonic() + pace.elapsed - played
@@ -805,7 +805,7 @@ class PodcastPipeline:
             stats.voice_wait += turn.waited
 
     async def _keep_pace(self, stats: "GenerationStats", pace: PaceController) -> None:
-        """Voice just in time on a shared worker (§611): wait while this
+        """Voice just in time on a shared worker (§612): wait while this
         listener already has more than `VOICE_AHEAD_SECONDS` of audio, so the
         worker serves somebody else, and an episode left part-way has voiced
         no more than that past where they stopped.
@@ -1476,7 +1476,7 @@ class PodcastPipeline:
         stats.query = stats.query or plan.query
         recorded = bytearray() if (self._keeps_audio() and self.cache_writes) else None
         inner = self._stream_pcm(plan, stats)
-        # §611: the episode runs in a task of its own, so one saved, shared or
+        # §612: the episode runs in a task of its own, so one saved, shared or
         # vibed while playing (`live_keep.hold`) can be finished and kept after
         # its listener leaves. Any other is stopped the moment they do,
         # exactly as before: the task is cancelled with the stream.

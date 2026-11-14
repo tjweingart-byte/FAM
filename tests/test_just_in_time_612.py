@@ -1,4 +1,4 @@
-"""§611: voiced just in time on a shared worker, and an episode saved,
+"""§612: voiced just in time on a shared worker, and an episode saved,
 shared or vibed while playing is finished and kept after its listener leaves.
 """
 from __future__ import annotations
@@ -182,3 +182,15 @@ def test_an_episode_that_fails_still_raises_to_its_listener():
 
     with pytest.raises(RuntimeError, match="went away"):
         asyncio.run(main())
+
+
+def test_every_way_of_keeping_an_episode_holds_it_while_it_plays():
+    """Save, a share link, a message and a vibe (§610's "shared" covers
+    messages too) each hold the live episode of that question."""
+    import inspect
+
+    import app
+
+    for handler in (app.saved_save, app.share_create, app.post_echo,
+                    app.messages_send):
+        assert "live_keep.hold(req.query, req.minutes)" in inspect.getsource(handler), handler

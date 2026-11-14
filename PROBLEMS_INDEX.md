@@ -601,4 +601,6 @@ and `limit` = Lines.
 | 36770 | 46 | 607. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13) |
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
-| 36880 | 27 | 610. Flex workers beside the active one, when the owner chooses (2026-11-14) |
+| 36880 | 81 | 610. "It generated a full new one": every sent episode cached, and the caching audit (2026-11-14) |
+| 36961 | 27 | 611. Flex workers beside the active one, when the owner chooses (2026-11-14) |
+| 36988 | 39 | 612. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14) |

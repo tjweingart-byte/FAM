@@ -838,7 +838,7 @@ EXPLAIN = (
          "GPU or the network to it was slow (the detail gives the realtime "
          "rate). Since §609 the worker serves the nearest silence first.",
          "Mostly waiting: more workers - flex (REMOTE_VOICE_FLEX_WORKERS "
-         "with the console's Max workers, §610) or active "
+         "with the console's Max workers, §611) or active "
          "(REMOTE_VOICE_ACTIVE_WORKERS with the console's), together. Never waiting and under 1x: a "
          "faster GPU class on the endpoint.")),
 )

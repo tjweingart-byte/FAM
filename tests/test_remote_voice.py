@@ -914,7 +914,7 @@ def test_negative_active_workers_are_refused():
                             remote_voice_active_workers=-1)
 
 
-# --- flex workers beside the active one (§610) --------------------------------
+# --- flex workers beside the active one (§611) --------------------------------
 
 def test_flex_workers_raise_the_chunks_in_flight(monkeypatch):
     """Max workers 4, Active 1: up to four chunks in flight, the three past

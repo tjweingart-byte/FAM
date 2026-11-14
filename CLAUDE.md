@@ -354,9 +354,9 @@ Caching and prefetch
 - **Kept a week** (`CACHE_LIFE_SECONDS`, from `sourced_at`); **current** per
   `ttl_for`; replay surfaces play anything kept, writers ask `get(key)`. [cache-week]
 - **A heard episode is kept** (§173): history stores `episode_id` (key +
-  sourced, `X-FAM-Episode`) and replays it with `?episode=`, never writing; a
-  re-written key archives the old row and audio; history pins for two weeks;
-  the volatile/scheduled window is 2h so a repeat search is one episode. [heard-is-kept]
+  sourced, `X-FAM-Episode`), replays with `?episode=`, never writing; a
+  re-write archives the old row and audio; history pins two weeks; volatile
+  window 2h. [heard-is-kept] Sent: kept while its message/link is (§610). [sent-is-kept]
 - **TTL comes from what the script was built on, not the question's words**
   - live status -> `outcome_dependent` -> window -> keyword floor; `in_progress`
   and a sports `recap`/`update` short of `final` never current (§182; an
