@@ -36876,3 +36876,94 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 "never waiting" under 1x, the endpoint's GPU class is too slow.
 
 `tests/test_voice_schedule_609.py`.
+
+## 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
+
+The owner: "It seems like sent episodes aren't cached right now, they should
+all be cached ... I just clicked on an episode sent to me and it generated a
+full new one. This is not acceptable." Then: "not just on sent episodes, do a
+full caching audit."
+
+**The one rule behind every case.** Without `?episode=`, `/api/audio` serves
+only a *current* script (`cache.get(key, current=True)`, pipeline ~1488) -
+a volatile episode for two hours, a game in progress or a non-final sports
+update never - and otherwise writes a new one. Only a request that names the
+episode by id (`cache.episode_id`, §173) replays it whatever its age. So any
+surface that replays "this episode" without the id writes a new one once the
+window passes, and any surface whose key inputs (question, minutes, context,
+reading) differ from the write's never matches at all.
+
+**Fixed here - sent episodes (messages and links):**
+
+1. *The player's Share -> a friend sent no id* (`sendEpisodeToContact`): only
+   the in-chat share did (§288). The server then guessed by the question's
+   plain key, which misses a Go Deeper (its key carries what it follows), a
+   reading (§426) and an episode still being written (its row lands at the
+   end of the stream). It now sends `episode`.
+2. *The server refused real ids.* `_shared_episode` accepted the sender's id
+   only when its key was the question's plain key. It now also accepts one
+   whose row was written for this question (`cache.query_of`, a reading's
+   parenthesis allowed) and, while the row is still being written, one in the
+   sender's own history under this question. Another question's id is still
+   never carried.
+3. *Two weeks, then written again.* A sent episode was pinned for two weeks
+   at send, and kept past that only if its audio reached the kept tier.
+   `_hold_sent_episodes` now holds, on every hourly sweep and at boot before
+   the purge, the script of every episode a message or a link names - the key
+   or its archive copy, **a row past its clock included** (`hold_episode`),
+   so episodes sent before this deploy come back rather than being written
+   again. A week and a day ahead each time, the kept-audio margin. Never
+   current: only a replay by id reaches it.
+4. *A re-written question deleted the sent episode's audio.* The sweep
+   deleted every archive copy's audio. An archive copy an id names
+   (`sweep_audio(named=...)`) is now kept; a save, which points at the
+   question, still is not (`test_an_archived_episode_is_not_kept_for_its_old_save`).
+5. *Share links `/s/<id>` dropped the id* though the client had it. The share
+   row has an `episode` column (widened in place), `/api/share` names it as a
+   message does, the landing payload carries it, `listen.html` replays it by
+   id and asks the question only on a 409, and the waitlist gate admits that
+   link's own id and no other (`ShareStore.is_shared_episode`).
+
+**Fixed here - saved and vibed episodes, by the same means** (the owner,
+after the audit: "fix the saved and vibes ones too"). A saved row
+(`items.episode`) and a vibe (`echoes.episode`) now name their episode,
+validated by `_shared_episode` exactly as a send is; saving or vibing again
+from a newer play names that one, and an older client's save keeps the id.
+Saved for Later, your vibes, a friend's vibe posts and stories replay it by
+id and ask the question only on a 409. `_sent_episode_ids` includes both, so
+the sweep holds each as long as it is saved or vibed. A tile saved from a
+rail card sends no id (the card has none); the server names the episode kept
+under its question at that moment.
+
+**Fixed here - a minute and a half is not one minute.** `saved.py` read
+history and resume rows back with `int(minutes)`, and `_held_episode_keys` /
+`MessageStore.episodes` did the same. 1.5 became 1 - another key. So **Pick up
+where you left off wrote a new episode on every resume of a 1.5-minute
+episode**, a history row without an id did the same, and no saved, shared,
+vibed or sent 1.5-minute episode (the default length) had its audio kept past
+the week. All read with `as_minutes` now (§575 fixed the same bug in
+`is_shared`).
+
+**Found, not fixed - each needs the owner's call or its own change:**
+
+| Surface | Writes a new episode when |
+|---|---|
+| Queue | played past the window (queue keeps no id); drops `reading` |
+| Go Deeper / grid lead | context is the parent's *display title*, which swaps from derived to writer's - the same suggestion tapped before and after is two keys |
+| Grid recommendations, album next | sent with no surface/minutes, so from searchFAM the search length is used, not the 1.5 the tile was written at |
+| Repeat search | autocorrect waits 700 ms, so two sends can spell the question two ways |
+| A-Z catalogue | replays only (no write) but drops the key it has, so a Go Deeper row 409s |
+| DailyFAM / rails tiles | by design: a game in progress, a tile not yet written |
+
+History, the sign-up samples, the landing samples and the catalogue never
+write (by id or `cached_only`).
+
+**Retention, as measured from config:** kept `CACHE_LIFE_SECONDS` = 7 days
+from sourcing; current `CACHE_TTL_SECONDS` = 7 days (evergreen),
+`CACHE_TTL_VOLATILE` = 2 h, 0 for a game in progress or non-final sports
+update, 30 min for an edition's live game; a played evergreen slides up to
+`CACHE_MAX_AGE_SECONDS` = 30 days; history pins 14 days; kept-tier audio
+(saved/shared/vibed/sent) re-pinned a week and a day every hourly sweep,
+everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
+and vibed episodes' scripts now as long as the message, link, save or vibe
+exists.

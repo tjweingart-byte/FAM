@@ -9716,6 +9716,8 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, title: ep.title,
                              minutes: ep.minutes,
+                             // Which episode (§610), so the vibe replays it.
+                             episode: ep.episode || "",
                              thread: episodeThread || "",
                              caption: caption, style: model.style,
                              tags: model.tags,
@@ -17781,7 +17783,9 @@
     TOPICS[key] = { title: v.title || v.query, surface: "other",
                     source: person.mine ? "your vibe" : "vibed by " + firstName(person),
                     caption: "", prompt: v.query,
-                    exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true };
+                    exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true,
+                    // The vibed episode, by id (§610).
+                    episode: v.episode || "", askIfGone: !!v.episode };
     generate(key);
   }
 
@@ -17962,7 +17966,8 @@
     fetch("/api/saved", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
-                             title: ep.title, source: "story" })
+                             title: ep.title, source: "story",
+                             episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || d.detail || "Could not save that");
@@ -18501,7 +18506,9 @@
     TOPICS[key] = { title: v.title || v.query, source: "From your vibes", surface: "other",
                     caption: "Live captions will appear here as this plays—",
                     prompt: v.query, exploreMinutes: v.minutes,
-                    titleOverridden: true };
+                    titleOverridden: true,
+                    // The vibed episode, by id (§610).
+                    episode: v.episode || "", askIfGone: !!v.episode };
     generate(key);
   }
 
@@ -19380,7 +19387,9 @@
                     source: vp.mine ? "From your vibes"
                                     : "vibed by " + (who.name || ("@" + (who.handle || "a friend"))),
                     caption: "", prompt: p.query, exploreMinutes: p.minutes,
-                    titleOverridden: true, thumb: p.thumb || "", inPlace: true };
+                    titleOverridden: true, thumb: p.thumb || "", inPlace: true,
+                    // The vibed episode, by id (§610).
+                    episode: p.episode || "", askIfGone: !!p.episode };
     generate(key);
   }
   // The gold chip: the line, from where it starts. The episode playing
@@ -19452,7 +19461,8 @@
     if(!AUTH.authenticated){ showGuestGate("Create a free account to save episodes."); return; }
     fetch("/api/saved", { method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: p.query, minutes: p.minutes,
-                             title: p.title || p.query, source: "vibe" }) })
+                             title: p.title || p.query, source: "vibe",
+                             episode: p.episode || "" }) })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(){ snack("Saved for Later", { label: "Open", run: openSaved }); })
       .catch(function(){ toast("Could not save that"); });
@@ -21024,7 +21034,8 @@
       : fetch("/api/saved", {
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ query: m.query, minutes: m.minutes || BROWSE_MINUTES,
-                                 title: m.title || "", source: "message" })
+                                 title: m.title || "", source: "message",
+                                 episode: m.episode || "" })
         });
     req.then(function(r){ if(!r.ok) throw new Error(); })
       .then(function(){
@@ -21511,7 +21522,10 @@
     TOPICS["_saved"] = {
       title: item.title || item.query, prompt: item.query,
       source: "Saved for later", surface: "other",
-      caption: "Generating your live transcript as this plays\u2014"
+      caption: "Generating your live transcript as this plays\u2014",
+      // The episode that was saved, replayed by id (§610); only if it is
+      // no longer kept (409) is the question asked instead.
+      episode: item.episode || "", askIfGone: !!item.episode
     };
     selectedLengthMinutes = item.minutes || selectedLengthMinutes;
     generate("_saved");
@@ -21806,7 +21820,8 @@
             fetch("/api/saved", {
               method: "POST", headers: {"Content-Type": "application/json"},
               body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
-                                     title: ep.title, source: "player" })
+                                     title: ep.title, source: "player",
+                                     episode: ep.episode || "" })
             }).then(function(r){
               if(!r.ok) throw new Error();
               var now = currentEpisode();
@@ -21823,8 +21838,10 @@
     }
     fetch("/api/saved", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Which episode (§610), so Saved for Later replays it by id.
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
-                             title: ep.title, source: "player" })
+                             title: ep.title, source: "player",
+                             episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not save that");
@@ -21990,8 +22007,9 @@
     grid.innerHTML = '<div class="sh-name">Making a link\u2026</div>';
     fetch("/api/share", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Which episode (§610), so the link replays it and never writes.
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
-                             title: ep.title })
+                             title: ep.title, episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not make a share link");
@@ -22330,8 +22348,12 @@
       : (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Which episode, too (\u00a7610): without it the server could only guess
+      // by the question, and a Go Deeper, a reading or an episode still
+      // being written was sent as a question to be written again.
       body: JSON.stringify({ to: person.user_id, query: ep.query,
-                             minutes: ep.minutes, title: ep.title })
+                             minutes: ep.minutes, title: ep.title,
+                             episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");

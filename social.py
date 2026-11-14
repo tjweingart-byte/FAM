@@ -77,12 +77,14 @@ class Echo:
     minutes: int
     thread: str
     at: float
+    #: Which episode was vibed (`cache.episode_id`, §610), or "".
+    episode: str = ""
 
     def as_dict(self, name: str = "", handle: str = "") -> dict:
         return {
             "id": self.id, "query": self.query, "title": self.title,
             "minutes": self.minutes, "thread": self.thread, "at": self.at,
-            "by": name, "handle": handle,
+            "by": name, "handle": handle, "episode": self.episode or "",
         }
 
 
@@ -494,8 +496,12 @@ class SocialStore:
             # A vibe as a post (§547, the owner's "Vibes as Posts", option C):
             # the sentence the poster picked from the episode's captions and
             # where it starts ("" and -1 for none, as every older vibe has).
+            # §610: which episode was vibed (`cache.episode_id`), so the vibe
+            # replays it by id - kept as long as the vibe is, never written
+            # again. '' on older vibes, which play by their question.
             for column in ("line TEXT NOT NULL DEFAULT ''",
-                           "line_at REAL NOT NULL DEFAULT -1"):
+                           "line_at REAL NOT NULL DEFAULT -1",
+                           "episode TEXT NOT NULL DEFAULT ''"):
                 try:
                     conn.execute(f"ALTER TABLE echoes ADD COLUMN {column}")
                 except sqlite3.OperationalError:
@@ -702,7 +708,7 @@ class SocialStore:
     def echo(self, user_id: str, query: str, title: str, minutes: int,
              thread: str = "", caption: str = "", style=None, tags=None,
              audience: Optional[str] = None, line: Optional[str] = None,
-             line_at=None) -> Echo:
+             line_at=None, episode: str = "") -> Echo:
         if not user_id:
             raise SocialError("No listener id.")
         query = " ".join(str(query).split())[:300]
@@ -738,6 +744,14 @@ class SocialStore:
              None if tagged is None else (json.dumps(tagged) if tagged else ""),
              audience),
         )
+        # Which episode (§610): vibed again from a newer play, it names that
+        # one; "" (an older client) keeps what the row already says.
+        episode = str(episode or "").strip()[:80]
+        if episode:
+            conn.execute(
+                "UPDATE echoes SET episode = ?"
+                " WHERE user_id = ? AND query = ? AND minutes = ?",
+                (episode, user_id, query, as_minutes(minutes)))
         # The line (§547). None is "not sent" - every client before posts,
         # and a re-vibe whose editor picked nothing - and keeps the row's.
         if line is not None:
@@ -748,7 +762,7 @@ class SocialStore:
                 (words, clean_line_at(line_at) if words else -1.0,
                  user_id, query, as_minutes(minutes)))
         row = conn.execute(
-            "SELECT id, user_id, query, title, minutes, thread, at FROM echoes"
+            "SELECT id, user_id, query, title, minutes, thread, at, episode FROM echoes"
             " WHERE user_id = ? AND query = ? AND minutes = ?",
             (user_id, query, as_minutes(minutes)),
         ).fetchone()
@@ -1036,7 +1050,7 @@ class SocialStore:
             where, args = self._visible("e", viewer)
         try:
             rows = self._conn().execute(
-                "SELECT id, user_id, query, title, minutes, thread, at FROM echoes e"
+                "SELECT id, user_id, query, title, minutes, thread, at, episode FROM echoes e"
                 " WHERE user_id = ?" + where + " ORDER BY at DESC LIMIT ?",
                 (user_id, *args, int(limit)),
             ).fetchall()
@@ -1164,7 +1178,7 @@ class SocialStore:
         try:
             rows = self._conn().execute(
                 "SELECT id, user_id, query, title, minutes, thread, at, caption,"
-                " style, tags, audience FROM echoes e"
+                " style, tags, audience, episode FROM echoes e"
                 f" WHERE user_id IN ({marks}) AND at >= ? AND unstoried = 0"
                 + where + " ORDER BY at ASC",
                 (*ids, float(since), *args),
@@ -1175,7 +1189,7 @@ class SocialStore:
         import json
         out: dict = {}
         for (eid, user_id, query, title, minutes, thread, at, caption,
-             style, tags, audience) in rows:
+             style, tags, audience, episode) in rows:
             try:
                 layout = json.loads(style) if style else {}
             except ValueError:
@@ -1195,6 +1209,8 @@ class SocialStore:
             out.setdefault(user_id, []).append(
                 {"id": int(eid), "query": query, "title": title or "",
                  "minutes": as_minutes(minutes),
+                 # Which episode (§610): played by id, never written again.
+                 "episode": episode or "",
                  "thread": thread or "", "at": float(at),
                  # What they said about it, drawn with the story (10.5 #9).
                  "caption": caption or "",
@@ -1425,8 +1441,8 @@ class SocialStore:
         conn = self._conn()
         try:
             rows = conn.execute(
-                "SELECT e.id, e.query, e.title, e.minutes, e.at, e.caption, e.line, e.line_at"
-                " FROM echoes e WHERE e.user_id = ?" + where + " ORDER BY e.at DESC LIMIT ?",
+                "SELECT e.id, e.query, e.title, e.minutes, e.at, e.caption, e.line,"
+                " e.line_at, e.episode FROM echoes e WHERE e.user_id = ?" + where + " ORDER BY e.at DESC LIMIT ?",
                 (owner, *args, max(1, min(int(limit), 50)))).fetchall()
         except Exception:
             log.exception("could not read vibe posts")
@@ -1444,13 +1460,14 @@ class SocialStore:
                     f"SELECT echo_id FROM vibe_likes WHERE user_id = ? AND echo_id IN ({marks})",
                     (viewer, *ids))}
         out = []
-        for eid, query, title, minutes, at, caption, line, line_at in rows:
+        for eid, query, title, minutes, at, caption, line, line_at, episode in rows:
             thread = self.comments(query, minutes, viewer=viewer, echo_id=int(eid),
                                    exclude_users=exclude_users, exclude_ids=exclude_ids)
             top = thread[0] if thread else None
             out.append({
                 "id": int(eid), "query": query, "title": title or "",
                 "minutes": as_minutes(minutes), "at": float(at), "caption": caption or "",
+                "episode": episode or "",
                 "line": ({"text": line, "at": float(line_at) if line_at is not None
                           and float(line_at) >= 0 else None} if line else None),
                 "likes": likes.get(int(eid), 0), "liked": int(eid) in liked,
@@ -1740,6 +1757,11 @@ class SocialStore:
         return self._conn().execute(
             "SELECT DISTINCT query, minutes FROM echoes").fetchall()
 
+    def vibed_episode_ids(self) -> list:
+        """Every episode id a vibe names (§610): the sweep keeps each for as
+        long as the vibe is."""
+        return [r[0] for r in self._conn().execute(
+            "SELECT DISTINCT episode FROM echoes WHERE episode != ''").fetchall()]
     def forget(self, user_id: str) -> int:
         """Erase everything this store holds for one listener.
 

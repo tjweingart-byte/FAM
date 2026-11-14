@@ -1152,6 +1152,7 @@
   of the four ways it can come up empty, and a test that none of them says
   "nothing is trending". Nothing real is connected yet.
 <!-- rule:cache-week -->
+> **Current (PROBLEMS.md §610, at the owner's direction: "they should all be cached"):** a shared link is no longer written again past its window - see [sent-is-kept]. A tile past its window still is.
 - **Every episode is kept a week and stamped with when it was sourced; how
   long it stays *current* is what `ttl_for` decides.** *(§143, at the owner's
   direction.)* `CACHE_LIFE_SECONDS` (a week) is how long a row lives, from
@@ -1163,6 +1164,19 @@
   whole week. A shared link or a tile past its window is written again, as
   it was when the row simply expired. `CACHE_LIFE_SECONDS=0` with
   `CACHE_TTL_SECONDS=86400` restores the old cache exactly.
+<!-- rule:sent-is-kept -->
+- **A sent episode is kept as long as its message or link is, and replays by
+  id** - and so is a saved or vibed one, as long as it is saved or vibed
+  (`items.episode`, `echoes.episode`; same validation, same sweep). *(§610, at the owner's direction: "I just clicked on an episode sent
+  to me and it generated a full new one. This is not acceptable.")* Every
+  send names the episode (`episode` on a message and a share row); the
+  server keeps a sender's id when it is this question's - plain key, a row
+  written for this question, or still being written and in the sender's own
+  history - never another question's. Each sweep, and boot before the purge,
+  holds every named episode's script (`hold_episode`, the archive copy and a
+  row past its clock included) a week and a day ahead; the sweep keeps an
+  archive copy's audio only when an id names it (`named`). Held is never
+  current. Lengths are read with `as_minutes`, never `int` (1.5 is a key).
 <!-- rule:heard-is-kept -->
 - **A heard episode is kept, and the same question is the same episode.**
   *(§173, at the owner's direction: "all episodes in recent listening history

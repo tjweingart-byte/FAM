@@ -177,7 +177,7 @@
     <section class="doors" id="doors" hidden></section>
   </main>
 
-<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "image": "", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "/waitlist"};</script>
+<script>window.FAM_SHARE = {"id": "preview-share", "title": "Who Makes the Chips", "question": "why is semiconductor manufacturing so concentrated in taiwan", "minutes": 3, "episode": "", "url": "https://fam.audio/s/preview-share", "card": "https://fam.audio/api/share/card?share=preview-share", "image": "", "app_store": "https://apps.apple.com/app/fam/id0000000000", "has_app": true, "join": "/waitlist"};</script>
 <script>
   // The share page names itself too (§172, §208): every /api/ call it makes -
   // fam-audio.js's stream included - carries `X-FAM-Client`, so /api/health
@@ -1393,6 +1393,10 @@ window.FamAudio = (function () {
     $("back").disabled = $("fwd").disabled = !started || limit <= 0;
   }
 
+  // The episode the link names (§610), replayed by id and never written
+  // again; only when it is no longer kept (409) is the question asked.
+  var sharedEpisode = share.episode || "";
+
   function start() {
     started = true; ended = false;
     say("Starting the episode…");
@@ -1403,6 +1407,11 @@ window.FamAudio = (function () {
         say("That's the episode.");
       },
       onError: function (err) {
+        if (err && err.status === 409 && sharedEpisode) {
+          sharedEpisode = "";
+          start();
+          return;
+        }
         // Failures must be visible. A stranger who pressed play and heard
         // silence has no way to tell a broken deployment from a broken app.
         playing = false; started = false; setIcon();
@@ -1411,7 +1420,7 @@ window.FamAudio = (function () {
       }
     // A shared link plays the episode in the voice it was made in, and is
     // never a search (§147): it must not land on Explore as one.
-    }, "", null, { surface: "share" });
+    }, "", null, { surface: "share", episode: sharedEpisode });
     playing = true; setIcon();
   }
 
