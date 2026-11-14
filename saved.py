@@ -102,7 +102,7 @@ class SavedItem:
     source: str
     created: float
     last_played: float
-    #: Which episode was saved (`cache.episode_id`, §610), or "".
+    #: Which episode was saved (`cache.episode_id`, §612), or "".
     episode: str = ""
 
     def as_dict(self) -> dict:
@@ -249,7 +249,7 @@ class SavedStore:
                              " TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # already there
-            # §610: which episode was saved, so Saved for Later replays it
+            # §612: which episode was saved, so Saved for Later replays it
             # by id - kept, never written again - for as long as it is saved.
             # '' on rows from before it, which play by their question.
             try:
@@ -370,7 +370,7 @@ class SavedStore:
         episode = str(episode or "").strip()[:80]
         existing = self.find(user_id, query, minutes)
         if existing:
-            # Saved again from a newer play: it names that episode (§610).
+            # Saved again from a newer play: it names that episode (§612).
             if episode and episode != existing.episode:
                 self._conn().execute("UPDATE items SET episode = ? WHERE id = ?",
                                      (episode, existing.id))
@@ -727,7 +727,7 @@ class SavedStore:
     # --- housekeeping -----------------------------------------------------
 
     def episode_ids(self) -> list:
-        """Every episode id a saved row names (§610): the sweep keeps each
+        """Every episode id a saved row names (§612): the sweep keeps each
         for as long as it is saved."""
         return [r[0] for r in self._conn().execute(
             "SELECT DISTINCT episode FROM items WHERE episode != ''").fetchall()]

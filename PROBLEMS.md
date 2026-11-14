@@ -36877,7 +36877,7 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 
 `tests/test_voice_schedule_609.py`.
 
-## 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
+## 612. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
 
 The owner: "It seems like sent episodes aren't cached right now, they should
 all be cached ... I just clicked on an episode sent to me and it generated a
@@ -36968,7 +36968,7 @@ everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
 and vibed episodes' scripts now as long as the message, link, save or vibe
 exists.
 
-## 611. Flex workers beside the active one, when the owner chooses (2026-11-14)
+## 613. Flex workers beside the active one, when the owner chooses (2026-11-14)
 
 The owner, after §609: raise RunPod's flex workers rather than the always-on
 ones - Max workers 4, Active 1.
@@ -36995,7 +36995,7 @@ on, idle timeout ~30 s, and the console kept equal to this setting.
 capped by the concurrency; still no wake; nothing without an active worker;
 a negative count is refused).
 
-## 612. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14)
+## 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14)
 
 The owner, after §609: "I don't want workers to be busy for a full minute for
 one person's request". A chunk already held a worker for only a few seconds,
@@ -37018,17 +37018,17 @@ episode should be kept no matter if they were listened to all the way
 through or not"; asked, they chose saved/shared/vibed only, not every
 abandoned episode). `stream_pcm` runs the episode in a task of its own and
 registers it with `live_keep`. Saving, a share link, a message carrying the
-episode (§610's "shared") and a vibe call `live_keep.hold(query, minutes)`
+episode (§612's "shared") and a vibe call `live_keep.hold(query, minutes)`
 (minutes by `as_minutes`). When the listener leaves, an episode not held is
 cancelled exactly as before; a held one is finished in the background - the
 rest written and voiced behind every live listener (`NO_DEADLINE`, never
-paced) - and kept whole like any other, and §610's sweep keeps it from
+paced) - and kept whole like any other, and §612's sweep keeps it from
 there. Its ledger row waits for the finish (`stats.after_background`), so
 the background spend is metered to the listener who started it. A failed
 finish is an /admin row ("not finished in the background").
 
 **Not done:** an episode saved later, from history, after its stream ended
 part-way has no script to finish from. Kept audio is replayed where a row
-carries an episode id - since §610, sends, saves and vibes do.
+carries an episode id - since §612, sends, saves and vibes do.
 
-`tests/test_just_in_time_612.py`.
+`tests/test_just_in_time_614.py`.

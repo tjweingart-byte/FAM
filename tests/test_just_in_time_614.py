@@ -1,4 +1,4 @@
-"""§612: voiced just in time on a shared worker, and an episode saved,
+"""§614: voiced just in time on a shared worker, and an episode saved,
 shared or vibed while playing is finished and kept after its listener leaves.
 """
 from __future__ import annotations
@@ -185,7 +185,7 @@ def test_an_episode_that_fails_still_raises_to_its_listener():
 
 
 def test_every_way_of_keeping_an_episode_holds_it_while_it_plays():
-    """Save, a share link, a message and a vibe (§610's "shared" covers
+    """Save, a share link, a message and a vibe (§612's "shared" covers
     messages too) each hold the live episode of that question."""
     import inspect
 

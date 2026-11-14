@@ -769,7 +769,7 @@ async def lifespan(_: FastAPI):
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
-    # Sent episodes first (§610): a row past its clock that a message names
+    # Sent episodes first (§612): a row past its clock that a message names
     # is held, not purged.
     try:
         _hold_sent_episodes()
@@ -3313,7 +3313,7 @@ class SaveRequest(BaseModel):
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
-    #: Which episode (§610): `X-FAM-Episode`, so Saved for Later replays it.
+    #: Which episode (§612): `X-FAM-Episode`, so Saved for Later replays it.
     episode: str = Field("", max_length=80)
 
 
@@ -3331,7 +3331,7 @@ class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
     minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
-    #: Which episode (§610): `X-FAM-Episode`, as a message carries it.
+    #: Which episode (§612): `X-FAM-Episode`, as a message carries it.
     episode: str = Field("", max_length=80)
 
 
@@ -4084,7 +4084,7 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
 
 
 def _same_question(stored: str, query: str) -> bool:
-    """Was a row written for this question (§610)? Compared as the key
+    """Was a row written for this question (§612)? Compared as the key
     compares it, and a reading the listener chose (§426) - "(the band)"
     after the words - is the same question."""
     a, b = normalize_query(stored or ""), normalize_query(query or "")
@@ -4124,7 +4124,7 @@ def _shared_episode(query: str, minutes: int, episode: str = "",
     were the old one's until it finished. Now the message names the episode
     and the recipient replays it, as the listening history does (§173).
 
-    The sender's own id is carried when it is **this question's** (§610
+    The sender's own id is carried when it is **this question's** (§612
     widened what proves that): its key is this question's plain key; or its
     row was written for this question (a Go Deeper's key carries what it
     follows, a reading its parenthesis); or its row is still being written
@@ -4221,7 +4221,7 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
         EVENTS.record(topics_mod.Event(
             user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
     if kind == "episode":
-        # Sent while it plays: finished and kept even if they leave (§612).
+        # Sent while it plays: finished and kept even if they leave (§614).
         live_keep.hold(req.query, req.minutes)
     return {"ok": True, "message": message.as_dict(user)}
 
@@ -4369,7 +4369,7 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
     # who use the feature most.
     EVENTS.record(topics_mod.Event(
         user, "save", "", req.query, topics_mod.tags_for_text(req.query)))
-    # Saved while it plays: finished and kept even if they leave (§612).
+    # Saved while it plays: finished and kept even if they leave (§614).
     live_keep.hold(req.query, req.minutes)
     return {"ok": True, "saved": True, "item": item.as_dict()}
 
@@ -4595,7 +4595,7 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
                                                       req.episode, user))
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    # Shared while it plays: finished and kept even if they leave (§612).
+    # Shared while it plays: finished and kept even if they leave (§614).
     live_keep.hold(req.query, req.minutes)
     url, public = _share_url(share["id"], request)
     rendered = {t.key: sharing.render(
@@ -6702,7 +6702,7 @@ def _shared_episode_request(request: Request) -> bool:
         return False
     if any(params.get(k) for k in ("attach", "context", "topic_id")):
         return False
-    # The link's own episode, replayed by id (§610) - and no other id.
+    # The link's own episode, replayed by id (§612) - and no other id.
     if params.get("episode"):
         return SHARES.is_shared_episode(params.get("q", ""), params.get("minutes", ""),
                                         params.get("episode", ""))
@@ -10428,7 +10428,7 @@ class EchoRequest(BaseModel):
     line: Optional[str] = Field(None, max_length=2000)
     #: Where that sentence starts in the audio, in seconds.
     line_at: Optional[float] = Field(None, ge=0, le=3600)
-    #: Which episode (§610): `X-FAM-Episode`, so the vibe replays it.
+    #: Which episode (§612): `X-FAM-Episode`, so the vibe replays it.
     episode: str = Field("", max_length=80)
 
 
@@ -10529,7 +10529,7 @@ async def post_echo(req: EchoRequest, request: Request):
     if _remembers(request):
         EVENTS.record(topics_mod.Event(
             user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
-    # Vibed while it plays: finished and kept even if they leave (§612).
+    # Vibed while it plays: finished and kept even if they leave (§614).
     live_keep.hold(req.query, req.minutes)
     return echo.as_dict()
 
@@ -12599,7 +12599,7 @@ async def audio(
                         minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
                         cache_hit=stats.cache == "hit",
                     )
-                # Saved, shared or vibed and left part-way (§612): still
+                # Saved, shared or vibed and left part-way (§614): still
                 # being written and voiced, so its row waits for the finish.
                 if stats.detached:
                     stats.after_background.append(ledger)
@@ -14137,7 +14137,7 @@ def _held_episode_keys() -> set:
     except Exception:
         log.exception("audio sweep: could not read what is held from messages")
         raise
-    # Its archive copy, when its question was written again since (§610):
+    # Its archive copy, when its question was written again since (§612):
     # that copy is the episode that was sent.
     keys.update(_sent_episode_keys())
     for query, minutes in pairs:
@@ -14151,7 +14151,7 @@ def _held_episode_keys() -> set:
 def _sent_episode_keys() -> set:
     """The keys holding each episode a message names, by its exact id - the
     key, or the archive copy made when its question was written again
-    (§610). The sweep keeps an archive copy's audio only for these."""
+    (§612). The sweep keeps an archive copy's audio only for these."""
     out = set()
     if SCRIPT_CACHE is None:
         return out
@@ -14164,10 +14164,10 @@ def _sent_episode_keys() -> set:
 
 def _sent_episode_ids() -> set:
     """Every episode id a message, a share link, a saved row or a vibe names
-    (§610): each is kept, and replayed by id, as long as the row is."""
+    (§612): each is kept, and replayed by id, as long as the row is."""
     ids = {episode for _q, _m, episode in MESSAGES.episodes() if episode}
     ids.update(SHARES.episode_ids())
-    # Saved and vibed episodes too (§610): kept as long as they are.
+    # Saved and vibed episodes too (§612): kept as long as they are.
     ids.update(SAVED.episode_ids())
     ids.update(SOCIAL.vibed_episode_ids())
     return {e for e in ids if parse_episode_id(e) is not None}
@@ -14175,7 +14175,7 @@ def _sent_episode_ids() -> set:
 
 def _hold_sent_episodes(now: float | None = None) -> int:
     """Keep every episode sent in a message for as long as the message is
-    there (§610, at the owner's direction: "they should all be cached").
+    there (§612, at the owner's direction: "they should all be cached").
 
     A sent episode was pinned for two weeks at send (`_pin_heard`) and its
     script outlived that only if its audio had been kept (§237) - so a

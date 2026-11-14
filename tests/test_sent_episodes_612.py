@@ -1,4 +1,4 @@
-"""Every sent episode is cached, for as long as its message is (§610).
+"""Every sent episode is cached, for as long as its message is (§612).
 
 The owner: "I just clicked on an episode sent to me and it generated a full
 new one. This is not acceptable." Each way a sent episode used to be
