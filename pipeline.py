@@ -27,6 +27,7 @@ import time
 from audio_utils import PaceController, pcm_duration, silence, streaming_wav_header
 import pipeline_errors
 import voice_schedule
+import live_keep
 import prefetch
 from agents import netenyahu
 from cache import (PRIVATE_ORIGIN, ScriptCache, build_cache, cache_key, canonical_key,
@@ -165,6 +166,23 @@ class _Pump:
             pass
 
 
+#: Episodes being finished after their listener left (§614), held so the
+#: event loop does not collect them part-way.
+_FINISHING: set = set()
+
+
+def _finished_in_background(task: "asyncio.Future") -> None:
+    _FINISHING.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        log.warning("finishing a kept episode in the background failed: %s", exc)
+        pipeline_errors.record(
+            "episode", "not finished in the background",
+            f"{type(exc).__name__}: {exc}"[:300], "", pipeline_errors.NOTICE)
+
+
 async def _replay(sentences: list[str]) -> AsyncIterator[str]:
     """Feed a cached script back through the normal speaking path."""
     for sentence in sentences:
@@ -270,6 +288,13 @@ class GenerationStats:
     #: Of those, seconds spent waiting for a turn on the shared worker
     #: behind other listeners' chunks (§609), not voicing.
     voice_wait: float = 0.0
+    #: True once the listener left an episode that is being finished in the
+    #: background because it was saved, shared or vibed (§614): its chunks
+    #: are voiced behind every live listener and never paced.
+    detached: bool = False
+    #: Called once a background finish ends (§614), so whatever needs the
+    #: final numbers - the ledger row - is written when they are final.
+    after_background: list = field(default_factory=list, repr=False, compare=False)
     #: Smallest margin between audio produced and wall clock. Negative means
     #: the listener heard silence.
     min_headroom: float = 999.0
@@ -711,6 +736,7 @@ class PodcastPipeline:
         `stats.script` stays a list of sentences, because the cache stores it
         and `_replay` feeds it back through the speaking path.
         """
+        await self._keep_pace(stats, pace)
         gap = silence(SENTENCE_GAP, self.engine.sample_rate)
         # Keep the controller's view of "words left" honest, as `_speak_one`
         # does: the model rarely hits the budget exactly.
@@ -787,6 +813,8 @@ class PodcastPipeline:
             await voice_schedule.wait_for_quiet(settings.voice_ahead_quiet_seconds)
             await self._ahead_wait()
             deadline = voice_schedule.NO_DEADLINE
+        elif stats.detached:
+            deadline = voice_schedule.NO_DEADLINE  # nobody is listening (§614)
         elif stats.first_audio_at:
             played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
             deadline = time.monotonic() + pace.elapsed - played
@@ -800,6 +828,28 @@ class PodcastPipeline:
         finally:
             voice_schedule.CURRENT.reset(token)
             stats.voice_wait += turn.waited
+
+    async def _keep_pace(self, stats: "GenerationStats", pace: PaceController) -> None:
+        """Voice just in time on a shared worker (§614): wait while this
+        listener already has more than `VOICE_LEAD_SECONDS` of audio, so the
+        worker serves somebody else, and an episode left part-way has voiced
+        no more than that past where they stopped.
+
+        Played time is counted from the first audio, while the app holds it
+        until its last loading step - so the listener is really further
+        behind than this, and the margin errs towards voicing early. Never
+        for an engine on this machine, which nobody else is waiting for, nor
+        for an episode finished in the background, which nobody hears."""
+        ahead = float(settings.voice_lead_seconds or 0)
+        if (ahead <= 0 or self.ahead
+                or not getattr(self.engine, "shares_workers", False)):
+            return  # voicing ahead (§610) has nobody to keep pace with
+        while stats.first_audio_at and not stats.detached:
+            played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
+            spare = pace.elapsed - played - ahead
+            if spare <= 0:
+                return
+            await asyncio.sleep(min(spare, 1.0))
 
     def _level_pace(self, pcm: bytes, voiced: str, stats: "GenerationStats") -> bytes:
         """The chunk at the episode's own pace (`pace_level`): only for an
@@ -847,6 +897,7 @@ class PodcastPipeline:
         self, sentence: str, pace: PaceController, stats: GenerationStats
     ) -> AsyncIterator[bytes]:
         """Synthesise one sentence, or stop the episode if it no longer fits."""
+        await self._keep_pace(stats, pace)
         gap = silence(SENTENCE_GAP, self.engine.sample_rate)
         words = count_words(sentence)
         # Keep the controller's view of "words left" honest: the model rarely
@@ -1503,24 +1554,70 @@ class PodcastPipeline:
         # A listener's episode is in progress: voicing ahead stands aside
         # until it is over, or until it turns out to be kept audio (§610).
         listening = voice_schedule.listener_started()
-        try:
-            async for chunk in inner:
-                if listening and stats.audio == "stored":
-                    voice_schedule.listener_finished(listening)
-                    listening = 0
-                if recorded is not None and stats.audio != "stored":
-                    recorded.extend(chunk)
-                yield chunk
-        finally:
+
+        def stop_listening() -> None:
+            nonlocal listening
             if listening:
                 voice_schedule.listener_finished(listening)
-            # Closed here rather than left to the collector: the inner stream
-            # owns the model call and the synthesis queue, and a listener who
-            # walks away must stop both at once, exactly as before it was
-            # wrapped.
-            await inner.aclose()
-        if recorded and stats.audio_key and stats.sentences:
-            await self._keep_audio(bytes(recorded), stats)
+                listening = 0
+
+        # §614: the episode runs in a task of its own, so one saved, shared or
+        # vibed while playing (`live_keep.hold`) can be finished and kept after
+        # its listener leaves. Any other is stopped the moment they do,
+        # exactly as before: the task is cancelled with the stream.
+        live = live_keep.register(plan.query, plan.minutes) if recorded is not None else None
+        out: asyncio.Queue = asyncio.Queue()
+        done = object()
+
+        async def run() -> None:
+            try:
+                async for chunk in inner:
+                    if listening and stats.audio == "stored":
+                        stop_listening()
+                    if recorded is not None and stats.audio != "stored":
+                        recorded.extend(chunk)
+                    if not stats.detached:
+                        out.put_nowait(chunk)
+                if recorded and stats.audio_key and stats.sentences:
+                    await self._keep_audio(bytes(recorded), stats)
+            finally:
+                # The inner stream owns the model call and the synthesis
+                # queue; closing it here stops both at once.
+                await inner.aclose()
+                if live is not None:
+                    live_keep.unregister(live)
+                out.put_nowait(done)
+
+        task = asyncio.ensure_future(run())
+        finished = False
+        try:
+            while True:
+                chunk = await out.get()
+                if chunk is done:
+                    break
+                yield chunk
+            finished = True
+            await task  # raises what the episode raised
+        finally:
+            # Nobody hears the rest either way: voicing ahead may go on (§610).
+            stop_listening()
+            if not finished and not task.done():
+                if live is not None and live.held:
+                    # Saved, shared or vibed: finish it behind every live
+                    # listener and keep the whole of it.
+                    stats.detached = True
+                    _FINISHING.add(task)
+                    task.add_done_callback(_finished_in_background)
+                    task.add_done_callback(
+                        lambda _t, s=stats: [f() for f in list(s.after_background)])
+                    log.info("listener left %r part-way; it was kept, so it "
+                             "is finished in the background", plan.query)
+                else:
+                    task.cancel()
+                    try:
+                        await task
+                    except BaseException:
+                        pass
 
     async def _stream_pcm(
         self, plan: EpisodePlan, stats: GenerationStats

@@ -36973,3 +36973,159 @@ Postgres, the hand-made file is never read, and row `old` does not exist -
 `@pytest.mark.sqlite_file`, which `tests/conftest.py` skips on Postgres; this
 one did not. Marked; checked against a local Postgres 16 (skipped there, the
 other five pass).
+
+## 612. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
+
+The owner: "It seems like sent episodes aren't cached right now, they should
+all be cached ... I just clicked on an episode sent to me and it generated a
+full new one. This is not acceptable." Then: "not just on sent episodes, do a
+full caching audit."
+
+**The one rule behind every case.** Without `?episode=`, `/api/audio` serves
+only a *current* script (`cache.get(key, current=True)`, pipeline ~1488) -
+a volatile episode for two hours, a game in progress or a non-final sports
+update never - and otherwise writes a new one. Only a request that names the
+episode by id (`cache.episode_id`, §173) replays it whatever its age. So any
+surface that replays "this episode" without the id writes a new one once the
+window passes, and any surface whose key inputs (question, minutes, context,
+reading) differ from the write's never matches at all.
+
+**Fixed here - sent episodes (messages and links):**
+
+1. *The player's Share -> a friend sent no id* (`sendEpisodeToContact`): only
+   the in-chat share did (§288). The server then guessed by the question's
+   plain key, which misses a Go Deeper (its key carries what it follows), a
+   reading (§426) and an episode still being written (its row lands at the
+   end of the stream). It now sends `episode`.
+2. *The server refused real ids.* `_shared_episode` accepted the sender's id
+   only when its key was the question's plain key. It now also accepts one
+   whose row was written for this question (`cache.query_of`, a reading's
+   parenthesis allowed) and, while the row is still being written, one in the
+   sender's own history under this question. Another question's id is still
+   never carried.
+3. *Two weeks, then written again.* A sent episode was pinned for two weeks
+   at send, and kept past that only if its audio reached the kept tier.
+   `_hold_sent_episodes` now holds, on every hourly sweep and at boot before
+   the purge, the script of every episode a message or a link names - the key
+   or its archive copy, **a row past its clock included** (`hold_episode`),
+   so episodes sent before this deploy come back rather than being written
+   again. A week and a day ahead each time, the kept-audio margin. Never
+   current: only a replay by id reaches it.
+4. *A re-written question deleted the sent episode's audio.* The sweep
+   deleted every archive copy's audio. An archive copy an id names
+   (`sweep_audio(named=...)`) is now kept; a save, which points at the
+   question, still is not (`test_an_archived_episode_is_not_kept_for_its_old_save`).
+5. *Share links `/s/<id>` dropped the id* though the client had it. The share
+   row has an `episode` column (widened in place), `/api/share` names it as a
+   message does, the landing payload carries it, `listen.html` replays it by
+   id and asks the question only on a 409, and the waitlist gate admits that
+   link's own id and no other (`ShareStore.is_shared_episode`).
+
+**Fixed here - saved and vibed episodes, by the same means** (the owner,
+after the audit: "fix the saved and vibes ones too"). A saved row
+(`items.episode`) and a vibe (`echoes.episode`) now name their episode,
+validated by `_shared_episode` exactly as a send is; saving or vibing again
+from a newer play names that one, and an older client's save keeps the id.
+Saved for Later, your vibes, a friend's vibe posts and stories replay it by
+id and ask the question only on a 409. `_sent_episode_ids` includes both, so
+the sweep holds each as long as it is saved or vibed. A tile saved from a
+rail card sends no id (the card has none); the server names the episode kept
+under its question at that moment.
+
+**Fixed here - a minute and a half is not one minute.** `saved.py` read
+history and resume rows back with `int(minutes)`, and `_held_episode_keys` /
+`MessageStore.episodes` did the same. 1.5 became 1 - another key. So **Pick up
+where you left off wrote a new episode on every resume of a 1.5-minute
+episode**, a history row without an id did the same, and no saved, shared,
+vibed or sent 1.5-minute episode (the default length) had its audio kept past
+the week. All read with `as_minutes` now (§575 fixed the same bug in
+`is_shared`).
+
+**Found, not fixed - each needs the owner's call or its own change:**
+
+| Surface | Writes a new episode when |
+|---|---|
+| Queue | played past the window (queue keeps no id); drops `reading` |
+| Go Deeper / grid lead | context is the parent's *display title*, which swaps from derived to writer's - the same suggestion tapped before and after is two keys |
+| Grid recommendations, album next | sent with no surface/minutes, so from searchFAM the search length is used, not the 1.5 the tile was written at |
+| Repeat search | autocorrect waits 700 ms, so two sends can spell the question two ways |
+| A-Z catalogue | replays only (no write) but drops the key it has, so a Go Deeper row 409s |
+| DailyFAM / rails tiles | by design: a game in progress, a tile not yet written |
+
+History, the sign-up samples, the landing samples and the catalogue never
+write (by id or `cached_only`).
+
+**Retention, as measured from config:** kept `CACHE_LIFE_SECONDS` = 7 days
+from sourcing; current `CACHE_TTL_SECONDS` = 7 days (evergreen),
+`CACHE_TTL_VOLATILE` = 2 h, 0 for a game in progress or non-final sports
+update, 30 min for an edition's live game; a played evergreen slides up to
+`CACHE_MAX_AGE_SECONDS` = 30 days; history pins 14 days; kept-tier audio
+(saved/shared/vibed/sent) re-pinned a week and a day every hourly sweep,
+everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
+and vibed episodes' scripts now as long as the message, link, save or vibe
+exists.
+
+## 613. Flex workers beside the active one, when the owner chooses (2026-11-14)
+
+The owner, after §609: raise RunPod's flex workers rather than the always-on
+ones - Max workers 4, Active 1.
+
+Raising Max workers alone changes nothing: §578 caps chunks in flight at the
+active workers, so nothing ever queues at RunPod and no flex worker is ever
+started. `REMOTE_VOICE_FLEX_WORKERS` (default 0, `render.yaml` sets 3 for
+`fam`) is the console's Max workers less its Active workers; with an active
+worker, chunks in flight are active + flex, capped by
+`REMOTE_VOICE_CONCURRENCY`. The ones past the active worker wait in RunPod's
+queue, which hands each to whichever worker frees first or starts a flex one.
+Still no wake jobs. `/api/health`'s `remote_voice` reports `flex_workers`.
+
+**Per episode:** an episode voices its chunks one after another
+(`_speak_phase6`), so it never holds more than one worker at a time; four in
+flight means four listeners' episodes, and the §609 gate still decides who
+goes first. Flex workers are only started when episodes overlap.
+
+**The cost:** a flex worker is billed per second for its boot, the chunk and
+its idle timeout - the §578 bill, but only while listeners overlap. FlashBoot
+on, idle timeout ~30 s, and the console kept equal to this setting.
+
+`tests/test_remote_voice.py` (flex workers raise the chunks in flight and are
+capped by the concurrency; still no wake; nothing without an active worker;
+a negative count is refused).
+
+## 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14)
+
+The owner, after §609: "I don't want workers to be busy for a full minute for
+one person's request". A chunk already held a worker for only a few seconds,
+and since §609 another listener's chunk went between them - but with nobody
+else waiting, an episode was voiced as fast as it could from first word to
+last, so a three-minute episode held one worker for about a minute, and a
+listener who left part-way had paid for audio nobody heard and nothing kept.
+
+**Now.** On a shared worker (`RemoteChatterboxEngine.shares_workers`) an
+episode waits before each chunk while its listener already has more than
+`VOICE_LEAD_SECONDS` (25) of audio in hand (`pipeline._keep_pace`), so the
+worker serves somebody else, and an episode left part-way has voiced at most
+that past where they stopped. Played time is counted from the first audio,
+while the app holds audio until its last loading step, so the margin errs
+towards voicing early. `0` restores voicing as far ahead as possible; a voice
+on this machine is never paced.
+
+**What is kept, at the owner's direction** ("Shared episodes and saved
+episode should be kept no matter if they were listened to all the way
+through or not"; asked, they chose saved/shared/vibed only, not every
+abandoned episode). `stream_pcm` runs the episode in a task of its own and
+registers it with `live_keep`. Saving, a share link, a message carrying the
+episode (§612's "shared") and a vibe call `live_keep.hold(query, minutes)`
+(minutes by `as_minutes`). When the listener leaves, an episode not held is
+cancelled exactly as before; a held one is finished in the background - the
+rest written and voiced behind every live listener (`NO_DEADLINE`, never
+paced) - and kept whole like any other, and §612's sweep keeps it from
+there. Its ledger row waits for the finish (`stats.after_background`), so
+the background spend is metered to the listener who started it. A failed
+finish is an /admin row ("not finished in the background").
+
+**Not done:** an episode saved later, from history, after its stream ended
+part-way has no script to finish from. Kept audio is replayed where a row
+carries an episode id - since §612, sends, saves and vibes do.
+
+`tests/test_just_in_time_614.py`.
