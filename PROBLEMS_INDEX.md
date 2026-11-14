@@ -601,4 +601,4 @@ and `limit` = Lines.
 | 36770 | 46 | 607. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13) |
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
-| 36880 | 76 | 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14) |
+| 36880 | 86 | 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14) |

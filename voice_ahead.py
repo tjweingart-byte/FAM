@@ -331,8 +331,13 @@ async def run_forever(cache, voice_for, make_pipeline, engine_for,
 
 def report() -> dict:
     """For /api/health."""
+    import voice_schedule
+
     return {"enabled": bool(settings.voice_ahead), "origins": list(origins()),
-            "quiet_seconds": settings.voice_ahead_quiet_seconds, **_STATE}
+            "quiet_seconds": settings.voice_ahead_quiet_seconds, **_STATE,
+            # What it cost listeners: their chunks that waited for the worker
+            # while a background chunk held it, since boot.
+            "listener_waits": voice_schedule.listener_waits()}
 
 
 def reset() -> None:

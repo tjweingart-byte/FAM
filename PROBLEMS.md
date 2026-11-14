@@ -36945,6 +36945,16 @@ demo mode):
   whether the endpoint keeps an always-on worker". Not measured from this
   session: no RunPod key here.
 
+* **What it cost listeners, counted:** `/api/health` →
+  `voice_ahead.listener_waits` - every listener's chunk that waited for the
+  worker while a chunk voiced ahead held it (`DeadlineGate.ahead_holding`),
+  with the seconds and the longest, and the same three for first chunks only
+  (`first_*`: the wait in front of a search's first word). Waiting behind
+  another listener is not counted here; §609's rows say that. If
+  `first_longest` is ever more than a second or two, a search should cancel
+  the background chunk in flight (`remote_voice` already cancels a RunPod job
+  whose caller is cancelled); until then it is not built.
+
 **What it does not do.** It cannot cancel a background chunk already at the
 worker; it does not add capacity, and when listeners keep the worker busy
 nothing is voiced ahead, which is the point. Kept audio still lives a week

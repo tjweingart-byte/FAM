@@ -37,6 +37,10 @@ class VoiceTurn:
 
     deadline: float
     waited: float = 0.0
+    #: Voiced ahead of any tap (§610), not for a listener.
+    ahead: bool = False
+    #: A listener's first chunk: someone is waiting for the first word.
+    first: bool = False
 
 
 #: The turn of the `synth` call running in this context, or None (prefetch,
@@ -61,6 +65,8 @@ class DeadlineGate:
         self._busy = 0
         self._waiters: list[tuple[float, int, asyncio.Future]] = []
         self._order = itertools.count()
+        #: Slots held by chunks voiced ahead (§610) right now.
+        self.ahead_holding = 0
 
     @property
     def waiting(self) -> int:
@@ -95,12 +101,20 @@ class DeadlineGate:
 
     async def __aenter__(self) -> "DeadlineGate":
         turn = CURRENT.get()
+        behind_ahead = self.ahead_holding > 0
         waited = await self.acquire(turn.deadline if turn else NO_DEADLINE)
         if turn is not None:
             turn.waited += waited
+            if turn.ahead:
+                self.ahead_holding += 1
+            elif behind_ahead and waited >= 0.05 and turn.deadline != NO_DEADLINE:
+                note_listener_wait(waited, turn.first)
         return self
 
     async def __aexit__(self, *exc) -> None:
+        turn = CURRENT.get()
+        if turn is not None and turn.ahead:
+            self.ahead_holding = max(0, self.ahead_holding - 1)
         self.release()
 
 
@@ -165,8 +179,40 @@ async def wait_for_quiet(seconds: float, poll: float = 0.5) -> float:
     return time.monotonic() - started
 
 
+#: Listeners' chunks that waited for the worker while a chunk voiced ahead
+#: held it (§610): what voicing ahead cost listeners. `first` counts the
+#: waits in front of an episode's first word, the ones a search feels.
+_WAITS: dict = {}
+
+
+def _no_waits() -> dict:
+    return {"chunks": 0, "seconds": 0.0, "longest": 0.0,
+            "first_chunks": 0, "first_seconds": 0.0, "first_longest": 0.0,
+            "last_at": None}
+
+
+_WAITS.update(_no_waits())
+
+
+def note_listener_wait(seconds: float, first: bool) -> None:
+    _WAITS["chunks"] += 1
+    _WAITS["seconds"] = round(_WAITS["seconds"] + seconds, 2)
+    _WAITS["longest"] = round(max(_WAITS["longest"], seconds), 2)
+    if first:
+        _WAITS["first_chunks"] += 1
+        _WAITS["first_seconds"] = round(_WAITS["first_seconds"] + seconds, 2)
+        _WAITS["first_longest"] = round(max(_WAITS["first_longest"], seconds), 2)
+    _WAITS["last_at"] = time.time()
+
+
+def listener_waits() -> dict:
+    """For /api/health: since boot."""
+    return dict(_WAITS)
+
+
 def reset() -> None:
     """For tests."""
     global _LAST_LISTENER
     _LISTENERS.clear()
     _LAST_LISTENER = 0.0
+    _WAITS.update(_no_waits())

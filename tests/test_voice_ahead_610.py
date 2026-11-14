@@ -382,3 +382,66 @@ def test_voicing_ahead_cannot_be_asked_without_the_check(store):
                            cache=store)
     with pytest.raises(TypeError):
         asyncio.run(pipe.voice_ahead(key, "how tides work", 1))
+
+
+# ---- what voicing ahead costs listeners, on /api/health ------------------
+
+def _hold_then(gate_turn, listener_turn):
+    async def main():
+        gate = voice_schedule.DeadlineGate(1)
+
+        async def holder():
+            token = voice_schedule.CURRENT.set(gate_turn)
+            try:
+                async with gate:
+                    await asyncio.sleep(0.2)
+            finally:
+                voice_schedule.CURRENT.reset(token)
+
+        async def listener():
+            await asyncio.sleep(0.02)
+            token = voice_schedule.CURRENT.set(listener_turn)
+            try:
+                async with gate:
+                    pass
+            finally:
+                voice_schedule.CURRENT.reset(token)
+
+        await asyncio.gather(holder(), listener())
+        return gate
+
+    return asyncio.run(main())
+
+
+def test_a_search_waiting_behind_a_background_chunk_is_counted():
+    gate = _hold_then(
+        voice_schedule.VoiceTurn(deadline=voice_schedule.NO_DEADLINE, ahead=True),
+        voice_schedule.VoiceTurn(deadline=time.monotonic(), first=True))
+    waits = voice_schedule.listener_waits()
+    assert waits["chunks"] == 1 and waits["first_chunks"] == 1
+    assert 0.1 < waits["seconds"] < 1.0 and waits["first_longest"] == waits["longest"]
+    assert gate.ahead_holding == 0
+
+
+def test_waiting_behind_another_listener_is_not_counted():
+    _hold_then(voice_schedule.VoiceTurn(deadline=time.monotonic()),
+               voice_schedule.VoiceTurn(deadline=time.monotonic(), first=True))
+    assert voice_schedule.listener_waits()["chunks"] == 0
+
+
+def test_the_counter_is_on_the_health_report():
+    assert voice_ahead.report()["listener_waits"]["chunks"] == 0
+
+
+def test_a_chunk_voiced_ahead_is_marked_so_at_the_worker(store):
+    _, key = written_ahead(store, "how comets form")
+    seen = []
+
+    class Watching(CountingVoice):
+        async def synth(self, text, wpm, voice=None):
+            seen.append(voice_schedule.CURRENT.get())
+            return await super().synth(text, wpm, voice)
+
+    assert run_once(store, Watching()) == "voiced"
+    assert seen and all(t.ahead and t.deadline == voice_schedule.NO_DEADLINE
+                        for t in seen)

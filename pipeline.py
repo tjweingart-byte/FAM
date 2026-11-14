@@ -792,7 +792,8 @@ class PodcastPipeline:
             deadline = time.monotonic() + pace.elapsed - played
         else:
             deadline = time.monotonic()
-        turn = voice_schedule.VoiceTurn(deadline=deadline)
+        turn = voice_schedule.VoiceTurn(deadline=deadline, ahead=self.ahead,
+                                        first=not stats.first_audio_at)
         token = voice_schedule.CURRENT.set(turn)
         try:
             return await self.engine.synth(text, wpm, self.voice)
