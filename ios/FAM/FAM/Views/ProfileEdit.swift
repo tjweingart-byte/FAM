@@ -468,7 +468,10 @@ struct IdentityView: View {
                     .autocorrectionDisabled()
                     .textContentType(.username)
                     .focused($focus, equals: .handle)
-                    .submitLabel(.done)
+                    // Return presses Next / Save, as the web's
+                    // `data-enter` does (the owner's 11.14 notes).
+                    .submitLabel(editing ? .done : .next)
+                    .onSubmit { if !saving { save() } }
                     .onChange(of: handle) { _, value in
                         let clean = Self.cleanHandle(value)
                         if clean != value { handle = clean }
@@ -598,14 +601,17 @@ struct IdentityView: View {
             FieldLabel(text: "Where you are", optional: true)
             TextField("", text: $city, prompt: Text("City").foregroundColor(FAMColor.textFaint))
                 .textContentType(.addressCity)
+                .onSubmit { if !saving { save() } }
                 .youInput()
                 .padding(.bottom, 8)
             HStack(spacing: 8) {
                 TextField("", text: $region, prompt: Text("State or region").foregroundColor(FAMColor.textFaint))
                     .textContentType(.addressState)
+                    .onSubmit { if !saving { save() } }
                     .youInput()
                 TextField("", text: $country, prompt: Text("Country").foregroundColor(FAMColor.textFaint))
                     .textContentType(.countryName)
+                    .onSubmit { if !saving { save() } }
                     .youInput()
             }
             Text("Optional. For local episodes \u{2014} and it shows on your profile.")
@@ -1007,6 +1013,8 @@ struct LocationView: View {
             FieldLabel(text: label)
             TextField("", text: text, prompt: Text(hint).foregroundColor(FAMColor.textFaint))
                 .textContentType(kind)
+                // Return presses Save (the owner's 11.14 notes).
+                .onSubmit { if !saving { save() } }
                 .youInput()
         }
         .padding(.bottom, 13)

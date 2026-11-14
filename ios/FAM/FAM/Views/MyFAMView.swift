@@ -316,7 +316,7 @@ struct MixCard: View {
 
     var body: some View {
         HStack(spacing: 13) {
-            MixArt(cover: mix.cover)
+            MixArt(cover: mix.shownCover)
             VStack(alignment: .leading, spacing: 4) {
                 Text(mix.name)
                     .font(FAMFont.heading(14, .semibold))

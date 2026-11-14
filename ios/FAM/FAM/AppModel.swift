@@ -1881,12 +1881,16 @@ extension AppModel {
         showPlayer = false
     }
 
-    /// Play a mix from one of its items to the end, then the ones above it
-    /// (`startMixQueue`). Somebody else's public mix plays the same way.
-    func playMix(_ mix: Mix, from itemID: String? = nil) {
+    /// Play a mix in today's order (§616, `mix.playOrder`: best stories
+    /// first, a new order every day), from one of its items when one is
+    /// given, round to the ones before it (`startMixQueue`); `listed` plays
+    /// the owner's order instead ("or play all from the top"). Somebody
+    /// else's public mix plays the same way.
+    func playMix(_ mix: Mix, from itemID: String? = nil, listed: Bool = false) {
         guard !mix.items.isEmpty else { nowPlaying.say("Add a topic first"); return }
-        let start = itemID.flatMap { id in mix.items.firstIndex { $0.id == id } } ?? 0
-        let order = Array(start..<mix.items.count) + Array(0..<start)
+        let sequence = listed ? Array(mix.items.indices) : mix.playOrder
+        let start = itemID.flatMap { id in sequence.firstIndex { mix.items[$0].id == id } } ?? 0
+        let order = Array(sequence[start...]) + Array(sequence[..<start])
         mixPlay = MixPlaylist(mixID: mix.id, name: mix.name, items: mix.items, order: order, pos: 0,
                               mine: mixes.mix(mix.id) != nil)
         playMixItem()
@@ -1899,8 +1903,9 @@ extension AppModel {
         guard !mix.items.isEmpty else { nowPlaying.say("Add a topic first"); return }
         var first: [Int] = []
         var rest: [Int] = []
-        for (index, item) in mix.items.enumerated() {
-            if item.since != nil {
+        // Each half in today's order (§616).
+        for index in mix.playOrder {
+            if mix.items[index].since != nil {
                 first.append(index)
             } else {
                 rest.append(index)

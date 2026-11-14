@@ -187,7 +187,7 @@ struct MixSignalCard: View {
     @ViewBuilder
     private var picture: some View {
         if signal.picture.isEmpty {
-            MixArt(cover: mix.cover)
+            MixArt(cover: mix.shownCover)
                 .overlay(SignalRing(radius: 12, color: color))
         } else {
             MixPicture(source: signal.picture)

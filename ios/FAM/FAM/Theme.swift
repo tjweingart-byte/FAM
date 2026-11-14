@@ -386,6 +386,17 @@ enum Icons {
         return p
     }()
 
+    /// "Type your own" (`M12 20h9`, `M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z`).
+    static let pencil: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 20)); p.addLine(to: CGPoint(x: 21, y: 20))
+        p.move(to: CGPoint(x: 16.5, y: 3.5))
+        p.addQuadCurve(to: CGPoint(x: 19.5, y: 6.5), control: CGPoint(x: 20.6, y: 2.4))
+        p.addLine(to: CGPoint(x: 7, y: 19)); p.addLine(to: CGPoint(x: 3, y: 20))
+        p.addLine(to: CGPoint(x: 4, y: 16)); p.closeSubpath()
+        return p
+    }()
+
     /// A mix card's chevron (`M9 6l6 6-6 6`).
     static let chevron: Path = {
         var p = Path()

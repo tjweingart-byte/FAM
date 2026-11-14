@@ -459,10 +459,16 @@ struct ChatScreen: View {
                 .textInputAutocapitalization(.sentences)
                 .focused($typing)
                 .accessibilityLabel("Message")
+                // As tall as what is typed, one line to five, and no taller
+                // (the owner's 11.14 notes: "the box of where you type in
+                // the message is too big"). A vertical field with a line
+                // range is flexible: given the height the bottom inset
+                // offers it, some phones drew it at all five lines, empty.
+                // Pinned to its own height, nothing above can stretch it.
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .frame(minHeight: 36)
-                .frame(maxHeight: 112)
                 .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
                 .submitLabel(.send)

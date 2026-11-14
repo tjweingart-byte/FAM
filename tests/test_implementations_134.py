@@ -554,7 +554,8 @@ def test_play_all_starts_a_queue_rather_than_one_episode():
     body = re.search(r"function playMix\(\)\{(.*?)\n  \}", INDEX, re.S).group(1)
     assert "startMixQueue(m, 0)" in body
     body = re.search(r"function playMixFrom\(itemId\)\{(.*?)\n  \}", INDEX, re.S).group(1)
-    assert "startMixQueue(m, i)" in body
+    # From the row tapped, on through today's order (§616).
+    assert "startMixQueue(m, itemId)" in body
 
 
 def test_a_playlist_entry_ends_by_playing_the_next_and_never_whats_next():

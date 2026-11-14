@@ -2439,6 +2439,29 @@ def main() -> int:
                     "the episode's other requests would not carry the reading"
                 assert page.evaluate("() => readingParam('Manchester United')") == \
                     "&reading=Manchester%20United"
+                # "Type your own" (the 11.14 notes): the pill opens a field
+                # in its place, and Return sends the typed words as the
+                # reading, exactly like a choice.
+                page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home');"
+                              " delete TOPICS['_custom']; sendSearch('how did United do', '')")
+                page.wait_for_timeout(900)
+                assert page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), \
+                    "the readings were not asked a second time"
+                assert page.is_visible("#readingOwnBtn") and not page.is_visible("#readingOwnRow")
+                page.click("#readingOwnBtn")
+                assert page.is_visible("#readingOwnRow") and not page.is_visible("#readingOwnBtn"), \
+                    "the pill did not open the field"
+                assert page.eval_on_selector("#readingOwnSend", "e => e.disabled"), \
+                    "an empty field could be sent"
+                page.fill("#readingOwnInput", "Utah United")
+                page.press("#readingOwnInput", "Enter")
+                page.wait_for_timeout(900)
+                assert not page.eval_on_selector(
+                    "#readingOverlay", "e => e.classList.contains('active')"), \
+                    "Return did not send the typed reading"
+                last = page.evaluate("() => window.__readingCalls[window.__readingCalls.length - 1]")
+                assert "reading=Utah%20United" in last, f"the typed reading was not sent: {last}"
             finally:
                 page.evaluate("() => { window.fetch = window.__readingInner; "
                               "stopSpeech(); clearGenOverlay(); answerReading(''); }")

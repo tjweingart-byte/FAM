@@ -872,6 +872,27 @@ def _signal_fixtures(mixes: list) -> None:
     gym["signal"] = {"kind": "update", "label": "Major update", "item_id": eagles["id"],
                      "topic": eagles["title"], "headline": eagles["signal"]["headline"],
                      "picture": _tile_crop("trending-4")}
+    # Today's order (§616): what changed first, then the rest as the owner
+    # put them - the shape `app._mix_today` serves - and the cover's tiles
+    # and headline from it, so a mix with no photo shows today's picture.
+    for m in mixes:
+        items = m["items"]
+        ordered = ([i for i in items if i.get("signal")]
+                   + [i for i in items if not i.get("signal")])
+        m["today_order"] = [i["id"] for i in ordered]
+        thumbs = []
+        for i in ordered:
+            if i.get("picture") and i["picture"] not in thumbs:
+                thumbs.append(i["picture"])
+        m["thumbs"] = thumbs[:4]
+        lead = next((i for i in ordered if i.get("signal")), None)
+        for i in ordered:
+            if i.get("signal"):
+                i["today_why"] = i["signal"]["kind"]
+        if lead is not None:
+            m["headline"] = {"item_id": lead["id"], "topic": lead["title"],
+                             "title": lead["signal"]["headline"],
+                             "why": lead["signal"]["kind"], "picture": lead.get("picture", "")}
 
 
 def mix_items_js() -> str:

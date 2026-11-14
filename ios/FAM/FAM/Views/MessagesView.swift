@@ -242,14 +242,16 @@ struct NewMessageCard: View {
                     .padding(.top, 10)
             }
             if picked.count >= 2 {
-                ModalField(placeholder: "Name the group (optional)", text: $groupName)
+                ModalField(placeholder: "Name the group (optional)", text: $groupName,
+                           onReturn: { if !working { confirm() } })
                     .onChange(of: groupName) { _, v in if v.count > 60 { groupName = String(v.prefix(60)) } }
                     .padding(.top, 10)
             }
             Text("Or start a new conversation").monoLabel(9.5, tracking: 0.76)
                 .padding(.top, 16)
                 .padding(.bottom, 8)
-            ModalField(placeholder: "Name or phone number", text: $typed, plain: true)
+            ModalField(placeholder: "Name or phone number", text: $typed, plain: true,
+                       onReturn: { if !working { confirm() } })
             HStack(spacing: 8) {
                 Spacer()
                 ModalButton(label: "Cancel") { dismiss() }

@@ -1917,12 +1917,39 @@ struct Mix: Decodable, Identifiable, Equatable {
     /// What changed since this listener last heard the mix (§545, R5 on
     /// the card): nil when nothing did, or from a server before §545.
     let signal: MixSignal?
+    /// Today's order (§616, `_mix_today`): item ids, best stories first,
+    /// a new order every day. What Play plays; `items` stays the owner's
+    /// order. Empty from an older server.
+    let todayOrder: [String]
+    /// Up to four pictures in today's order: the default cover of a mix
+    /// with no photo of its own ("a thumbnail can be the default").
+    let thumbs: [String]
+    /// The item the card previews: today's episode title, else a story's.
+    let headline: MixHeadline?
 
     var isOwner: Bool { role != "member" }
 
+    /// What the mix's picture is: its own cover, else today's lead
+    /// picture (`coverOf`), else "" and the folder is drawn.
+    var shownCover: String { !cover.isEmpty ? cover : (thumbs.first ?? "") }
+
+    /// The items in today's order (`todayOrder`): the server's ids first,
+    /// then anything it did not name in the owner's order; the owner's
+    /// order alone from an older server.
+    var playOrder: [Int] {
+        var left = Array(items.indices)
+        var out: [Int] = []
+        for id in todayOrder {
+            if let at = left.firstIndex(where: { items[$0].id == id }) {
+                out.append(left.remove(at: at))
+            }
+        }
+        return out + left
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, name, items, `public`, cover, sourceId, listenAt, role, joint, people, from, owner, mine, added
-        case signal
+        case signal, todayOrder, thumbs, headline
     }
 
     init(from decoder: Decoder) throws {
@@ -1942,6 +1969,31 @@ struct Mix: Decodable, Identifiable, Equatable {
         mine = (try? c.decode(Bool.self, forKey: .mine)) ?? false
         added = (try? c.decode(Bool.self, forKey: .added)) ?? false
         signal = try? c.decode(MixSignal.self, forKey: .signal)
+        todayOrder = (try? c.decode([String].self, forKey: .todayOrder)) ?? []
+        thumbs = (try? c.decode([String].self, forKey: .thumbs)) ?? []
+        headline = try? c.decode(MixHeadline.self, forKey: .headline)
+    }
+}
+
+/// The headline a mix card previews (§616, `_mix_today`): which item, its
+/// topic, today's episode title or the story's headline, and why it leads
+/// ("update", "trending", "covered" or "").
+struct MixHeadline: Decodable, Equatable {
+    let itemId: String
+    let topic: String
+    let title: String
+    let why: String
+    let picture: String
+
+    enum CodingKeys: String, CodingKey { case itemId, topic, title, why, picture }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        itemId = (try? c.decode(String.self, forKey: .itemId)) ?? ""
+        topic = (try? c.decode(String.self, forKey: .topic)) ?? ""
+        title = (try? c.decode(String.self, forKey: .title)) ?? ""
+        why = (try? c.decode(String.self, forKey: .why)) ?? ""
+        picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
     }
 }
 

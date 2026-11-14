@@ -195,6 +195,52 @@ def item_signal(item, edition: Iterable, pool: Iterable, heard: Heard,
     return best
 
 
+@dataclass
+class Coverage:
+    """Today's most-covered story about one mix item (§616, `mix_today`):
+    how many outlets carry it, whether it is in the Trending edition, and
+    its headline. Heard or not - this is how big the topic is today, not
+    what changed for this listener."""
+
+    outlets: int = 0
+    in_edition: bool = False
+    headline: str = ""
+    query: str = ""
+
+
+def coverage(item, edition: Iterable, pool: Iterable, now: Optional[float] = None,
+             window: float = NEVER_HEARD_WINDOW) -> Coverage:
+    """The widest-covered story about a followed item first seen within
+    `window`, from the edition and the pool; an empty `Coverage` for a typed
+    or bank item, which no story can be matched to without a model call.
+    Pure, like `item_signal`."""
+    now = time.time() if now is None else now
+    subject = subject_of(item)
+    best = Coverage()
+    if subject is None:
+        return best
+    since = now - window
+    widest = 0
+    lead: Optional[tuple] = None          # (in_edition, outlets, story)
+    for in_edition, stories in ((True, edition or ()), (False, pool or ())):
+        for story in stories:
+            if float(getattr(story, "first_seen", 0.0) or 0.0) <= since:
+                continue
+            if not matches(subject, specific_subject(story_text(story))):
+                continue
+            outlets = int(getattr(story, "coverage", 0) or 0)
+            widest = max(widest, outlets)
+            # The headline is the edition's story when there is one (the
+            # world's top stories), else the widest-covered in the pool.
+            if lead is None or (in_edition, outlets) > lead[:2]:
+                lead = (in_edition, outlets, story)
+    if lead is None:
+        return best
+    story = lead[2]
+    return Coverage(widest, lead[0], getattr(story, "title", "") or "",
+                    getattr(story, "query", "") or "")
+
+
 def strongest(found: Iterable[Optional[Found]]) -> Optional[Found]:
     """The one signal a mix card shows: the strongest of its items'."""
     best = None
