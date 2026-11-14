@@ -36876,3 +36876,100 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 "never waiting" under 1x, the endpoint's GPU class is too slow.
 
 `tests/test_voice_schedule_609.py`.
+
+## 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14)
+
+**What was asked.** The owner: myFAM's and DailyFAM's episodes are written
+whole before anybody taps, and voicing them costs nothing extra; RunPod's
+price scaling has been severe. When the always-on worker is not busy it
+should voice those episodes; the moment someone searches, the search comes
+first.
+
+**Why it had not been done.** `decouple-script-audio` said "prefetch warms
+text, never audio" (§132's amendment): a wrong guess should cost only text.
+That was true while the voice was paid per second. Since §578 the endpoint
+keeps an always-on worker billed by the hour whether it voices or not, so on
+that endpoint an idle second is already paid for and voicing ahead costs
+nothing. A tap on an edition's tile was still a cache hit on the *script*
+and a fresh voicing on the GPU, with the listener waiting for the first chunk
+and sharing the one worker with every other listener (§609).
+
+**Now.** `voice_ahead.py`, one loop started at boot (never on staging or in
+demo mode):
+
+* **What:** current scripts whose cache origin is one of
+  `VOICE_AHEAD_ORIGINS` (`myfam,dailyfam,trending,startup,push` - everything
+  the editions write ahead; never `search`), newest first, with no audio kept
+  in the voice a tap would play. The voice is the tap's own draw
+  (`app._drawn_slug`, factored out of `_episode_voice`, so the two cannot
+  differ): kept beside the script, else drawn and kept.
+* **How:** `PodcastPipeline.voice_ahead` replays the cached sentences through
+  the tap's speaking path - same pacing, lexicon, chunking - and keeps the
+  audio with `_keep_audio`, under the row a tap reads. It records nothing a
+  tap records: no play, no prefetch hit, no caption track, and never "voice
+  fell behind" (`GenerationStats.ahead`). Audio of a script re-written while
+  it was voiced is not kept. An episode that was not kept is not retried for
+  an hour (`RETRY_SECONDS`).
+* **Listeners first:** `stream_pcm` registers every listener's episode with
+  `voice_schedule` until it ends, or until it turns out to be kept audio
+  (which needs no worker). A background chunk starts only when none is in
+  progress and none has been for `VOICE_AHEAD_QUIET_SECONDS` (3), and then
+  queues at the worker behind every listener (`NO_DEADLINE`, §609's gate). A
+  search registers at its first byte of work, seconds before its brief and
+  research hand the worker a chunk, so the most a search can meet is one
+  background chunk already in flight, which finishes during that research. An
+  interrupted background episode waits where it is and resumes. A stream
+  dropped without being closed is forgotten after 30 minutes
+  (`LISTENER_HORIZON`), so it cannot stop voicing ahead for good.
+* **Only the always-on worker, confirmed by RunPod** (the owner: "only the
+  always on worker should be able to work on the background episodes,
+  anything that costs extra money should not be able to"). The setting
+  `REMOTE_VOICE_ACTIVE_WORKERS` is this app's belief about the console, so it
+  is only the first gate. Before **every** background chunk
+  (`wait_for_the_active_worker`, which `PodcastPipeline.voice_ahead` requires
+  as an argument - there is no way to voice ahead without it) RunPod is asked
+  two free reads: the endpoint's `workersMin` (REST v2, REST v1, GraphQL;
+  believed 60 s) must be at least 1, and its `/health` must show nothing
+  queued or in progress, nothing running or starting, and at least one idle
+  worker but no more idle workers than always-on ones - a flex worker still
+  inside its idle timeout could otherwise take the job and stay billed. An
+  answer that cannot be read is a no, asked again every 15 s; the reason is on
+  `/api/health` → `voice_ahead.worker`. A pod (runs continuously, §118) or an
+  in-process card is billed by the hour and needs no asking. On a
+  pay-per-second endpoint the loop voices nothing and says why
+  (`voice_ahead.reason`), beside the counts voiced, skipped and failed and the
+  last episode.
+* **If RunPod's API moves:** REST v1 retires 2026-11-15 and GraphQL in
+  January 2027; if v2's endpoint answer does not carry `workersMin`, voicing
+  ahead stops (fails closed) and `/api/health` says "RunPod did not say
+  whether the endpoint keeps an always-on worker". Not measured from this
+  session: no RunPod key here.
+
+* **What it cost listeners, counted:** `/api/health` →
+  `voice_ahead.listener_waits` - every listener's chunk that waited for the
+  worker while a chunk voiced ahead held it (`DeadlineGate.ahead_holding`),
+  with the seconds and the longest, and the same three for first chunks only
+  (`first_*`: the wait in front of a search's first word). Waiting behind
+  another listener is not counted here; §609's rows say that. If
+  `first_longest` is ever more than a second or two, a search should cancel
+  the background chunk in flight (`remote_voice` already cancels a RunPod job
+  whose caller is cancelled); until then it is not built.
+
+**What it does not do.** It cannot cancel a background chunk already at the
+worker; it does not add capacity, and when listeners keep the worker busy
+nothing is voiced ahead, which is the point. Kept audio still lives a week
+(§237), so an unplayed edition's audio is deleted with the rest. The
+prefetcher is unchanged: it still warms text only.
+
+`VOICE_AHEAD=0` restores voicing on tap exactly. `tests/test_voice_ahead_610.py`.
+
+## 611. CI's Postgres job red on Main: a test wrote a SQLite file by hand (2026-11-14)
+
+`tests/test_tour_594.py::test_an_older_table_is_widened_not_recreated` builds
+a pre-§594 `preferences` table with raw `sqlite3` and opens the store on it.
+With `DATABASE_URL` set (CI's `postgres` job, §243) `db.connect` goes to
+Postgres, the hand-made file is never read, and row `old` does not exist -
+`1 failed, 7422 passed` on #301's merge. Every other such test carries
+`@pytest.mark.sqlite_file`, which `tests/conftest.py` skips on Postgres; this
+one did not. Marked; checked against a local Postgres 16 (skipped there, the
+other five pass).

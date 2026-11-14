@@ -1834,6 +1834,21 @@ class Settings:
     # a chunk queued behind a busy active worker makes RunPod boot a flex
     # worker, billed for its boot, the chunk and its idle timeout.
     remote_voice_active_workers: int = _env_int("REMOTE_VOICE_ACTIVE_WORKERS", 0)
+    # Voice ahead (§610, at the owner's direction): while an always-on
+    # worker has nobody to voice, it voices the myFAM and DailyFAM episodes
+    # the editions already wrote, and keeps the audio, so a tap replays it.
+    # Only with an always-on worker (REMOTE_VOICE_ACTIVE_WORKERS above 0, a
+    # pod, or a card in-process): on a pay-per-second endpoint the same
+    # work would be a bill. A listener always comes first - nothing starts
+    # while one is being voiced, nor for VOICE_AHEAD_QUIET_SECONDS after.
+    voice_ahead: bool = field(
+        default_factory=lambda: os.environ.get("VOICE_AHEAD", "1") not in ("0", "false", "False"))
+    voice_ahead_quiet_seconds: float = _env_float("VOICE_AHEAD_QUIET_SECONDS", 3.0)
+    # Which written-ahead episodes it voices, by the cache row's origin.
+    voice_ahead_origins: str = field(default_factory=lambda: os.environ.get(
+        "VOICE_AHEAD_ORIGINS", "myfam,dailyfam,trending,startup,push"))
+    # Episodes looked at per pass, newest first.
+    voice_ahead_scan: int = _env_int("VOICE_AHEAD_SCAN", 300)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while
