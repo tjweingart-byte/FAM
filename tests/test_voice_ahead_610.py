@@ -278,3 +278,107 @@ def test_off_is_off(store, monkeypatch):
     configure(monkeypatch, voice_ahead=False)
     asyncio.run(voice_ahead.run_forever(store, None, None, None))
     assert voice_ahead.report()["reason"].startswith("off")
+
+
+# ---- RunPod itself confirms an idle always-on worker before every chunk ----
+
+def _runpod(monkeypatch, workers_min=1, health=None, active_env=1):
+    """A RunPod endpoint whose answers are given; returns the asks made."""
+    engine = _remote(monkeypatch, "runpod", active_env)
+    configure(monkeypatch, remote_voice_transport="runpod",
+              remote_voice_active_workers=active_env,
+              runpod_endpoint_id="ep1", runpod_api_key="k")
+    import remote_voice
+
+    monkeypatch.setattr(remote_voice, "_credential", lambda _n, v: v)
+    health = health if health is not None else {
+        "jobs": {"inQueue": 0, "inProgress": 0},
+        "workers": {"idle": 1, "running": 0, "initializing": 0}}
+    asked = []
+
+    async def ask(method, url, key, json=None):
+        asked.append(url)
+        if url.endswith("/health"):
+            return health
+        if workers_min is None:
+            return None
+        return {"id": "ep1", "workersMin": workers_min}
+
+    monkeypatch.setattr(voice_ahead, "_ask", ask)
+    return engine, asked
+
+
+def free(engine):
+    return asyncio.run(voice_ahead.active_worker_free(engine))
+
+
+def test_an_idle_always_on_worker_confirmed_by_runpod_is_used(monkeypatch):
+    engine, asked = _runpod(monkeypatch)
+    ok, why = free(engine)
+    assert ok, why
+    assert any(u.endswith("/ep1/health") for u in asked)
+
+
+def test_the_console_saying_no_always_on_worker_wins_over_the_setting(monkeypatch):
+    engine, _ = _runpod(monkeypatch, workers_min=0, active_env=1)
+    ok, why = free(engine)
+    assert not ok and "workersMin=0" in why
+
+
+def test_an_unconfirmed_endpoint_is_a_no(monkeypatch):
+    engine, _ = _runpod(monkeypatch, workers_min=None)
+    assert not free(engine)[0]
+
+
+def test_unreadable_health_is_a_no(monkeypatch):
+    engine, _ = _runpod(monkeypatch, health={"nothing": 1})
+    assert not free(engine)[0]
+
+
+@pytest.mark.parametrize("jobs,workers", [
+    ({"inQueue": 1, "inProgress": 0}, {"idle": 1}),
+    ({"inQueue": 0, "inProgress": 1}, {"idle": 0, "running": 1}),
+    ({}, {"idle": 0, "initializing": 1}),
+    ({}, {"idle": 0}),
+])
+def test_a_busy_or_missing_worker_is_a_no(monkeypatch, jobs, workers):
+    engine, _ = _runpod(monkeypatch, health={"jobs": jobs, "workers": workers})
+    assert not free(engine)[0]
+
+
+def test_a_flex_worker_alive_beside_the_always_on_one_is_a_no(monkeypatch):
+    """Two idle workers and one always-on: the job could land on the flex
+    one and keep it billed past its idle timeout."""
+    engine, _ = _runpod(monkeypatch, health={
+        "jobs": {}, "workers": {"idle": 2, "running": 0, "initializing": 0}})
+    ok, why = free(engine)
+    assert not ok and "flex" in why
+
+
+def test_no_chunk_is_sent_until_runpod_confirms(store, monkeypatch):
+    written_ahead(store, "how volcanoes form")
+    engine, _ = _runpod(monkeypatch, workers_min=0)
+    engine.calls = 0
+    monkeypatch.setattr(voice_ahead, "CHECK_SECONDS", 0.05)
+
+    async def main():
+        task = asyncio.create_task(voice_ahead.run_once(
+            store, lambda _k: None,
+            lambda v: PodcastPipeline(generator=CountingGenerator(),
+                                      engine=engine, cache=store, voice=v)))
+        await asyncio.sleep(0.5)
+        refused_calls = engine.calls
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return refused_calls
+
+    assert asyncio.run(main()) == 0, "a chunk went to a worker RunPod did not confirm"
+
+
+def test_voicing_ahead_cannot_be_asked_without_the_check(store):
+    _, key = written_ahead(store, "how tides work")
+    pipe = PodcastPipeline(generator=CountingGenerator(), engine=CountingVoice(),
+                           cache=store)
+    with pytest.raises(TypeError):
+        asyncio.run(pipe.voice_ahead(key, "how tides work", 1))

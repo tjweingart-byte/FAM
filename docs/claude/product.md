@@ -325,10 +325,14 @@ swapped names.
 > row a tap reads, so the tap is a replay. **A listener always comes first**:
 > no background chunk starts while any listener's episode is in progress or
 > for `VOICE_AHEAD_QUIET_SECONDS` after, and one that does queues behind every
-> listener at the worker (`NO_DEADLINE`, §609). **Only where an idle second
-> is already paid for** - an endpoint with active workers, a pod, a card
-> in-process; never a pay-per-second endpoint, where the reason below still
-> holds. Search is unchanged, and the prefetcher still warms text only.
+> listener at the worker (`NO_DEADLINE`, §609). **Only the always-on worker
+> may voice ahead; nothing that costs extra may** (the owner, 11.14). On
+> RunPod, before every background chunk, RunPod itself is asked - never only
+> `REMOTE_VOICE_ACTIVE_WORKERS` - and anything it cannot confirm is a no:
+> the endpoint's `workersMin` is at least 1, nothing is queued or in progress,
+> and no worker is alive beyond the always-on ones, so the job can only land
+> on an idle always-on worker. A pod or an in-process card is billed by the
+> hour and voices ahead unasked; a pay-per-second endpoint never does. Search is unchanged, and the prefetcher still warms text only.
 
 Today every episode is generated **on demand**. There used to be a fast-model
 "cold open" covering that wait; it is gone (PROBLEMS.md §55). Nothing is spoken

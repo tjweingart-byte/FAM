@@ -36921,11 +36921,29 @@ demo mode):
   interrupted background episode waits where it is and resumes. A stream
   dropped without being closed is forgotten after 30 minutes
   (`LISTENER_HORIZON`), so it cannot stop voicing ahead for good.
-* **Only where it is free:** `always_on` - a RunPod endpoint with
-  `REMOTE_VOICE_ACTIVE_WORKERS` above 0, a pod (runs continuously, §118), or a
-  card in-process. On a pay-per-second endpoint the loop runs, voices nothing
-  and says why on `/api/health` → `voice_ahead`, with the counts voiced,
-  skipped and failed and the last episode.
+* **Only the always-on worker, confirmed by RunPod** (the owner: "only the
+  always on worker should be able to work on the background episodes,
+  anything that costs extra money should not be able to"). The setting
+  `REMOTE_VOICE_ACTIVE_WORKERS` is this app's belief about the console, so it
+  is only the first gate. Before **every** background chunk
+  (`wait_for_the_active_worker`, which `PodcastPipeline.voice_ahead` requires
+  as an argument - there is no way to voice ahead without it) RunPod is asked
+  two free reads: the endpoint's `workersMin` (REST v2, REST v1, GraphQL;
+  believed 60 s) must be at least 1, and its `/health` must show nothing
+  queued or in progress, nothing running or starting, and at least one idle
+  worker but no more idle workers than always-on ones - a flex worker still
+  inside its idle timeout could otherwise take the job and stay billed. An
+  answer that cannot be read is a no, asked again every 15 s; the reason is on
+  `/api/health` → `voice_ahead.worker`. A pod (runs continuously, §118) or an
+  in-process card is billed by the hour and needs no asking. On a
+  pay-per-second endpoint the loop voices nothing and says why
+  (`voice_ahead.reason`), beside the counts voiced, skipped and failed and the
+  last episode.
+* **If RunPod's API moves:** REST v1 retires 2026-11-15 and GraphQL in
+  January 2027; if v2's endpoint answer does not carry `workersMin`, voicing
+  ahead stops (fails closed) and `/api/health` says "RunPod did not say
+  whether the endpoint keeps an always-on worker". Not measured from this
+  session: no RunPod key here.
 
 **What it does not do.** It cannot cancel a background chunk already at the
 worker; it does not add capacity, and when listeners keep the worker busy

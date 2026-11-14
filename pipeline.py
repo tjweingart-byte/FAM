@@ -399,6 +399,11 @@ def _sentence_starts(spoken, chunk_start: float, audio_seconds: float) -> list:
     return starts
 
 
+async def _refuse_ahead() -> None:
+    raise RuntimeError("voicing ahead needs a check that only an always-on "
+                       "worker can take the chunk (§610)")
+
+
 class PodcastPipeline:
     def __init__(
         self,
@@ -457,6 +462,7 @@ class PodcastPipeline:
         #: that would otherwise be idle (§610, `voice_ahead`): every chunk
         #: waits for no listener to be in progress, then queues behind any.
         self.ahead = False
+        self._ahead_wait: Callable[[], Any] = _refuse_ahead
 
     def _may_voice(self) -> None:
         if self.stored_only:
@@ -779,6 +785,7 @@ class PodcastPipeline:
             # Nobody is listening (§610): start nothing while a listener's
             # episode is in progress, and queue behind any that arrives.
             await voice_schedule.wait_for_quiet(settings.voice_ahead_quiet_seconds)
+            await self._ahead_wait()
             deadline = voice_schedule.NO_DEADLINE
         elif stats.first_audio_at:
             played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
@@ -1428,7 +1435,8 @@ class PodcastPipeline:
         except Exception:
             log.exception("could not keep this episode's audio; continuing")
 
-    async def voice_ahead(self, key: str, query: str, minutes) -> str:
+    async def voice_ahead(self, key: str, query: str, minutes,
+                          wait: Callable[[], Any]) -> str:
         """Voice the script kept under `key` and keep its audio, with nobody
         listening (§610). Returns what happened, in a word.
 
@@ -1437,7 +1445,10 @@ class PodcastPipeline:
         the kept audio is what that tap would have voiced and kept, under the
         same row. Nothing a tap records happens here: no play is counted, no
         prefetch hit, no caption track, no "voice fell behind". Every chunk
-        waits for no listener to be in progress (`_synth`).
+        waits for no listener to be in progress and then for `wait()` - the
+        caller's proof that only an idle always-on worker can take it, so it
+        costs nothing extra (`voice_ahead.wait_for_the_active_worker`).
+        Required: there is no way to voice ahead without saying how.
         """
         if not (self._keeps_audio() and self.cache_writes and key):
             return "off"
@@ -1459,6 +1470,7 @@ class PodcastPipeline:
         pace = PaceController(target_seconds=float(plan.target_seconds),
                               total_words=plan.word_budget, sample_rate=rate)
         self.ahead = True
+        self._ahead_wait = wait
         pcm = bytearray()
         async for chunk in self._speak_pump(
                 self._pump_for(_replay(sentences), stats, pace), pace, stats):
