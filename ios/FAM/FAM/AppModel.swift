@@ -1227,7 +1227,7 @@ final class AppModel: ObservableObject {
 
     /// A message card's bookmark (`saveSharedEpisode`): "Saved for Later" /
     /// "Removed from Saved for Later", or "Could not save that".
-    func toggleSaved(query: String, minutes: Double, title: String) {
+    func toggleSaved(query: String, minutes: Double, title: String, episode: String = "") {
         let key = "\(query)|\(FAMAPI.minutes(minutes))"
         let on = savedTiles.contains(key)
         if on { savedTiles.remove(key) } else { savedTiles.insert(key) }
@@ -1237,7 +1237,8 @@ final class AppModel: ObservableObject {
                     try await api.unsaveShared(query: query, minutes: minutes)
                     nowPlaying.snack("Removed from Saved for Later")
                 } else {
-                    try await api.saveShared(query: query, minutes: minutes, title: title)
+                    try await api.saveShared(query: query, minutes: minutes, title: title,
+                                             episode: episode)
                     nowPlaying.say("Saved for Later", action: "Open") { self.openSaved() }
                 }
             } catch {

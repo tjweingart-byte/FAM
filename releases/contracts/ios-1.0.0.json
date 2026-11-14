@@ -1,6 +1,6 @@
 {
-  "commit": "1d23e7da24deab83d7a60b30ef64f76fd66dc939",
-  "cut": "2026-11-13",
+  "commit": "f3d2d32edc19c2b2e6ccc2c17720a4556439996b",
+  "cut": "2026-11-14",
   "platform": "ios",
   "routes": [
     "/api/account",
@@ -111,6 +111,7 @@
       "has_account": "boolean",
       "has_password": "boolean",
       "home": "string",
+      "password_needed": "boolean",
       "phone": "string",
       "status": "string",
       "tier": "string",
@@ -278,6 +279,7 @@
       "trending_bank": "any",
       "tts": "any",
       "usage_monitors": "any",
+      "voice_ahead": "any",
       "voice_store": "any",
       "waitlist": "any",
       "weather": "any",

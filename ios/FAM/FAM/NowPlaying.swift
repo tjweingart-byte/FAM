@@ -531,6 +531,13 @@ final class NowPlayingModel: ObservableObject {
 
     // MARK: - Save and VIBE!
 
+    /// The kept id of the episode on the player (§612): the one the server
+    /// said it served (`X-FAM-Episode`), else the one it was asked for by.
+    private func keptID(_ ep: Episode) -> String {
+        if episode == ep, !player.episodeID.isEmpty { return player.episodeID }
+        return ep.episodeID
+    }
+
     /// Taken off the shelf on Save for Later: if it is the episode on the
     /// player, its save goes off too (`removeSaved`).
     func savedRemoved(query: String, minutes: Double) {
@@ -546,6 +553,9 @@ final class NowPlayingModel: ObservableObject {
         guard let ep = episode else { say("Play something first"); return }
         guard signedIn() else { say("Could not save that"); return }
         let heard = title
+        // The episode heard, by its id (`X-FAM-Episode`, §612), taken now
+        // so an Undo puts back this one whatever plays by then.
+        let kept = keptID(ep)
         if saved {
             Task {
                 do {
@@ -554,7 +564,7 @@ final class NowPlayingModel: ObservableObject {
                     // The Task already holds self; the Undo holds it too (no weak
                     // capture inside a strong one).
                     say("Removed from Saved for Later", action: "Undo") {
-                        self.resave(ep, title: heard)
+                        self.resave(ep, title: heard, episode: kept)
                     }
                 } catch {
                     say("Could not take that off")
@@ -563,7 +573,7 @@ final class NowPlayingModel: ObservableObject {
         } else {
             Task {
                 do {
-                    try await api.save(ep.key, title: heard)
+                    try await api.save(ep.key, title: heard, episode: kept)
                     if self.episode == ep {
                         self.saved = true
                         self.savedBurst += 1
@@ -578,10 +588,10 @@ final class NowPlayingModel: ObservableObject {
 
     /// Undo after taking an episode off the shelf: that episode, saved
     /// again; the player's save lit only if it is still the one playing.
-    private func resave(_ ep: Episode, title: String) {
+    private func resave(_ ep: Episode, title: String, episode: String) {
         Task {
             do {
-                try await api.save(ep.key, title: title)
+                try await api.save(ep.key, title: title, episode: episode)
                 if let now = self.episode, now.key.query == ep.key.query, now.key.minutes == ep.key.minutes {
                     self.saved = true
                 }
@@ -595,7 +605,8 @@ final class NowPlayingModel: ObservableObject {
     func vibe(caption: String) async -> Bool {
         guard let ep = episode else { say("Play something first"); return false }
         do {
-            try await api.vibe(ep.key, title: title, thread: thread, caption: caption)
+            try await api.vibe(ep.key, title: title, thread: thread, caption: caption,
+                               episode: keptID(ep))
             if episode == ep { vibed = true }
             say("Vibed to your story")
             // VIBED bursts 300 ms after the composer closes (`toggleEcho`).

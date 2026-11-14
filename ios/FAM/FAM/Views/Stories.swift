@@ -870,7 +870,8 @@ struct StoryViewer: View {
         let key = storyKey()
         let title = story.title ?? key.query
         let thumb = story.style?.thumb ?? ""
-        resharing = .episode(key, title: title, thumb: thumb, thread: "")
+        resharing = .episode(key, title: title, thumb: thumb, thread: "",
+                             episode: story.episode ?? "")
     }
 
     private func storyKey() -> EpisodeKey {
@@ -882,7 +883,8 @@ struct StoryViewer: View {
         let title = story.title ?? key.query
         Task {
             do {
-                try await model.api.save(key, title: title, source: "story")
+                try await model.api.save(key, title: title, source: "story",
+                                         episode: story.episode ?? "")
                 model.nowPlaying.snack("Saved for Later")
             } catch {
                 model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that"))
@@ -1034,8 +1036,10 @@ struct StoryViewer: View {
             model.showPlayer = true
             return
         }
-        let ep = Episode(key: EpisodeKey(query: q, minutes: story.minutes ?? FAMAPI.browseMinutes),
+        var ep = Episode(key: EpisodeKey(query: q, minutes: story.minutes ?? FAMAPI.browseMinutes),
                          title: story.title ?? q, surface: "other")
+        // The vibed episode by its id (§612); a 409 asks the question.
+        ep.episodeID = story.episode ?? ""
         // At once: the loading screen and the player come up as it goes.
         close(animated: false)
         model.play(ep)

@@ -481,10 +481,15 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     /// `source` says where it was saved from: the player, or a story.
-    func save(_ ep: EpisodeKey, title: String, source: String = "player") async throws {
+    /// `episode` is the kept episode's id (§612): Saved for Later then
+    /// replays that one and never writes it again; "" lets the server name
+    /// the one kept under the question.
+    func save(_ ep: EpisodeKey, title: String, source: String = "player",
+              episode: String = "") async throws {
         _ = try await send("POST", "api/v1/saved", body: [
             "query": Self.cut(ep.query, 500), "minutes": ep.minutes,
             "title": Self.cut(title, 200), "source": Self.cut(source, 40),
+            "episode": Self.cut(episode, 80),
         ], as: SavedState.self)
     }
 
@@ -494,11 +499,14 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     /// VIBE! the episode to your story (`/api/vibe`, `echo` in code).
-    func vibe(_ ep: EpisodeKey, title: String, thread: String, caption: String) async throws {
-        // `EchoRequest`'s limits: query 300, title 200, thread 200, caption 1000.
+    func vibe(_ ep: EpisodeKey, title: String, thread: String, caption: String,
+              episode: String = "") async throws {
+        // `EchoRequest`'s limits: query 300, title 200, thread 200, caption
+        // 1000; the vibed episode's id (§612) so it replays by id.
         _ = try await send("POST", "api/v1/vibe", body: [
             "query": Self.cut(ep.query, 300), "title": Self.cut(title, 200), "minutes": ep.minutes,
             "thread": Self.cut(thread, 200), "caption": Self.cut(caption, 1000),
+            "episode": Self.cut(episode, 80),
         ], as: Ignored.self)
     }
 
@@ -508,9 +516,11 @@ final class FAMAPI: @unchecked Sendable {
     }
 
     /// A share link (`/s/<id>`) and its wording; no account needed.
-    func share(_ ep: EpisodeKey, title: String) async throws -> SharedLink {
+    func share(_ ep: EpisodeKey, title: String, episode: String = "") async throws -> SharedLink {
+        // Which episode (§612), so the link replays it and never writes.
         try await send("POST", "api/v1/share", body: [
             "query": Self.cut(ep.query, 500), "minutes": ep.minutes, "title": Self.cut(title, 200),
+            "episode": Self.cut(episode, 80),
         ], as: SharedLink.self)
     }
 
@@ -855,6 +865,8 @@ struct SavedItem: Decodable {
     let id: String?
     let folderId: String?
     let source: String?
+    /// The episode that was saved (§612): played by id, never written again.
+    let episode: String?
 }
 
 /// `/api/circle?notes=1`.
@@ -896,6 +908,8 @@ struct Story: Decodable, Identifiable, Hashable {
     let tags: [StoryTag]?
     /// Posted to Close Friends only.
     let close: Bool?
+    /// The vibed episode (§612): played by id, never written again.
+    let episode: String?
 }
 
 /// A story's layout (`social.clean_style` / `clean_note_style`). Every
@@ -2505,10 +2519,11 @@ extension FAMAPI {
     }
 
     /// Save or unsave an episode a message carries (`saveSharedEpisode`).
-    func saveShared(query: String, minutes: Double, title: String) async throws {
+    /// `episode` is the sent episode's id (§612), so the save replays it.
+    func saveShared(query: String, minutes: Double, title: String, episode: String = "") async throws {
         _ = try await send("POST", "api/v1/saved", body: [
             "query": Self.cut(query, 500), "minutes": minutes, "title": Self.cut(title, 200),
-            "source": "message",
+            "source": "message", "episode": Self.cut(episode, 80),
         ], as: SavedState.self)
     }
 
@@ -3137,6 +3152,8 @@ struct VibeRow: Decodable, Hashable, Identifiable {
     let query: String
     let title: String?
     let minutes: Double?
+    /// The vibed episode (§612): played by id, never written again.
+    let episode: String?
     let at: Double?
     let folderId: String?
 }
@@ -3205,6 +3222,8 @@ struct VibePost: Decodable, Hashable, Identifiable {
     let query: String
     let title: String?
     let minutes: Double?
+    /// The vibed episode (§612): played by id, never written again.
+    let episode: String?
     /// The moment it was vibed, which the post shows ("Vibed yesterday").
     let at: Double?
     let caption: String?

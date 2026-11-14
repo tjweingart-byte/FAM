@@ -53,6 +53,8 @@ struct VibePostItem: Identifiable, Equatable {
     let heardCount: Int
     let heardFaces: [VibePostPerson]
     let thumb: String
+    /// The vibed episode (§612): played and saved by its id.
+    let episode: String
 
     init(_ p: VibePost) {
         id = p.id
@@ -71,6 +73,7 @@ struct VibePostItem: Identifiable, Equatable {
         heardCount = p.heard?.count ?? 0
         heardFaces = Array((p.heard?.faces ?? []).prefix(3))
         thumb = p.thumb ?? ""
+        episode = p.episode ?? ""
     }
 
     var key: EpisodeKey { EpisodeKey(query: query, minutes: minutes) }
@@ -752,6 +755,8 @@ struct VibePostsView: View {
 
     private func start(_ p: VibePostItem, at: Double) {
         var ep = Episode(key: p.key, title: p.shownTitle, surface: "other")
+        // The vibed episode by its id (§612); a 409 asks the question.
+        ep.episodeID = p.episode
         ep.picture = p.thumb.isEmpty ? nil : model.api.picture(p.thumb)
         ep.inPlace = true
         model.play(ep, resumeAt: at)
@@ -797,9 +802,10 @@ struct VibePostsView: View {
         let app = model
         let key = p.key
         let title = p.shownTitle
+        let episode = p.episode
         Task {
             do {
-                try await app.api.save(key, title: title, source: "vibe")
+                try await app.api.save(key, title: title, source: "vibe", episode: episode)
                 app.nowPlaying.say("Saved for Later", action: "Open") { app.openSaved() }
             } catch {
                 app.nowPlaying.say("Could not save that")

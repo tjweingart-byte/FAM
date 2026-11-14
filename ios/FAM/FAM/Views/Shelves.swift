@@ -603,7 +603,8 @@ struct MyVibeView: View {
         let meta = FAMAPI.minutes(v.minutes ?? FAMAPI.browseMinutes) + " min \u{00B7} vibed"
             + (place.isEmpty ? "" : " \u{00B7} " + place)
         return HStack(spacing: 6) {
-            Button { model.playOwnVibe(query: v.query, minutes: v.minutes, title: v.title) } label: {
+            Button { model.playOwnVibe(query: v.query, minutes: v.minutes, title: v.title,
+                                      episode: v.episode ?? "") } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(FAMFont.heading(13, .medium))

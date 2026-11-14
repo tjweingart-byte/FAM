@@ -739,7 +739,9 @@ struct VibeComposer: View {
     private var subject: StoryEditorSubject {
         let key = now.episode?.key ?? EpisodeKey(query: "", minutes: FAMAPI.browseMinutes)
         let thumb = StoryEditorSubject.thumbPath(now.picture ?? player.picture)
-        return .episode(key, title: now.title, thumb: thumb, thread: now.thread)
+        // The episode heard, by its id (§612).
+        return .episode(key, title: now.title, thumb: thumb, thread: now.thread,
+                        episode: player.episodeID)
     }
 }
 
@@ -837,7 +839,7 @@ struct ShareSheet: View {
             return
         }
         do {
-            link = try await model.api.share(ep.key, title: ep.title)
+            link = try await model.api.share(ep.key, title: ep.title, episode: ep.episode)
         } catch {
             // The server's sentence, else the web's (`loadShareTargets`).
             problem = SocialModel.sentence(error, else: "Could not make a share link")
