@@ -166,6 +166,25 @@ def headline(ordered: Iterable[Entry]) -> Optional[Entry]:
     return None
 
 
+#: Tiles stacked on a card's cover (option A, §616).
+STACK = 3
+
+
+def tiles(ordered: Iterable[Entry], limit: int = STACK) -> list[Entry]:
+    """The stories stacked on the card's cover, best on top: the first in
+    today's order that have a picture, none twice, heard today included
+    only if nothing else has one (it is last in the order anyway)."""
+    out: list[Entry] = []
+    seen: set = set()
+    for e in ordered:
+        if e.picture and e.picture not in seen:
+            seen.add(e.picture)
+            out.append(e)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def thumbs(ordered: Iterable[Entry], limit: int = THUMBS) -> list[str]:
     """The pictures a cover draws, in today's order, none twice."""
     out: list[str] = []

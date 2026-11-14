@@ -7415,11 +7415,13 @@ async def list_mixes(request: Request):
     history = _mix_history(user)
     # One read of the taste profile for every mix's order today (§616).
     profile = _mix_taste(user) if shown else {}
+    # And one read of the stories, each story's subject worked out once.
+    today = _today_context_or_none() if shown else None
     return {
         # Each with its pictures, what changed since this listener last
         # heard it (§545) and today's order (§616), via `_mix_out`.
         "mixes": [_mix_out(m, user, people, m.id in joint or m.user_id != user, history,
-                           profile)
+                           profile, today)
                   for m in shown],
         "starters": [
             {"name": name, "topic_ids": list(ids)}
@@ -7657,7 +7659,7 @@ async def _title_typed_topics(request: Request, account: str, raw: list) -> list
 
 
 def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None,
-             profile=None) -> dict:
+             profile=None, today=None) -> dict:
     """One mix as this viewer sees it, with each topic's picture and what
     changed since they last heard it (§545) - on every route that answers
     with a mix, so adding or reordering a topic never drops either.
@@ -7671,7 +7673,7 @@ def _mix_out(mix, viewer: str, people: dict, joint: bool, history=None,
     if history is None:
         history = _mix_history(viewer)
     _mix_signals(viewer, [(mix, body)], history)
-    _mix_today(viewer, mix, body, history, profile)
+    _mix_today(viewer, mix, body, history, profile, today)
     return body
 
 
@@ -7690,7 +7692,44 @@ def _mix_taste(user: str) -> dict:
         return {}
 
 
-def _mix_today(user: str, mix, body: dict, history: list, profile=None) -> None:
+def _today_context_or_none():
+    """`_mix_today_context` for a list, or None (each mix then reads its
+    own and logs) when the stories cannot be read - never the list's error."""
+    try:
+        return _mix_today_context(time.time())
+    except Exception:  # noqa: BLE001
+        log.exception("could not read the stories for today's mix order")
+        return None
+
+
+def _mix_today_context(now: float) -> dict:
+    """What today's order reads that is the same for every mix in a request
+    (§616): the Trending edition and the story pool, read once, and each
+    story's subject worked out once (`signals.specific_subject` is a walk of
+    the vocabulary) - so a list of mixes costs one pass over the stories,
+    not one per item."""
+    import signals as signals_mod
+
+    edition = trending_bank.stories_in_memory(now)
+    try:
+        pool = stories_mod.pool().held(now)
+    except Exception:  # noqa: BLE001 - no pool is no coverage, not an error
+        pool = []
+    seen: dict = {}
+
+    def subject_of(story):
+        key = id(story)
+        if key not in seen:
+            seen[key] = signals_mod.specific_subject(signals_mod.story_text(story))
+        return seen[key]
+
+    return {"now": now, "edition": edition, "pool": pool, "subject_of": subject_of,
+            # Kept alive with the cache, so an id is never reused within it.
+            "_keep": (edition, pool)}
+
+
+def _mix_today(user: str, mix, body: dict, history: list, profile=None,
+               context=None) -> None:
     """Today's order of a mix, its headline and its cover's tiles (§616, the
     owner's 11.14 notes: "automatically reorders the episodes (and displayed
     tiles on cover) to be in order of most trending/relevant stories").
@@ -7706,6 +7745,8 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None) -> None:
       headline), `why` and `picture`.
     * `thumbs` - up to four pictures in today's order: the default cover of
       a mix with no photo of its own.
+    * `cover_tiles` - the stack drawn on the card (option A): up to three
+      of today's first stories with a picture, best first.
 
     A read of what is held (the history, the pool and edition in memory, the
     script cache, the event log); never a write or a model call, and **never
@@ -7715,19 +7756,15 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None) -> None:
     import signals as signals_mod
 
     try:
-        now = time.time()
+        ctx = context or _mix_today_context(time.time())
+        now = ctx["now"]
         if profile is None:
             profile = _mix_taste(user)
         heard = {normalize_query(r.get("query") or "") for r in history or ()}
-        edition = trending_bank.stories_in_memory(now)
-        try:
-            pool = stories_mod.pool().held(now)
-        except Exception:  # noqa: BLE001 - no pool is no coverage, not an error
-            pool = []
         entries = []
         for n, (item, out) in enumerate(zip(mix.items, body.get("items") or ())):
-            cover = signals_mod.coverage(item, edition, pool, now,
-                                         mix_today.COVERAGE_WINDOW)
+            cover = signals_mod.coverage(item, ctx["edition"], ctx["pool"], now,
+                                         mix_today.COVERAGE_WINDOW, ctx["subject_of"])
             tags = mixes_mod.taste_tags(item)
             affinity = mix_today.affinity(tags, profile, topics_mod.tag_weight)
             signal = (out.get("signal") or {}).get("kind", "")
@@ -7758,6 +7795,13 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None) -> None:
                 e.picture = today_pic or e.picture
         body["today_order"] = [e.item_id for e in ordered]
         body["thumbs"] = mix_today.thumbs(ordered)
+        # The stack on the card's cover (option A, the owner's pick of six,
+        # §616): today's first three with a picture, best on top - each its
+        # picture, its topic and whether today's episode is written.
+        body["cover_tiles"] = [
+            {"picture": e.picture, "label": (by_id.get(e.item_id) or {}).get("title") or "",
+             "ready": bool(e.written)}
+            for e in mix_today.tiles(ordered)]
         lead = mix_today.headline(ordered)
         if lead is not None:
             out = by_id.get(lead.item_id) or {}
@@ -7766,7 +7810,7 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None) -> None:
                                 "picture": lead.picture}
     except Exception:  # noqa: BLE001 - today's order is never worth the mix
         log.exception("could not work out today's order of a mix")
-        for key in ("today_order", "thumbs", "headline"):
+        for key in ("today_order", "thumbs", "headline", "cover_tiles"):
             body.pop(key, None)
 
 
@@ -8315,6 +8359,13 @@ async def public_mix(mix_id: str, request: Request) -> dict:
     added = MIXES.added_from(viewer) if viewer and _has_account(request) else set()
     body = _public_mix(mix, viewer, added)
     _mix_episode_titles(body)
+    # Somebody else's mix plays best first too (§616): its pictures, and
+    # today's order for this viewer - their history and taste when they
+    # have an account, the measurements alone when not.
+    _mix_pictures(mix, body)
+    account = viewer if viewer and _has_account(request) else ""
+    _mix_today(account, mix, body, _mix_history(account) if account else [],
+               None if account else {})
     return body
 
 

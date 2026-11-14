@@ -72,7 +72,7 @@ SHOTS = [
                     " var c = document.getElementById('catSection');"
                     " if(c) c.style.display = 'none'; }, 600)", "light"),
     ("myfam-mix", "openPlayFAM(); setTimeout(function(){"
-                  " document.querySelectorAll('.mix-card')[0].click(); }, 600)", "light"),
+                  " document.querySelectorAll('#mixList .mix-a')[0].click(); }, 600)", "light"),
 ]
 
 #: name -> cut from a screenshot of the app, not photographed: the preview

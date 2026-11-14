@@ -355,7 +355,11 @@ struct NewMessageCard: View {
             model.nowPlaying.say("Type at least two letters of a handle")
             return
         }
+        // One lookup at a time: Return pressed twice (`onReturn`) or the
+        // button tapped twice asks once.
+        working = true
         Task {
+            defer { working = false }
             do {
                 let answer = try await model.api.people(q)
                 guard let first = answer.first else {

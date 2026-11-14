@@ -1926,6 +1926,9 @@ struct Mix: Decodable, Identifiable, Equatable {
     let thumbs: [String]
     /// The item the card previews: today's episode title, else a story's.
     let headline: MixHeadline?
+    /// The stack on the card's cover (option A, §616): today's first three
+    /// stories with a picture, best first.
+    let coverTiles: [MixCoverTile]
 
     var isOwner: Bool { role != "member" }
 
@@ -1949,7 +1952,7 @@ struct Mix: Decodable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, items, `public`, cover, sourceId, listenAt, role, joint, people, from, owner, mine, added
-        case signal, todayOrder, thumbs, headline
+        case signal, todayOrder, thumbs, headline, coverTiles
     }
 
     init(from decoder: Decoder) throws {
@@ -1972,6 +1975,24 @@ struct Mix: Decodable, Identifiable, Equatable {
         todayOrder = (try? c.decode([String].self, forKey: .todayOrder)) ?? []
         thumbs = (try? c.decode([String].self, forKey: .thumbs)) ?? []
         headline = try? c.decode(MixHeadline.self, forKey: .headline)
+        coverTiles = (try? c.decode([MixCoverTile].self, forKey: .coverTiles)) ?? []
+    }
+}
+
+/// One tile of the stack on a mix card's cover (`cover_tiles`): its
+/// picture, its topic and whether today's episode is written.
+struct MixCoverTile: Decodable, Equatable {
+    let picture: String
+    let label: String
+    let ready: Bool
+
+    enum CodingKeys: String, CodingKey { case picture, label, ready }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        picture = (try? c.decode(String.self, forKey: .picture)) ?? ""
+        label = (try? c.decode(String.self, forKey: .label)) ?? ""
+        ready = (try? c.decode(Bool.self, forKey: .ready)) ?? false
     }
 }
 

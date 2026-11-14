@@ -217,3 +217,46 @@ def test_the_web_draws_todays_picture_when_there_is_no_cover():
     assert "function coverOf(m)" in INDEX
     style = INDEX.split("function coverStyle(m){", 1)[1].split("\n  }\n", 1)[0]
     assert "coverOf(m)" in style
+
+
+# --- option A's stack, public mixes, one read of the stories ------------------
+
+
+def test_tiles_are_the_first_three_with_a_picture():
+    ordered = [entry("a", 0, picture="/p/1"), entry("b", 1), entry("c", 2, picture="/p/1"),
+               entry("d", 3, picture="/p/2"), entry("e", 4, picture="/p/3"),
+               entry("f", 5, picture="/p/4")]
+    assert ids(T.tiles(ordered)) == ["a", "d", "e"]
+
+
+def test_the_list_serves_the_stack(client, monkeypatch):
+    mix = client.get("/api/mixes").json()["mixes"][0]
+    tiles = mix["cover_tiles"]
+    assert 1 <= len(tiles) <= 3
+    assert set(tiles[0]) == {"picture", "label", "ready"}
+    assert tiles[0]["label"] == next(i["title"] for i in mix["items"]
+                                     if i["id"] == mix["today_order"][0])
+
+
+def test_a_public_mix_plays_best_first_too(client):
+    mix = client.get("/api/mixes").json()["mixes"][0]
+    client.patch(f"/api/mixes/{mix['id']}", json={"public": True})
+    body = client.get(f"/api/mixes/public/{mix['id']}").json()
+    assert sorted(body["today_order"]) == sorted(i["id"] for i in body["items"])
+    assert "cover_tiles" in body
+
+
+def test_a_list_reads_each_storys_subject_once(client, monkeypatch):
+    """`specific_subject` is a walk of the vocabulary: once per story per
+    request, however many mixes and items read it."""
+    now = time.time()
+    held = [story("Eagles lose their left tackle", first_seen=now - 60, coverage=20),
+            story("Chiefs sign a kicker", first_seen=now - 60, coverage=9)]
+    monkeypatch.setattr(appmod.trending_bank, "stories_in_memory", lambda n=None: held)
+    client.post("/api/mixes", json={"name": "Second", "topic_ids": ["f:nfl", "f:nfl~Eagles"]})
+    calls = []
+    real = S.specific_subject
+    monkeypatch.setattr(S, "specific_subject", lambda t: calls.append(t) or real(t))
+    monkeypatch.setattr(S, "item_signal", lambda *a, **k: None)   # §545's own scan aside
+    assert len(client.get("/api/mixes").json()["mixes"]) == 2
+    assert len(calls) == len(held)

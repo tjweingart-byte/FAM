@@ -885,6 +885,8 @@ def _signal_fixtures(mixes: list) -> None:
             if i.get("picture") and i["picture"] not in thumbs:
                 thumbs.append(i["picture"])
         m["thumbs"] = thumbs[:4]
+        m["cover_tiles"] = [{"picture": i["picture"], "label": i["title"], "ready": n == 0}
+                            for n, i in enumerate([i for i in ordered if i.get("picture")][:3])]
         lead = next((i for i in ordered if i.get("signal")), None)
         for i in ordered:
             if i.get("signal"):

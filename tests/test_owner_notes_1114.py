@@ -67,6 +67,8 @@ def test_the_iphone_reading_card_matches():
     assert ".onSubmit { sendOwn() }" in card
     assert "prefix(200)" in card
     assert "model.answerReading(words)" in card
+    # Focus waits until the field is on screen, or the keyboard may not open.
+    assert "DispatchQueue.main.async { focused = true }" in card
     assert "static let pencil: Path" in swift("Theme.swift")
 
 
@@ -76,9 +78,11 @@ def test_the_iphone_reading_card_matches():
 def test_the_iphone_tour_card_is_as_tall_as_its_words():
     tour = swift("Tour.swift")
     card = tour.split("struct TourCard: View {", 1)[1]
-    # Pinned to its own height at every size short of the accessibility ones.
-    assert "inner.fixedSize(horizontal: false, vertical: true)" in card
-    assert "typeSize.isAccessibilitySize" in card
+    # Pinned to its own height and measured; it scrolls only when the words
+    # outgrow the room, and then at exactly the room's height.
+    assert "measuredInner.fixedSize(horizontal: false, vertical: true)" in card
+    assert "if measured > maxHeight && maxHeight > 0 {" in card
+    assert ".frame(height: maxHeight)" in card
     # Never a scroll view under a bare maximum, which some phones stretched.
     assert "ScrollsWhenTall { inner }" not in card
     assert ".frame(maxHeight: maxHeight)" not in card

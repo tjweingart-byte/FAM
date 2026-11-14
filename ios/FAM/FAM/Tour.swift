@@ -800,9 +800,8 @@ struct TourOverlay: View {
 }
 
 /// `.tour-card`: kicker and Skip, the art, the title, the words, then
-/// Back, "n of N" over its bar, and Next. As tall as its words (`sized`);
-/// at the accessibility sizes at most the screen less 32 pt, scrolling
-/// inside past that.
+/// Back, "n of N" over its bar, and Next. As tall as its words (`sized`),
+/// and when they outgrow the screen less 32 pt, that tall and scrolling.
 struct TourCard: View {
     @ObservedObject var tour: TourModel
     let step: TourStep
@@ -810,7 +809,7 @@ struct TourCard: View {
     let maxHeight: CGFloat
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The words' own height, read at the accessibility sizes (`sized`).
+    /// The words' own height (`sized`).
     @State private var measured: CGFloat = 0
 
     private var last: Bool { index == TourModel.steps.count - 1 }
@@ -844,23 +843,29 @@ struct TourCard: View {
     /// card was `ScrollsWhenTall` under `.frame(maxHeight:)`: a scroll view
     /// is flexible, and on some phones it took the whole height offered -
     /// the room less 32 pt - with the words floating in the middle of it.
-    /// At every text size short of the accessibility sizes the words fit any
-    /// iPhone many times over, so the card is pinned to its own height
-    /// (`fixedSize`), which nothing above it can stretch. Only at the
-    /// accessibility sizes, where it can outgrow the room, does it scroll -
-    /// and then at an explicit height, its measured one up to the room,
-    /// never "as much as it is given".
+    /// Now the words are pinned to their own height (`fixedSize`), which
+    /// nothing above can stretch, and measured; only when they are taller
+    /// than the room (a small phone at a large text size) do they scroll,
+    /// at exactly the room's height - never "as much as it is given". The
+    /// card has no field or picker, so swapping the two never drops a focus
+    /// (§589's reason for one copy).
     @ViewBuilder private var sized: some View {
-        if typeSize.isAccessibilitySize {
-            ScrollView { inner.background(GeometryReader { g in
-                Color.clear.preference(key: TourCardHeight.self, value: g.size.height)
-            }) }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: measured > 0 ? min(measured, maxHeight) : maxHeight)
-            .onPreferenceChange(TourCardHeight.self) { measured = $0 }
+        if measured > maxHeight && maxHeight > 0 {
+            ScrollView { measuredInner }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: maxHeight)
         } else {
-            inner.fixedSize(horizontal: false, vertical: true)
+            measuredInner.fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var measuredInner: some View {
+        inner
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { g in
+                Color.clear.preference(key: TourCardHeight.self, value: g.size.height)
+            })
+            .onPreferenceChange(TourCardHeight.self) { measured = $0 }
     }
 
     private var inner: some View {
@@ -991,7 +996,7 @@ struct TourCard: View {
 }
 
 
-/// The tour card's words' height, at the accessibility sizes (`TourCard.sized`).
+/// The tour card's words' height (`TourCard.sized`).
 private struct TourCardHeight: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {

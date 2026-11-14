@@ -679,7 +679,10 @@
 > owner's order (what they drag, what a reorder sends). A mix with no photo
 > of its own draws `thumbs[0]`, today's lead picture, never the folder when
 > there is one. "or play all from the top" still plays the owner's order.
-> The card layout itself waits on the owner's pick of six options.
+> The list's card is **option A, the stacked deck** (the owner's pick of
+> six): the mix's colour with today's first three stories fanned on it, best
+> on top (`cover_tiles`), the name on the cover, today's headline under it;
+> a photo of its own fills the square and the stack takes its corner.
 
 > **Current (PROBLEMS.md §570, the owner 11.12):** on a mix's page each row
 > is called by today's episode (`episode_title`, the writer's title, read from

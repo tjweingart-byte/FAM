@@ -774,8 +774,10 @@ struct ReadingCard: View {
     /// `.reading-own`: dashed, copper, centred.
     private var ownPill: some View {
         Button {
+            // Focus once the field is on screen (`ownField`'s onAppear): set
+            // in the same moment it is inserted, SwiftUI can drop it and the
+            // keyboard would wait for a second tap.
             typing = true
-            focused = true
         } label: {
             HStack(spacing: 8) {
                 WebIcon(path: Icons.pencil, size: 14, line: 2.2)
@@ -818,6 +820,9 @@ struct ReadingCard: View {
         .frame(minHeight: 46)
         .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.copper, lineWidth: 1.5))
+        .onAppear {
+            DispatchQueue.main.async { focused = true }
+        }
     }
 
     private func sendOwn() {

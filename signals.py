@@ -209,11 +209,15 @@ class Coverage:
 
 
 def coverage(item, edition: Iterable, pool: Iterable, now: Optional[float] = None,
-             window: float = NEVER_HEARD_WINDOW) -> Coverage:
+             window: float = NEVER_HEARD_WINDOW, subject_of_story=None) -> Coverage:
     """The widest-covered story about a followed item first seen within
     `window`, from the edition and the pool; an empty `Coverage` for a typed
     or bank item, which no story can be matched to without a model call.
-    Pure, like `item_signal`."""
+    Pure, like `item_signal`. `subject_of_story` is what each story is about
+    (`specific_subject` over its words); a caller reading many items passes
+    one that remembers, so each story is read once a request, not once an
+    item."""
+    read = subject_of_story or (lambda story: specific_subject(story_text(story)))
     now = time.time() if now is None else now
     subject = subject_of(item)
     best = Coverage()
@@ -226,7 +230,7 @@ def coverage(item, edition: Iterable, pool: Iterable, now: Optional[float] = Non
         for story in stories:
             if float(getattr(story, "first_seen", 0.0) or 0.0) <= since:
                 continue
-            if not matches(subject, specific_subject(story_text(story))):
+            if not matches(subject, read(story)):
                 continue
             outlets = int(getattr(story, "coverage", 0) or 0)
             widest = max(widest, outlets)

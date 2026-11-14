@@ -1,4 +1,4 @@
-"""A mix card in the mixes list is its picture, its name and an arrow (§544).
+"""A mix card in the mixes list (§544; option A since §616).
 
 The owner's direction (11.10): "we just want the thumbnail of the playlist,
 the title of the playlist, and an arrow pointing right" - the briefing count,
@@ -18,25 +18,25 @@ def _fn(name: str) -> str:
     return INDEX[start:INDEX.index("\n  }\n", start)]
 
 
-def _card(name: str) -> str:
-    body = _fn(name)
-    return body[body.index("'<div class=\"mix-card\""):]
-
-
-def test_a_mix_card_is_picture_name_and_arrow():
-    for name in ("renderMixList", "sampleMixCardHTML"):
-        card = _card(name)
-        assert 'class="mix-folder' in card, name
-        assert 'class="mix-name"' in card, name
-        assert 'class="mix-chev"' in card and "M9 6l6 6-6 6" in card, name
+def test_a_mix_card_is_option_a():
+    """§544's row (picture, name, arrow) became option A, the stacked deck,
+    at the owner's pick of six (§616): the cover with today's stack, the
+    name on it, and today's headline under it. Both lists draw it."""
+    card = _fn("mixCardAHTML")
+    for need in ('class="mix-a-cover', 'class="mix-a-stack"', 'class="mix-a-name"',
+                 "mixHeadlineHTML(m)", "m.cover_tiles"):
+        assert need in card, need
+    assert "mixCardAHTML(m, \"openMix('\" + m.id + \"')\")" in _fn("renderMixList")
+    assert "mixCardAHTML(m, \"openMix('sample')\")" in _fn("sampleMixCardHTML")
 
 
 def test_the_removed_lines_stay_removed():
-    for name in ("renderMixList", "sampleMixCardHTML"):
-        card = _card(name)
-        for gone in ("mix-meta", "mix-preview", "briefing", "daily", "public",
-                     "private", "mix-by", "example"):
-            assert gone not in card, (name, gone)
+    """§544's removals hold on the new card: no briefing count, no "daily",
+    no public/private, no owner line."""
+    card = _fn("mixCardAHTML") + _fn("mixHeadlineHTML")
+    for gone in ("mix-meta", "mix-preview", "briefing", "daily", "public",
+                 "private", "mix-by", "example"):
+        assert gone not in card, gone
     assert "function jointLabel" not in INDEX
 
 

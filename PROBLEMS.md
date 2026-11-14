@@ -37160,7 +37160,7 @@ title is never what gets cut.
 
 `tests/test_sharing.py`, `tests/test_share_and_save_endpoints.py`.
 
-## 616. The owner's 11.14 notes: mixes best first, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14)
+## 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14)
 
 **What was asked.** A PDF, "11.14.26 Implementations": custom cover pictures
 for playlists with "a thumbnail ... the default if no picture is added"; a mix
@@ -37196,9 +37196,20 @@ sends back. Play, a row's play button (on from that row) and "Start with what
 changed" follow today's order on the web and the iPhone; "or play all from
 the top" keeps the owner's. The weights are starting values.
 
-**The card itself is not changed**: six options are an artifact for the
-owner to choose from (stacked deck, mosaic, lead story, playlist rows, front
-page, carousel), each with and without a photo and on two days.
+**The card: option A, the stacked deck.** Six options went to the owner as
+an artifact (stacked deck, mosaic, lead story, playlist rows, front page,
+carousel), each with and without a photo and on two days; the owner picked
+A. The list is two to a row (`mixCardAHTML`, iOS `MixDeckCard` in a
+two-column grid): the cover is the mix's colour (one of six, by its id - a
+colour, never a picture) with today's first three stories fanned on it, best
+on top (`cover_tiles`: picture, topic, written), the name across the bottom,
+and today's headline under the card in the colour and icon of why it leads.
+With a photo of its own the photo fills the square and the stack moves to
+its top-right corner. "New today" (§550) sits top-left. This replaces §544's
+picture-name-arrow row and §545's R5 card in the list; R5's signals reach it
+as the headline's colour, and Q5 inside the mix is unchanged. The name is in
+Bricolage, not the serif of the owner's sketch, keeping `typefaces`.
+Public search results keep their row with the owner line.
 
 **"Which one do you mean?"** The question as asked in a mono line, the title,
 the readings as left-aligned rows of one shape however long, then a dashed
@@ -37240,7 +37251,21 @@ Return (§590, §306) and still do; search already sent.
 `PlayfamTabs`, and only the second has a `which`; every iOS build from #300
 on failed, so no build after 8 could be archived. The stray copy is gone.
 
-Tests: `tests/test_mix_today_616.py`, `tests/test_owner_notes_1114.py`, the
-reading check in `tools/smoke_preview.py`. **Not verified here:** the Swift
+**Found by a second reader before merging.** Somebody else's public mix
+had no today's order (`/api/mixes/public/{id}` built its answer without
+`_mix_today`) and its Play would have started on the owner's first item; it
+now plays best first, with the viewer's history and taste when they have an
+account. The list re-read the stories and re-ran `specific_subject` per item:
+one read and one subject per story per request now
+(`_mix_today_context`; a test counts the calls). On the iPhone, "Type your
+own" set focus as its field was inserted, which SwiftUI can drop (focus now
+on the field's appear); the tour card, pinned below the accessibility sizes,
+could be clipped on a small phone at a large text size (it now measures its
+words and scrolls at the room's height only when taller); and Return in New
+message could look a handle up twice (one lookup at a time).
+
+Tests: `tests/test_mix_today_616.py`, `tests/test_owner_notes_1114.py`,
+`tests/test_mix_card_minimal.py` (option A), the reading check in
+`tools/smoke_preview.py`, whose mix-list checks now find `#mixList .mix-a`. **Not verified here:** the Swift
 compiles in `ios.yml`; the tour card and message box want a look on the
 phones that showed them.

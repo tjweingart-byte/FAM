@@ -31,7 +31,7 @@ SURFACES = [
     ("dailyfam", "openPlayFAM()"),
     ("profile", "openProfile()"),
     ("messages", "openMessages()"),
-    ("mixdetail", "setTab('playfam'); document.querySelectorAll('.mix-card')[0].click()"),
+    ("mixdetail", "setTab('playfam'); document.querySelectorAll('#mixList .mix-a')[0].click()"),
     ("addtopics", "openAddTopics && openAddTopics()"),
     ("player", "setTab('myfam'); document.querySelectorAll('.gd-card')[0].click()"),
     # The first run, which is otherwise the hardest set of screens to look at
