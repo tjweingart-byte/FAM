@@ -212,8 +212,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **DailyFAM mixes**: topic ids, never audio; **public by default**, copies
   private; `loadMixes` takes the bank before the 401; dormant after 48h
   unplayed (§359). [op-dailyfam-mixes] [mix-dormancy]
-- **A mix is made by naming it** (§498), then filled from its page; no
-  picker. [mix-made-by-naming] Long typed topics are named short.
+- **A mix is made by naming it** (§498), filled on its page; plays
+  best first (§616). [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
 - **Push** (§562): one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
@@ -547,7 +547,7 @@ Every change ends the same way, without being asked [ship-loop]:
   `.github/workflows/ci.yml` by hand. [landing-smoke]
 - CI runs Python 3.12, this container 3.11: reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
-- Fonts differ here and in CI; suspect them first. [fonts-env]
+- Fonts differ here and in CI; suspect them. [fonts-env]
 - No API key here: writing quality and latency unverified. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without. [shots-probes]
 - Deleting CSS broke the app twice: `tools/check_css.py`, `tools/shots.py`. [css-deletion]

@@ -669,6 +669,18 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §616, the owner 11.14):** a mix **plays in today's
+> order, best stories first** - "so you don't hear the same order every
+> day" - and its cover's tiles follow it. `mix_today.order` scores each item
+> on measurements only (a result in, trending, outlets carrying today's
+> story, written today, the listener's `taste`), heard-today last, ties in
+> the owner's order turned one place a day. `/api/mixes` serves it beside
+> `items` as `today_order`, with `headline` and `thumbs`; `items` stays the
+> owner's order (what they drag, what a reorder sends). A mix with no photo
+> of its own draws `thumbs[0]`, today's lead picture, never the folder when
+> there is one. "or play all from the top" still plays the owner's order.
+> The card layout itself waits on the owner's pick of six options.
+
 > **Current (PROBLEMS.md §570, the owner 11.12):** on a mix's page each row
 > is called by today's episode (`episode_title`, the writer's title, read from
 > the cache), the topic under it; the topic alone until today's is written.
