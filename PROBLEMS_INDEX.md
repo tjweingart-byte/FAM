@@ -606,3 +606,4 @@ and `limit` = Lines.
 | 36977 | 91 | 612. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14) |
 | 37068 | 27 | 613. Flex workers beside the active one, when the owner chooses (2026-11-14) |
 | 37095 | 38 | 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14) |
+| 37133 | 30 | 615. A sent episode arrived as "Can You Tell Me How to Make..." (2026-11-14) |
