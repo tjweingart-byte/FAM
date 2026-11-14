@@ -833,10 +833,13 @@ EXPLAIN = (
          "from the first audio since §602; before it, the wait before the "
          "first word was counted too, so most older rows were not silence.",
          "A gap of silence in the middle of the episode.",
-         "The GPU was slow or shared, the network to it was, or listeners "
-         "voiced at once took turns on the one always-on worker (§578).",
-         "A run of these means more active workers (REMOTE_VOICE_ACTIVE_WORKERS "
-         "with the console's) or a faster GPU.")),
+         "Listeners voiced at once took turns on the one always-on worker "
+         "(§578; the detail says how long the episode waited for it), or the "
+         "GPU or the network to it was slow (the detail gives the realtime "
+         "rate). Since §608 the worker serves the nearest silence first.",
+         "Mostly waiting: more active workers (REMOTE_VOICE_ACTIVE_WORKERS "
+         "with the console's, together). Never waiting and under 1x: a "
+         "faster GPU class on the endpoint.")),
 )
 _EXPLAIN = [(stage, re.compile(pattern, re.I), words)
             for stage, pattern, words in EXPLAIN]
