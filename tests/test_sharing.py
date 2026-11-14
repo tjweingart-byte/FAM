@@ -448,3 +448,75 @@ def test_a_malformed_id_is_said_in_health_rather_than_looking_unset():
     said = sharing.story_handoff_problems(instagram_app_id="abc",
                                           snapchat_client_id="no way")
     assert len(said) == 2 and "INSTAGRAM_APP_ID" in said[0]
+
+
+# --- a sent episode shows its whole title (11.14) -------------------------
+
+LONG_Q = "can you tell me how to make a sourdough starter from scratch at home"
+
+
+def test_the_players_stand_in_title_is_never_what_a_share_carries(store):
+    """The player's provisional title is the question's first seven words and
+    an ellipsis; a share made before the written title landed went out as
+    "Can You Tell Me How to Make..." in Messages."""
+    stand_in = "Can You Tell Me How to Make…"
+    assert sharing.is_provisional_title(stand_in, LONG_Q)
+    assert sharing.is_provisional_title("Can You Tell Me How to Make...", LONG_Q)
+    made = store.create("u1", LONG_Q, 1.5, stand_in)
+    assert made["title"] == ("Can You Tell Me How to Make a Sourdough Starter "
+                             "from Scratch at Home")
+    assert "…" not in made["title"] and "..." not in made["title"]
+
+
+def test_a_title_that_merely_ends_in_an_ellipsis_is_kept():
+    assert not sharing.is_provisional_title("Wait for It…", LONG_Q)
+    assert sharing.share_title("Wait for It…", LONG_Q) == "Wait for It…"
+
+
+def test_sharing_again_replaces_a_stale_title(store):
+    first = store.create("u1", LONG_Q, 1.5, "Can You Tell Me How to Make…")
+    again = store.create("u1", LONG_Q, 1.5, "The Starter Is the Whole Loaf")
+    assert again["id"] == first["id"]
+    assert again["title"] == "The Starter Is the Whole Loaf"
+
+
+def test_every_destination_and_the_landing_head_carry_the_whole_title():
+    stand_in = "Can You Tell Me How to Make…"
+    for target in sharing.TARGETS:
+        text = sharing.render(target.key, title=stand_in, question=LONG_Q,
+                              minutes=2, url="https://fam.audio/s/x")["text"]
+        assert "Make…" not in text and "Make..." not in text, target.key
+    payload = sharing.landing_payload({"id": "x", "title": stand_in,
+                                       "query": LONG_Q, "minutes": 2},
+                                      url="https://fam.audio/s/x")
+    assert payload["title"].endswith("at Home")
+    assert "from Scratch at Home" in sharing.landing_head(payload)
+
+
+def test_the_story_card_never_cuts_a_long_title():
+    title = ("What the Supreme Court's Ruling on Tariff Authority Means for "
+             "Every Importer, Retailer and Shopper in America This Winter")
+    svg = sharing.story_card(title, "tariffs", 3)
+    assert "…" not in svg
+    assert "Winter" in svg and "Shopper" in svg
+
+
+def test_the_link_pictures_never_cut_a_long_title(monkeypatch):
+    pytest.importorskip("PIL")
+    import link_preview
+
+    title = ("What the Supreme Court's Ruling on Tariff Authority Means for "
+             "Every Importer, Retailer and Shopper in America This Winter")
+    drawn: list[str] = []
+    real = link_preview._wrap
+
+    def spy(d, text, font, width, most=0):
+        lines = real(d, text, font, width, most)
+        drawn.extend(lines)
+        return lines
+
+    monkeypatch.setattr(link_preview, "_wrap", spy)
+    assert link_preview.draw(None, title, 3)
+    assert link_preview.card(None, title, 3)
+    assert not any(line.endswith("…") for line in drawn)
+    assert any("Winter" in line for line in drawn)
