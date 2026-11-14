@@ -1,4 +1,4 @@
-"""Who the voice serves next, when listeners share it (§608).
+"""Who the voice serves next, when listeners share it (§609).
 
 Since §578 the production endpoint keeps one always-on worker, and at most
 `REMOTE_VOICE_ACTIVE_WORKERS` chunks are in flight across the whole server.

@@ -271,8 +271,6 @@ struct SearchView: View {
                 .padding(.horizontal, 2)
             }
             bubbles(pal, privateOn: privateOn)
-                // `#screen-home .fam-controls`: the tour's "Make it yours".
-                .tourTarget(live ? .controls : nil)
                 .padding(.top, 12)
             if privateOn {
                 privateNote(pal)
@@ -301,9 +299,6 @@ struct SearchView: View {
         }
         .buttonStyle(.press)
         .accessibilityLabel("The episode library")
-        // `#myfamSearchBtn`: the tour's library step (the live page only,
-        // never the blind's still copy).
-        .tourTarget(live ? .library : nil)
         .padding(.top, 8)
         .padding(.leading, 38)
     }
@@ -325,8 +320,6 @@ struct SearchView: View {
                 .padding(.trailing, tall ? 12 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             buttons(pal)
-                // `#searchBar .bar-btns`: the tour's "Talk or attach".
-                .tourTarget(live ? .barButtons : nil)
         }
         .padding(.leading, 18)
         .padding(.trailing, 6)

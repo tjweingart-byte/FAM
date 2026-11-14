@@ -4,7 +4,7 @@ import UIKit
 
 // MARK: - The tour (§594, §595)
 
-/// The web's `Tour` (`static/index.html`), step for step: twelve cards over
+/// The web's `Tour` (`static/index.html`), step for step: seven cards over
 /// the real screens, a spotlight hole round each real control that glides
 /// between them, Skip on every card but the last, Back, Next and a progress
 /// count over the steps that apply. Owed from the first run (`owe`) and
@@ -33,42 +33,27 @@ final class TourModel: ObservableObject {
         [
             TourStep(screen: .daily, art: .logo, kicker: "Welcome",
                      title: "Welcome to FAM",
-                     body: "FAM turns what you care about into short audio stories, so you can keep up without the work. Here\u{2019}s a quick look around. You can skip whenever you like.",
+                     body: "Here\u{2019}s a quick look around. You can skip whenever you like.",
                      next: "Show me around"),
             TourStep(screen: .daily, target: .feed, kicker: "dailyFAM",
-                     title: "Today\u{2019}s stories, made for you",
-                     body: "Fresh every morning and evening: Made for you, Trending, Most played today and what your friends are hearing. Tap any tile and it plays."),
+                     title: "Today\u{2019}s stories",
+                     body: "Audio stories on what you care about, fresh every morning and evening. Tap any tile to listen."),
             TourStep(screen: .daily, target: .circle, isOptional: true, kicker: "dailyFAM",
                      title: "Your friends\u{2019} vibes",
-                     body: "A face with a ring has posted a vibe. Tap it to hear what they\u{2019}re listening to, and reply or like it."),
-            TourStep(screen: .daily, art: .player, kicker: "The player",
-                     title: "Every episode, one player",
-                     body: "GO DEEPER asks the next question for you. CC shows captions; share, VIBE! and save sit on the right, and \u{22EF} adds it to your queue. When it ends, four more are waiting."),
+                     body: "A ring means a friend posted what they\u{2019}re hearing. Tap to listen."),
             TourStep(screen: .search, target: .searchBar, kicker: "searchFAM",
                      title: "Ask anything",
-                     body: "Type a question and FAM researches it and tells you the story, from today\u{2019}s sources. Underneath, Trending searches shows what people are asking right now."),
-            TourStep(screen: .search, target: .barButtons, kicker: "searchFAM",
-                     title: "Talk or attach",
-                     body: (VoiceSearchModel.available ? "Tap the mic to ask out loud, or the clip" : "Tap the clip")
-                        + " to add a document, photo or link and hear about it."),
-            TourStep(screen: .search, target: .controls, kicker: "searchFAM",
-                     title: "Make it yours",
-                     body: "Length sets one to five minutes. Voice picks who reads your searches. Private keeps a search out of your history and the library until you turn it off."),
-            TourStep(screen: .search, target: .library, kicker: "searchFAM",
-                     title: "The episode library",
-                     body: "Every episode other listeners have made, A to Z. Most play straight away."),
-            TourStep(screen: .myfam, target: .mixTabs, kicker: "myFAM",
+                     body: (VoiceSearchModel.available ? "Type, talk or attach a file." : "Type or attach a file.")
+                        + " FAM looks it up and tells you the story, one to five minutes long."),
+            TourStep(screen: .myfam, target: .mixesTab, kicker: "myFAM",
                      title: "Your mixes",
-                     body: "A mix is the subjects you follow, like a team or a market, with new episodes every morning. Name one with Create new mix, or copy somebody else\u{2019}s. Categories browses today\u{2019}s episodes by subject."),
-            TourStep(screen: .messages, target: .messagesTab, kicker: "Messages",
-                     title: "Share with friends",
-                     body: "Send an episode to a friend, reply to their vibes and start group chats."),
+                     body: "Follow a team, a market, anything, and get new episodes every morning."),
+            TourStep(screen: .myfam, target: .categoriesTab, kicker: "myFAM",
+                     title: "Categories",
+                     body: "Today\u{2019}s episodes, sorted by subject. Pick one and listen."),
             TourStep(screen: .you, target: .youTab, kicker: "yourFAM",
-                     title: "Your profile",
-                     body: "Your vibes, your mixes, your friends, and Settings for everything you can change, including this tour."),
-            TourStep(screen: .daily, art: .logo, kicker: "Ready",
-                     title: "You\u{2019}re all set",
-                     body: "Tap a story on dailyFAM, or ask searchFAM anything.",
+                     title: "Friends and you",
+                     body: "Share episodes in Messages. Your profile and Settings are in yourFAM, where you can take this tour again.",
                      next: "Start listening")
         ]
     }
@@ -498,7 +483,7 @@ struct TourStep {
 }
 
 enum TourArt {
-    case logo, player
+    case logo
 }
 
 /// The real controls the hole goes round (the web's selectors).
@@ -507,18 +492,12 @@ enum TourTarget: Hashable {
     case feed
     /// `#myfamCircle`: the friends' faces row.
     case circle
-    /// `#searchBar`.
+    /// `#searchBar`: the bar, its mic and attach.
     case searchBar
-    /// `#searchBar .bar-btns`: mic, attach (and go).
-    case barButtons
-    /// `#screen-home .fam-controls`: Length, Voice, Private.
-    case controls
-    /// `#myfamSearchBtn`: the bookshelf on searchFAM.
-    case library
-    /// `#screen-playfam .pf-tabs`: Mixes | Categories.
-    case mixTabs
-    /// The Messages and yourFAM tabs on the bar.
-    case messagesTab
+    /// `#pfTabMixes` and `#pfTabCats`: myFAM's two tabs.
+    case mixesTab
+    case categoriesTab
+    /// The yourFAM tab on the bar.
     case youTab
 }
 
@@ -885,7 +864,6 @@ private struct TourCard: View {
                 Group {
                     switch art {
                     case .logo: Wordmark(size: 34)
-                    case .player: TourPlayerArt()
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -987,96 +965,3 @@ private struct TourCard: View {
     }
 }
 
-/// The player step's drawing (`tourPlayer()`): GO DEEPER and CC, share,
-/// VIBE!'s star and save on the right, the picture and the bar.
-private struct TourPlayerArt: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                Text("GO DEEPER")
-                    .font(FAMFont.mono(9.5, bold: true))
-                    .tracking(9.5 * 0.08)
-                    .foregroundStyle(FAMColor.ink)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 9)
-                    .background(FAMColor.deeper, in: Capsule())
-                Text("CC")
-                    .font(FAMFont.mono(9.5, bold: true))
-                    .tracking(9.5 * 0.08)
-                    .foregroundStyle(FAMColor.text)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 9)
-                    .overlay(Capsule().stroke(FAMColor.borderStrong, lineWidth: 1))
-                Spacer(minLength: 0)
-                HStack(spacing: 10) {
-                    WebIcon(path: TourIcons.share, size: 16)
-                    WebIcon(path: TourIcons.star, size: 16)
-                    WebIcon(path: TourIcons.save, size: 16)
-                }
-                .foregroundStyle(FAMColor.textMuted)
-            }
-            RoundedRectangle(cornerRadius: 9)
-                .fill(LinearGradient(colors: [FAMColor.surface2, FAMColor.copper],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-                .opacity(0.85)
-                .frame(height: 54)
-            GeometryReader { g in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2).fill(FAMColor.borderStrong)
-                    RoundedRectangle(cornerRadius: 2).fill(FAMColor.copper)
-                        .frame(width: g.size.width * 0.38)
-                }
-            }
-            .frame(height: 3)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity)
-        .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.border, lineWidth: 1))
-    }
-}
-
-/// `tourPlayer()`'s three icons, path for path.
-private enum TourIcons {
-    /// `M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v13`
-    static let share: Path = {
-        var p = Path()
-        p.move(to: CGPoint(x: 4, y: 12)); p.addLine(to: CGPoint(x: 4, y: 19))
-        p.addQuadCurve(to: CGPoint(x: 5, y: 20), control: CGPoint(x: 4, y: 20))
-        p.addLine(to: CGPoint(x: 19, y: 20))
-        p.addQuadCurve(to: CGPoint(x: 20, y: 19), control: CGPoint(x: 20, y: 20))
-        p.addLine(to: CGPoint(x: 20, y: 12))
-        p.move(to: CGPoint(x: 16, y: 6)); p.addLine(to: CGPoint(x: 12, y: 2)); p.addLine(to: CGPoint(x: 8, y: 6))
-        p.move(to: CGPoint(x: 12, y: 2)); p.addLine(to: CGPoint(x: 12, y: 15))
-        return p
-    }()
-
-    /// `M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z`
-    static let star: Path = {
-        var p = Path()
-        p.move(to: CGPoint(x: 12, y: 3))
-        p.addLine(to: CGPoint(x: 14.6, y: 8.6))
-        p.addLine(to: CGPoint(x: 20.6, y: 9.3))
-        p.addLine(to: CGPoint(x: 16.1, y: 13.4))
-        p.addLine(to: CGPoint(x: 17.3, y: 19.4))
-        p.addLine(to: CGPoint(x: 12, y: 16.4))
-        p.addLine(to: CGPoint(x: 6.7, y: 19.4))
-        p.addLine(to: CGPoint(x: 7.9, y: 13.4))
-        p.addLine(to: CGPoint(x: 3.4, y: 9.3))
-        p.addLine(to: CGPoint(x: 9.4, y: 8.6))
-        p.closeSubpath()
-        return p
-    }()
-
-    /// `M6 3h12v18l-6-4-6 4z`
-    static let save: Path = {
-        var p = Path()
-        p.move(to: CGPoint(x: 6, y: 3))
-        p.addLine(to: CGPoint(x: 18, y: 3))
-        p.addLine(to: CGPoint(x: 18, y: 21))
-        p.addLine(to: CGPoint(x: 12, y: 17))
-        p.addLine(to: CGPoint(x: 6, y: 21))
-        p.closeSubpath()
-        return p
-    }()
-}

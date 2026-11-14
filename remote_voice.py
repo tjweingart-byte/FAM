@@ -506,7 +506,7 @@ class RemoteChatterboxEngine(TTSEngine):
         workers sets its own ceiling. Rebuilt when the setting changes so a
         reconfigured limit is not ignored until restart.
 
-        Earliest deadline first, not first come (§608): when listeners share
+        Earliest deadline first, not first come (§609): when listeners share
         the active worker, the chunk whose listener runs out of audio soonest
         goes next (`voice_schedule`).
         """

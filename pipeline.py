@@ -243,7 +243,7 @@ class GenerationStats:
                 "The listener hears silence here. Synthesis so far: %.1fs.",
                 played, made, self.synth_seconds)
             # The listener heard silence: on /admin's errors (§269).
-            # Which cause (§608): time queued behind other listeners on the
+            # Which cause (§609): time queued behind other listeners on the
             # shared worker, apart from time the worker spent voicing.
             waiting = (f"; {self.voice_wait:.1f}s of {self.synth_seconds:.1f}s "
                        "voicing was waiting for the worker"
@@ -262,7 +262,7 @@ class GenerationStats:
     #: Total seconds spent inside the speech engine.
     synth_seconds: float = 0.0
     #: Of those, seconds spent waiting for a turn on the shared worker
-    #: behind other listeners' chunks (§608), not voicing.
+    #: behind other listeners' chunks (§609), not voicing.
     voice_wait: float = 0.0
     #: Smallest margin between audio produced and wall clock. Negative means
     #: the listener heard silence.
@@ -760,7 +760,7 @@ class PodcastPipeline:
     async def _synth(self, text: str, wpm: float, stats: "GenerationStats",
                      pace: PaceController) -> bytes:
         """`engine.synth`, telling a shared worker when this listener runs out
-        of audio (§608): now for the first chunk, else the audio already made
+        of audio (§609): now for the first chunk, else the audio already made
         less what has been played. The worker serves the nearest silence
         first, and how long this chunk waited for it is kept."""
         if stats.first_audio_at:
