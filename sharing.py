@@ -548,6 +548,13 @@ class ShareStore:
             # than four links whose open counts have to be added up.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS shares_once"
                          " ON shares(user_id, query, minutes)")
+            # Which episode the link is (§610), as messages name theirs
+            # (§288). Widened in place: an old row reads '' and plays by its
+            # question, as every link did before.
+            try:
+                conn.execute("ALTER TABLE shares ADD COLUMN episode TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -558,7 +565,7 @@ class ShareStore:
         return conn
 
     def create(self, user_id: str, query: str, minutes: int, title: str = "",
-               at: float = 0.0) -> dict:
+               at: float = 0.0, episode: str = "") -> dict:
         query = " ".join(str(query or "").split())[:MAX_QUERY]
         if not query:
             raise ShareError("There is no episode to share.")
@@ -566,24 +573,30 @@ class ShareStore:
         title = " ".join(str(title or "").split())[:MAX_TITLE]
         now = at or time.time()
 
+        episode = str(episode or "").strip()[:80]
         existing = self._conn().execute(
             "SELECT id FROM shares WHERE user_id = ? AND query = ? AND minutes = ?",
             (user_id, query, minutes)).fetchone()
         if existing:
+            # The same link, now naming the episode shared this time (§610):
+            # the one the sharer heard last is the one they are sending.
+            if episode:
+                self._conn().execute("UPDATE shares SET episode = ? WHERE id = ?",
+                                     (episode, existing[0]))
             return self.get(existing[0]) or {}
 
         share_id = secrets.token_urlsafe(9)
         self._conn().execute(
-            "INSERT INTO shares (id, user_id, query, minutes, title, created)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (share_id, user_id, query, minutes, title, now))
+            "INSERT INTO shares (id, user_id, query, minutes, title, created, episode)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (share_id, user_id, query, minutes, title, now, episode))
         return self.get(share_id) or {}
 
     def get(self, share_id: str) -> Optional[dict]:
         try:
             row = self._conn().execute(
-                "SELECT id, user_id, query, minutes, title, created, opens"
-                " FROM shares WHERE id = ?", (share_id,)).fetchone()
+                "SELECT id, user_id, query, minutes, title, created, opens,"
+                " episode FROM shares WHERE id = ?", (share_id,)).fetchone()
         except Exception:
             log.exception("could not read a share")
             return None
@@ -591,7 +604,33 @@ class ShareStore:
             return None
         return {"id": row[0], "user_id": row[1], "query": row[2],
                 "minutes": row[3], "title": row[4], "created": row[5],
-                "opens": row[6]}
+                "opens": row[6], "episode": row[7] or ""}
+
+    def is_shared_episode(self, query: str, minutes, episode: str) -> bool:
+        """`is_shared`, for a replay by id (§610): somebody shared exactly
+        this episode of this question. The gate's door for a link's own
+        episode, and for nothing else typed into the same URL."""
+        episode = str(episode or "").strip()
+        if not episode or not self.is_shared(query, minutes):
+            return False
+        try:
+            row = self._conn().execute(
+                "SELECT 1 FROM shares WHERE query = ? AND episode = ? LIMIT 1",
+                (" ".join(str(query or "").split())[:MAX_QUERY], episode)).fetchone()
+            return row is not None
+        except Exception:
+            log.exception("could not look up a shared episode")
+            return False
+
+    def episode_ids(self) -> list:
+        """Every episode id a link names (§610), for the sweep that keeps
+        them as long as the link is."""
+        try:
+            return [r[0] for r in self._conn().execute(
+                "SELECT DISTINCT episode FROM shares WHERE episode != ''").fetchall()]
+        except Exception:
+            log.exception("could not read shared episodes")
+            raise
 
     def is_shared(self, query: str, minutes) -> bool:
         """Whether somebody shared exactly this episode: this question at this
@@ -715,6 +754,9 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
         "question": (share.get("query") or "").strip()[:MAX_QUERY],
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
+        # Which episode (§610): the page replays exactly it, never writing,
+        # and asks the question only if it is gone.
+        "episode": str(share.get("episode") or ""),
         "url": url or "",
         "card": card_url or "",
         # The link preview (`link_preview`, §559): the square picture

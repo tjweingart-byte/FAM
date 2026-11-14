@@ -573,10 +573,10 @@ class SavedStore:
             return []
         out = []
         for r in rows:
-            length = self._length(int(r[1]), r[6])
+            length = self._length(as_minutes(r[1]), r[6])
             if float(r[2]) > length * self.RESUME_MAX_FRACTION:
                 continue
-            out.append({"query": r[0], "minutes": int(r[1]), "seconds": float(r[2]),
+            out.append({"query": r[0], "minutes": as_minutes(r[1]), "seconds": float(r[2]),
                         "title": r[3] or "", "at": r[4], "context": r[5] or "",
                         "duration": float(r[6] or 0)})
             if len(out) >= int(limit):
@@ -694,7 +694,7 @@ class SavedStore:
         except Exception:
             log.exception("could not read history for %r", user_id)
             return []
-        return [{"query": r[0], "minutes": int(r[1]), "surface": r[2],
+        return [{"query": r[0], "minutes": as_minutes(r[1]), "surface": r[2],
                  "title": r[3] or "", "context": r[4] or "", "at": r[5],
                  "episode": r[6] or ""}
                 for r in rows]

@@ -21990,8 +21990,9 @@
     grid.innerHTML = '<div class="sh-name">Making a link\u2026</div>';
     fetch("/api/share", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Which episode (§610), so the link replays it and never writes.
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
-                             title: ep.title })
+                             title: ep.title, episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.error || "Could not make a share link");
@@ -22330,8 +22331,12 @@
       : (person.name || person.handle || "").split(" ")[0];
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
+      // Which episode, too (\u00a7610): without it the server could only guess
+      // by the question, and a Go Deeper, a reading or an episode still
+      // being written was sent as a question to be written again.
       body: JSON.stringify({ to: person.user_id, query: ep.query,
-                             minutes: ep.minutes, title: ep.title })
+                             minutes: ep.minutes, title: ep.title,
+                             episode: ep.episode || "" })
     }).then(function(r){
       return r.json().then(function(d){
         if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
