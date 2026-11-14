@@ -696,10 +696,10 @@ class ScriptCache(Protocol):
     def resolve_episode(self, episode: str) -> str: ...
     #: §173: keep a heard episode at least this long; never makes it current.
     def keep_until(self, key: str, until: float) -> bool: ...
-    #: §610: keep the episode an id names - even a row past its clock that is
+    #: §612: keep the episode an id names - even a row past its clock that is
     #: still on disk - at least this long. Returns the key held, or "".
     def hold_episode(self, episode: str, until: float) -> str: ...
-    #: §610: the question an episode was written for, or "".
+    #: §612: the question an episode was written for, or "".
     def query_of(self, key: str) -> str: ...
 
 
@@ -1317,7 +1317,7 @@ class MemoryScriptCache:
                   "uploaded": 0, "cleared": 0}
         for pair, row in list(self._audio.items()):
             key = pair[0]
-            # An archive copy is held only when an id names it (§610): a sent
+            # An archive copy is held only when an id names it (§612): a sent
             # episode whose question was written again since.
             is_held = key in held and (self._origins.get(key) != ARCHIVE_ORIGIN
                                        or key in named)
@@ -1948,7 +1948,7 @@ class SqliteScriptCache:
     def hold_episode(self, episode: str, until: float) -> str:
         """Keep the episode `episode` names until at least `until`, and
         return the key that holds it (the key, or its archive copy), or ""
-        (§610, at the owner's direction: a sent episode is always cached).
+        (§612, at the owner's direction: a sent episode is always cached).
 
         Unlike `keep_until` this also holds a row whose clock has run out but
         which is still on disk - `purge_expired` runs only at boot - so an
@@ -1980,7 +1980,7 @@ class SqliteScriptCache:
             return ""
 
     def query_of(self, key: str) -> str:
-        """The question the row under `key` was written for, or "" (§610)."""
+        """The question the row under `key` was written for, or "" (§612)."""
         try:
             row = self._conn().execute("SELECT query FROM scripts WHERE key = ?",
                                        (key,)).fetchone()
@@ -2305,7 +2305,7 @@ class SqliteScriptCache:
 
         A copy that fails leaves the row as it was, to be tried next sweep:
         the bucket keeps `recent/` a day past the week for exactly that.
-        `named` (§610) are keys an exact episode id names - a sent
+        `named` (§612) are keys an exact episode id names - a sent
         episode - which are kept even as an archive copy.
 
         Never raises; returns what it did.
@@ -2333,7 +2333,7 @@ class SqliteScriptCache:
                 (KEPT_TIER, now - recent_seconds(), KEPT_TIER,
                  audio_store.RECENT + "%")).fetchall()
             for key, voice, name, origin, tier in rows:
-                # An archive copy is kept only when an id names it (§610): a
+                # An archive copy is kept only when an id names it (§612): a
                 # sent episode whose question was written again since. A save
                 # points at its question, never at the old words.
                 if tier != KEPT_TIER and (key not in held or (

@@ -548,7 +548,7 @@ class ShareStore:
             # than four links whose open counts have to be added up.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS shares_once"
                          " ON shares(user_id, query, minutes)")
-            # Which episode the link is (§610), as messages name theirs
+            # Which episode the link is (§612), as messages name theirs
             # (§288). Widened in place: an old row reads '' and plays by its
             # question, as every link did before.
             try:
@@ -578,7 +578,7 @@ class ShareStore:
             "SELECT id FROM shares WHERE user_id = ? AND query = ? AND minutes = ?",
             (user_id, query, minutes)).fetchone()
         if existing:
-            # The same link, now naming the episode shared this time (§610):
+            # The same link, now naming the episode shared this time (§612):
             # the one the sharer heard last is the one they are sending.
             if episode:
                 self._conn().execute("UPDATE shares SET episode = ? WHERE id = ?",
@@ -607,7 +607,7 @@ class ShareStore:
                 "opens": row[6], "episode": row[7] or ""}
 
     def is_shared_episode(self, query: str, minutes, episode: str) -> bool:
-        """`is_shared`, for a replay by id (§610): somebody shared exactly
+        """`is_shared`, for a replay by id (§612): somebody shared exactly
         this episode of this question. The gate's door for a link's own
         episode, and for nothing else typed into the same URL."""
         episode = str(episode or "").strip()
@@ -623,7 +623,7 @@ class ShareStore:
             return False
 
     def episode_ids(self) -> list:
-        """Every episode id a link names (§610), for the sweep that keeps
+        """Every episode id a link names (§612), for the sweep that keeps
         them as long as the link is."""
         try:
             return [r[0] for r in self._conn().execute(
@@ -754,7 +754,7 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         "title": (share.get("title") or "A FAM episode").strip()[:MAX_TITLE],
         "question": (share.get("query") or "").strip()[:MAX_QUERY],
         "minutes": max(1, as_minutes(share.get("minutes") or 0)),
-        # Which episode (§610): the page replays exactly it, never writing,
+        # Which episode (§612): the page replays exactly it, never writing,
         # and asks the question only if it is gone.
         "episode": str(share.get("episode") or ""),
         "url": url or "",

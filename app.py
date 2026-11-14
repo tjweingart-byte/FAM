@@ -57,6 +57,7 @@ import entitlements
 import episode_quality
 import pipeline_errors
 import spend_guard
+import voice_ahead as voice_ahead_mod
 import messages as messages_mod
 import typing_indicator as typing_mod
 import metering
@@ -74,6 +75,7 @@ import image_check
 import moderation as moderation_mod
 import saved as saved_mod
 import sharing
+import live_keep
 from config import (BROWSE_MINUTES, DEFAULT_MINUTES, DEFAULT_PIPELINE, as_minutes,
                     describe_key, key_source, settings)
 import prefetch
@@ -768,7 +770,7 @@ async def lifespan(_: FastAPI):
     # Expired scripts are already filtered out on read, so nothing ever deleted
     # them and the file grew for the life of the deployment. One DELETE at
     # startup is enough: entries expire on a timescale of days, not minutes.
-    # Sent episodes first (§610): a row past its clock that a message names
+    # Sent episodes first (§612): a row past its clock that a message names
     # is held, not purged.
     try:
         _hold_sent_episodes()
@@ -904,6 +906,14 @@ async def lifespan(_: FastAPI):
     # read and a delete, never by looking at the settings.
     if hasattr(SCRIPT_CACHE, "sweep_audio"):
         _BACKGROUND.add(asyncio.create_task(_sweep_audio_forever()))
+    # Voice ahead (§610): an always-on worker with nobody to voice voices the
+    # episodes the editions wrote, so a tap replays kept audio. Never on
+    # staging (it spends nothing) nor in demo mode (it keeps nothing); on a
+    # pay-per-second endpoint the loop runs and voices nothing, and says so.
+    if settings.voice_ahead and not DEMO_MODE and not spend_guard.enabled():
+        _BACKGROUND.add(asyncio.create_task(voice_ahead_mod.run_forever(
+            SCRIPT_CACHE, _ahead_voice, _make_pipeline,
+            lambda: engine_for_voice(None))))
     # Unheard episodes drawn from an older bank draw again (§333).
     _BACKGROUND.add(asyncio.create_task(asyncio.to_thread(_redeal_voices)))
     # What the first /api/health and the first myFAM would otherwise pay
@@ -2341,6 +2351,7 @@ def _health_report(request: Request) -> dict:
         # is the only thing that answers CLAUDE.md's open question about how
         # much to prefetch, and a prefetcher nobody checks is a standing bill.
         "prefetch": prefetch.report(),
+        "voice_ahead": voice_ahead_mod.report(),
         "prefetch_sources": prefetch_sources.report(),
         # Which streaming architecture this process is actually running, and
         # whether that was chosen or inherited. A deployment that has been
@@ -3312,7 +3323,7 @@ class SaveRequest(BaseModel):
     title: str = Field("", max_length=saved_mod.MAX_TITLE)
     source: str = Field("", max_length=40)
     folder_id: str = Field("", max_length=64)
-    #: Which episode (§610): `X-FAM-Episode`, so Saved for Later replays it.
+    #: Which episode (§612): `X-FAM-Episode`, so Saved for Later replays it.
     episode: str = Field("", max_length=80)
 
 
@@ -3330,7 +3341,7 @@ class ShareRequest(BaseModel):
     query: str = Field(..., max_length=sharing.MAX_QUERY)
     minutes: Minutes = Field(DEFAULT_MINUTES, ge=0, le=60)
     title: str = Field("", max_length=sharing.MAX_TITLE)
-    #: Which episode (§610): `X-FAM-Episode`, as a message carries it.
+    #: Which episode (§612): `X-FAM-Episode`, as a message carries it.
     episode: str = Field("", max_length=80)
 
 
@@ -4083,7 +4094,7 @@ async def messages_typing(req: TypingRequest, request: Request) -> dict:
 
 
 def _same_question(stored: str, query: str) -> bool:
-    """Was a row written for this question (§610)? Compared as the key
+    """Was a row written for this question (§612)? Compared as the key
     compares it, and a reading the listener chose (§426) - "(the band)"
     after the words - is the same question."""
     a, b = normalize_query(stored or ""), normalize_query(query or "")
@@ -4123,7 +4134,7 @@ def _shared_episode(query: str, minutes: int, episode: str = "",
     were the old one's until it finished. Now the message names the episode
     and the recipient replays it, as the listening history does (§173).
 
-    The sender's own id is carried when it is **this question's** (§610
+    The sender's own id is carried when it is **this question's** (§612
     widened what proves that): its key is this question's plain key; or its
     row was written for this question (a Go Deeper's key carries what it
     follows, a reading its parenthesis); or its row is still being written
@@ -4219,6 +4230,9 @@ async def messages_send(req: SendMessageRequest, request: Request) -> dict:
     if kind == "episode" and not req.reply:
         EVENTS.record(topics_mod.Event(
             user, "share", "", req.query, topics_mod.tags_for_text(req.query)))
+    if kind == "episode":
+        # Sent while it plays: finished and kept even if they leave (§614).
+        live_keep.hold(req.query, req.minutes)
     return {"ok": True, "message": message.as_dict(user)}
 
 
@@ -4365,6 +4379,8 @@ async def saved_save(req: SaveRequest, request: Request) -> dict:
     # who use the feature most.
     EVENTS.record(topics_mod.Event(
         user, "save", "", req.query, topics_mod.tags_for_text(req.query)))
+    # Saved while it plays: finished and kept even if they leave (§614).
+    live_keep.hold(req.query, req.minutes)
     return {"ok": True, "saved": True, "item": item.as_dict()}
 
 
@@ -4589,6 +4605,8 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
                                                       req.episode, user))
     except sharing.ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Shared while it plays: finished and kept even if they leave (§614).
+    live_keep.hold(req.query, req.minutes)
     url, public = _share_url(share["id"], request)
     rendered = {t.key: sharing.render(
         t.key, title=share["title"], question=share["query"],
@@ -6694,7 +6712,7 @@ def _shared_episode_request(request: Request) -> bool:
         return False
     if any(params.get(k) for k in ("attach", "context", "topic_id")):
         return False
-    # The link's own episode, replayed by id (§610) - and no other id.
+    # The link's own episode, replayed by id (§612) - and no other id.
     if params.get("episode"):
         return SHARES.is_shared_episode(params.get("q", ""), params.get("minutes", ""),
                                         params.get("episode", ""))
@@ -7084,20 +7102,39 @@ def _episode_voice(user: str, where: str, plan, asked: str,
         if not picked:
             slug = _kept_voice(plan, engine) or slug
     else:
-        key = _episode_key(plan)
-        store = SCRIPT_CACHE
-        try:
-            slug = store.voice_of(key) if (key and store is not None) else ""
-        except Exception:  # noqa: BLE001
-            slug = ""
-        if slug and not voice_bank.known(slug):
-            slug = ""
-        if not slug and where not in ("explore", "share"):
-            slug = voice_bank.random_slug()
-            if key and store is not None and hasattr(store, "set_voice"):
-                # First one wins: two listeners tapping one tile at once
-                # hear the same voice.
-                slug = store.set_voice(key, slug) or slug
+        slug = _drawn_slug(_episode_key(plan), draw=where not in ("explore", "share"))
+    if not slug or voice_bank.is_default(slug):
+        return None
+    return f"{engine}:{slug}"
+
+
+def _drawn_slug(key: str, draw: bool = True) -> str:
+    """The bank voice kept beside `key`'s script, or (with `draw`) one drawn
+    at random and kept, so the next play is the same voice and replays its
+    kept audio. The one definition a tap and voicing ahead (§610) share."""
+    store = SCRIPT_CACHE
+    try:
+        slug = store.voice_of(key) if (key and store is not None) else ""
+    except Exception:  # noqa: BLE001
+        slug = ""
+    if slug and not voice_bank.known(slug):
+        slug = ""
+    if not slug and draw:
+        slug = voice_bank.random_slug()
+        if key and store is not None and hasattr(store, "set_voice"):
+            # First one wins: two listeners tapping one tile at once
+            # hear the same voice.
+            slug = store.set_voice(key, slug) or slug
+    return slug
+
+
+def _ahead_voice(key: str) -> Optional[str]:
+    """The voice a tap on this written-ahead episode would play (§610): the
+    browse surfaces' draw, exactly as `_episode_voice` makes it."""
+    engine = _voice_engine()
+    if not engine:
+        return None
+    slug = _drawn_slug(key)
     if not slug or voice_bank.is_default(slug):
         return None
     return f"{engine}:{slug}"
@@ -10420,7 +10457,7 @@ class EchoRequest(BaseModel):
     line: Optional[str] = Field(None, max_length=2000)
     #: Where that sentence starts in the audio, in seconds.
     line_at: Optional[float] = Field(None, ge=0, le=3600)
-    #: Which episode (§610): `X-FAM-Episode`, so the vibe replays it.
+    #: Which episode (§612): `X-FAM-Episode`, so the vibe replays it.
     episode: str = Field("", max_length=80)
 
 
@@ -10521,6 +10558,8 @@ async def post_echo(req: EchoRequest, request: Request):
     if _remembers(request):
         EVENTS.record(topics_mod.Event(
             user, "vibe", "", req.query, topics_mod.tags_for_text(req.query)))
+    # Vibed while it plays: finished and kept even if they leave (§614).
+    live_keep.hold(req.query, req.minutes)
     return echo.as_dict()
 
 
@@ -12582,12 +12621,19 @@ async def audio(
             # Except a link's fallback that replayed kept audio (§252): the
             # link already wrote this tap's row, and this one spent nothing.
             if not (link_failed and stats.cache == "hit" and stats.audio == "stored"):
-                _record_usage(
-                    user, stats.usage,
-                    surface=_surface(cached_only, topic_id, context),
-                    minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
-                    cache_hit=stats.cache == "hit",
-                )
+                def ledger() -> None:
+                    _record_usage(
+                        user, stats.usage,
+                        surface=_surface(cached_only, topic_id, context),
+                        minutes=plan.minutes, audio_seconds=stats.voiced_seconds,
+                        cache_hit=stats.cache == "hit",
+                    )
+                # Saved, shared or vibed and left part-way (§614): still
+                # being written and voiced, so its row waits for the finish.
+                if stats.detached:
+                    stats.after_background.append(ledger)
+                else:
+                    ledger()
 
     # Recorded here rather than client-side: audio is being served, so the
     # play is a fact. A dropped event costs one weak signal, never the episode.
@@ -14120,7 +14166,7 @@ def _held_episode_keys() -> set:
     except Exception:
         log.exception("audio sweep: could not read what is held from messages")
         raise
-    # Its archive copy, when its question was written again since (§610):
+    # Its archive copy, when its question was written again since (§612):
     # that copy is the episode that was sent.
     keys.update(_sent_episode_keys())
     for query, minutes in pairs:
@@ -14134,7 +14180,7 @@ def _held_episode_keys() -> set:
 def _sent_episode_keys() -> set:
     """The keys holding each episode a message names, by its exact id - the
     key, or the archive copy made when its question was written again
-    (§610). The sweep keeps an archive copy's audio only for these."""
+    (§612). The sweep keeps an archive copy's audio only for these."""
     out = set()
     if SCRIPT_CACHE is None:
         return out
@@ -14147,10 +14193,10 @@ def _sent_episode_keys() -> set:
 
 def _sent_episode_ids() -> set:
     """Every episode id a message, a share link, a saved row or a vibe names
-    (§610): each is kept, and replayed by id, as long as the row is."""
+    (§612): each is kept, and replayed by id, as long as the row is."""
     ids = {episode for _q, _m, episode in MESSAGES.episodes() if episode}
     ids.update(SHARES.episode_ids())
-    # Saved and vibed episodes too (§610): kept as long as they are.
+    # Saved and vibed episodes too (§612): kept as long as they are.
     ids.update(SAVED.episode_ids())
     ids.update(SOCIAL.vibed_episode_ids())
     return {e for e in ids if parse_episode_id(e) is not None}
@@ -14158,7 +14204,7 @@ def _sent_episode_ids() -> set:
 
 def _hold_sent_episodes(now: float | None = None) -> int:
     """Keep every episode sent in a message for as long as the message is
-    there (§610, at the owner's direction: "they should all be cached").
+    there (§612, at the owner's direction: "they should all be cached").
 
     A sent episode was pinned for two weeks at send (`_pin_heard`) and its
     script outlived that only if its audio had been kept (§237) - so a

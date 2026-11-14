@@ -9716,7 +9716,7 @@
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ query: ep.query, title: ep.title,
                              minutes: ep.minutes,
-                             // Which episode (§610), so the vibe replays it.
+                             // Which episode (§612), so the vibe replays it.
                              episode: ep.episode || "",
                              thread: episodeThread || "",
                              caption: caption, style: model.style,
@@ -17784,7 +17784,7 @@
                     source: person.mine ? "your vibe" : "vibed by " + firstName(person),
                     caption: "", prompt: v.query,
                     exploreMinutes: v.minutes || BROWSE_MINUTES, titleOverridden: true,
-                    // The vibed episode, by id (§610).
+                    // The vibed episode, by id (§612).
                     episode: v.episode || "", askIfGone: !!v.episode };
     generate(key);
   }
@@ -18507,7 +18507,7 @@
                     caption: "Live captions will appear here as this plays—",
                     prompt: v.query, exploreMinutes: v.minutes,
                     titleOverridden: true,
-                    // The vibed episode, by id (§610).
+                    // The vibed episode, by id (§612).
                     episode: v.episode || "", askIfGone: !!v.episode };
     generate(key);
   }
@@ -19388,7 +19388,7 @@
                                     : "vibed by " + (who.name || ("@" + (who.handle || "a friend"))),
                     caption: "", prompt: p.query, exploreMinutes: p.minutes,
                     titleOverridden: true, thumb: p.thumb || "", inPlace: true,
-                    // The vibed episode, by id (§610).
+                    // The vibed episode, by id (§612).
                     episode: p.episode || "", askIfGone: !!p.episode };
     generate(key);
   }
@@ -21523,7 +21523,7 @@
       title: item.title || item.query, prompt: item.query,
       source: "Saved for later", surface: "other",
       caption: "Generating your live transcript as this plays\u2014",
-      // The episode that was saved, replayed by id (§610); only if it is
+      // The episode that was saved, replayed by id (§612); only if it is
       // no longer kept (409) is the question asked instead.
       episode: item.episode || "", askIfGone: !!item.episode
     };
@@ -21838,7 +21838,7 @@
     }
     fetch("/api/saved", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      // Which episode (§610), so Saved for Later replays it by id.
+      // Which episode (§612), so Saved for Later replays it by id.
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
                              title: ep.title, source: "player",
                              episode: ep.episode || "" })
@@ -22007,7 +22007,7 @@
     grid.innerHTML = '<div class="sh-name">Making a link\u2026</div>';
     fetch("/api/share", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      // Which episode (§610), so the link replays it and never writes.
+      // Which episode (§612), so the link replays it and never writes.
       body: JSON.stringify({ query: ep.query, minutes: ep.minutes,
                              title: ep.title, episode: ep.episode || "" })
     }).then(function(r){

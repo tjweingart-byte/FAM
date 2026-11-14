@@ -77,7 +77,7 @@ class Echo:
     minutes: int
     thread: str
     at: float
-    #: Which episode was vibed (`cache.episode_id`, §610), or "".
+    #: Which episode was vibed (`cache.episode_id`, §612), or "".
     episode: str = ""
 
     def as_dict(self, name: str = "", handle: str = "") -> dict:
@@ -496,7 +496,7 @@ class SocialStore:
             # A vibe as a post (§547, the owner's "Vibes as Posts", option C):
             # the sentence the poster picked from the episode's captions and
             # where it starts ("" and -1 for none, as every older vibe has).
-            # §610: which episode was vibed (`cache.episode_id`), so the vibe
+            # §612: which episode was vibed (`cache.episode_id`), so the vibe
             # replays it by id - kept as long as the vibe is, never written
             # again. '' on older vibes, which play by their question.
             for column in ("line TEXT NOT NULL DEFAULT ''",
@@ -744,7 +744,7 @@ class SocialStore:
              None if tagged is None else (json.dumps(tagged) if tagged else ""),
              audience),
         )
-        # Which episode (§610): vibed again from a newer play, it names that
+        # Which episode (§612): vibed again from a newer play, it names that
         # one; "" (an older client) keeps what the row already says.
         episode = str(episode or "").strip()[:80]
         if episode:
@@ -1209,7 +1209,7 @@ class SocialStore:
             out.setdefault(user_id, []).append(
                 {"id": int(eid), "query": query, "title": title or "",
                  "minutes": as_minutes(minutes),
-                 # Which episode (§610): played by id, never written again.
+                 # Which episode (§612): played by id, never written again.
                  "episode": episode or "",
                  "thread": thread or "", "at": float(at),
                  # What they said about it, drawn with the story (10.5 #9).
@@ -1758,7 +1758,7 @@ class SocialStore:
             "SELECT DISTINCT query, minutes FROM echoes").fetchall()
 
     def vibed_episode_ids(self) -> list:
-        """Every episode id a vibe names (§610): the sweep keeps each for as
+        """Every episode id a vibe names (§612): the sweep keeps each for as
         long as the vibe is."""
         return [r[0] for r in self._conn().execute(
             "SELECT DISTINCT episode FROM echoes WHERE episode != ''").fetchall()]

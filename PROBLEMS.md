@@ -36877,7 +36877,104 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 
 `tests/test_voice_schedule_609.py`.
 
-## 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
+## 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14)
+
+**What was asked.** The owner: myFAM's and DailyFAM's episodes are written
+whole before anybody taps, and voicing them costs nothing extra; RunPod's
+price scaling has been severe. When the always-on worker is not busy it
+should voice those episodes; the moment someone searches, the search comes
+first.
+
+**Why it had not been done.** `decouple-script-audio` said "prefetch warms
+text, never audio" (§132's amendment): a wrong guess should cost only text.
+That was true while the voice was paid per second. Since §578 the endpoint
+keeps an always-on worker billed by the hour whether it voices or not, so on
+that endpoint an idle second is already paid for and voicing ahead costs
+nothing. A tap on an edition's tile was still a cache hit on the *script*
+and a fresh voicing on the GPU, with the listener waiting for the first chunk
+and sharing the one worker with every other listener (§609).
+
+**Now.** `voice_ahead.py`, one loop started at boot (never on staging or in
+demo mode):
+
+* **What:** current scripts whose cache origin is one of
+  `VOICE_AHEAD_ORIGINS` (`myfam,dailyfam,trending,startup,push` - everything
+  the editions write ahead; never `search`), newest first, with no audio kept
+  in the voice a tap would play. The voice is the tap's own draw
+  (`app._drawn_slug`, factored out of `_episode_voice`, so the two cannot
+  differ): kept beside the script, else drawn and kept.
+* **How:** `PodcastPipeline.voice_ahead` replays the cached sentences through
+  the tap's speaking path - same pacing, lexicon, chunking - and keeps the
+  audio with `_keep_audio`, under the row a tap reads. It records nothing a
+  tap records: no play, no prefetch hit, no caption track, and never "voice
+  fell behind" (`GenerationStats.ahead`). Audio of a script re-written while
+  it was voiced is not kept. An episode that was not kept is not retried for
+  an hour (`RETRY_SECONDS`).
+* **Listeners first:** `stream_pcm` registers every listener's episode with
+  `voice_schedule` until it ends, or until it turns out to be kept audio
+  (which needs no worker). A background chunk starts only when none is in
+  progress and none has been for `VOICE_AHEAD_QUIET_SECONDS` (3), and then
+  queues at the worker behind every listener (`NO_DEADLINE`, §609's gate). A
+  search registers at its first byte of work, seconds before its brief and
+  research hand the worker a chunk, so the most a search can meet is one
+  background chunk already in flight, which finishes during that research. An
+  interrupted background episode waits where it is and resumes. A stream
+  dropped without being closed is forgotten after 30 minutes
+  (`LISTENER_HORIZON`), so it cannot stop voicing ahead for good.
+* **Only the always-on worker, confirmed by RunPod** (the owner: "only the
+  always on worker should be able to work on the background episodes,
+  anything that costs extra money should not be able to"). The setting
+  `REMOTE_VOICE_ACTIVE_WORKERS` is this app's belief about the console, so it
+  is only the first gate. Before **every** background chunk
+  (`wait_for_the_active_worker`, which `PodcastPipeline.voice_ahead` requires
+  as an argument - there is no way to voice ahead without it) RunPod is asked
+  two free reads: the endpoint's `workersMin` (REST v2, REST v1, GraphQL;
+  believed 60 s) must be at least 1, and its `/health` must show nothing
+  queued or in progress, nothing running or starting, and at least one idle
+  worker but no more idle workers than always-on ones - a flex worker still
+  inside its idle timeout could otherwise take the job and stay billed. An
+  answer that cannot be read is a no, asked again every 15 s; the reason is on
+  `/api/health` → `voice_ahead.worker`. A pod (runs continuously, §118) or an
+  in-process card is billed by the hour and needs no asking. On a
+  pay-per-second endpoint the loop voices nothing and says why
+  (`voice_ahead.reason`), beside the counts voiced, skipped and failed and the
+  last episode.
+* **If RunPod's API moves:** REST v1 retires 2026-11-15 and GraphQL in
+  January 2027; if v2's endpoint answer does not carry `workersMin`, voicing
+  ahead stops (fails closed) and `/api/health` says "RunPod did not say
+  whether the endpoint keeps an always-on worker". Not measured from this
+  session: no RunPod key here.
+
+* **What it cost listeners, counted:** `/api/health` →
+  `voice_ahead.listener_waits` - every listener's chunk that waited for the
+  worker while a chunk voiced ahead held it (`DeadlineGate.ahead_holding`),
+  with the seconds and the longest, and the same three for first chunks only
+  (`first_*`: the wait in front of a search's first word). Waiting behind
+  another listener is not counted here; §609's rows say that. If
+  `first_longest` is ever more than a second or two, a search should cancel
+  the background chunk in flight (`remote_voice` already cancels a RunPod job
+  whose caller is cancelled); until then it is not built.
+
+**What it does not do.** It cannot cancel a background chunk already at the
+worker; it does not add capacity, and when listeners keep the worker busy
+nothing is voiced ahead, which is the point. Kept audio still lives a week
+(§237), so an unplayed edition's audio is deleted with the rest. The
+prefetcher is unchanged: it still warms text only.
+
+`VOICE_AHEAD=0` restores voicing on tap exactly. `tests/test_voice_ahead_610.py`.
+
+## 611. CI's Postgres job red on Main: a test wrote a SQLite file by hand (2026-11-14)
+
+`tests/test_tour_594.py::test_an_older_table_is_widened_not_recreated` builds
+a pre-§594 `preferences` table with raw `sqlite3` and opens the store on it.
+With `DATABASE_URL` set (CI's `postgres` job, §243) `db.connect` goes to
+Postgres, the hand-made file is never read, and row `old` does not exist -
+`1 failed, 7422 passed` on #301's merge. Every other such test carries
+`@pytest.mark.sqlite_file`, which `tests/conftest.py` skips on Postgres; this
+one did not. Marked; checked against a local Postgres 16 (skipped there, the
+other five pass).
+
+## 612. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
 
 The owner: "It seems like sent episodes aren't cached right now, they should
 all be cached ... I just clicked on an episode sent to me and it generated a
@@ -36967,3 +37064,68 @@ update, 30 min for an edition's live game; a played evergreen slides up to
 everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
 and vibed episodes' scripts now as long as the message, link, save or vibe
 exists.
+
+## 613. Flex workers beside the active one, when the owner chooses (2026-11-14)
+
+The owner, after §609: raise RunPod's flex workers rather than the always-on
+ones - Max workers 4, Active 1.
+
+Raising Max workers alone changes nothing: §578 caps chunks in flight at the
+active workers, so nothing ever queues at RunPod and no flex worker is ever
+started. `REMOTE_VOICE_FLEX_WORKERS` (default 0, `render.yaml` sets 3 for
+`fam`) is the console's Max workers less its Active workers; with an active
+worker, chunks in flight are active + flex, capped by
+`REMOTE_VOICE_CONCURRENCY`. The ones past the active worker wait in RunPod's
+queue, which hands each to whichever worker frees first or starts a flex one.
+Still no wake jobs. `/api/health`'s `remote_voice` reports `flex_workers`.
+
+**Per episode:** an episode voices its chunks one after another
+(`_speak_phase6`), so it never holds more than one worker at a time; four in
+flight means four listeners' episodes, and the §609 gate still decides who
+goes first. Flex workers are only started when episodes overlap.
+
+**The cost:** a flex worker is billed per second for its boot, the chunk and
+its idle timeout - the §578 bill, but only while listeners overlap. FlashBoot
+on, idle timeout ~30 s, and the console kept equal to this setting.
+
+`tests/test_remote_voice.py` (flex workers raise the chunks in flight and are
+capped by the concurrency; still no wake; nothing without an active worker;
+a negative count is refused).
+
+## 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14)
+
+The owner, after §609: "I don't want workers to be busy for a full minute for
+one person's request". A chunk already held a worker for only a few seconds,
+and since §609 another listener's chunk went between them - but with nobody
+else waiting, an episode was voiced as fast as it could from first word to
+last, so a three-minute episode held one worker for about a minute, and a
+listener who left part-way had paid for audio nobody heard and nothing kept.
+
+**Now.** On a shared worker (`RemoteChatterboxEngine.shares_workers`) an
+episode waits before each chunk while its listener already has more than
+`VOICE_LEAD_SECONDS` (25) of audio in hand (`pipeline._keep_pace`), so the
+worker serves somebody else, and an episode left part-way has voiced at most
+that past where they stopped. Played time is counted from the first audio,
+while the app holds audio until its last loading step, so the margin errs
+towards voicing early. `0` restores voicing as far ahead as possible; a voice
+on this machine is never paced.
+
+**What is kept, at the owner's direction** ("Shared episodes and saved
+episode should be kept no matter if they were listened to all the way
+through or not"; asked, they chose saved/shared/vibed only, not every
+abandoned episode). `stream_pcm` runs the episode in a task of its own and
+registers it with `live_keep`. Saving, a share link, a message carrying the
+episode (§612's "shared") and a vibe call `live_keep.hold(query, minutes)`
+(minutes by `as_minutes`). When the listener leaves, an episode not held is
+cancelled exactly as before; a held one is finished in the background - the
+rest written and voiced behind every live listener (`NO_DEADLINE`, never
+paced) - and kept whole like any other, and §612's sweep keeps it from
+there. Its ledger row waits for the finish (`stats.after_background`), so
+the background spend is metered to the listener who started it. A failed
+finish is an /admin row ("not finished in the background").
+
+**Not done:** an episode saved later, from history, after its stream ended
+part-way has no script to finish from. Kept audio is replayed where a row
+carries an episode id - since §612, sends, saves and vibes do.
+
+`tests/test_just_in_time_614.py`.

@@ -601,4 +601,8 @@ and `limit` = Lines.
 | 36770 | 46 | 607. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13) |
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
-| 36880 | 91 | 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14) |
+| 36880 | 86 | 610. An always-on worker that is not working is wasted money: voice the editions ahead (2026-11-14) |
+| 36966 | 11 | 611. CI's Postgres job red on Main: a test wrote a SQLite file by hand (2026-11-14) |
+| 36977 | 91 | 612. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14) |
+| 37068 | 27 | 613. Flex workers beside the active one, when the owner chooses (2026-11-14) |
+| 37095 | 38 | 614. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14) |

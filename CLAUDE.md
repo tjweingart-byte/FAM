@@ -45,8 +45,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   copies one; the server owns the date and length a tap sends). **Explore is
   gone** (§499). myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
-  and briefs for likely taps; synthesise on tap. Cached episodes keep their
-  audio beside the script (§132); prefetch warms text, never audio. [decouple-script-audio]
+  and briefs for likely taps. Cached episodes keep audio (§132); idle
+  always-on workers voice edition scripts ahead, listener first (§610). [decouple-script-audio]
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** (§107; `=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap**; nor
@@ -356,7 +356,7 @@ Caching and prefetch
 - **A heard episode is kept** (§173): history stores `episode_id` (key +
   sourced, `X-FAM-Episode`), replays with `?episode=`, never writing; a
   re-write archives the old row and audio; history pins two weeks; volatile
-  window 2h. [heard-is-kept] Sent/saved/vibed: kept while the row is (§610). [sent-is-kept]
+  window 2h. [heard-is-kept] Sent/saved/vibed: kept while the row is (§612). [sent-is-kept]
 - **TTL comes from what the script was built on, not the question's words**
   - live status -> `outcome_dependent` -> window -> keyword floor; `in_progress`
   and a sports `recap`/`update` short of `final` never current (§182; an
