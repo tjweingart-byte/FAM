@@ -36877,7 +36877,7 @@ together (~$11 a day each, §578; never the concurrency alone). If they say
 
 `tests/test_voice_schedule_609.py`.
 
-## 610. "It generated a full new one": every sent episode cached, and the caching audit (2026-11-14)
+## 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14)
 
 The owner: "It seems like sent episodes aren't cached right now, they should
 all be cached ... I just clicked on an episode sent to me and it generated a
@@ -36924,6 +36924,17 @@ reading) differ from the write's never matches at all.
    id and asks the question only on a 409, and the waitlist gate admits that
    link's own id and no other (`ShareStore.is_shared_episode`).
 
+**Fixed here - saved and vibed episodes, by the same means** (the owner,
+after the audit: "fix the saved and vibes ones too"). A saved row
+(`items.episode`) and a vibe (`echoes.episode`) now name their episode,
+validated by `_shared_episode` exactly as a send is; saving or vibing again
+from a newer play names that one, and an older client's save keeps the id.
+Saved for Later, your vibes, a friend's vibe posts and stories replay it by
+id and ask the question only on a 409. `_sent_episode_ids` includes both, so
+the sweep holds each as long as it is saved or vibed. A tile saved from a
+rail card sends no id (the card has none); the server names the episode kept
+under its question at that moment.
+
 **Fixed here - a minute and a half is not one minute.** `saved.py` read
 history and resume rows back with `int(minutes)`, and `_held_episode_keys` /
 `MessageStore.episodes` did the same. 1.5 became 1 - another key. So **Pick up
@@ -36937,8 +36948,6 @@ the week. All read with `as_minutes` now (§575 fixed the same bug in
 
 | Surface | Writes a new episode when |
 |---|---|
-| Saved for Later | past the current window; always for a saved Go Deeper (row has no id or context) |
-| Vibes (own grid, stories, friends' grids) | past the window; always for a vibed Go Deeper (echo row has no id or context) |
 | Queue | played past the window (queue keeps no id); drops `reading` |
 | Go Deeper / grid lead | context is the parent's *display title*, which swaps from derived to writer's - the same suggestion tapped before and after is two keys |
 | Grid recommendations, album next | sent with no surface/minutes, so from searchFAM the search length is used, not the 1.5 the tile was written at |
@@ -36955,5 +36964,6 @@ from sourcing; current `CACHE_TTL_SECONDS` = 7 days (evergreen),
 update, 30 min for an edition's live game; a played evergreen slides up to
 `CACHE_MAX_AGE_SECONDS` = 30 days; history pins 14 days; kept-tier audio
 (saved/shared/vibed/sent) re-pinned a week and a day every hourly sweep,
-everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent episodes
-now as long as the message or link exists.
+everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
+and vibed episodes' scripts now as long as the message, link, save or vibe
+exists.

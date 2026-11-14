@@ -601,4 +601,4 @@ and `limit` = Lines.
 | 36770 | 46 | 607. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13) |
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
-| 36880 | 81 | 610. "It generated a full new one": every sent episode cached, and the caching audit (2026-11-14) |
+| 36880 | 91 | 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14) |

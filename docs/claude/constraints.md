@@ -1166,7 +1166,8 @@
   `CACHE_TTL_SECONDS=86400` restores the old cache exactly.
 <!-- rule:sent-is-kept -->
 - **A sent episode is kept as long as its message or link is, and replays by
-  id.** *(§610, at the owner's direction: "I just clicked on an episode sent
+  id** - and so is a saved or vibed one, as long as it is saved or vibed
+  (`items.episode`, `echoes.episode`; same validation, same sweep). *(§610, at the owner's direction: "I just clicked on an episode sent
   to me and it generated a full new one. This is not acceptable.")* Every
   send names the episode (`episode` on a message and a share row); the
   server keeps a sender's id when it is this question's - plain key, a row
