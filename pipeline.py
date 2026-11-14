@@ -44,7 +44,8 @@ import provenance as provenance_mod
 from pronunciation import respell
 from spoken_text import speakable
 from script_buffer import ASSEMBLER_TICK, ScriptBuffer
-from script_generator import EpisodePlan, ScriptGenerator, ScriptNotes, count_words
+from script_generator import (EpisodePlan, ScriptGenerator, ScriptNotes, count_words,
+                              plan_episode)
 from speech_assembly import (AssembledChunk, AssemblyPolicy,
                              SpeechAssembler, fit_to_budget)
 from tts import TTSEngine, TTSUnavailable, build_engine
@@ -231,6 +232,11 @@ class GenerationStats:
         Conservative still, because the app holds the audio until its last
         loading step, so the listener's buffer is larger than this.
         """
+        if self.ahead:
+            # Voiced ahead (§610): nobody is listening, and the voicing
+            # pauses for every listener - a wall clock here measures that,
+            # not silence.
+            return made
         now = time.perf_counter() - self.started_at
         played = now - self.first_audio_at if self.first_audio_at else 0.0
         headroom = made - played
@@ -269,6 +275,8 @@ class GenerationStats:
     min_headroom: float = 999.0
     #: True if the stream ever fell behind realtime.
     starved: bool = False
+    #: Voiced ahead of any tap, with nobody listening (§610).
+    ahead: bool = False
     #: Wall clock at which the first audio left the pipeline.
     first_audio_at: float = 0.0
     #: Named instants and per-synthesis records for this episode. Written to,
@@ -445,6 +453,10 @@ class PodcastPipeline:
         #: answer, this stops the episode before the voice engine rather than
         #: waking the GPU for a listener the gate promised would cost nothing.
         self.stored_only = False
+        #: Voicing an episode nobody is waiting for, on an always-on worker
+        #: that would otherwise be idle (§610, `voice_ahead`): every chunk
+        #: waits for no listener to be in progress, then queues behind any.
+        self.ahead = False
 
     def _may_voice(self) -> None:
         if self.stored_only:
@@ -763,12 +775,17 @@ class PodcastPipeline:
         of audio (§609): now for the first chunk, else the audio already made
         less what has been played. The worker serves the nearest silence
         first, and how long this chunk waited for it is kept."""
-        if stats.first_audio_at:
+        if self.ahead:
+            # Nobody is listening (§610): start nothing while a listener's
+            # episode is in progress, and queue behind any that arrives.
+            await voice_schedule.wait_for_quiet(settings.voice_ahead_quiet_seconds)
+            deadline = voice_schedule.NO_DEADLINE
+        elif stats.first_audio_at:
             played = (time.perf_counter() - stats.started_at) - stats.first_audio_at
-            headroom = pace.elapsed - played
+            deadline = time.monotonic() + pace.elapsed - played
         else:
-            headroom = 0.0
-        turn = voice_schedule.VoiceTurn(deadline=time.monotonic() + headroom)
+            deadline = time.monotonic()
+        turn = voice_schedule.VoiceTurn(deadline=deadline)
         token = voice_schedule.CURRENT.set(turn)
         try:
             return await self.engine.synth(text, wpm, self.voice)
@@ -1411,6 +1428,50 @@ class PodcastPipeline:
         except Exception:
             log.exception("could not keep this episode's audio; continuing")
 
+    async def voice_ahead(self, key: str, query: str, minutes) -> str:
+        """Voice the script kept under `key` and keep its audio, with nobody
+        listening (§610). Returns what happened, in a word.
+
+        The speaking path a tap on this episode would take - the same replay
+        of the same sentences through the same pacing, voice and lexicon - so
+        the kept audio is what that tap would have voiced and kept, under the
+        same row. Nothing a tap records happens here: no play is counted, no
+        prefetch hit, no caption track, no "voice fell behind". Every chunk
+        waits for no listener to be in progress (`_synth`).
+        """
+        if not (self._keeps_audio() and self.cache_writes and key):
+            return "off"
+        voice, rate = self._audio_voice(), self.engine.sample_rate
+        if self.cache.has_audio(key, voice, rate):
+            return "kept"
+        # Only a script a tap would still be served (§143): past its window
+        # the tap writes a new one, and this audio would be for nobody.
+        if not self.cache.holds(key):
+            return "gone"
+        sentences = self.cache.script(key)
+        if not sentences:
+            return "gone"
+        plan = plan_episode(query, minutes)
+        stats = GenerationStats(ahead=True, audio_key=key, episode_key=key)
+        stats.query = query
+        stats.engine, stats.voice, stats.sample_rate = (
+            self.engine.name, self.voice or "", rate)
+        pace = PaceController(target_seconds=float(plan.target_seconds),
+                              total_words=plan.word_budget, sample_rate=rate)
+        self.ahead = True
+        pcm = bytearray()
+        async for chunk in self._speak_pump(
+                self._pump_for(_replay(sentences), stats, pace), pace, stats):
+            pcm.extend(chunk)
+        async for chunk in self._finish(pace, stats):
+            pcm.extend(chunk)
+        # The script may have been written again while it was voiced: this
+        # audio is of the old words, and is not kept under the new ones.
+        if self.cache.script(key) != sentences or not stats.sentences:
+            return "changed"
+        await self._keep_audio(bytes(pcm), stats)
+        return "voiced" if stats.audio == "kept" else "not kept"
+
     async def stream_pcm(
         self, plan: EpisodePlan, stats: Optional[GenerationStats] = None
     ) -> AsyncIterator[bytes]:
@@ -1426,12 +1487,20 @@ class PodcastPipeline:
         stats.query = stats.query or plan.query
         recorded = bytearray() if (self._keeps_audio() and self.cache_writes) else None
         inner = self._stream_pcm(plan, stats)
+        # A listener's episode is in progress: voicing ahead stands aside
+        # until it is over, or until it turns out to be kept audio (§610).
+        listening = voice_schedule.listener_started()
         try:
             async for chunk in inner:
+                if listening and stats.audio == "stored":
+                    voice_schedule.listener_finished(listening)
+                    listening = 0
                 if recorded is not None and stats.audio != "stored":
                     recorded.extend(chunk)
                 yield chunk
         finally:
+            if listening:
+                voice_schedule.listener_finished(listening)
             # Closed here rather than left to the collector: the inner stream
             # owns the model call and the synthesis queue, and a listener who
             # walks away must stop both at once, exactly as before it was

@@ -314,6 +314,22 @@ swapped names.
 <!-- rule:decouple-script-audio -->
 ## The architectural consequence that matters most
 
+> **Current (PROBLEMS.md §610, at the owner's direction, 11.14):** "prefetch
+> warms text, never audio" no longer holds for what the editions write ahead.
+> The owner's reasoning: myFAM's and DailyFAM's scripts are already written
+> before the tap, voicing them costs nothing extra on the always-on worker
+> (§578), and an always-on worker that is not working is wasted money. So
+> `voice_ahead.py` voices them in the worker's idle time - current scripts
+> whose cache origin is `myfam`, `dailyfam`, `trending`, `startup` or `push`,
+> newest first, in the voice a tap would draw - and keeps the audio under the
+> row a tap reads, so the tap is a replay. **A listener always comes first**:
+> no background chunk starts while any listener's episode is in progress or
+> for `VOICE_AHEAD_QUIET_SECONDS` after, and one that does queues behind every
+> listener at the worker (`NO_DEADLINE`, §609). **Only where an idle second
+> is already paid for** - an endpoint with active workers, a pod, a card
+> in-process; never a pay-per-second endpoint, where the reason below still
+> holds. Search is unchanged, and the prefetcher still warms text only.
+
 Today every episode is generated **on demand**. There used to be a fast-model
 "cold open" covering that wait; it is gone (PROBLEMS.md §55). Nothing is spoken
 until the real episode is.

@@ -102,3 +102,71 @@ class DeadlineGate:
 
     async def __aexit__(self, *exc) -> None:
         self.release()
+
+
+# ---- voice ahead (§610) ---------------------------------------------------
+#
+# An always-on worker with nobody to voice is paid for and idle. `voice_ahead`
+# spends that time voicing the episodes the editions already wrote. A
+# listener always comes first, and "first" means more than the gate's order:
+# a search spends seconds on its brief and research before its first chunk
+# reaches the gate, and a background chunk taken in that gap would be in
+# front of it. So background work starts a chunk only while no listener's
+# episode is in progress at all, and not for `quiet` seconds after one ends.
+
+#: Listeners' episodes in progress: token -> when it began. A dict rather
+#: than a count, so an episode whose stream was dropped without being closed
+#: cannot hold the worker from background work forever: one older than
+#: `LISTENER_HORIZON` is forgotten.
+_LISTENERS: dict = {}
+_TOKENS = itertools.count(1)
+_LAST_LISTENER = 0.0
+#: Longer than any episode is voiced for (ten minutes at most, written at
+#: well over realtime).
+LISTENER_HORIZON = 1800.0
+
+
+def listener_started() -> int:
+    """A listener's episode began (it may be voiced). Cheap: request path.
+    Returns the token `listener_finished` takes."""
+    global _LAST_LISTENER
+    token = next(_TOKENS)
+    _LAST_LISTENER = time.monotonic()
+    _LISTENERS[token] = _LAST_LISTENER
+    return token
+
+
+def listener_finished(token: int) -> None:
+    """That episode needs the voice no longer (ended, or plays kept audio)."""
+    global _LAST_LISTENER
+    if _LISTENERS.pop(token, None) is not None:
+        _LAST_LISTENER = time.monotonic()
+
+
+def listeners(now: float | None = None) -> int:
+    now = time.monotonic() if now is None else now
+    for token, began in list(_LISTENERS.items()):
+        if now - began > LISTENER_HORIZON:
+            _LISTENERS.pop(token, None)
+    return len(_LISTENERS)
+
+
+def quiet(seconds: float, now: float | None = None) -> bool:
+    """No listener's episode in progress, none for `seconds`."""
+    now = time.monotonic() if now is None else now
+    return listeners(now) == 0 and now - _LAST_LISTENER >= seconds
+
+
+async def wait_for_quiet(seconds: float, poll: float = 0.5) -> float:
+    """Wait until `quiet(seconds)`; returns how long that took."""
+    started = time.monotonic()
+    while not quiet(seconds):
+        await asyncio.sleep(poll)
+    return time.monotonic() - started
+
+
+def reset() -> None:
+    """For tests."""
+    global _LAST_LISTENER
+    _LISTENERS.clear()
+    _LAST_LISTENER = 0.0
