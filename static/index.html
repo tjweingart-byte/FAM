@@ -2569,7 +2569,17 @@
     font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:12px 0 14px; cursor:pointer; }
   .terms-check[hidden]{ display:none; }
   /* The activation step (§414). */
-  .act-card{ max-height:88%; overflow-y:auto; text-align:left; }
+  /* Continue is the card's footer, never the end of its scroll (the
+     11.14 report: on Android web the fields outgrew the card and Continue
+     sat below the fold, cut off and hard to tap). The card is a column;
+     only the fields scroll; the buttons always show. */
+  .act-card{ max-height:88%; overflow:hidden; text-align:left;
+    display:flex; flex-direction:column; }
+  #actForm{ display:flex; flex-direction:column; min-height:0; flex:0 1 auto; }
+  .act-scroll{ min-height:0; flex:0 1 auto; overflow-y:auto;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    margin:0 -20px; padding:0 20px; }
+  .act-foot{ flex:none; padding-top:12px; }
   .act-close{ position:absolute; top:12px; right:12px; }
   .sheet-close[hidden], .act-close[hidden], #actForm[hidden], #actConfirm[hidden],
   #actGone[hidden]{ display:none; }
@@ -5507,6 +5517,7 @@
                   onclick="closeActivation()" aria-label="Close"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div id="actForm">
             <div class="modal-title" id="actTitle">A few things before you start</div>
+            <div class="act-scroll">
             <label class="act-label" for="actBirth">Date of birth</label>
             <input class="modal-input act-input" id="actBirth" type="date"
                    oninput="activationReady()" onchange="activationReady()">
@@ -5520,7 +5531,8 @@
             <div class="act-chips" id="actGenders" role="radiogroup" aria-label="Gender"></div>
             <div class="act-help" id="actGenderHelp"></div>
             <div class="limit-body act-notice" id="actNotice"></div>
-            <div class="modal-btns stack">
+            </div>
+            <div class="modal-btns stack act-foot">
               <button class="modal-btn primary" id="actGo" disabled
                       onclick="submitActivation(false)">Continue</button>
             </div>
