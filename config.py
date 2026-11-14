@@ -1847,7 +1847,7 @@ class Settings:
     # worker serves somebody else, and an episode left part-way voices no
     # more than this past where they stopped. 0 voices as far ahead as it
     # can (before §612). Never applies to a voice on this machine.
-    voice_ahead_seconds: float = _env_float("VOICE_AHEAD_SECONDS", 25.0)
+    voice_lead_seconds: float = _env_float("VOICE_LEAD_SECONDS", 25.0)
     # --- Finding the worker, rather than being told where it is ----------
     # `voice_control.py` is the whole of this. The settings below decide how
     # hard FAM works to keep its own address for the voice correct while

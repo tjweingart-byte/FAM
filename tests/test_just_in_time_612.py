@@ -53,7 +53,7 @@ class SharedVoice(CountingVoice):
 
 def _pipe(engine, monkeypatch, ahead):
     monkeypatch.setattr(pipeline_mod, "settings", dataclasses.replace(
-        pipeline_mod.settings, voice_ahead_seconds=ahead))
+        pipeline_mod.settings, voice_lead_seconds=ahead))
     return PodcastPipeline(generator=FakeGenerator(), engine=engine,
                            cache=MemoryScriptCache())
 

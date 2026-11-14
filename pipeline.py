@@ -806,7 +806,7 @@ class PodcastPipeline:
 
     async def _keep_pace(self, stats: "GenerationStats", pace: PaceController) -> None:
         """Voice just in time on a shared worker (§612): wait while this
-        listener already has more than `VOICE_AHEAD_SECONDS` of audio, so the
+        listener already has more than `VOICE_LEAD_SECONDS` of audio, so the
         worker serves somebody else, and an episode left part-way has voiced
         no more than that past where they stopped.
 
@@ -815,7 +815,7 @@ class PodcastPipeline:
         behind than this, and the margin errs towards voicing early. Never
         for an engine on this machine, which nobody else is waiting for, nor
         for an episode finished in the background, which nobody hears."""
-        ahead = float(settings.voice_ahead_seconds or 0)
+        ahead = float(settings.voice_lead_seconds or 0)
         if ahead <= 0 or not getattr(self.engine, "shares_workers", False):
             return
         while stats.first_audio_at and not stats.detached:

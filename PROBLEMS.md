@@ -37006,7 +37006,7 @@ listener who left part-way had paid for audio nobody heard and nothing kept.
 
 **Now.** On a shared worker (`RemoteChatterboxEngine.shares_workers`) an
 episode waits before each chunk while its listener already has more than
-`VOICE_AHEAD_SECONDS` (25) of audio in hand (`pipeline._keep_pace`), so the
+`VOICE_LEAD_SECONDS` (25) of audio in hand (`pipeline._keep_pace`), so the
 worker serves somebody else, and an episode left part-way has voiced at most
 that past where they stopped. Played time is counted from the first audio,
 while the app holds audio until its last loading step, so the margin errs

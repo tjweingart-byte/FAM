@@ -1,6 +1,6 @@
 """Episodes being voiced right now, and which of them must be finished (§612).
 
-Since §612 the voice stays only `VOICE_AHEAD_SECONDS` ahead of a listener,
+Since §612 the voice stays only `VOICE_LEAD_SECONDS` ahead of a listener,
 and an episode the listener leaves part-way stops being written and voiced,
 as it always did: nothing of it is kept, and nothing more is spent on it.
 
