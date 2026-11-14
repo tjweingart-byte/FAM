@@ -602,3 +602,5 @@ and `limit` = Lines.
 | 36816 | 30 | 608. The tour shortened to seven cards (2026-11-14) |
 | 36846 | 34 | 609. "The voice fell behind" on Friday: one worker since §578, taken first come (2026-11-14) |
 | 36880 | 91 | 610. "It generated a full new one": every sent, saved and vibed episode cached, and the caching audit (2026-11-14) |
+| 36971 | 27 | 611. Flex workers beside the active one, when the owner chooses (2026-11-14) |
+| 36998 | 38 | 612. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14) |

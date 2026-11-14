@@ -168,6 +168,14 @@ every queued chunk boots a flex worker beside the active one, billed for its
 boot and idle timeout, which made one active worker cost ~$40 a day. Max
 workers 1-2 and a short idle timeout (~5 s) keep any flex worker cheap.
 
+*Letting a busy moment start flex workers (§611):* set
+`REMOTE_VOICE_FLEX_WORKERS` to the console's Max workers less its Active
+workers. Up to active + flex chunks are then in flight; the ones past the
+active worker queue at RunPod and start a flex worker, billed per second for
+its boot, the chunk and the idle timeout. Keep FlashBoot on (a cold flex
+worker takes ~73 s, §329) and an idle timeout of ~30 s so one stays warm
+through a busy stretch. Still no wake jobs.
+
 *For an always-on pod instead:* deploy the same image as a Pod, set
 `REMOTE_VOICE_TOKEN=<a long random string>` (the mode is derived),
 expose port 8001, and use the proxy URL RunPod gives you as

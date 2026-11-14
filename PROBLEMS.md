@@ -36967,3 +36967,68 @@ update, 30 min for an edition's live game; a played evergreen slides up to
 everything else's audio deleted at `AUDIO_RECENT_DAYS` = 7; sent, saved
 and vibed episodes' scripts now as long as the message, link, save or vibe
 exists.
+
+## 611. Flex workers beside the active one, when the owner chooses (2026-11-14)
+
+The owner, after §609: raise RunPod's flex workers rather than the always-on
+ones - Max workers 4, Active 1.
+
+Raising Max workers alone changes nothing: §578 caps chunks in flight at the
+active workers, so nothing ever queues at RunPod and no flex worker is ever
+started. `REMOTE_VOICE_FLEX_WORKERS` (default 0, `render.yaml` sets 3 for
+`fam`) is the console's Max workers less its Active workers; with an active
+worker, chunks in flight are active + flex, capped by
+`REMOTE_VOICE_CONCURRENCY`. The ones past the active worker wait in RunPod's
+queue, which hands each to whichever worker frees first or starts a flex one.
+Still no wake jobs. `/api/health`'s `remote_voice` reports `flex_workers`.
+
+**Per episode:** an episode voices its chunks one after another
+(`_speak_phase6`), so it never holds more than one worker at a time; four in
+flight means four listeners' episodes, and the §609 gate still decides who
+goes first. Flex workers are only started when episodes overlap.
+
+**The cost:** a flex worker is billed per second for its boot, the chunk and
+its idle timeout - the §578 bill, but only while listeners overlap. FlashBoot
+on, idle timeout ~30 s, and the console kept equal to this setting.
+
+`tests/test_remote_voice.py` (flex workers raise the chunks in flight and are
+capped by the concurrency; still no wake; nothing without an active worker;
+a negative count is refused).
+
+## 612. Voiced just in time; a kept episode is finished when its listener leaves (2026-11-14)
+
+The owner, after §609: "I don't want workers to be busy for a full minute for
+one person's request". A chunk already held a worker for only a few seconds,
+and since §609 another listener's chunk went between them - but with nobody
+else waiting, an episode was voiced as fast as it could from first word to
+last, so a three-minute episode held one worker for about a minute, and a
+listener who left part-way had paid for audio nobody heard and nothing kept.
+
+**Now.** On a shared worker (`RemoteChatterboxEngine.shares_workers`) an
+episode waits before each chunk while its listener already has more than
+`VOICE_LEAD_SECONDS` (25) of audio in hand (`pipeline._keep_pace`), so the
+worker serves somebody else, and an episode left part-way has voiced at most
+that past where they stopped. Played time is counted from the first audio,
+while the app holds audio until its last loading step, so the margin errs
+towards voicing early. `0` restores voicing as far ahead as possible; a voice
+on this machine is never paced.
+
+**What is kept, at the owner's direction** ("Shared episodes and saved
+episode should be kept no matter if they were listened to all the way
+through or not"; asked, they chose saved/shared/vibed only, not every
+abandoned episode). `stream_pcm` runs the episode in a task of its own and
+registers it with `live_keep`. Saving, a share link, a message carrying the
+episode (§610's "shared") and a vibe call `live_keep.hold(query, minutes)`
+(minutes by `as_minutes`). When the listener leaves, an episode not held is
+cancelled exactly as before; a held one is finished in the background - the
+rest written and voiced behind every live listener (`NO_DEADLINE`, never
+paced) - and kept whole like any other, and §610's sweep keeps it from
+there. Its ledger row waits for the finish (`stats.after_background`), so
+the background spend is metered to the listener who started it. A failed
+finish is an /admin row ("not finished in the background").
+
+**Not done:** an episode saved later, from history, after its stream ended
+part-way has no script to finish from. Kept audio is replayed where a row
+carries an episode id - since §610, sends, saves and vibes do.
+
+`tests/test_just_in_time_612.py`.
