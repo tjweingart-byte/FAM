@@ -599,3 +599,4 @@ and `limit` = Lines.
 | 36656 | 45 | 605. iOS build 8: the tour, and what Main gave the app since build 7 (2026-11-13) |
 | 36701 | 69 | 606. The waitlist is the email alone; let in, the first step is a password (2026-11-13) |
 | 36770 | 46 | 607. The four failures §602/§603 left on Main, and the hedged brief call nobody paid for (2026-11-13) |
+| 36816 | 31 | 608. The tour shortened to seven cards (2026-11-14) |
