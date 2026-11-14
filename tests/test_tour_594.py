@@ -50,6 +50,7 @@ def test_the_flag_is_kept_and_other_writes_leave_it(store):
     assert store.get("u1").tour_done is False
 
 
+@pytest.mark.sqlite_file
 def test_an_older_table_is_widened_not_recreated(tmp_path):
     path = str(tmp_path / "old.db")
     conn = sqlite3.connect(path)
