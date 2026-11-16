@@ -37570,3 +37570,70 @@ nothing in its place; a script of nothing else is spoken; at the opening
 the sentence leaning on it goes too; no example or pair rewrite trips
 either check). `tests/test_examples_adopted_620.py` now asks the check
 itself, not a list of phrases.
+
+## 623. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16)
+
+§621's run, on the owner's key: all 50 fixed questions researched today into
+`~/.fam/editor_eval_620/`, each written three ways by the same writer
+(Haiku 5.5, high effort, no editor, 1.5 minutes) from the same packet, and
+graded blind by Opus 5.5. 150 scripts, no grade failures (one grade came
+back with no marks). The six questions a pair was made from are left out;
+44 remain.
+
+| Opus, mean over 44 | before §619 | + the example | + example and pairs |
+|---|---|---|---|
+| information | 3.18 | 3.19 | 3.34 |
+| flow | 3.23 | 3.21 | 3.14 |
+| depth | 3.34 | 3.40 | 3.27 |
+| repetition | 3.00 | 3.09 | 2.95 |
+| hook | 3.75 | 3.65 | 3.55 |
+| storytelling | 2.27 | 1.98 | 1.86 |
+| **mean of six** | **3.13** | **3.09** | **3.02** |
+| unsupported claims a script | 2.82 | 2.64 | 2.55 |
+| words | 269 | 268 | 263 |
+
+Paired by question, 95% bootstrap:
+
+| | mean of six | better / worse | storytelling | hook |
+|---|---|---|---|---|
+| example and pairs - before | -0.11 [-0.23, +0.01] | 10 / 25 | **-0.41 [-0.77, -0.05]** | -0.21 [-0.41, 0.00] |
+| example alone - before | -0.04 [-0.17, +0.08] | 18 / 17 | -0.30 [-0.61, 0.00] | -0.09 [-0.30, +0.12] |
+| pairs on top of the example | -0.06 [-0.19, +0.06] | 11 / 21 | -0.09 [-0.42, +0.26] | -0.12 [-0.33, +0.07] |
+
+- **Nothing improved past zero.** Information (+0.16) and unsupported
+  claims (-0.27 a script) lean the right way; neither interval clears zero.
+- **Storytelling is lower with both in, and the interval clears zero.**
+  Hook is at the edge the same way. The mean of six leans down, 25
+  questions worse to 10 better.
+- By kind of question (mean of six, both in, small counts): news -0.19
+  (17), evergreen -0.12 (10), sports +0.03 (5), money +0.28 (3).
+- On the six questions the pairs were made from the mean of six did not
+  move (0.00, six questions, wide interval): being shown the answer did not
+  help either.
+- The code's own measures barely differ (flow 0.60 / 0.68 / 0.62, ear 0.93
+  in all three): the pairs were chosen and gated by those measures and the
+  grader's mean, and neither predicted this.
+
+**Why, as inference, not measured:** the six rewrites are short, plain
+recaps with one figure to a sentence - what the code's checks reward - and
+half of the pairs block is drafts going wrong. A writer shown 2,860 words
+of that may be writing flatter. The example is an explainer; an explainer
+taught at editions of news may cost the same thing.
+
+**What this does not show.** The grader is not calibrated against the
+owner ([episode-quality]: a grade is trusted once it agrees with a person).
+One script per question per arm, so the run-to-run noise of the writer is
+inside these intervals, not measured apart. Editions at high effort only -
+not searchFAM at low effort, not three minutes, where the example's length
+is meant to teach. Every arm is marked far below §527's (3.1 against ~3.6;
+unsupported claims 2.6-2.8 a script against 0.4-0.6): today's packets and
+the grader's drift are not told apart, so only the differences within this
+run are read.
+
+**Not changed yet.** By §527's precedent - matched examples cost repetition
+and were switched off - the measured choice is to take both back out. The
+owner adopted them and decides.
+
+**Cost: $9.08, about double the estimate given.** Writing $0.58 and
+grading $8.15, both measured; research about $0.35, estimated. The
+estimate used §527's $0.025 a grade; these cost $0.054.
