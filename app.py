@@ -7559,7 +7559,11 @@ async def attach(req: AttachRequest, request: Request) -> dict:
     else:
         _read_limit(request)
     try:
-        item = attachments_mod.build(req.kind, req.name, req.data, req.url)
+        # Off the event loop (§619): a link is an outbound fetch of up to
+        # eight seconds and a PDF is seconds of parsing, and on the loop that
+        # is every listener's audio stopped while one attachment is read.
+        item = await asyncio.to_thread(attachments_mod.build, req.kind, req.name,
+                                       req.data, req.url)
     except attachments_mod.AttachmentError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     ATTACHMENTS.put(_listener(request), item)

@@ -24,6 +24,13 @@ was the reproduction - and passes against the fix.
    type sniffing or a return over plain http.
 7. **A note could be deleted by a request with no session.** The store reads
    an empty listener id as a moderator.
+8. **Attaching a link made the server fetch any address it was given** - its
+   own loopback, a private network, its host's metadata address - and hand
+   back the page's title and first 160 characters. Only public addresses now,
+   each redirect checked, the checked address the one connected to.
+9. **The admin's question box could read a reset code's hash**, a let-in
+   link's code and a kept Apple token: its list of hidden columns is kept by
+   hand and predates all three.
 """
 from __future__ import annotations
 
@@ -329,3 +336,269 @@ def test_a_request_with_no_session_cannot_delete_somebodys_note(server, monkeypa
     answer = _stranger(server).delete(f"/api/story/note/{note_id}")
     assert answer.status_code == 503
     assert store.note_row(int(note_id)), "a stranger with no session deleted a note"
+
+
+# --- 8. a link is only ever a public page -------------------------------------
+
+import asyncio  # noqa: E402
+import http.server  # noqa: E402
+import ssl  # noqa: E402
+import threading  # noqa: E402
+
+import attachments  # noqa: E402
+
+
+class _Inside(http.server.BaseHTTPRequestHandler):
+    """Something only this machine should be able to read."""
+
+    hits: list = []
+
+    def do_GET(self):  # noqa: N802 - the base class's name
+        type(self).hits.append((self.path, self.headers.get("Host", "")))
+        if self.path == "/hop":
+            self.send_response(302)
+            self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+            self.end_headers()
+            return
+        if self.path == "/big":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            try:
+                for _ in range(400):
+                    self.wfile.write(b"<p>" + b"x" * 4000 + b"</p>")
+            except OSError:
+                pass
+            return
+        body = b"<title>internal admin panel</title><p>DB_PASSWORD=hunter2</p>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def inside():
+    _Inside.hits = []
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Inside)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield server.server_address[1]
+    server.shutdown()
+
+
+def _attach(server, url):
+    appmod._gen_tokens.clear()
+    return _stranger(server).post("/api/attach", json={"kind": "link", "url": url})
+
+
+def test_a_link_to_this_machine_is_refused_and_never_fetched(server, inside):
+    """The reproduction: this answered 200 with the page's title and
+    "DB_PASSWORD=hunter2" in `preview`."""
+    answer = _attach(server, f"http://127.0.0.1:{inside}/secret")
+    assert answer.status_code == 400
+    assert "hunter2" not in answer.text and "internal" not in answer.text
+    assert _Inside.hits == [], "the server fetched an address on its own machine"
+
+
+@pytest.mark.parametrize("address", [
+    "127.0.0.1", "10.0.0.5", "192.168.1.10", "172.16.0.1", "169.254.169.254",
+    "100.64.0.1", "0.0.0.0", "::1", "::ffff:127.0.0.1", "fd00::1", "fe80::1",
+    "224.0.0.1"])
+def test_no_private_address_is_public(address):
+    with pytest.raises(attachments.AttachmentError):
+        attachments._public_addresses(address, 80)
+
+
+def test_a_public_address_is(monkeypatch):
+    assert attachments._public_addresses("93.184.216.34", 443) == ["93.184.216.34"]
+
+
+def _resolves(monkeypatch, table):
+    real = attachments.socket.getaddrinfo
+
+    def lookup(host, port, *args, **kwargs):
+        if host in table:
+            return [(attachments.socket.AF_INET, attachments.socket.SOCK_STREAM, 6, "",
+                     (ip, port)) for ip in table[host]]
+        return real(host, port, *args, **kwargs)
+
+    monkeypatch.setattr(attachments.socket, "getaddrinfo", lookup)
+
+
+def test_a_name_that_resolves_inside_is_refused(server, inside, monkeypatch):
+    _resolves(monkeypatch, {"intranet.example": ["10.1.2.3"]})
+    assert _attach(server, "http://intranet.example/").status_code == 400
+
+
+def test_one_private_answer_among_public_ones_is_refused(monkeypatch):
+    """How a name is made to look safe: a public address first."""
+    _resolves(monkeypatch, {"mixed.example": ["93.184.216.34", "127.0.0.1"]})
+    with pytest.raises(attachments.AttachmentError):
+        attachments._public_addresses("mixed.example", 80)
+
+
+def _as_if_public(monkeypatch, name):
+    """`name` is treated as a public site that happens to live on the test
+    server; every other name is checked for real."""
+    real = attachments._public_addresses
+    monkeypatch.setattr(attachments, "_public_addresses",
+                        lambda host, port: ["127.0.0.1"] if host == name else real(host, port))
+
+
+def test_a_public_page_is_still_read_by_its_checked_address(inside, monkeypatch):
+    _as_if_public(monkeypatch, "pages.example")
+    title, text = attachments.fetch_link(f"http://pages.example:{inside}/page")
+    assert title == "internal admin panel" and "hunter2" in text
+    # Connected to the address that was checked, named in Host.
+    assert _Inside.hits == [("/page", f"pages.example:{inside}")]
+
+
+def test_a_redirect_to_a_private_address_is_refused(inside, monkeypatch):
+    _as_if_public(monkeypatch, "pages.example")
+    with pytest.raises(attachments.AttachmentError) as refused:
+        attachments.fetch_link(f"http://pages.example:{inside}/hop")
+    assert str(refused.value) == attachments.NOT_PUBLIC
+    assert [path for path, _ in _Inside.hits] == ["/hop"]
+
+
+def test_a_very_large_page_is_read_only_to_the_cap(inside, monkeypatch):
+    _as_if_public(monkeypatch, "pages.example")
+    monkeypatch.setattr(attachments, "MAX_BYTES", 20_000)
+    import httpx
+
+    with httpx.Client(follow_redirects=False, timeout=5, trust_env=False) as client:
+        body = attachments._read_public(client, f"http://pages.example:{inside}/big")
+    assert 0 < len(body) <= 20_000
+
+
+def test_a_link_with_a_password_in_it_is_refused():
+    with pytest.raises(attachments.AttachmentError):
+        attachments.fetch_link("http://user:pass@93.184.216.34/")
+
+
+def test_reading_an_attachment_is_off_the_event_loop(server, monkeypatch):
+    """A link is eight seconds of waiting and a PDF seconds of parsing; on
+    the loop that is every listener's audio stopped."""
+    seen = {}
+
+    def build(kind, name="", data_b64="", url=""):
+        try:
+            asyncio.get_running_loop()
+            seen["on_loop"] = True
+        except RuntimeError:
+            seen["on_loop"] = False
+        return attachments.Attachment(id="a1", kind="document", name="n", text="words")
+
+    monkeypatch.setattr(appmod.attachments_mod, "build", build)
+    answer = _stranger(server).post("/api/attach", json={
+        "kind": "document", "name": "n.txt", "data": "d29yZHM="})
+    assert answer.status_code == 200
+    assert seen == {"on_loop": False}
+
+
+def _self_signed(name, tmp_path):
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
+            .public_key(key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=1))
+            .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(key, hashes.SHA256()))
+    cert_file, key_file = tmp_path / "cert.pem", tmp_path / "key.pem"
+    cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_file.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption()))
+    return str(cert_file), str(key_file)
+
+
+def test_https_is_still_verified_against_the_name_not_the_address(tmp_path, monkeypatch):
+    """Connecting to the checked address must not weaken TLS: the certificate
+    is checked against the site that was asked for, and a site presenting
+    somebody else's is refused."""
+    import httpx
+
+    cert_file, key_file = _self_signed("pinned.test", tmp_path)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Inside)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert_file, key_file)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    port = server.server_address[1]
+    monkeypatch.setattr(attachments, "_public_addresses", lambda host, port: ["127.0.0.1"])
+    try:
+        with httpx.Client(follow_redirects=False, timeout=5, trust_env=False,
+                          verify=ssl.create_default_context(cafile=cert_file)) as client:
+            page = attachments._read_public(client, f"https://pinned.test:{port}/page")
+            assert "hunter2" in page
+            with pytest.raises(httpx.ConnectError):
+                attachments._read_public(client, f"https://other.test:{port}/page")
+    finally:
+        server.shutdown()
+
+
+# --- 9. what the admin's question box can read --------------------------------
+
+
+@pytest.mark.sqlite_file
+def test_a_question_cannot_read_a_reset_code_a_let_in_link_or_a_kept_token(tmp_path, monkeypatch):
+    """`SECRET_COLUMNS` is a list kept by hand, and three secrets were added
+    to the accounts store after it was written. Reproduced before the fix:
+    the reset code's hash came back, and a six-digit code is found from its
+    hash in under a second - which is somebody's password, reset."""
+    import hashlib
+
+    import admin_tracker as AT
+    import mixes as M
+    import waitlist as W
+
+    monkeypatch.setenv("ACCOUNTS_DB", str(tmp_path / "accounts.db"))
+    monkeypatch.setenv("MIXES_DB", str(tmp_path / "mixes.db"))
+    store = A.AccountStore(str(tmp_path / "accounts.db"))
+    store.sign_up("u1", EMAIL, GOOD)
+    _user, _address, code = store.start_reset(EMAIL)
+    store.sign_in_with("apple", "apple-subject-1", current_user_id="u1")
+    store.keep_provider_token("apple", "apple-subject-1", "refresh-token-xyz", "client")
+    W.Waitlist(store).ensure_claim_code("u1")
+    mixes = M.MixStore(str(tmp_path / "mixes.db"))
+    mix = mixes.create("u1", "Gym")
+    mixes.invite_token("u1", mix.id)
+
+    def read(sql):
+        return [row[0] for row in AT.run_query(sql)["rows"]]
+
+    hashes = read("SELECT code_hash FROM accounts.password_resets")
+    cracked = [n for n in range(10 ** 6) if hashes and hashes[0] and hashlib.sha256(
+        f"fam-reset:u1:{n:06d}".encode()).hexdigest() == hashes[0]][:1]
+    assert cracked == [], f"the question box gave up reset code {code}"
+    assert read("SELECT code_hash FROM accounts.password_resets") == [None]
+    assert read("SELECT claim_code FROM accounts.accounts") == [None]
+    assert read("SELECT token FROM accounts.identities WHERE provider = 'apple'") == [None]
+    assert read("SELECT join_token FROM mixes.mixes") == [None]
+    # A credential-shaped column is hidden without being listed: the list is
+    # kept by hand, which is how these three were missed.
+    import sqlite3
+
+    extra = sqlite3.connect(str(tmp_path / "accounts.db"))
+    extra.execute("CREATE TABLE later (id TEXT, api_token TEXT, signing_secret TEXT, note TEXT)")
+    extra.execute("INSERT INTO later VALUES ('1', 'tok', 'sec', 'plain')")
+    extra.commit()
+    extra.close()
+    assert AT.run_query("SELECT api_token, signing_secret, note FROM accounts.later"
+                        )["rows"] == [[None, None, "plain"]]
+    # And what it is for still reads.
+    assert read("SELECT email FROM accounts.accounts") == [EMAIL]

@@ -124,6 +124,14 @@ SECRET_COLUMNS = {
     ("accounts", "accounts", "password"),
     ("accounts", "sessions", "token_hash"),
     ("accounts", "identities", "subject"),
+    # §619: three secrets added to the accounts store after this list was
+    # written. A reset code's hash is the code - six digits fall out of it in
+    # under a second; a claim code signs a let-in account in; the kept token
+    # is Sign in with Apple's own.
+    ("accounts", "password_resets", "code_hash"),
+    ("accounts", "accounts", "claim_code"),
+    ("accounts", "identities", "token"),
+    ("mixes", "mixes", "join_token"),
     ("messages", "messages", "text"),
     ("attachments", "attachments", "body"),
     ("social", "people", "avatar"),
@@ -164,6 +172,32 @@ def _blob_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, s
     return out
 
 
+#: A column named like a credential is hidden whether or not it is listed
+#: above (§619). The list is kept by hand and so falls behind: `code_hash`,
+#: `claim_code` and `identities.token` were each added to a store later and
+#: read out in the clear here until the audit. A new store's `*_token`,
+#: `*_hash`, `*secret*`, `password*` or `keys` column is covered the day it
+#: is created - the same reason BLOB columns are read from the live schema.
+#: Hiding one that turns out to be harmless costs a NULL in a table; missing
+#: one costs somebody's account.
+_SECRET_NAME = re.compile(
+    r"(password|secret|credential|token|_hash$|^hash$|^keys$|claim_code|api_key)")
+
+
+def _secret_named_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, str]]:
+    out = set()
+    try:
+        tables = [r[0] for r in conn.execute(
+            f"SELECT name FROM {alias}.sqlite_master WHERE type='table'")]
+        for table in tables:
+            for row in conn.execute(f'PRAGMA {alias}.table_info("{table}")'):
+                if _SECRET_NAME.search((row[1] or "").lower()):
+                    out.add((alias, table, row[1]))
+    except sqlite3.Error:
+        pass
+    return out
+
+
 def _open(stores: list[Store], deadline: float) -> sqlite3.Connection:
     """An in-memory connection with `stores` attached read-only and locked."""
     # Opened as a URI so the read-only `file:...?mode=ro` attachments below
@@ -175,6 +209,7 @@ def _open(stores: list[Store], deadline: float) -> sqlite3.Connection:
         uri = "file:" + Path(store.path).as_posix() + "?mode=ro"
         conn.execute("ATTACH DATABASE ? AS " + store.alias, (uri,))
         secret |= _blob_columns(conn, store.alias)
+        secret |= _secret_named_columns(conn, store.alias)
     conn.execute("PRAGMA query_only = 1")
 
     def authorize(action, arg1, arg2, dbname, _trigger):

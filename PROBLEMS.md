@@ -37402,6 +37402,37 @@ failing on the old code.
    address is now told, as a reset and a first password are.
 7. **An admin address nobody holds is said out loud** (see open item B): an
    error in the boot log, and an alert on `/admin` each time an admin signs in.
+8. **Attaching a link made the server fetch any address it was given** (high).
+   `attachments.fetch_link` checked the scheme and nothing else, followed
+   redirects, and `/api/attach` handed back the page's title and its first
+   160 characters - then the whole text went to the writer. Reproduced with
+   a page on the server's own loopback: 200, `name: "internal admin panel"`,
+   `preview: "... DB_PASSWORD=hunter2 ..."`. So anybody who could attach a
+   link could read what only FAM's machine can reach: its loopback, a
+   private network, its host's metadata address. **Now** a link is opened
+   only where *every* address its name resolves to is public
+   (`_public_addresses`: one private answer among public ones is how a name
+   is made to look safe), each redirect is checked the same way, and the
+   address that was checked is the one connected to - the name goes in
+   `Host` and in the TLS handshake, so a name cannot answer differently the
+   second time and the certificate is still verified against the site asked
+   for (tested with a certificate for another name: refused). The body is
+   read as it arrives and no further than the cap, where it used to be held
+   whole. Proxy settings from the environment are not used.
+   And **`/api/attach` did all of this on the event loop** - eight seconds of
+   fetch, or a PDF's parse, in which no other listener was served. It runs in
+   a thread now, as scrypt does (§241).
+9. **The admin's question box could read a reset code** (medium; SQLite
+   deployments - on Postgres a question's SQL is not run, §243).
+   `admin_tracker.SECRET_COLUMNS` is a list kept by hand ("a guard whose
+   subject is enumerated by hand is decorative") and three secrets were
+   added to the accounts store after it: `password_resets.code_hash` (§244),
+   `accounts.claim_code` (§587) and `identities.token` (§301). Reproduced:
+   `SELECT code_hash FROM accounts.password_resets` answered, and the six
+   digits were found from the hash at once. All three are listed, with a
+   mix's `join_token`; and any column *named* like a credential (`*token*`,
+   `*_hash`, `*secret*`, `password*`, `keys`) is hidden from the live schema
+   without being listed, as BLOB columns already were.
 
 ### Open: each needs the owner's decision
 
@@ -37460,14 +37491,33 @@ owner in the store, tokens from `secrets`); comments, replies and vibes
 type, named by a validated hash - no SVG, no path); the shared-episode page
 and story card (escaped).
 
+**Script injection in the web app, tested by running it.** Every
+human-written field in every API answer (names, titles, messages, captions,
+notes, queries, places...) was given a marker payload - as markup, as an
+attribute breakout and as an inline handler's string - and a browser opened
+the app's screens, called all 160 of its no-argument loaders and clicked
+what appeared. Up to 76 tainted values were on screen at once, drawn as
+text. **One ran**: the plans screen draws a tier's `name` unescaped, and a
+tier name is a constant from `entitlements.py`, not anything a person
+types. `topicRowHTML`, `favTopicRowHTML` and `recoRowHTML` also draw a title
+unescaped and are fed only by the built-in topic table. Neither is a hole
+today; both are worth an `escapeHtml` the next time that code is touched.
+No value a person types reaches an inline handler's string (checked by
+script: every one is an id, a validated handle or a constant). The admin
+pages escape through `esc()` throughout, the generic table included.
+
+SQL: forty statements are built with an f-string and every interpolated
+value is a constant, an integer or a schema name; everything else is
+parameterised. Stored pictures cannot be SVG or HTML.
+
 ### Not audited yet
 
-Stopped by the usage limit, to be resumed: HTML sinks in `static/index.html`
-(25,000 lines), `listen.html`, `waitlist.html` and the admin pages - stored
-script from a name, a message or a report; attachments and every outbound
-fetch (server-side request forgery); `db.py` and SQL built from strings; the
-admin question box's read-only guarantee; what a stranger or a waitlisted
-account can make FAM spend; secrets in logs and in the repository's history.
+Stopped by the usage limit, to be resumed: `static/waitlist.html` and
+`listen.html` by running them (read, not driven); document parsing (a hostile
+PDF or .docx); what a stranger or a waitlisted account can make FAM spend,
+endpoint by endpoint; a push subscription's endpoint (the server later posts
+to an https address the browser supplied - blind, low); secrets in logs and
+in the repository's history; the iOS app's own storage.
 
 **Not verified here:** that Render's router sends `X-Forwarded-Proto` on
 every request (fix 2 and HSTS rest on it; `_public_base` has relied on it
