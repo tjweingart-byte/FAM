@@ -37336,7 +37336,7 @@ font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
 
-## 619. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
+## 620. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
 
 The owner, on a list of things worth having the session's stronger model
 build while it is available: "start on build 3" - a model's writing samples
@@ -37418,14 +37418,14 @@ without.
 the build container. This environment has `FAM_ANTHROPIC_KEY` and the
 search keys, as §527 found; the rule's wording is the owner's to change.
 
-Tests: `tests/test_example_candidates_619.py` (there are candidates; none
+Tests: `tests/test_example_candidates_620.py` (there are candidates; none
 reaches the writer's instructions; the example is about its length; each
 pair parses, has fewer flaws by the code than its draft, is no longer than
 it, and carries a reason line).
 
-## 620. The owner adopted every candidate, and a project skill for how to work here (2026-11-16)
+## 621. The owner adopted every candidate, and a project skill for how to work here (2026-11-16)
 
-The owner, on §619's table: "Adopt all of them and start on build 1."
+The owner, on §620's table: "Adopt all of them and start on build 1."
 
 **Adopted.** `3-virus-and-bacteria.txt` is in `examples/` (facet `health`
 in `facets.json`) with a worked plan, `examples/plans/3-virus-and-bacteria.json`,
@@ -37454,31 +37454,31 @@ weaker one to follow later. Here that is a project skill, loaded by any
 later session: how to find a rule's full text and its history before
 changing what it covers, how to find the tool that already exists, the
 order in which to suspect a weak episode's causes, the procedure that made
-§619's pairs, what to verify and how to say what was not, how to spend the
+§620's pairs, what to verify and how to say what was not, how to spend the
 owner's key, and what the ship loop's rules leave out. **It restates no
 rule**: it cites rule IDs, and says a rule always wins. Its examples are
 what happened in this session, including the two mistakes caught (a wrong
 date claim in the draft example, and details the grader called
 unsupported in three first rewrites).
 
-Tests: `tests/test_examples_adopted_620.py` (every committed pair is shown
+Tests: `tests/test_examples_adopted_621.py` (every committed pair is shown
 and no more than six; each is one the code prefers, no longer than its
 draft, with a reason line; no rewrite says what it does not have; an
 example at every whole minute, the three-minute one filed under health)
-replaces §619's candidates test. `tests/test_skill_fam_method_620.py`
+replaces §620's candidates test. `tests/test_skill_fam_method_621.py`
 (the skill's frontmatter; every rule ID it cites exists in `docs/claude/`;
 every file and tool it names exists; it defers to the rules and stays
 short). **Not verified here:** that a later session on another model
 follows the skill, beyond the one trial noted with this change.
 
-## 621. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16)
+## 622. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16)
 
 The owner: "Run the comparison and start on build 6."
 
 **The tool** (`tools/editor_eval.py`). Two arms beside `none`:
-`none_unpaired` (`TEACHING_PAIRS` off) and `none_before_619` (that, and the
-example §620 added hidden - the writer's instructions as they were before
-§619). `--compare a,b` prints the paired difference by question on the
+`none_unpaired` (`TEACHING_PAIRS` off) and `none_before_620` (that, and the
+example §621 added hidden - the writer's instructions as they were before
+§620). `--compare a,b` prints the paired difference by question on the
 grader's mean of six, each metric, unsupported claims and the ear score,
 with a 95% bootstrap interval over questions and better / worse / level
 counts. **The questions a pair was made from are left out** and reported
@@ -37489,12 +37489,12 @@ writer has been shown their answers, so they would flatter the pairs.
 Opus 5.5 with a real task, read-only: "The writer keeps saying things like
 'I don't have a confirmed result' in episodes. Fix it." It did not add a
 line to the prompt; it read §94 and §288, found `OpeningGuard` and
-`MaterialGuard`, and diagnosed why they miss (§622). It also corrected the
+`MaterialGuard`, and diagnosed why they miss (§623). It also corrected the
 skill in three places, all checked and taken:
-- §619 and the skill said three of 36 drafts speak about their own
+- §620 and the skill said three of 36 drafts speak about their own
   material. **It is four drafts and seven sentences** (the Nvidia draft at
   low effort has three); three of the four are the low-effort arm and three
-  are about a moving price. §619's count came from one narrow pattern.
+  are about a moving price. §620's count came from one narrow pattern.
 - the skill named [missed-not-absent] as what forbids it; the wording is
   the writer's own instructions, from §288;
 - the skill never said two checks for it already exist. It now says: find
@@ -37507,9 +37507,9 @@ Tests: `tests/test_eval_findings_527.py` (each arm's instructions hold what
 they should and are taken back after; a comparison leaves out the questions
 the pairs were made from and gives the paired difference).
 
-## 622. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16)
+## 623. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16)
 
-The owner, on §621's finding: "Widen the guard."
+The owner, on §622's finding: "Widen the guard."
 
 **Three causes, all in `script_generator.py`.**
 1. *The plural.* §288's review narrowed `_MATERIAL_PHRASES` to the writer's
@@ -37544,8 +37544,8 @@ sentence as a disclaimer). Otherwise the sentence leaning on a dropped one
 spoken alone - `test_the_pipeline_never_sees_the_dropped_sentences` caught
 that. A script that is nothing else is still spoken, never silence.
 
-**Replayed over 1,393 frozen sentences** (§619's 36 drafts and the first of
-§621's): six caught, the six intended, nothing else; no house example or
+**Replayed over 1,393 frozen sentences** (§620's 36 drafts and the first of
+§622's): six caught, the six intended, nothing else; no house example or
 pair rewrite trips either check.
 
 **What a drop costs, measured on the four drafts.** Nothing is said in a
@@ -37563,24 +37563,24 @@ read first. **Not verified here:** production's own rate; a title with two
 apostrophes inside the first six sentences is now read by the opening check
 as a title with one always was.
 
-Tests: `tests/test_material_guard_622.py` (the eight leaks caught; thirteen
+Tests: `tests/test_material_guard_623.py` (the eight leaks caught; thirteen
 look-alikes about the world pass; an apostrophe inside a word is not a
 quote mark and quoted speech is still set aside; a late one is dropped with
 nothing in its place; a script of nothing else is spoken; at the opening
 the sentence leaning on it goes too; no example or pair rewrite trips
-either check). `tests/test_examples_adopted_620.py` now asks the check
+either check). `tests/test_examples_adopted_621.py` now asks the check
 itself, not a list of phrases.
 
-## 623. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16)
+## 624. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16)
 
-§621's run, on the owner's key: all 50 fixed questions researched today into
+§622's run, on the owner's key: all 50 fixed questions researched today into
 `~/.fam/editor_eval_620/`, each written three ways by the same writer
 (Haiku 5.5, high effort, no editor, 1.5 minutes) from the same packet, and
 graded blind by Opus 5.5. 150 scripts, no grade failures (one grade came
 back with no marks). The six questions a pair was made from are left out;
 44 remain.
 
-| Opus, mean over 44 | before §619 | + the example | + example and pairs |
+| Opus, mean over 44 | before §620 | + the example | + example and pairs |
 |---|---|---|---|
 | information | 3.18 | 3.19 | 3.34 |
 | flow | 3.23 | 3.21 | 3.14 |
@@ -37638,15 +37638,15 @@ owner adopted them and decides.
 grading $8.15, both measured; research about $0.35, estimated. The
 estimate used §527's $0.025 a grade; these cost $0.054.
 
-## 624. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16)
+## 625. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16)
 
-The owner, on §623's table and §622's "not done": "Take both back out and
+The owner, on §624's table and §623's "not done": "Take both back out and
 apply the rewording."
 
 **Taken back out.** `3-virus-and-bacteria.txt`, its worked plan and the six
 pairs are in `examples/candidates/` again, unloaded; its facet is out of
 `facets.json`. **The writer's cached instructions are what they were before
-§619 but for one phrase** (32,898 characters; twelve examples, no pairs).
+§620 but for one phrase** (32,898 characters; twelve examples, no pairs).
 `examples/candidates/README.md` now says what the measurement found and
 what to run before anything there is moved in. [examples-lever] has a
 Current note: a candidate that passes the gates is not yet a gain.
@@ -37665,7 +37665,7 @@ adopted they write as `none` does.
   7,800 bound holds without a pass (7,793);
 - the evidence block's list of things never said about the sources gains
   "the latest we have".
-§622's leaks echoed "you can establish" nearly word for word, and nothing
+§623's leaks echoed "you can establish" nearly word for word, and nothing
 told the writer the honest form of what it was reaching for. **Unmeasured**:
 whether the leaks fall. The four packets that leaked, written at low effort
 with and without, would say for about ten cents; the /admin "material
@@ -37681,25 +37681,25 @@ its own.
 the run was going. It passes alone. Runs now happen in a separate checkout
 (`git worktree`), so an edit cannot move a file under a test.
 
-Tests: `tests/test_example_candidates_624.py` (no candidate reaches the
+Tests: `tests/test_example_candidates_625.py` (no candidate reaches the
 writer, has a facet or a loaded plan; no pair is committed where the writer
 reads it; the example is about its length; each pair is still one the code
 prefers and trips no check; the folder says what the measurement found)
-replaces §620's adopted-state test. `tests/test_writer_time_wording_624.py`
+replaces §621's adopted-state test. `tests/test_writer_time_wording_625.py`
 (the echoed phrase is gone from both places; the request gives a moving
 figure its own time; the instruction's bad example is one the check drops;
 the evidence block names the plural). `tests/test_eval_findings_527.py`
 puts the example and pairs in for the length of the test to check the two
 arms hide them.
 
-## 625. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16)
+## 626. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16)
 
 The owner: "stop spending money. Test the rewording on the four packets for
 as cheap as you can (or free)."
 
 **How, with no API spend.** The exact prompts the writer gets - cached
 instructions and request - were built in code for the four packets (oil,
-Nvidia, bitcoin, Starship), once as §624 left them and once with its three
+Nvidia, bitcoin, Starship), once as §625 left them and once with its three
 edits reversed. Sixteen Haiku runs inside the coding session, two a packet a
 wording, each told only to follow the file. **A stand-in, not the
 production call**: no effort setting, the session's own wrapper around the
@@ -37720,7 +37720,7 @@ trading at..."; "that Friday close is the newest settled figure there is").
 Starship did not leak under either. Eight scripts a side is a direction, not
 a rate.
 
-**The check (§622) caught none of the sixteen leaking sentences.** They are
+**The check (§623) caught none of the sixteen leaking sentences.** They are
 in forms it does not list: "the newest price we can establish", "the last
 price we can date", "the last figure we can stand behind", "the last price
 we can put a time on", "not something we can see", "is not something we
@@ -37735,9 +37735,9 @@ fifty-nine, not a live price"; "where prices stand this afternoon is not
 known yet") - not about the writer, but a gap said aloud
 ([missed-not-absent]).
 
-## 626. The material check extended to what the writer "can" do with a figure (2026-11-16)
+## 627. The material check extended to what the writer "can" do with a figure (2026-11-16)
 
-The owner, on §625: "Extend the guard."
+The owner, on §626: "Extend the guard."
 
 **Added to `_MATERIAL_PHRASES`** (`script_generator.py`), each dropped
 anywhere in the piece:
@@ -37748,30 +37748,30 @@ anywhere in the piece:
   can ... / have" - only when the clause is about a thing in time (now,
   this afternoon, where it stands, trading);
 - "nothing we can establish" and "what we can date / establish is" -
-  "establish" being the instruction's own old word (§624).
+  "establish" being the instruction's own old word (§625).
 
 Tied to a figure or to a moment on purpose. These pass and are tests: "the
 oldest fossils we can date", "the earliest eclipse we can date", "dark
 matter is not something we can see", "what dark matter is made of is not
 something we can see directly", "nothing we can find in the fossil record",
 "where the market stands today is not something anyone can know", the same
-words inside quotation marks, and the honest forms §624 asked for ("that
+words inside quotation marks, and the honest forms §625 asked for ("that
 Friday close is the newest settled figure there is").
 
-**Replayed.** §625's sixteen scripts: 16 of their 17 leaking sentences
+**Replayed.** §626's sixteen scripts: 16 of their 17 leaking sentences
 caught (reading found twelve under the old wording; the check found a
 thirteenth), none else in 233 sentences. **Still passing:** "The last
 figure we have is from that Sunday morning" - left alone because "the
 latest figures we have from the census are from 2020" is the world, and the
-two cannot be told apart by their words. Every frozen draft from §619 and
-§623, 2,868 sentences: nine caught, all nine about the writer's own access
-- §622's six, and three in §623's drafts that nobody had counted ("where
+two cannot be told apart by their words. Every frozen draft from §620 and
+§624, 2,868 sentences: nine caught, all nine about the writer's own access
+- §623's six, and three in §624's drafts that nobody had counted ("where
 the stock stands at this minute is not something I have"; "where they're
 trading this afternoon, I can't tell you"; "I can't tell you what the
 judges said ..., so I won't pretend to").
 
-**The cost is the same as §622's**: a dropped sentence takes its figure
+**The cost is the same as §623's**: a dropped sentence takes its figure
 with it, and nothing is said in its place. Each drop is on /admin's errors.
 
-Tests: `tests/test_material_guard_622.py` (twelve more leaks caught, ten
+Tests: `tests/test_material_guard_623.py` (twelve more leaks caught, ten
 more look-alikes pass).

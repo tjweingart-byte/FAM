@@ -98,7 +98,7 @@ empty folder simply means no examples, and the prompt is unchanged.
   sentence number. `python tools/editor_teaching.py --check` checks them;
   `--draft <example>` (with the key) drafts one for a new example. Read a
   draft before committing it.
-- **`candidates/` is not loaded** (§619-§624): a three-minute example and
+- **`candidates/` is not loaded** (§620-§625): a three-minute example and
   six before-and-after pairs that were adopted, measured, and taken back
   out. Read `candidates/README.md` before moving anything from it.
 - **New candidates** come from what listeners heard through:

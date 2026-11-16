@@ -1,4 +1,4 @@
-"""How the writer is told to date what it says (§624).
+"""How the writer is told to date what it says (§625).
 
 Sentences like "the latest price we have" and "nothing I can establish"
 echoed the instruction "the newest information you can establish". The
@@ -39,7 +39,7 @@ def test_the_request_gives_a_moving_figure_its_own_time():
 
 
 def test_what_the_writer_is_shown_as_wrong_is_what_the_check_drops():
-    # Each bad example in the instructions is one the guard catches (§622, §627).
+    # Each bad example in the instructions is one the guard catches (§623, §628).
     request = _request()
     assert '"that is not in what I was given", "the latest we have".' in request
     for leak in ("That is the latest price we have.", "That is the latest we have.",

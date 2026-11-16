@@ -22,7 +22,7 @@ frozen scripts, and land in `~/.fam/teaching_pairs/`. Read each and move the
 ones worth teaching here by hand. No episode a listener hears is ever
 rewritten. `python tools/teaching_pairs.py --check` checks the files.
 
-**None is committed here.** Six were (§620) and were taken back out after
-they were measured (§623, §624): they are in `../candidates/pairs/`, with
+**None is committed here.** Six were (§621) and were taken back out after
+they were measured (§624, §625): they are in `../candidates/pairs/`, with
 what the measurement found. The writer is shown at most six, in file-name
 order, so a seventh file here is never read.

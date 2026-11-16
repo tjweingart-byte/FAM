@@ -1,4 +1,4 @@
-"""The project skill `.claude/skills/fam-method` (§620).
+"""The project skill `.claude/skills/fam-method` (§621).
 
 It is method for later sessions, and it cites the rules rather than
 restating them - so the one way it can go wrong quietly is by pointing at

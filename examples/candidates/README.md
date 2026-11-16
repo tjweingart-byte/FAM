@@ -1,8 +1,8 @@
-# Candidates: written, adopted, measured, taken back out (§619-§624)
+# Candidates: written, adopted, measured, taken back out (§620-§625)
 
 **Nothing in this folder is shown to the writer.** The loaders read
 `examples/*.txt` and `examples/pairs/*.txt` and nothing beneath them, and
-`tests/test_example_candidates_624.py` fails if a candidate reaches the
+`tests/test_example_candidates_625.py` fails if a candidate reaches the
 writer's instructions.
 
 ## What is here
@@ -13,11 +13,11 @@ writer's instructions.
   the writer (Haiku 5.5) wrote on 2026-11-16 from a packet
   `tools/editor_eval.py` froze; each AFTER was rewritten by hand in the
   session from the same packet and passed both of
-  `tools/teaching_pairs.py`'s gates (§619 has the numbers).
+  `tools/teaching_pairs.py`'s gates (§620 has the numbers).
 
 ## What happened to them
 
-The owner adopted all seven (§620). Then they were measured (§623): 50
+The owner adopted all seven (§621). Then they were measured (§624): 50
 fixed questions, written with and without them, graded blind by Opus. On
 the 44 questions no pair was made from:
 
@@ -26,7 +26,7 @@ the 44 questions no pair was made from:
   the mean of six leaned down, 25 questions worse to 10 better;
 - the example alone and the pairs alone each leaned slightly down.
 
-So the owner took both back out (§624).
+So the owner took both back out (§625).
 
 ## Before moving anything from here into `examples/`
 
@@ -40,9 +40,9 @@ So the owner took both back out (§624).
    `python tools/editor_eval.py --freeze --dir ~/.fam/<new>`, then
    `--run --arms none,none_candidates --dir ...` writes each question with
    and without everything here, and `--compare none_candidates,none --dir
-   ...` gives the paired table (§627). A folder from an earlier run holds
+   ...` gives the paired table (§628). A folder from an earlier run holds
    scripts written from other instructions under the same names. Budget
-   about six cents a script graded by Opus (§623), not the 2.5 cents an
+   about six cents a script graded by Opus (§624), not the 2.5 cents an
    earlier run cost.
 3. The example was not measured where it is meant to teach: at three
    minutes, and on searchFAM's low effort. That run has not been done.

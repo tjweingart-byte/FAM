@@ -1,7 +1,7 @@
-"""The candidates folder (§619-§624).
+"""The candidates folder (§620-§625).
 
-A three-minute example and six before-and-after pairs were adopted (§620),
-measured (§623) and taken back out (§624). They are kept, unloaded, in
+A three-minute example and six before-and-after pairs were adopted (§621),
+measured (§624) and taken back out (§625). They are kept, unloaded, in
 `examples/candidates/`. The writer's instructions must not carry them, and
 each must still be the thing it would become if it were measured again and
 moved in.
