@@ -49,10 +49,13 @@ def test_a_pair_is_one_the_code_prefers(path):
 
 def test_a_pair_never_says_what_it_does_not_have():
     # The house rule the pairs must not un-teach ([missed-not-absent]).
+    # By the check itself (§622), so the list of phrases cannot drift from it.
+    import re
+
     for path in PAIRS:
-        after = sg.parse_pair(path.read_text(encoding="utf-8"))["after"].lower()
-        for phrase in ("i don't have", "we have is", "i can establish", "the reporting we"):
-            assert phrase not in after, (path.name, phrase)
+        after = sg.parse_pair(path.read_text(encoding="utf-8"))["after"]
+        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(after.split())):
+            assert not sg.is_material_sentence(sentence), (path.name, sentence)
 
 
 def test_there_is_an_example_at_every_whole_minute():

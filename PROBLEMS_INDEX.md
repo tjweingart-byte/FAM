@@ -612,3 +612,5 @@ and `limit` = Lines.
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
 | 37339 | 87 | 619. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
 | 37426 | 48 | 620. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
+| 37474 | 36 | 621. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
+| 37510 | 64 | 622. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |

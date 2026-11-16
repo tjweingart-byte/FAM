@@ -37470,3 +37470,103 @@ replaces §619's candidates test. `tests/test_skill_fam_method_620.py`
 every file and tool it names exists; it defers to the rules and stays
 short). **Not verified here:** that a later session on another model
 follows the skill, beyond the one trial noted with this change.
+
+## 621. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16)
+
+The owner: "Run the comparison and start on build 6."
+
+**The tool** (`tools/editor_eval.py`). Two arms beside `none`:
+`none_unpaired` (`TEACHING_PAIRS` off) and `none_before_619` (that, and the
+example §620 added hidden - the writer's instructions as they were before
+§619). `--compare a,b` prints the paired difference by question on the
+grader's mean of six, each metric, unsupported claims and the ear score,
+with a 95% bootstrap interval over questions and better / worse / level
+counts. **The questions a pair was made from are left out** and reported
+apart (`seen_questions`, read from `examples/pairs/`, never a list): the
+writer has been shown their answers, so they would flatter the pairs.
+
+**The skill, tried.** `.claude/skills/fam-method` was given to a session on
+Opus 5.5 with a real task, read-only: "The writer keeps saying things like
+'I don't have a confirmed result' in episodes. Fix it." It did not add a
+line to the prompt; it read §94 and §288, found `OpeningGuard` and
+`MaterialGuard`, and diagnosed why they miss (§622). It also corrected the
+skill in three places, all checked and taken:
+- §619 and the skill said three of 36 drafts speak about their own
+  material. **It is four drafts and seven sentences** (the Nvidia draft at
+  low effort has three); three of the four are the low-effort arm and three
+  are about a moving price. §619's count came from one narrow pattern.
+- the skill named [missed-not-absent] as what forbids it; the wording is
+  the writer's own instructions, from §288;
+- the skill never said two checks for it already exist. It now says: find
+  the check that exists and ask why it missed.
+
+**Also stale, and not changed:** [ci-python] says this container runs
+Python 3.11; it runs 3.13.
+
+Tests: `tests/test_eval_findings_527.py` (each arm's instructions hold what
+they should and are taken back after; a comparison leaves out the questions
+the pairs were made from and gives the paired difference).
+
+## 622. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16)
+
+The owner, on §621's finding: "Widen the guard."
+
+**Three causes, all in `script_generator.py`.**
+1. *The plural.* §288's review narrowed `_MATERIAL_PHRASES` to the writer's
+   own "I", "me" or "my" because it had been eating reporting. The writer
+   now says "the latest price we have", "the reporting we have", "we don't
+   have a figure for this morning's trading".
+2. *The singular, late.* "I don't have a confirmed result" is in
+   `OpeningGuard`'s list, and that check stops after six sentences. It was
+   sentence 14.
+3. *Apostrophes as quote marks.* `_QUOTED`, which sets quoted speech aside
+   before either check, took any two apostrophes for a pair. "I don't have
+   anything reliable on the Dodgers' opener" - §94's own sentence - lost
+   everything between them and matched nothing. A single quote now opens
+   only where no letter comes before it and closes only where none follows.
+
+**Added to the material check**, so they are dropped anywhere in the piece:
+the writer's own "I don't / can't / couldn't have, confirm, verify, tell
+you, say, establish, find" (lower case after the "I", so "I Can't Tell You
+Why" is still a song); "nothing I can establish"; "the latest / most recent
+/ last ... price, score, result, update, reading we have"; "the reporting
+we have"; "we don't have a figure / price / number / result ...".
+Deliberately not bare "we have": "the best evidence we have suggests", "the
+oldest records we have", "the latest figures we have from the census" and
+"what we do know is that the universe is expanding" are the world, and are
+tests. **So one of the seven sentences still passes**: "What we do know is
+that the last price established is...".
+
+**The opening check sees them first** (`_ScriptReader.feed` / `finish` ask
+`OpeningGuard` before `MaterialGuard`, and `OpeningGuard` counts a material
+sentence as a disclaimer). Otherwise the sentence leaning on a dropped one
+("That would be worse than useless if you're about to repeat it...") was
+spoken alone - `test_the_pipeline_never_sees_the_dropped_sentences` caught
+that. A script that is nothing else is still spoken, never silence.
+
+**Replayed over 1,393 frozen sentences** (§619's 36 drafts and the first of
+§621's): six caught, the six intended, nothing else; no house example or
+pair rewrite trips either check.
+
+**What a drop costs, measured on the four drafts.** Nothing is said in a
+dropped sentence's place ([no-filler]). Three lose nothing: the figure is
+said again beside it. **The bitcoin draft loses its opening**, which
+carried the price, and now begins "Earlier that Sunday it had touched
+sixty-two thousand and eighty-six." The owner was told this trade before
+choosing. Each drop is an "opening check" or "material check" notice on
+/admin's errors, which is now the measure of how often it happens.
+
+**Not done:** the writer's instructions still say "the newest information
+you can establish", which these sentences echo almost word for word.
+Rewording it changes every episode ([writer-savings]) and is the owner's to
+read first. **Not verified here:** production's own rate; a title with two
+apostrophes inside the first six sentences is now read by the opening check
+as a title with one always was.
+
+Tests: `tests/test_material_guard_622.py` (the eight leaks caught; thirteen
+look-alikes about the world pass; an apostrophe inside a word is not a
+quote mark and quoted speech is still set aside; a late one is dropped with
+nothing in its place; a script of nothing else is spoken; at the opening
+the sentence leaning on it goes too; no example or pair rewrite trips
+either check). `tests/test_examples_adopted_620.py` now asks the check
+itself, not a list of phrases.

@@ -365,7 +365,15 @@ _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 
 #: Quoted speech is somebody else's sentence. Stripped before matching so that
 #: a coach saying "I don't know yet" is not read as FAM disclaiming.
-_QUOTED = re.compile(r"[\"“‘']([^\"“”‘’']{0,200})['\"”’]")
+#:
+#: An apostrophe inside a word is not a quote mark (§622). The pattern used
+#: to take any two as a pair, so "I don't have anything reliable on the
+#: Dodgers' opener" lost everything between them and matched nothing - the
+#: sentence §94 built the opening check for. A single quote opens only
+#: where no letter comes before it and closes only where none follows.
+_QUOTED = re.compile(
+    r"[\"“]([^\"“”]{0,200})[\"”]"
+    r"|(?<!\w)['‘]((?:[^\"“”‘’']|(?<=\w)['’](?=\w)){0,200})['’](?!\w)")
 
 #: A sentence about what the writer does or does not have. Every one of these
 #: is a fact about our own retrieval, never a fact about the world - the
@@ -459,6 +467,28 @@ _MATERIAL_PHRASES = (
     r"\bas\s+of\s+my\s+(?:knowledge|training|last\s+update)\b",
     r"\bmy\s+(?:information|knowledge\s+cutoff|training\s+data)\b",
     r"\bi\s+(?:wasn'?t|was\s+not)\s+(?:given|handed|shown|provided)\b",
+    # What the writer itself cannot do (§622): "I don't have a confirmed
+    # result", "so I can't tell you where it stands", anywhere in the piece.
+    # The opening check has a wider list but stops after six sentences.
+    # Lower case after the "I" on purpose: "I Can't Tell You Why" and "I
+    # Don't Have the Heart" are songs, and a title is not a disclaimer.
+    r"(?-i:\bI (?:don['’]?t|do not|can['’]?t|cannot|couldn['’]?t|could not) "
+    r"(?:have|confirm|verify|tell you|say|establish|find)\b)",
+    r"\bnothing\s+(?:that\s+)?i\s+can\s+(?:establish|find|confirm|verify|see)\b",
+    # The same in the plural, which §288's narrowing to "I", "me" and "my"
+    # let through: "the latest price we have", "the reporting we have",
+    # "we don't have a figure for this morning". Tied to a thing that moves
+    # - a price, a score, a result - and never bare "we have": "the best
+    # evidence we have suggests" and "the oldest records we have" are
+    # claims about the world, and "what we do know is" opens too many
+    # honest explanations to be dropped.
+    r"\b(?:latest|most\s+recent|newest|last)\s+(?:[\w-]+\s+){0,3}?(?:price|prices|"
+    r"score|scores|result|results|update|updates|reading|readings|quote|quotes|"
+    r"reporting)\s+(?:that\s+)?we\s+(?:have|(?:have\s+)?got)\b",
+    r"\breporting\s+(?:that\s+)?we\s+have\b",
+    r"\bwe\s+(?:don['’]?t|do\s+not)\s+(?:yet\s+)?have\s+(?:a|an|any|the)\s+"
+    r"(?:[\w-]+\s+){0,2}?(?:figure|figures|price|prices|number|numbers|result|"
+    r"results|score|scores|update|updates|reading|readings|confirmation)\b",
 )
 _MATERIAL = re.compile("|".join(_MATERIAL_PHRASES), re.I)
 
@@ -514,7 +544,10 @@ class OpeningGuard:
         if self.spoken or self.seen >= self.WINDOW:
             return True
         self.seen += 1
-        if is_meta_sentence(sentence):
+        # Talk of the material is a disclaimer too (§622): seen here first,
+        # so the sentence that leans on it ("That would be worse than
+        # useless...") goes with it, as it does after any other.
+        if is_meta_sentence(sentence) or is_material_sentence(sentence):
             self._in_run = True
         elif not (self._in_run and _BACK_REFERENCE.match(sentence)):
             self.spoken += 1
@@ -2214,7 +2247,7 @@ class _ScriptReader:
             speech = speech[match.end() :]
             if sentence and self.scores.allow(sentence) \
                     and self.figures.allow(sentence) \
-                    and self.material.allow(sentence) and self.guard.allow(sentence):
+                    and self.guard.allow(sentence) and self.material.allow(sentence):
                 self.emitted_words += count_words(sentence)
                 out.append(self._checked(sentence))
         self.buffer = speech + marker + rest
@@ -2233,7 +2266,7 @@ class _ScriptReader:
             log.info("writer cut off mid-sentence; not speaking %r", tail[-80:])
             tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
-                and self.material.allow(tail) and self.guard.allow(tail):
+                and self.guard.allow(tail) and self.material.allow(tail):
             out.append(self._checked(tail))
         # Nothing but disclaimer is still better than nothing at all.
         rescued = self.guard.rescue()
