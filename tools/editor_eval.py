@@ -30,6 +30,19 @@ to measure what `AHEAD_WRITER_EFFORT=high` buys against `none`.
 The first three arms run with both switched off, so they stay §437's
 comparison whatever the deployment's defaults are now.
 
+Two more (§621), to measure what §620's adoption bought: `none_unpaired` -
+no editor, the before-and-after pairs switched off (`TEACHING_PAIRS`); and
+`none_before_619` - that, and the examples §620 added hidden, so the
+writer's instructions are what they were before §619. Compare them with
+`none`:
+
+    python tools/editor_eval.py --compare none,none_before_619
+
+prints the paired difference by question on the grader's mean of six and on
+each metric, with a 95% bootstrap interval. A question a pair was made from
+is left out of that table and counted beside it: the writer has been shown
+its answer.
+
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
 (§435), every check counted, none enforced, so the arms are compared on what
@@ -117,7 +130,8 @@ QUESTIONS = [
     ("evergreen", "how do passkeys replace passwords"),
 ]
 
-ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low")
+ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low",
+        "none_unpaired", "none_before_619")
 #: What `--arms` runs when it is not given: §437's three.
 DEFAULT_ARMS = ("none", "haiku", "sonnet")
 #: The editor each arm runs, or none.
@@ -125,6 +139,10 @@ ARM_EDITOR = {"haiku": "haiku", "sonnet": "sonnet", "haiku_taught": "haiku"}
 #: The arms taught as §521 teaches: the writer's examples matched to the
 #: story and Shakespeare's worked plans. Every other arm has both off.
 TAUGHT_ARMS = frozenset({"none_matched", "haiku_taught"})
+#: The arms that write without the before-and-after pairs (§621).
+UNPAIRED_ARMS = frozenset({"none_unpaired", "none_before_619"})
+#: The examples §620 added, hidden from `none_before_619`.
+ADOPTED_620 = ("3-virus-and-bacteria",)
 #: Each editor's model setting for Shakespeare (always at high effort, ahead).
 ARM_SETTING = {"haiku": "editor_search_model", "sonnet": "editor_model"}
 #: The model each editor runs, whatever the deployment's defaults are now: the
@@ -146,10 +164,13 @@ class _Settings:
             # The writer as it was before §522: low effort ahead of the tap,
             # to measure what high effort buys (§527).
             changes.update(ahead_writer_effort="low", edition_writer_effort="")
+        if arm in UNPAIRED_ARMS:
+            changes["teaching_pairs"] = False
         editor = ARM_EDITOR.get(arm)
         if editor:
             changes[ARM_SETTING[editor]] = ARM_MODEL[editor]
         self.replaced = dataclasses.replace(config.settings, **changes)
+        self.hide_examples = arm == "none_before_619"
 
     def __enter__(self):
         import config
@@ -160,9 +181,17 @@ class _Settings:
         self.kept = [m.settings for m in self.modules]
         for m in self.modules:
             m.settings = self.replaced
+        self.examples = script_generator.STYLE_EXAMPLES
+        if self.hide_examples:
+            script_generator.STYLE_EXAMPLES = [
+                (query, script) for query, script in self.examples
+                if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_620]
         return self
 
     def __exit__(self, *exc) -> None:
+        import script_generator
+
+        script_generator.STYLE_EXAMPLES = self.examples
         for m, kept in zip(self.modules, self.kept):
             m.settings = kept
 MINUTES = 1.5
@@ -372,6 +401,82 @@ def print_table(table: dict) -> None:
         print(f"{key:32}" + "".join(cells))
 
 
+# ------------------------------------------------------------------ two arms
+def seen_questions() -> set:
+    """The frozen questions a committed before-and-after pair was made from:
+    the writer is shown their answers, so a comparison leaves them out."""
+    import script_generator
+
+    asked = {" ".join(p["query"].lower().split()) for p in script_generator.TEACHING_PAIRS}
+    return {i for i, (_, q) in enumerate(QUESTIONS) if " ".join(q.lower().split()) in asked}
+
+
+def _graded(result: dict) -> dict:
+    """The grader's marks on one script: each metric, their mean, and the
+    count of claims it found no support for. {} when it was not graded."""
+    import episode_quality
+
+    grade = result.get("grade") or {}
+    marks = {}
+    for metric in episode_quality.METRICS:
+        v = grade.get(metric)
+        v = v.get("score") if isinstance(v, dict) else v
+        if isinstance(v, (int, float)):
+            marks[metric] = float(v)
+    if not marks:
+        return {}
+    marks["mean of six"] = sum(marks.values()) / len(marks)
+    marks["unsupported claims"] = float(len(grade.get("unsupported_claims") or []))
+    marks["code: ear"] = result.get("ear")
+    return marks
+
+
+def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
+            draws: int = 5000) -> dict:
+    """`a` minus `b`, paired by question: the mean difference on each
+    measure, a 95% bootstrap interval over questions, and how many
+    questions were better, worse and level. Questions in `leave_out`, or
+    with either script ungraded, are not in it."""
+    import random
+
+    pairs = []
+    for i in range(len(QUESTIONS)):
+        if i in leave_out:
+            continue
+        files = [out / f"{_slug(i)}.{arm}.json" for arm in (a, b)]
+        if not all(f.exists() for f in files):
+            continue
+        marks = [_graded(json.loads(f.read_text())) for f in files]
+        if all(marks):
+            pairs.append(marks)
+    table: dict = {"questions": len(pairs)}
+    if not pairs:
+        return table
+    rng = random.Random(621)
+    for measure in pairs[0][0]:
+        diffs = [x[measure] - y[measure] for x, y in pairs
+                 if isinstance(x.get(measure), (int, float))
+                 and isinstance(y.get(measure), (int, float))]
+        if not diffs:
+            continue
+        means = sorted(statistics.mean(rng.choices(diffs, k=len(diffs))) for _ in range(draws))
+        table[measure] = {"difference": round(statistics.mean(diffs), 3),
+                          "low": round(means[int(0.025 * draws)], 3),
+                          "high": round(means[int(0.975 * draws) - 1], 3),
+                          "better": sum(d > 0 for d in diffs),
+                          "worse": sum(d < 0 for d in diffs),
+                          "level": sum(d == 0 for d in diffs)}
+    return table
+
+
+def print_comparison(table: dict, a: str, b: str) -> None:
+    print(f"{a} minus {b}, paired by question ({table.get('questions', 0)} questions)")
+    for measure, row in table.items():
+        if isinstance(row, dict):
+            print(f"  {measure:20} {row['difference']:+.3f}  [{row['low']:+.3f}, {row['high']:+.3f}]"
+                  f"  better {row['better']}, worse {row['worse']}, level {row['level']}")
+
+
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--freeze", action="store_true")
@@ -380,6 +485,7 @@ async def main() -> int:
     ap.add_argument("--arms", default=",".join(DEFAULT_ARMS))
     ap.add_argument("--only", default="", help="question numbers, e.g. 0,1,2")
     ap.add_argument("--no-grade", action="store_true")
+    ap.add_argument("--compare", default="", help="two arms, e.g. none,none_before_619")
     ap.add_argument("--dir", default="")
     args = ap.parse_args()
     out = _dir(args.dir)
@@ -398,6 +504,15 @@ async def main() -> int:
     table = report(out)
     (out / "table.json").write_text(json.dumps(table, indent=1))
     print_table(table)
+    if args.compare:
+        a, _, b = args.compare.partition(",")
+        seen = seen_questions()
+        print()
+        print_comparison(compare(out, a, b, leave_out=seen), a, b)
+        if seen:
+            print(f"\nand on the {len(seen)} question(s) a pair was made from, apart:")
+            everything = set(range(len(QUESTIONS)))
+            print_comparison(compare(out, a, b, leave_out=everything - seen), a, b)
     return 0
 
 

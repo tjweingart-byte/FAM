@@ -63,3 +63,51 @@ def test_none_low_writes_at_low_effort_and_the_rest_at_high():
     with tool._Settings("none"):
         assert sg.writer_for(edition)[1] == "high"
     assert sg.writer_for(edition)[1] == "high"          # taken back after
+
+
+# ------------------------------------------------------------------ §621
+def test_the_arms_that_measure_what_the_adoption_bought():
+    tool = _eval()
+    assert {"none_unpaired", "none_before_619"} <= set(tool.ARMS)
+    with_all = sg.system_prompt()
+    assert "<pair query=" in with_all and "virus and bacteria" in with_all
+    with tool._Settings("none_unpaired"):
+        unpaired = sg.system_prompt()
+    with tool._Settings("none_before_619"):
+        before = sg.system_prompt()
+    with tool._Settings("none"):
+        assert sg.system_prompt() == with_all
+    assert "<pair query=" not in unpaired and "virus and bacteria" in unpaired
+    assert "<pair query=" not in before and "virus and bacteria" not in before
+    assert sg.system_prompt() == with_all               # taken back after
+
+
+def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path):
+    tool = _eval()
+    seen = tool.seen_questions()
+    assert len(seen) == len(sg.TEACHING_PAIRS) > 0
+
+    def script(i, arm, mark, claims):
+        grade = {m: {"score": mark} for m in tool_metrics}
+        grade["unsupported_claims"] = ["x"] * claims
+        (tmp_path / f"q{i:02d}.{arm}.json").write_text(json.dumps(
+            {"arm": arm, "grade": grade, "ear": 1.0, "sentences": ["A."]}))
+
+    import episode_quality
+    import json
+    tool_metrics = episode_quality.METRICS
+    held_out = [i for i in range(len(tool.QUESTIONS)) if i not in seen][:4]
+    for i in held_out:
+        script(i, "none", 4, 0)
+        script(i, "none_before_619", 3, 1)
+    one_seen = sorted(seen)[0]
+    script(one_seen, "none", 5, 0)
+    script(one_seen, "none_before_619", 1, 0)
+    table = tool.compare(tmp_path, "none", "none_before_619", leave_out=seen, draws=200)
+    assert table["questions"] == 4
+    assert table["mean of six"] == {"difference": 1.0, "low": 1.0, "high": 1.0,
+                                    "better": 4, "worse": 0, "level": 0}
+    assert table["unsupported claims"]["difference"] == -1.0
+    everything = set(range(len(tool.QUESTIONS)))
+    assert tool.compare(tmp_path, "none", "none_before_619",
+                        leave_out=everything - seen, draws=200)["questions"] == 1
