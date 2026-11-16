@@ -166,6 +166,12 @@ struct AuthView: View {
             emailField(prompt: "you@example.com")
             label("Password").padding(.top, 18)
             passwordField
+            // `#authLetInNote` (§619).
+            Text("Just off the waitlist? Leave the password empty \u{2014} you\u{2019}ll set one next.")
+                .font(FAMFont.body(12))
+                .foregroundStyle(FAMColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
             // What went wrong sits above the button (`#authError`).
             if !problem.isEmpty { problemLine }
             Button {
@@ -345,7 +351,7 @@ struct AuthView: View {
             // sign-in, with the address carried over, is the way back.
             if words.contains("already registered") {
                 switchMode()
-                note = "That email is already on FAM. Sign in with its password \u{2014} or, if you haven\u{2019}t set one, open the link we sent when you were let in."
+                note = "That email is already on FAM. Sign in with its password \u{2014} or, if you\u{2019}re just off the waitlist, leave the password empty and you\u{2019}ll set one next."
             }
         }
     }
@@ -361,10 +367,10 @@ struct AuthView: View {
             problem = "That email address doesn\u{2019}t look right."
             return
         }
-        if password.isEmpty {
-            problem = "Enter your password."
-            return
-        }
+        // An empty password is sent (§619): an account let in off the
+        // waitlist has none yet, and the server signs it in by its email;
+        // `beginEntry` then opens `PasswordFirstView`. Any other account is
+        // told "do not match" by the server.
         problem = ""
         working = true
         defer { working = false }

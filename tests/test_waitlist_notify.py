@@ -324,9 +324,10 @@ def test_sms_sorts_its_failures(monkeypatch):
         assert sms.send("+14155550100", "hi") == want
 
 
-def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
-    """§606: the waitlist asks no password, so the let-in notice says its
-    link is where the password is set, and the text stays one segment."""
+def test_an_email_only_join_is_told_to_sign_in_with_its_email(acc, wl, outbox):
+    """§619: the waitlist asks no password, so the let-in notice sends them
+    to the app with their email - the password is set there, never through
+    the link - and the text stays one segment."""
     acc.sign_up("np", "np@fam.test", "", passwordless=True)
     with acc._conn() as c:
         c.execute("UPDATE accounts SET phone = '+14155550102' WHERE user_id = 'np'")
@@ -335,10 +336,11 @@ def test_an_email_only_join_is_told_its_link_sets_the_password(acc, wl, outbox):
     assert view["can_sign_in"] is False
     waitlist_notify.drain(wl, "https://familiarize.net", "https://familiarize.net")
     (_to, _subject, body), = outbox["mail"]
-    assert "set your password" in body and f"/claim/{view['claim_code']}" in body
-    assert "Sign in the way you joined" not in body
+    assert "sign in with this email address" in body and "set your password" in body
+    assert "Open this link to sign in" not in body
+    assert f"/claim/{view['claim_code']}" in body and "Sign in the way you joined" not in body
     (_number, text), = outbox["sms"]
-    assert "Set your password" in text and len(text) <= 160
+    assert "Sign in with your email" in text and len(text) <= 160
 
 
 def test_a_google_or_apple_account_keeps_sign_in_the_way_you_joined(acc, wl, outbox):
