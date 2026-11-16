@@ -1726,9 +1726,13 @@
   **(1) `link_preview.wide`**, 1200x630, the shape Facebook draws a link's
   picture at. Facebook crops the square preview (§559) to that strip, which
   cut the logo and the play button off and left a picture with nothing
-  saying it is audio. The wide card has the logo, the length, the play
-  button and **the title on the picture** - the one drawing where the words
-  are on it, because a feed is scrolled past. It is named only in the head
+  saying it is audio. The wide card is **the picture beside the words**
+  (the owner's pick of two drawn layouts): the picture, square and
+  untouched, on the left; the logo, the length, the title and the play
+  button on FAM's ground on the right. **A long title is cut with an
+  ellipsis here** (four lines; three on the no-picture card) - the owner
+  on one set small enough to fit: "way too much text". It is the one
+  exception to §615; Facebook prints the whole title under the card. It is named only in the head
   served to Facebook's crawler (`sharing.wants_wide`, `WIDE_AGENTS`), and
   the page says `Vary: User-Agent`. Messages, WhatsApp, X and the rest keep
   the wordless square the owner picked in §559. This is not the user-agent
@@ -1743,7 +1747,8 @@
   blank screen; a link is the opposite case, and a brain-implant story went
   out under the science facet's observatory. `fallback` from
   `thumbnails.pick_for_player` means borrowed, and a borrowed picture is
-  replaced by the title cover. The title is never cut on either (§615).
+  replaced by the title cover. The owner was asked whether a no-picture
+  episode should borrow again and did not say; it does not.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

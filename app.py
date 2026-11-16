@@ -5103,8 +5103,8 @@ async def share_preview(share_id: str, request: Request) -> Response:
 @app.get("/api/share/{share_id}/wide.jpg")
 async def share_wide(share_id: str, request: Request) -> Response:
     """The picture a shared link previews with on Facebook (§621): 1200x630,
-    the shape Facebook draws, with the logo, the play button and the title
-    all inside it. Named in the page's head only to Facebook's crawler
+    the shape Facebook draws - the picture beside the logo, the title and
+    the play button. Named in the page's head only to Facebook's crawler
     (`sharing.wants_wide`); public, like the link."""
     _read_limit(request)
     data = await _share_drawing(share_id, "wide", request)

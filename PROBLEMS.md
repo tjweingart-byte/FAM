@@ -37714,10 +37714,14 @@ and the play button at the bottom right were both outside it.
 
 **Built.**
 
-1. `link_preview.wide`: 1200x630, the picture filling it under a shade that
-   rises from the bottom, the badge, "1.5 MIN EPISODE", the title (smaller
-   rather than cut, §615) and the play button, all inside a 60px margin.
-   With no picture, the same on FAM's ground. `GET /api/share/<id>/wide.jpg`,
+1. `link_preview.wide`: 1200x630. First drawn with the title over the
+   picture under a shade; shown that beside a second layout, the owner
+   chose the second: the picture, square and untouched, on the left, and
+   the wordmark, "1.5 MIN EPISODE", the title and the play button on FAM's
+   ground on the right. With no picture, the words across FAM's ground.
+   The owner on a 270-character title shrunk to fit: "way too much text" -
+   so a long title is cut with an ellipsis here (four lines; three with no
+   picture), the one exception to §615. `GET /api/share/<id>/wide.jpg`,
    public behind the waitlist like the other three.
 2. `/s/<id>` names it as `og:image` (with 1200x630 and an `og:image:alt`)
    only when the reader is Facebook's crawler (`sharing.wants_wide`:

@@ -282,18 +282,29 @@ def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes
 # clicks: "users scroll past them without a visual hook. Adding the episode
 # title directly on the thumbnail will definitely help." So Facebook's
 # crawler is named this picture instead (`sharing.wants_wide`): 1200x630,
-# everything inside the frame, and the title on it - the one place the
-# words are drawn on the picture, because a feed is scrolled, not read.
-# Messages and the rest keep the wordless square (§559).
+# the owner's pick of two drawn layouts - **the picture beside the words**:
+# the episode's picture, square and untouched, on the left; the wordmark,
+# the length, the title and the play button on FAM's ground on the right.
+# With no picture of its own, the same words across the whole card.
+#
+# **A long title is cut here, with an ellipsis** (the owner, on seeing one
+# set small enough to fit: "way too much text"). This is the one drawing
+# where §615's "never cut" gives way: a feed is scrolled, not read, and
+# Facebook prints the whole title under the picture anyway. Messages and
+# the rest keep the wordless square (§559).
 
 WIDE = (1200, 630)
-WIDE_MARGIN = 60
-#: The title's sizes on the wide card, largest first, the width it wraps
-#: in (clear of the play button) and the height its lines share - smaller
-#: rather than cut, as on the cover (§615).
-WIDE_SIZES = (76, 66, 58, 50, 44, 38, 32, 28)
-WIDE_TITLE_WIDTH = 860
-WIDE_ROOM = 300
+WIDE_MARGIN = 50
+#: Beside a picture: the title's sizes, largest first, the height its lines
+#: share, and the most lines it is given at the smallest size.
+WIDE_SIZES = (58, 52, 46, 40)
+WIDE_ROOM = 260
+WIDE_LINES = 4
+#: With no picture, across the card: larger, and three lines.
+WIDE_COVER_SIZES = (76, 66)
+WIDE_COVER_ROOM = 270
+WIDE_COVER_LINES = 3
+WIDE_COVER_WIDTH = 860
 
 
 def _length(minutes: float) -> str:
@@ -305,44 +316,56 @@ def _length(minutes: float) -> str:
     return f"{length:g} MIN EPISODE"
 
 
+def _clipped(d, text: str, sizes, width: int, room: int, most: int):
+    """`(font, lines, line height)`: the largest size whose lines fit in
+    `room`; at the smallest, at most `most` lines, the last ending in an
+    ellipsis."""
+    font, lines, step = _fitted(d, text, "BricolageGrotesque-SemiBold.ttf",
+                                sizes, width, room)
+    if len(lines) > most:
+        lines = _wrap(d, text, font, width, most)
+    return font, lines, step
+
+
 def _wide(picture: Optional[bytes], title: str, minutes: float):
-    """The wide card as an image: the picture filling it and darkened
-    towards the bottom, else FAM's ground; then the badge, the length, the
-    title and the play button, all inside `WIDE_MARGIN`."""
+    """The wide card as an image."""
     from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
     w, h = WIDE
-    im = None
+    title = title or "A FAM episode"
+    left = None
     if picture:
         try:
             src = ImageOps.exif_transpose(Image.open(io.BytesIO(picture))).convert("RGB")
-            im = ImageOps.fit(src, WIDE, Image.LANCZOS)
-            # A shade rising from the bottom, so the title reads on any
-            # picture: clear at the top third, near-solid under the words.
-            shade = Image.new("L", (1, h), 0)
-            for y in range(h):
-                t = max(0.0, (y - h * 0.22) / (h * 0.78))
-                shade.putpixel((0, y), round(235 * min(1.0, t * 1.25)))
-            im.paste(Image.new("RGB", WIDE, INK), (0, 0), shade.resize(WIDE))
+            left = ImageOps.fit(src, (h, h), Image.LANCZOS)
         except Exception:  # noqa: BLE001 - an unreadable picture
             log.warning("link preview: the episode's picture would not "
                         "open; drawing the wide cover instead")
-            im = None
-    if im is None:
+    if left is None:
         im = Image.new("RGB", WIDE, GROUND)
         ImageDraw.Draw(im).ellipse((-400, -500, 800, 500), fill=(84, 66, 52))
         im = im.filter(ImageFilter.GaussianBlur(140))
-    _badge(im)
-    d = ImageDraw.Draw(im)
-    _play(d, cx=w - WIDE_MARGIN - 90, cy=h - WIDE_MARGIN - 90, r=84)
-    font, lines, step = _fitted(d, title or "A FAM episode",
-                                "BricolageGrotesque-SemiBold.ttf",
-                                WIDE_SIZES, WIDE_TITLE_WIDTH, WIDE_ROOM)
-    y = h - WIDE_MARGIN - len(lines) * step
-    small = _font("GeistMono-Bold.ttf", 26)
-    d.text((WIDE_MARGIN, y - 44), _length(minutes), font=small, fill=COPPER)
+        _badge(im)
+        d = ImageDraw.Draw(im)
+        _play(d, cx=w - 150, cy=h - 150, r=84)
+        font, lines, step = _clipped(d, title, WIDE_COVER_SIZES, WIDE_COVER_WIDTH,
+                                     WIDE_COVER_ROOM, WIDE_COVER_LINES)
+        x, y = 60, h - 60 - len(lines) * step
+        small = _font("GeistMono-Bold.ttf", 26)
+    else:
+        im = Image.new("RGB", WIDE, GROUND)
+        im.paste(left, (0, 0))
+        x = h + WIDE_MARGIN
+        _wordmark(im, x, 54, 44)
+        d = ImageDraw.Draw(im)
+        _play(d, cx=x + 62, cy=h - 112, r=58)
+        font, lines, step = _clipped(d, title, WIDE_SIZES, w - x - WIDE_MARGIN,
+                                     WIDE_ROOM, WIDE_LINES)
+        y = 180
+        small = _font("GeistMono-Bold.ttf", 24)
+    d.text((x, y - 44), _length(minutes), font=small, fill=COPPER)
     for line in lines:
-        d.text((WIDE_MARGIN, y), line, font=font, fill=PAPER)
+        d.text((x, y), line, font=font, fill=PAPER)
         y += step
     return im
 

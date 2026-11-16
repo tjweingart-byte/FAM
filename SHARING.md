@@ -112,8 +112,8 @@ keep the preview they arrived with.
 (§621).** Facebook draws a link's picture at 1.91:1 and cropped the square
 to a strip with the badge and the play button outside it, so its crawler
 alone is named `/api/share/<id>/wide.jpg` (`link_preview.wide`, 1200x630):
-the same picture with the badge, the length, the play button and the title
-on it. And "the picture the player shows" now stops short of the player's
+the picture on the left and, beside it, the logo, the length, the title
+(cut with an ellipsis when long) and the play button. And "the picture the player shows" now stops short of the player's
 borrowing: an episode with no picture of its own draws the title cover on
 every share picture, rather than its branch's or its facet's.
 

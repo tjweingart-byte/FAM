@@ -302,9 +302,9 @@ def test_the_wide_card_is_1200_by_630(client, shared):
     assert client.get("/api/share/nope/wide.jpg").status_code == 404
 
 
-def test_the_wide_card_has_the_title_on_the_picture():
-    """The same picture with and without a title differs where the title is
-    drawn, and nowhere near the top right, where nothing is."""
+def test_the_wide_card_is_the_picture_beside_the_title():
+    """The owner's pick of two layouts: the picture, untouched, is the left
+    square; the words are on FAM's ground to the right of it."""
     import io
 
     from PIL import Image, ImageChops
@@ -318,39 +318,46 @@ def test_the_wide_card_has_the_title_on_the_picture():
     diff = ImageChops.difference(a.convert("L"), b.convert("L")).point(lambda v: 255 if v > 40 else 0)
     box = diff.getbbox()
     assert box is not None
-    left, top, right, bottom = box
-    m = link_preview.WIDE_MARGIN
-    assert left >= m - 4 and bottom <= link_preview.WIDE[1] - m + 12
-    assert top > link_preview.BADGE[3] and right <= m + link_preview.WIDE_TITLE_WIDTH
-    # The picture itself shows above the shade.
-    r, g, bl = a.convert("RGB").getpixel((700, 40))
-    assert r > 150 and g < 80 and bl < 80
+    w, h = link_preview.WIDE
+    assert box[0] >= h + link_preview.WIDE_MARGIN - 6
+    assert box[2] <= w - link_preview.WIDE_MARGIN + 6
+    for point in ((40, 40), (h // 2, h // 2), (h - 40, h - 40)):
+        r, g, bl = a.convert("RGB").getpixel(point)
+        assert r > 150 and g < 80 and bl < 80, point
 
 
-def test_the_wide_card_never_cuts_a_long_title():
+def test_the_wide_card_cuts_a_long_title_with_an_ellipsis(monkeypatch):
+    """The owner on a long title set small enough to fit: "way too much
+    text". Here, and only here, a title is cut (§615 holds elsewhere)."""
     import io
 
     from PIL import Image
 
     import link_preview
 
-    seen = []
+    drawn = []
     real = link_preview._wrap
 
     def spy(d, text, font, width, most=0):
         lines = real(d, text, font, width, most)
-        seen.append((" ".join(lines), most))
+        drawn.append(lines)
         return lines
 
+    monkeypatch.setattr(link_preview, "_wrap", spy)
     title = "why the central bank held rates and what three governors said " * 3
-    try:
-        link_preview._wrap = spy
-        data = link_preview.wide(None, title, 3)
-    finally:
-        link_preview._wrap = real
-    assert Image.open(io.BytesIO(data)).size == link_preview.WIDE
-    assert seen[-1] == (" ".join(title.split()), 0)
-    assert len(data) <= link_preview.MAX_BYTES
+    src = io.BytesIO()
+    Image.new("RGB", (800, 800), (20, 90, 160)).save(src, format="PNG")
+    for picture, most in ((src.getvalue(), link_preview.WIDE_LINES),
+                          (None, link_preview.WIDE_COVER_LINES)):
+        drawn.clear()
+        data = link_preview.wide(picture, title, 3)
+        assert Image.open(io.BytesIO(data)).size == link_preview.WIDE
+        assert len(drawn[-1]) == most and drawn[-1][-1].endswith("…")
+        assert len(data) <= link_preview.MAX_BYTES
+    # A title that fits is drawn whole.
+    drawn.clear()
+    link_preview.wide(src.getvalue(), "Brain Implants Giving Paralyzed Patients a Voice", 1.5)
+    assert " ".join(drawn[-1]) == "Brain Implants Giving Paralyzed Patients a Voice"
 
 
 def test_a_link_never_wears_a_borrowed_picture(monkeypatch):
