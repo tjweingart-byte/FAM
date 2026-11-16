@@ -1717,6 +1717,107 @@
   > A pasted link's preview is no longer the story card (§559): `og:image`
   > is a square JPEG of the episode's picture with a play button
   > (`link_preview`), because the SVG card was skipped by Messages.
+<!-- rule:link-picture -->
+- **A link's picture is the episode's own or the title cover, and Facebook
+  is named a wide one with the title on it** (§621, the owner's pick of two
+  from five options, after a Facebook group's admin posted a FAM link that
+  reached 168 people with no clicks). Two things, both in what a stranger
+  sees before any word of the episode:
+  **(1) `link_preview.wide`**, 1200x630, the shape Facebook draws a link's
+  picture at. Facebook crops the square preview (§559) to that strip, which
+  cut the logo and the play button off and left a picture with nothing
+  saying it is audio. The wide card is **the picture beside the words**
+  (the owner's pick of two drawn layouts): the picture, square and
+  untouched, on the left; the logo, the length, the title and the play
+  button on FAM's ground on the right. **A long title is cut with an
+  ellipsis here** (four lines; three on the no-picture card) - the owner
+  on one set small enough to fit: "way too much text". The drawings made for a feed (this, the
+  photo and the clip) are the exceptions to §615; Facebook prints the
+  whole title under the card. It is named only in the head
+  served to Facebook's crawler (`sharing.wants_wide`, `WIDE_AGENTS`), and
+  the page says `Vary: User-Agent`. Messages, WhatsApp, X and the rest keep
+  the wordless square the owner picked in §559. This is not the user-agent
+  list §76 settled against: that list decided what was *counted*, so a
+  crawler it missed was a wrong number; a crawler this one misses gets the
+  square every previewer got before. Do not widen it to make another site
+  look better without asking - each previewer's shape is its own question.
+  **(2) No borrowed picture on anything a share draws**
+  (`app._preview_picture`: the square, the wide card, the sticker, the
+  story). The player borrows up the branch and then the facet
+  ([player-layout]) because one episode at a time should never play over a
+  blank screen; a link is the opposite case, and a brain-implant story went
+  out under the science facet's observatory. `fallback` from
+  `thumbnails.pick_for_player` means borrowed, and a borrowed picture is
+  replaced by the title cover. The owner was asked whether a no-picture
+  episode should borrow again and did not say; it does not.
+<!-- rule:post-photo -->
+- **An episode can be had as a photo to post natively, and a person posts
+  it** (§622, the owner's third pick from §621's five options).
+  Facebook holds back a post that links out, whatever the link looks like -
+  the group admin's link post reached 168 people where his posts reach
+  thousands - so the better card of [link-picture] can raise clicks but not
+  reach. `link_preview.post` is the episode as a photo, 1080x1350: the
+  picture on top (its own or none, [link-picture]), then the length, the
+  title (cut at three lines), the episode's one line (the cached summary a
+  card draws, `app._share_hook`; never generated, omitted when there is
+  none) and "Listen to the full episode / <host>", because the photo
+  carries no link. `GET /api/share/<id>/post.jpg` (public behind the
+  waitlist; `?download=1` saves it), named as `post` by `/api/share`. On
+  `/admin/groups` a card with a link heard has **Photo for a post** and
+  says why: send the admin the photo to post and the link for the first
+  comment. **FAM still posts nothing** ([no-social-posting]): it is a
+  file. Not built: the in-app share sheet does not offer it. The clip and
+  the per-community link came after ([post-clip], [post-kit]).
+  Whether a photo post actually restores reach is **unmeasured** - it is
+  the test this was built to run.
+<!-- rule:post-clip -->
+- **An episode's opening can be had as a captioned video clip, cut from
+  kept audio, and a person posts it** (§623, the owner's fourth pick from
+  §621's options; the group admin's own request: "a quick 15-30 second
+  audiogram/video clip (with captions and visuals) to post natively").
+  `clip.py` -> MP4 (H.264/AAC through PyAV, already the Opus codec's
+  dependency; 1080x1350, 10 fps): the picture ([link-picture]), the title,
+  the words on screen as spoken, a bar that fills, then a 2.5s card saying
+  where the whole episode is. Three things are settled:
+  **(1) Nothing is voiced, written or guessed for it.** It reads
+  `SCRIPT_CACHE.get_audio` and the sentence timings measured when that
+  audio was voiced (`StoredAudio.starts`). No kept audio, or audio without
+  timings, is a 409 that says so - never captions placed by estimate.
+  Within a sentence the pieces share its measured span by their letters;
+  no piece leaves its sentence's time.
+  **(2) The opening, in whole sentences** (`clip.opening`): the last
+  sentence that ends inside 30 seconds. No model picks an excerpt - the
+  first sentences are the hook by the writing rules ([situate],
+  [opening-last]). It may run under 15 seconds rather than stop mid-word;
+  a first sentence longer than 30 is no clip.
+  **(3) Admin only** (`GET /api/admin/share/<id>/clip.mp4`), where the
+  photo ([post-photo]) is public: a clip is seconds of one core, so a
+  stranger's request may not start one; one renders at a time and four
+  are remembered. `/admin/groups` has **Video clip for a post**. FAM posts
+  nothing ([no-social-posting]). Not built: the app's share sheet.
+  Unmeasured: whether a clip
+  post restores reach, and how the production voice sounds in one.
+<!-- rule:post-kit -->
+- **Each community has its own share link, so its opens are its own**
+  (§624, the last of §621's five options). `/admin/groups` made one share
+  owned by `communities.SHARER` for an episode, and a share is one row per
+  (owner, question, length) - so every group offered the same episode got
+  the same link, and "0 link clicks" was known only because an admin said
+  so. `communities.sharer_for(lead)` owns one share per lead: same
+  question and length, so **the same cached episode and no extra spend**,
+  a different id. `opens` is the link's own count - reported by the page,
+  never the serve ([share-link]), so a crawler is not an open - and the
+  list says `own_link`; a link made before this is shared, and the card
+  says its count is every group's together and that Listen again makes
+  the community its own. **The kit** (`GET /api/admin/groups/kit`, admin,
+  read only): that link, the photo ([post-photo]), the clip ([post-clip]),
+  a suggested caption and the first comment. The caption is composed in
+  code (`communities.caption_for`: title, the cached one line, "Link in
+  the first comment") and **never contains the link** - a post that links
+  out is held back; the link is the first comment. A person sends all of
+  it; nothing here sends or posts ([community-outreach]). Opens are
+  counted; plays, reach and anything Facebook knows are not - reach is
+  still the admin's to report.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

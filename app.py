@@ -4895,6 +4895,9 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # tile a pasted link makes, which a link typed into `sms:` or
         # `mailto:` does not (§601).
         "preview": _share_image_url(share["id"], "preview.jpg", request),
+        # The episode as a photo to post natively, the link going in the
+        # first comment (§622): Facebook holds back a post that links out.
+        "post": _share_image_url(share["id"], "post.jpg", request),
         "targets": _with_handoffs(rendered),
     }
 
@@ -4984,11 +4987,14 @@ def _card_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
 
 
-def _preview_url(share_id: str, request: Request | None = None) -> str:
+def _preview_url(share_id: str, request: Request | None = None,
+                 wide: bool = False) -> str:
     """The link preview's address, absolute or "" - the same refusal as
-    `_card_url`: a relative Open Graph image is no image at all."""
+    `_card_url`: a relative Open Graph image is no image at all. `wide` is
+    the 1200x630 card Facebook's crawler is named (§621)."""
     base = _public_base(request)
-    return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
+    name = "wide.jpg" if wide else "preview.jpg"
+    return f"{base}/api/share/{quote(share_id)}/{name}" if base else ""
 
 
 def _share_image_url(share_id: str, name: str, request: Request | None = None) -> str:
@@ -5026,6 +5032,14 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         found = _player_picture(record.get("query") or "",
                                 record.get("title") or "",
                                 as_minutes(record.get("minutes")))
+        # **Its own picture or none** (§621). The player borrows - a branch's
+        # picture, then the facet's - because one episode at a time should
+        # never play over a blank screen; a link is the opposite case: the
+        # picture is all a stranger sees, and a brain-implant story went out
+        # to a Facebook group under the science facet's observatory. So a
+        # borrowed picture is not drawn here, and the title cover is.
+        if found.get("fallback"):
+            return "", None
         row = found.get("picture") or found.get("node") or ""
         if not row or not thumbnails._exists():
             return "", None
@@ -5036,14 +5050,28 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         return "", None
 
 
+async def _share_hook(record: dict) -> str:
+    """The shared episode's one line - the summary a card draws - read from
+    the cache, or "". Never generates, never raises."""
+    try:
+        _title, summary = await _episode_blurb(
+            _make_pipeline(), record.get("query") or "",
+            max(1, as_minutes(record.get("minutes"), 1)))
+        return " ".join(str(summary or "").split())
+    except Exception:  # noqa: BLE001 - the photo is drawn without it
+        return ""
+
+
 async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
     """One of a share's drawn pictures (`link_preview`): "preview" (the
-    square JPEG), "sticker" (the player card, PNG) or "story" (the card on
-    9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
+    square JPEG), "wide" (the 1200x630 card with the title on it, for
+    Facebook), "sticker" (the player card, PNG) or "story" (the card on
+    9:16, JPEG) or "post" (the 4:5 photo for a native post, §622), kept
+    briefly in `_PREVIEWS`. 404 for no such share."""
     record = await _share_titled(SHARES.get(share_id))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
-    host = _share_host(request) if kind != "preview" else ""
+    host = _share_host(request) if kind in ("sticker", "story", "post") else ""
     key = (share_id, record.get("title") or "", kind, host)
     now = time.time()
     kept = _PREVIEWS.get(key)
@@ -5059,6 +5087,12 @@ async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
         data = await asyncio.to_thread(link_preview.card, picture, title, minutes, host)
     elif kind == "story":
         data = await asyncio.to_thread(link_preview.story, picture, title, minutes, host)
+    elif kind == "wide":
+        data = await asyncio.to_thread(link_preview.wide, picture, title, minutes)
+    elif kind == "post":
+        hook = await _share_hook(record)
+        data = await asyncio.to_thread(link_preview.post, picture, title, hook,
+                                       minutes, host)
     else:
         data = await asyncio.to_thread(link_preview.draw, picture, title, minutes)
     if data is None:
@@ -5084,6 +5118,35 @@ async def share_preview(share_id: str, request: Request) -> Response:
     # picture within minutes, not an hour.
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/wide.jpg")
+async def share_wide(share_id: str, request: Request) -> Response:
+    """The picture a shared link previews with on Facebook (§621): 1200x630,
+    the shape Facebook draws - the picture beside the logo, the title and
+    the play button. Named in the page's head only to Facebook's crawler
+    (`sharing.wants_wide`); public, like the link."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "wide", request)
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/post.jpg")
+async def share_post(share_id: str, request: Request, download: int = 0) -> Response:
+    """The episode as a photo somebody posts themselves (§622): 1080x1350,
+    the picture, the title, the episode's one line and where to listen.
+    Facebook holds back a post that links out; a photo with the link in the
+    first comment is not held back. `?download=1` saves it as a file. FAM
+    posts nothing ([no-social-posting]): a person downloads and uploads it.
+    Public, like the link."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "post", request)
+    headers = {"Cache-Control": "public, max-age=300"}
+    if download:
+        headers["Content-Disposition"] = (
+            f'attachment; filename="fam-{re.sub(r"[^A-Za-z0-9_-]", "", share_id)}.jpg"')
+    return Response(content=data, media_type="image/jpeg", headers=headers)
 
 
 @app.get("/api/share/{share_id}/sticker.png")
@@ -5176,18 +5239,24 @@ async def share_open(share_id: str, request: Request):
     The open is not counted here. See `share_opened`.
     """
     record = await _share_titled(SHARES.get(share_id))
+    # Facebook's crawler is named the wide card (§621); everyone else the
+    # square, as before.
+    wide = sharing.wants_wide(request.headers.get("user-agent", ""))
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",
-        image_url=_preview_url(share_id, request) if record else "",
-        app_store=settings.app_store_url,
+        image_url=_preview_url(share_id, request, wide) if record else "",
+        app_store=settings.app_store_url, wide=wide,
     )
     return HTMLResponse(
         content=sharing.render_landing(_landing_template(), payload),
         status_code=200 if record else 404,
         # A share is one episode's worth of fixed text. Cacheable, but briefly:
-        # the title can be re-written when an episode is regenerated.
-        headers={"Cache-Control": "public, max-age=300"},
+        # the title can be re-written when an episode is regenerated. The
+        # head differs for Facebook's crawler, so a cache must not hand one
+        # reader the other's page.
+        headers={"Cache-Control": "public, max-age=300",
+                 "Vary": "User-Agent"},
     )
 
 
@@ -6967,7 +7036,8 @@ def _shared_episode_request(request: Request) -> bool:
     if request.method in ("GET", "HEAD") and (
             path == "/api/share/card"
             or (path.startswith("/api/share/")
-                and path.endswith(("/preview.jpg", "/sticker.png", "/story.jpg")))):
+                and path.endswith(("/preview.jpg", "/wide.jpg", "/sticker.png",
+                                   "/story.jpg", "/post.jpg")))):
         return True
     if path != "/api/audio":
         return False
@@ -14409,6 +14479,55 @@ def _groups_suggested() -> list:
     return list(found)
 
 
+def _groups_opens(leads: list[dict]) -> None:
+    """Each lead's link, counted (§624): `opens` is how many times its
+    share link was followed (reported by the page, so a crawler is not an
+    open), and `own_link` whether the link is this community's alone. A
+    link made before §624 is one every group with that episode shares, so
+    its count says nothing about one group; the card says so. Never raises."""
+    for lead in leads:
+        share_id = communities.share_id_of(lead.get("share_url") or "")
+        if not share_id:
+            continue
+        try:
+            record = SHARES.get(share_id) or {}
+        except Exception:  # noqa: BLE001 - a count is not worth the list
+            record = {}
+        lead["opens"] = int(record.get("opens") or 0)
+        lead["own_link"] = record.get("user_id") == communities.sharer_for(lead.get("id") or "")
+
+
+@app.get("/api/admin/groups/kit")
+async def admin_groups_kit(request: Request, id: str = Query(..., min_length=3, max_length=140)) -> dict:
+    """Everything a person sends a community's admin to post one episode
+    natively (§624): the community's own link (for the first comment), the
+    photo (§622), the clip (§623), suggested words, and how many times the
+    link has been opened. Read only: nothing is made, voiced or sent."""
+    _require_admin(request)
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    lead = await asyncio.to_thread(communities.store().get, id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    share_id = communities.share_id_of(lead.get("share_url") or "")
+    record = await _share_titled(SHARES.get(share_id)) if share_id else None
+    if not record:
+        raise HTTPException(status_code=409, detail=(
+            "Listen to this lead's episode first: that makes the link the kit is built on."))
+    hook = await _share_hook(record)
+    minutes = as_minutes(record.get("minutes"), 1)
+    link = lead["share_url"]
+    return {
+        "url": link,
+        "photo": _share_image_url(share_id, "post.jpg", request) + "?download=1",
+        "clip": f"/api/admin/share/{quote(share_id)}/clip.mp4",
+        "caption": communities.caption_for(record.get("title") or "", hook, minutes),
+        "first_comment": f"Listen to the full episode: {link}",
+        "opens": int(record.get("opens") or 0),
+        "own_link": record.get("user_id") == communities.sharer_for(lead["id"]),
+    }
+
+
 @app.get("/api/admin/groups")
 async def admin_groups(request: Request, status: str = "", platform: str = "") -> dict:
     """Every lead (to contact first, best first), whether a search can run,
@@ -14421,6 +14540,7 @@ async def admin_groups(request: Request, status: str = "", platform: str = "") -
     leads = []
     if communities._exists():
         leads = await asyncio.to_thread(communities.store().all, status, platform)
+        await asyncio.to_thread(_groups_opens, leads)
     suggested = await asyncio.to_thread(_groups_suggested)
     health = await asyncio.to_thread(communities.health)
     return {"health": health, "running": bool(_GROUPS_RUNNING),
@@ -14514,7 +14634,8 @@ async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
     if not episode.get("query"):
         raise HTTPException(status_code=409, detail="This lead has no kept episode.")
     try:
-        share = SHARES.create(communities.SHARER, episode["query"],
+        # A link of this community's own (§624), so its opens are its own.
+        share = SHARES.create(communities.sharer_for(req.id), episode["query"],
                               as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
@@ -14526,6 +14647,88 @@ async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
             "link would not open for anybody else. Set PUBLIC_BASE_URL."))
     await asyncio.to_thread(held.listened, req.id, time.time(), link)
     return {"url": link}
+
+
+#: Rendered clips, newest last: (share id, title, host) -> (made at, MP4).
+#: One is about a megabyte and is asked for once or twice by one person.
+_CLIPS: "OrderedDict[tuple, tuple[float, bytes]]" = OrderedDict()
+CLIP_MEMORY = 4
+#: One clip is rendered at a time: it is seconds of one core's work.
+_CLIP_LOCK = asyncio.Lock()
+
+
+def _clip_audio(record: dict):
+    """The shared episode's kept audio (`cache.StoredAudio`) in whichever
+    voice it was last played, or None. Reads only: nothing is voiced."""
+    if SCRIPT_CACHE is None:
+        return None
+    key = _heard_key(record.get("query") or "",
+                     max(1, as_minutes(record.get("minutes"), 1)),
+                     record.get("episode") or "")
+    if not key:
+        return None
+    rates = []
+    try:
+        rates.append(int(build_engine().sample_rate))
+    except Exception:  # noqa: BLE001 - the production rates below
+        pass
+    for voice in SCRIPT_CACHE.audio_voices(key):
+        for rate in dict.fromkeys(rates + [24000, 22050]):
+            found = SCRIPT_CACHE.get_audio(key, voice, rate)
+            if found is not None:
+                return found
+    return None
+
+
+@app.get("/api/admin/share/{share_id}/clip.mp4")
+async def admin_share_clip(share_id: str, request: Request) -> Response:
+    """A shared episode's opening as a captioned video to post natively
+    (`clip.py`, §623): 15-30 seconds of its kept audio, the words on screen.
+
+    Admin only, where the photo (`share_post`) is public: a clip is seconds
+    of processor time to make, so it is not something a stranger's request
+    may start. Cut from kept audio and its measured sentence timings -
+    nothing is voiced, written or guessed, so an episode not yet played
+    through has no clip and the answer says so. FAM posts nothing: the
+    person downloads this and sends or uploads it."""
+    _require_admin(request)
+    record = await _share_titled(SHARES.get(share_id))
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    host = _share_host(request)
+    title = record.get("title") or ""
+    key = (share_id, title, host)
+    kept = _CLIPS.get(key)
+    if kept is None:
+        import clip as clip_mod
+
+        async with _CLIP_LOCK:
+            audio = await asyncio.to_thread(_clip_audio, record)
+            if audio is None:
+                raise HTTPException(status_code=409, detail=(
+                    "This episode has no kept audio yet. Play it through once "
+                    "from its link, then make the clip."))
+            if not audio.starts or len(audio.starts) != len(audio.sentences):
+                raise HTTPException(status_code=409, detail=(
+                    "This episode's audio was kept without sentence timings, "
+                    "so captions cannot be placed on it. No clip."))
+            _row, picture = await asyncio.to_thread(_preview_picture, record)
+            data = await asyncio.to_thread(
+                lambda: clip_mod.render(audio.pcm(), audio.sample_rate,
+                                        audio.sentences, audio.starts,
+                                        picture, title, host))
+        if not data:
+            raise HTTPException(status_code=409, detail=(
+                "No clip could be cut: the episode's first sentence runs "
+                f"past {int(clip_mod.LONGEST)} seconds, or the video encoder failed."))
+        kept = (time.time(), data)
+        _CLIPS[key] = kept
+        while len(_CLIPS) > CLIP_MEMORY:
+            _CLIPS.popitem(last=False)
+    name = re.sub(r"[^A-Za-z0-9_-]", "", share_id)
+    return Response(content=kept[1], media_type="video/mp4", headers={
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": f'attachment; filename="fam-{name}.mp4"'})
 
 
 class GroupsMove(BaseModel):

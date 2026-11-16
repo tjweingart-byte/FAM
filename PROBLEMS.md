@@ -37693,3 +37693,158 @@ removed. They are a launch checklist, not a change to make now.
 
 Still not audited: every other endpoint's cost one by one with the gate
 off; the voice worker's own image.
+
+## 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16)
+
+**What came in.** The admin of a Facebook science group posted a FAM link
+(the brain-implant episode) and wrote back: his posts usually reach
+thousands, this one reached 168 with no link clicks; Facebook limits
+external audio links and "users scroll past them without a visual hook.
+Adding the episode title directly on the thumbnail will definitely help",
+and a 15-30 second captioned clip posted natively "would perform 10x
+better". Five options were put to the owner; the owner chose the first two.
+The clip, a native photo post and a per-group post kit are not built.
+
+**What the screenshot showed that he did not say.** (a) The picture was an
+observatory: the episode had no picture of its own, and the player's
+borrowing (`thumbnails.pick_for_player`, up the branch, then the facet) is
+what the link drew. (b) Facebook draws link pictures at 1.91:1 and cropped
+the 1200-square preview (§559) to a strip - the FAM badge at the top left
+and the play button at the bottom right were both outside it.
+
+**Built.**
+
+1. `link_preview.wide`: 1200x630. First drawn with the title over the
+   picture under a shade; shown that beside a second layout, the owner
+   chose the second: the picture, square and untouched, on the left, and
+   the wordmark, "1.5 MIN EPISODE", the title and the play button on FAM's
+   ground on the right. With no picture, the words across FAM's ground.
+   The owner on a 270-character title shrunk to fit: "way too much text" -
+   so a long title is cut with an ellipsis here (four lines; three with no
+   picture), the one exception to §615. `GET /api/share/<id>/wide.jpg`,
+   public behind the waitlist like the other three.
+2. `/s/<id>` names it as `og:image` (with 1200x630 and an `og:image:alt`)
+   only when the reader is Facebook's crawler (`sharing.wants_wide`:
+   `facebookexternalhit`, `Facebot`), and says `Vary: User-Agent`. Everyone
+   else gets the head they got before. Why this is not §76's user-agent
+   list is at the rule ([link-picture]).
+3. `app._preview_picture` returns no picture when the picker says
+   `fallback` - so the square, the wide card, the sticker and the story all
+   draw the title cover instead of a borrowed picture. The player is
+   unchanged.
+
+**What this does not fix, said to the owner before building.** A better
+card can raise clicks among the people who see the post. It does nothing
+about the 168: Facebook holds back posts that link out, whatever they look
+like. Only content posted natively (the photo post or the clip) addresses
+reach, and neither is built.
+
+**Not verified here.** How Facebook actually draws it: nothing in this
+container can post to Facebook. After deploy, paste a share link into
+Facebook's Sharing Debugger and press "Scrape Again" - Facebook keeps the
+old picture for a link it has already read until that is done.
+
+Tests: the last block of `tests/test_share_landing.py`.
+
+## 622. The episode as a photo to post, the link in the first comment (2026-11-17)
+
+§621 said what a better link card cannot do: Facebook holds back a post
+that links out, so the 168 the group admin's post reached is not a matter
+of how the link looks. The owner asked for option 4 of the five put to
+them: a photo posted natively, the link in the first comment.
+
+**Built.** `link_preview.post`: 1080x1350 JPEG - the episode's picture
+across the top 720px, then "1.5 MIN EPISODE", the title (three lines, cut
+with an ellipsis), the episode's one line (the cached summary, three lines
+at most and only as many as clear the foot), and a foot with the play
+button, "LISTEN TO THE FULL EPISODE", the host and the wordmark. With no
+picture of its own ([link-picture]) the words are set larger on FAM's
+ground. `GET /api/share/<id>/post.jpg`, `?download=1` for a file, public
+behind the waitlist; `/api/share` names it as `post`. `/admin/groups`: a
+card whose episode has been heard has "Photo for a post" beside "Copy the
+link", with a line saying to send the admin the photo and the link for the
+first comment.
+
+**Not built.** The app's share sheet does not offer the photo. No clip
+(option 3). No per-group tagging of links (option 5), so opens still cannot
+be told apart by group.
+
+**Not known.** Whether it works. Nothing here can post to Facebook; the
+test is the same admin posting the same episode as a photo and reporting
+reach. Egan's first message still pitches a link, not a photo - a person
+says the rest.
+
+Tests: the last block of `tests/test_share_landing.py`.
+
+## 623. The episode's opening as a captioned clip to post (2026-11-17)
+
+The third thing the Facebook group's admin asked for (§621), and the
+owner's next pick: "a quick 15-30 second audiogram/video clip (with
+captions and visuals) to post natively on Facebook before linking to the
+full episode".
+
+**What already existed, which is why this is small.** Kept audio (Opus in
+R2, §237) is stored with the sentences spoken and where each begins
+(`StoredAudio.starts`, measured at voicing for the live captions). PyAV,
+the Opus codec's dependency, carries libx264 and AAC. So a clip is a cut
+and a drawing; no new dependency, no model, no voice.
+
+**Built.** `clip.py`: `opening` picks the whole sentences that end inside
+30 seconds; `cues` shows each sentence about seven words at a time inside
+its own measured span; `render` draws the post photo's frame (picture,
+title, play button, host, wordmark) with the caption large under the
+picture and a bar that fills, at 1080x1350 and 10 fps, then 2.5 seconds of
+"Hear the full episode on FAM" in silence; the audio fades over the last
+quarter second. Measured here: a 30-second clip renders in about 4
+seconds on one core and is about 0.8 MB.
+`GET /api/admin/share/<id>/clip.mp4`, admin only, one at a time, four
+remembered. `/admin/groups`: "Video clip for a post" beside the photo; a
+refusal's sentence is shown as it is.
+
+**Refusals, in words.** No kept audio ("Play it through once from its
+link, then make the clip" - Listen first does exactly that); audio kept
+without timings; a first sentence over 30 seconds.
+
+**Why admin only, when the photo is public.** The photo is a few
+milliseconds of drawing. A clip is seconds of a core and a megabyte held;
+§620 had just closed the ways a stranger could make this server work.
+
+**Not verified here.** No episode in the production voice exists in this
+container: the clip was rendered from a test tone with real sentence
+timings, and its frames looked at. How Facebook treats the upload, and
+whether reach recovers, is the admin's to report.
+
+Tests: `tests/test_clip_623.py`.
+
+## 624. The post kit: a link per community, its opens counted (2026-11-17)
+
+The fifth of §621's options. After §621-623 a person on `/admin/groups`
+could send an admin a better link, a photo and a clip - and still could
+not tell whether anybody in that group followed the link, except by
+asking.
+
+**Why they could not.** `admin_groups_listen` made the share as
+`communities.SHARER`, and `ShareStore.create` returns the existing row for
+the same (owner, question, length). Two groups pitched the same episode
+got the same `/s/<id>`, and its `opens` was both groups'.
+
+**Built.** The share is owned by `communities.sharer_for(lead id)`, so a
+lead has a link of its own - the same question and length, so the same
+cache key and the same kept episode. `/api/admin/groups` adds `opens` and
+`own_link` to a lead with a link; the card says "Opened N times from this
+community's own link", or, for a link made before this, that its count is
+every group's together and Listen again gives the community its own.
+`GET /api/admin/groups/kit?id=`: the link, the photo, the clip, a caption
+composed in code and the first-comment line; the card has **Copy caption**
+and **Copy first comment** beside the photo and the clip.
+
+**What an open is.** The landing page reports it once it is running in
+front of a person (`share_opened`), so link previewers and crawlers are
+not counted. It is not a play, and it is not reach: how many people
+Facebook showed the post to is still only the admin's to say.
+
+**Not built.** The kit is buttons on the card, not a page the group's
+admin opens - a person still sends the pieces. Egan's first message is
+unchanged and pitches a link. Opens are a total, not a history by day.
+
+Tests: `tests/test_post_kit_624.py`.
