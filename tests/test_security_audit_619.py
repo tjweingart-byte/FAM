@@ -31,6 +31,9 @@ was the reproduction - and passes against the fix.
 9. **The admin's question box could read a reset code's hash**, a let-in
    link's code and a kept Apple token: its list of hidden columns is kept by
    hand and predates all three.
+10. **A visitor with no account could have photos checked by the paid model
+    without end**, because the pace on it follows a session a guest never
+    keeps.
 """
 from __future__ import annotations
 
@@ -602,3 +605,38 @@ def test_a_question_cannot_read_a_reset_code_a_let_in_link_or_a_kept_token(tmp_p
                         )["rows"] == [[None, None, "plain"]]
     # And what it is for still reads.
     assert read("SELECT email FROM accounts.accounts") == [EMAIL]
+
+
+# --- 10. a paid photo check needs an account ----------------------------------
+
+_PIXEL = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4"
+          "2mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
+
+def test_a_guest_cannot_spend_a_photo_check(server, monkeypatch, tmp_path):
+    import image_check
+    import social as social_mod
+
+    monkeypatch.setattr(appmod, "SOCIAL", social_mod.SocialStore(str(tmp_path / "s.db")))
+    calls = []
+
+    async def check(data_url, usage=None):
+        calls.append(1)
+        return image_check.Verdict(True, "")
+
+    monkeypatch.setattr(image_check, "will_call", lambda: True)
+    monkeypatch.setattr(image_check, "check", check)
+    # Forty strangers, none keeping a cookie: before, forty paid checks.
+    answers = {_stranger(server).post("/api/me", json={
+        "name": "Guest", "handle": f"guest{n}", "avatar": _PIXEL}).status_code
+        for n in range(40)}
+    assert answers == {401}
+    assert calls == []
+
+    # An account's picture is still checked, and kept.
+    owner = _stranger(server)
+    assert _login(owner, GOOD).status_code == 200
+    appmod._gen_tokens.clear()
+    saved = owner.post("/api/me", json={"name": "Ian", "handle": "ian", "avatar": _PIXEL})
+    assert saved.status_code == 200, saved.text
+    assert calls == [1]

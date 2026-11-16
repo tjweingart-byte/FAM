@@ -37433,6 +37433,12 @@ failing on the old code.
    mix's `join_token`; and any column *named* like a credential (`*token*`,
    `*_hash`, `*secret*`, `password*`, `keys`) is hidden from the live schema
    without being listed, as BLOB columns already were.
+10. **A visitor with no account could have photos checked by the paid model
+    without end** (low; about $0.0002 a photo). `/api/me` takes a guest's
+    name and picture, the check is paced by `_rate_limit`, and that pace
+    follows a session a guest never has to keep (fix 1's root cause again).
+    Reproduced: forty strangers, forty paid checks. A photo check needs an
+    account now, refused before the money is spent, as a guest's audio is.
 
 ### Open: each needs the owner's decision
 
@@ -37468,10 +37474,21 @@ F. **A reset code is six digits and five tries, five codes an hour**: 25
    guesses an hour at one account, which holds. Across many addresses at once
    it is 25 an hour *each* - about one account per 40,000 account-hours of
    trying, with every one of them receiving five emails an hour.
+H. **Made-up addresses count as invites.** Joining needs an address and
+   nothing proves it, so five joins with one referral code earn its owner
+   the free month and a higher place; `WAITLIST_REFERRALS_PER_HOUR` slows
+   that and does not stop it. The same missing step as A to D: an address
+   somebody has shown they can read.
 G. Low: a sign-up keeps the session token the browser already had (a risk
    only if somebody could plant a cookie); an unknown address costs a
    sign-in two hashes and a known one one (sign-up already says whether an
    address is registered).
+
+**Two causes sit under most of the open list**: FAM never checks that an
+address is its owner's (A, B, C, D, H), and it cannot tell one visitor from
+another once they stop sending a cookie (D, E, F). A confirmation email at
+join - `mail.py` already sends - and the listener's real address from the
+proxy would close most of it.
 
 ### Checked and found sound
 
@@ -37514,10 +37531,11 @@ parameterised. Stored pictures cannot be SVG or HTML.
 
 Stopped by the usage limit, to be resumed: `static/waitlist.html` and
 `listen.html` by running them (read, not driven); document parsing (a hostile
-PDF or .docx); what a stranger or a waitlisted account can make FAM spend,
-endpoint by endpoint; a push subscription's endpoint (the server later posts
-to an https address the browser supplied - blind, low); secrets in logs and
-in the repository's history; the iOS app's own storage.
+PDF or .docx); the rest of what a stranger or a waitlisted account can make FAM
+spend, endpoint by endpoint (the photo check is fix 10); a push subscription's endpoint (the server later posts
+to an https address the browser supplied - blind, low); secrets in logs; the iOS app's own storage. (The repository and
+its history hold no credential: every key-shaped string is a placeholder or
+a test's.)
 
 **Not verified here:** that Render's router sends `X-Forwarded-Proto` on
 every request (fix 2 and HSTS rest on it; `_public_base` has relied on it

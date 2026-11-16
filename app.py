@@ -10875,6 +10875,13 @@ async def _check_photo(request: Request, user: str, data_url: Optional[str],
     # A paid model call: paced like one (`limit-episodes`) - and only when
     # one will actually be made.
     if image_check.will_call():
+        # And only for an account (§619). `/api/me` takes a guest's name, and
+        # a guest is a session anybody mints by sending no cookie: each such
+        # request had a fresh bucket, so the pace below never refused one and
+        # a stranger could have pictures checked on FAM's bill without end.
+        # As with audio, a guest is turned away before the money is spent.
+        if not _has_account(request):
+            raise HTTPException(status_code=401, detail=ACCOUNT_REQUIRED)
         _rate_limit(request)
     usage = metering.Usage()
     verdict = await image_check.check(data_url, usage=usage)
