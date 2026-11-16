@@ -1399,6 +1399,17 @@ def test_the_app_opens_on_set_your_password_when_it_is_needed():
     assert submit.index("again.value !== pw") < submit.index("fetch(")
 
 
+def test_an_admin_account_never_signs_in_by_email_alone(world, monkeypatch):
+    """§619's email-alone sign-in is never a way into /admin."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _member, body = _join("boss@fam.test", password="")
+    assert appmod.ACCOUNTS.account(body["user_id"])["status"] == "active"
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "boss@fam.test", "password": ""})
+    assert r.status_code == 401 and "admin account" in r.json()["error"]
+    assert door.get("/api/auth/me").json().get("authenticated") is not True
+
+
 def test_log_in_sends_the_email_alone_and_opens_set_your_password():
     """§619: the app's Log in no longer refuses an empty password, and a
     sign-in that comes back `password_needed` opens the first-password screen."""

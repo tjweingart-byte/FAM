@@ -37364,7 +37364,9 @@ sign-in are unchanged.
   `_password_needed` account signs it in (`accounts.signed_in_by_email`,
   stamping `last_login`), a fresh session as any log-in; the answer carries
   `password_needed`. Whatever was typed as a password is ignored - there is
-  none to check. `_no_password_words` now tells a waiting account it signs in
+  none to check. **Never an admin account** (`FAM_ADMIN_ACCOUNTS`, made
+  `active` at the join by §216): the email alone must not open `/admin`, so
+  it keeps §606's link or Forgot password?. `_no_password_words` now tells a waiting account it signs in
   with the email once let in, and a let-in phone sign-in to use the email.
 * Web: `#screen-password-first` has **Password** and **Confirm password**,
   each with its own eye (`togglePasswordShown`), both reset to hidden once
