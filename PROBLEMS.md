@@ -37981,3 +37981,25 @@ is not a figure I can give you") - and **the check drops both**, so none
 reaches a listener. Against §626: 13 leaking sentences in 5 of 8 scripts
 under the old wording, 4 in 2 of 8 after §625, 2 in 2 of 8 now. Eight
 scripts is a direction, not a rate.
+
+## 630. The plan for 2027, from an interview with the owner (2026-11-16)
+
+The last item taken from the list this work began with (§620): an
+interview that pushes back, ending in a month-by-month plan. Fourteen
+questions, one at a time. `docs/PLAN_2027.md` is the result, and holds what
+the owner said; the owner chose to keep it in the repository.
+
+**Two things the interview found in the code:**
+- **Nothing counts a returning listener.** The event log has every play;
+  no number anywhere says how many people listened this week and also
+  last. It is the number the plan is stated in, so it is the plan's first
+  item. A sign-up does not record which channel it came from either.
+- **[op-voice] is out of date**: it says nobody has heard an episode in the
+  production voice. The owner has heard about thirty in two weeks and
+  stopped none early. The rule's wording is the owner's to change.
+
+**Derived in the plan, not said by the owner:** the monthly targets between
+the owner's own numbers, and when the runway ends.
+
+No code changed. Not run: the full check, on a commit that adds a document,
+a log entry and a line to an index.
