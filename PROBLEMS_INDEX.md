@@ -610,11 +610,13 @@ and `limit` = Lines.
 | 37163 | 110 | 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14) |
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
-| 37339 | 87 | 619. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
-| 37426 | 48 | 620. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
-| 37474 | 36 | 621. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
-| 37510 | 64 | 622. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
-| 37574 | 67 | 623. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
-| 37641 | 54 | 624. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
-| 37695 | 43 | 625. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
-| 37738 | 41 | 626. The material check extended to what the writer "can" do with a figure (2026-11-16) |
+| 37339 | 56 | 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16) |
+| 37395 | 87 | 620. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
+| 37482 | 48 | 621. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
+| 37530 | 36 | 622. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
+| 37566 | 64 | 623. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
+| 37630 | 67 | 624. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
+| 37697 | 54 | 625. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
+| 37751 | 43 | 626. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
+| 37794 | 41 | 627. The material check extended to what the writer "can" do with a figure (2026-11-16) |
+| 37835 | 105 | 628. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |

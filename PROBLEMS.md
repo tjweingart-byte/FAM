@@ -37336,6 +37336,62 @@ font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
 
+## 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16)
+
+**Asked.** The owner: "Right now, people getting off of the waitlist have to
+go through their email to set up their password. This is clunky. We want
+people to sign up for the waitlist using only their email, then when they get
+off of the waitlist, the first thing they see in the app is to set their
+password ... they should set their password and verify it with a matching
+password. In each password box, there should be a button on the right to see
+what they are typing or not."
+
+**What was there (§606).** The join was already the email alone, and the
+device that joined already opened on "You're in. Set your password" (one
+field). Any *other* device - most often the iPhone after joining on the web -
+had to open the let-in link from the email or text, because §606 refused to
+let the email alone in.
+
+**The decision.** Asked how another device should prove it is the person (a
+6-digit code, the email alone, or keep the link), the owner chose **the email
+alone**, with the trade stated: until the password is set, anyone who knows a
+let-in address can sign in as it and set one. The window closes the moment a
+password is set; a waitlisted account, a Google/Apple account and a phone
+sign-in are unchanged.
+
+**Done.**
+* `/api/auth/login`: `NoPasswordYet` on an email sign-in for a
+  `_password_needed` account signs it in (`accounts.signed_in_by_email`,
+  stamping `last_login`), a fresh session as any log-in; the answer carries
+  `password_needed`. Whatever was typed as a password is ignored - there is
+  none to check. **Never an admin account** (`FAM_ADMIN_ACCOUNTS`, made
+  `active` at the join by §216): the email alone must not open `/admin`, so
+  it keeps §606's link or Forgot password?. `_no_password_words` now tells a waiting account it signs in
+  with the email once let in, and a let-in phone sign-in to use the email.
+* Web: `#screen-password-first` has **Password** and **Confirm password**,
+  each with its own eye (`togglePasswordShown`), both reset to hidden once
+  set; "Type your password again to confirm it." / "Those passwords don't
+  match." before any request. Log in no longer refuses an empty password
+  (sign-up still does); a sign-in that comes back `password_needed` opens the
+  screen. `#authLetInNote`: "Just off the waitlist? Leave the password empty -
+  you'll set one next." `/waitlist`'s sign-in says "(leave empty if you
+  haven't set one)" and already sends an active account to `/`.
+* iOS: `FirstPasswordFields` is two `secret(...)` boxes, each with its eye,
+  the same sentences; `AuthView.logIn` sends an empty password, `beginEntry`
+  then opens `PasswordFirstView`; the same note under Log in, and "already
+  registered" says to leave the password empty. Swift parsed with
+  tree-sitter; not compiled here.
+* The let-in email (passwordless): "Open FAM and sign in with this email
+  address; the first thing it asks is to set your password", the home
+  address, then the free-month link. The text: "FAM: you're in! Sign in with
+  your email. Free month of Plus (...)" - one segment. The SMS consent line and
+  the privacy page no longer say the link sets the password.
+
+**Tests:** `tests/test_waitlist.py` (the sign-in: waiting refused, let in
+signed in by email with `password_needed`, and refused by email alone once a
+password is set; the screen's two fields and eyes; Log in's empty password),
+`tests/test_waitlist_notify.py`, `tests/test_ios_app_contract.py`.
+
 ## 620. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
 
 The owner, on a list of things worth having the session's stronger model
@@ -37775,3 +37831,108 @@ with it, and nothing is said in its place. Each drop is on /admin's errors.
 
 Tests: `tests/test_material_guard_623.py` (twelve more leaks caught, ten
 more look-alikes pass).
+
+## 628. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16)
+
+The owner: "Double check all changes that have been made in this branch,
+and let me know what else needs to be done." A pass of my own over the
+diff, then an independent review that ran the code beside Main's and
+replayed the 186 stored scripts and a 20,000-script fuzz. Every confirmed
+finding is fixed; the sections above are as they were written, and this
+one says where they were wrong.
+
+**The guard (§623, §627) - found by the review, all reproduced:**
+- *A dropped opening took the facts after it, and could be said again at
+  the end.* §623 had the opening check count "the latest price we have" as
+  a disclaimer, so "It was three to one, Dodgers" after it was dropped as
+  leaning on one - and when the opening window ran out with nothing
+  counted as spoken, `rescue()` spoke all six dropped sentences as the
+  episode's last line. That last fault was on Main too (six disclaimers,
+  then the episode). Now: only a real disclaimer starts that run; a
+  sentence the material check drops is un-counted (`OpeningGuard.retract`)
+  and starts none; past the window a sentence counts as spoken; and
+  `finish` asks for a rescue only when nothing at all was said.
+- *The middle of a quotation was dropped.* Sentences are split inside
+  quotation marks, so "I don't have an explanation for the second
+  quarter." between `"We got lucky.` and `We will fix it."` carried no
+  mark and matched. `MaterialGuard` now carries an open double quote from
+  one sentence to the next, and forgets a stray mark after four.
+- *History and science told with "we" were dropped* - "we don't have an
+  exact figure for the death toll at Pompeii", "the last reading we have
+  from Voyager 2", "what is happening now is not something we have seen
+  since 1929", "what we can establish is that Richard was in the Tower".
+  The plural patterns are narrower: a price, a score or an update "we
+  have"; "in / from the reporting we have"; "we don't have a figure" only
+  in a sentence about now; "where it stands ... is not something we can
+  see" only about where a thing stands or trades. "Nothing we can
+  establish" and "what we can date is" are gone - they echoed a word the
+  instructions no longer use (§625).
+- *Speech reported without quotation marks was dropped* ("I can't say
+  enough about this defense, Sirianni told reporters"; "one admission: I do
+  not have the answer"; a lyric after "sings"). The singular pattern stands
+  aside for those.
+- *Leaks that still passed* and are caught now: "the latest price I have",
+  "that is the latest we have" (the instructions' own bad example, which
+  the check did not match), "isn't something we can see", "I can't yet
+  confirm", "we can't tell you". An elision ("the '90s", "'em") no longer
+  opens a quotation that hid a leak to the next possessive; a quotation
+  may run to 600 characters.
+- Mine, before the review: "what happened this morning is not something we
+  can ignore" was dropped as the writer's access.
+
+**After the fixes:** the stored drafts, 2,868 sentences - ten dropped, all
+ten the writer's own access, order kept, nothing said twice. §626's sixteen
+scripts - 14 of the 17 leaking sentences caught (the three that pass are
+the two "establish" echoes and "the last figure we have is from that
+Sunday morning"). A 20,000-script fuzz - never silent, never out of order.
+**Still passing on purpose or for want of a safe pattern:** "the latest
+figure / number / data we have", "we have no figure for this morning",
+"we don't have this morning's figure", "I have no confirmed result", "what
+we can say is that...". **Still dropped wrongly, constructed not seen:** a
+sentence-case title ("...closed the set with I can't tell you why").
+
+**The comparison tool (§622):**
+- more unsupported claims was counted as "better" (the differences in §624
+  were right; that row's labels were not);
+- "mean of six" averaged whatever marks a grade had left, and the rows
+  were taken from the first script - a script short of a mark is now left
+  out, and every row is always printed (§624's numbers stand: its one
+  short grade was short of all six);
+- the candidates guide told the owner to compare `none` with
+  `none_before_620`, which have been identical since §625. A new arm,
+  `none_candidates`, puts `examples/candidates/` in front of the writer for
+  that arm only - in file-name order, no more pairs than it is shown - so
+  a candidate can be measured **before** it is adopted;
+- a results folder re-used across a change of instructions compared the
+  wrong things under the right names: each result now records a mark of
+  the instructions it was written from, and `--run` says when they differ;
+- `_Settings` left its swap in place when it failed part-way.
+
+**Tests:** four were pinned to the faulty behaviour or passed whatever the
+code did (an interval tested on identical differences; an assertion true
+on Main's pattern too; counts fixed at six; `TEACHING_PAIRS == []`). They
+are rewritten around the reviewer's sentences, exercise the interval, the
+failure path and the stale-result notice, and skip, not fail, when the
+candidates are legitimately moved. The wording test now builds a
+researched request, which is where the evidence and timing blocks are.
+
+**/admin** had no words for a "material check" notice; it has
+(`pipeline_errors.EXPLAIN`).
+
+**Costs, corrected.** §620 said about $0.80; its twenty grades were priced
+at 2.5 cents and cost about 5.4, so it was nearer $1.40. With §624's $9.08,
+the day's spend on the owner's key was about $10.50. Nothing since §624 has
+spent on it: §626's sixteen runs and both reviews ran inside the session.
+
+**Main merged** (its §619, the waitlist sign-in): this branch's sections
+are §620-§628, and the tests and the arm named after them moved with them.
+
+**Not changed, for the owner:**
+- the request's timing rules still say "the answer is that we do not have
+  it" (`script_generator.py`, the order-of-sources bullet), in every
+  researched episode - the phrase the guard drops. A rewording is a change
+  to every episode;
+- [no-api-key] and [ci-python] are out of date (keys are set here; Python
+  is 3.13);
+- whether the rewording (§625) lowers the leak in production is unmeasured
+  beyond §626's sixteen scripts; /admin's notices will show it.

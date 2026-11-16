@@ -49,15 +49,16 @@ def _when(starts: float) -> str:
 def email_body(name: str, link: str, home: str, starts: float,
                can_sign_in: bool = True) -> str:
     """The let-in email. An account that joined with the email alone has
-    no password (§606), so its link is the way in: it signs them in, the
-    app's first step is setting one, and it claims the month as well."""
+    no password (§606); it signs in with that email and the app's first
+    screen sets one (§619) - the email is a notice, never a step."""
     hello = f"Hi {name}," if name else "Hi,"
     if not can_sign_in:
         return (f"{hello}\n\n"
-                "You're off the waitlist - FAM is open to you now. Open this "
-                "link to sign in and set your password:\n"
+                "You're off the waitlist - FAM is open to you now. Open FAM "
+                "and sign in with this email address; the first thing it "
+                f"asks is to set your password:\n{home}\n\n"
+                "You also get a free month of FAM Plus. Claim it here:\n"
                 f"{link}\n\n"
-                "The same link claims your free month of FAM Plus. "
                 f"{_when(starts)} Nothing to pay, and nothing is billed after.\n\n"
                 "- FAM\n")
     return (f"{hello}\n\n"
@@ -75,7 +76,7 @@ def sms_body(link: str, starts: float, can_sign_in: bool = True) -> str:
     when = "from launch day" if not starts else \
         f"from {time.strftime('%b', t)} {t.tm_mday}"
     if not can_sign_in:
-        return (f"FAM: you're in! Set your password & claim a free month "
+        return (f"FAM: you're in! Sign in with your email. Free month "
                 f"of Plus ({when}): {link} Reply STOP to opt out.")
     return (f"FAM: you're off the waitlist! Claim a free month of Plus "
             f"({when}): {link} Reply STOP to opt out.")
