@@ -37391,3 +37391,243 @@ sign-in are unchanged.
 signed in by email with `password_needed`, and refused by email alone once a
 password is set; the screen's two fields and eyes; Log in's empty password),
 `tests/test_waitlist_notify.py`, `tests/test_ios_app_contract.py`.
+
+## 620. The security audit: sign-in, sessions and what every response says (2026-11-16)
+
+**Asked for** by the owner: a full security audit, the first dedicated one
+since §72, after about 550 sections that added phone sign-up, emailed reset
+codes, Google and Apple, bearer tokens, `/admin`, photos, messages, groups,
+public profiles and the waitlist. **This section is the part that is done.**
+The account's usage limit stopped the three parallel reviewers part-way
+(the web interface's HTML sinks; uploads, outbound fetches and SQL; the admin
+query box and what a stranger can make FAM spend), so those areas are **not
+audited yet** and are listed at the end rather than called clean.
+
+Every finding below was reproduced against the running app before it was
+touched; `tests/test_security_audit_620.py` is those reproductions, each
+failing on the old code.
+
+### Fixed
+
+1. **Guessing a password was not paced at all** (high). `_rate_limit` keys
+   on the session (§70: the address is the proxy's), and a request with no
+   cookie is minted a fresh session, so a fresh, full bucket. Measured: forty
+   wrong passwords for one address from clients that sent no cookie, forty
+   401s and no 429; the same forty from one cookie-keeping client, 37
+   refusals. So only a polite client was ever paced - `/api/admin/login`
+   included, and that door opens every store. `ACCOUNTS.md` said log-in was
+   paced per client; it was not.
+   **Now** a wrong try is counted against the *address being tried*
+   (`_auth_attempt`): five are free, the fifth starts a one-minute wait and
+   each try after it doubles the wait, to fifteen minutes; an hour without a
+   try forgets the count and the right password clears it. About a hundred
+   guesses a day at one account instead of twenty a second. Counted before
+   the password is checked, as a reset code's tries are, so guesses sent
+   together cannot all pass first. One count for the app's sign-in, the
+   admin's and the waitlist form's admin preview. The lock reads the same for
+   an address with no account. **A lock is something a stranger can cause**,
+   so it is not allowed to keep the owner out: a request already signed in
+   to that account passes it (a reset code signs a browser in). In memory,
+   as the other limiters are; bounded at 20,000 addresses.
+2. **Both cookies went out without `Secure` on the HTTPS site** (medium).
+   `secure=request.url.scheme == "https"`, and behind Render's router the
+   app sees plain HTTP (`_public_base` already knew this), so `fam_session`
+   and `fam_admin` could be sent over plain http and read off a shared
+   network. `_over_https` reads `X-Forwarded-Proto` as `_public_base` does.
+   A plain-http LAN address still gets a cookie it can send back.
+3. **The reset email linked wherever the request said** (medium). §297 put
+   `{base}/reset` in the email with `base = _public_base(request)`, which
+   reads the caller's `X-Forwarded-Host`. Reproduced: a stranger asks for
+   somebody's code with that header set, and FAM emails them a real code
+   beside "Paste it into the FAM reset password page: https://evil.example/reset".
+   §304 fixed exactly this for the report alert and not here. The link is
+   from settings alone now.
+4. **No response said how a browser may treat it** (low). No header against
+   framing, type sniffing or a return over plain http anywhere. Every
+   response now carries `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+   SAMEORIGIN`, `frame-ancestors 'self'` and a referrer policy, and
+   `Strict-Transport-Security` when it was asked for over https
+   (`security_headers`, the outermost middleware). A full script policy is
+   not possible while every control is an inline `onclick`.
+5. **A note could be deleted by a request with no session** (low).
+   `SOCIAL.remove_note(id, "")` means "a moderator, for everybody", and the
+   handler passed `_listener(request)`, which is "" when a session could not
+   be minted (the accounts store not answering). Reproduced with the store
+   failing: 200 and the note gone. The handler requires a listener now.
+6. **Changing an account's email told nobody** (see open item A). The old
+   address is now told, as a reset and a first password are.
+7. **An admin address nobody holds is said out loud** (see open item B): an
+   error in the boot log, and an alert on `/admin` each time an admin signs in.
+8. **Attaching a link made the server fetch any address it was given** (high).
+   `attachments.fetch_link` checked the scheme and nothing else, followed
+   redirects, and `/api/attach` handed back the page's title and its first
+   160 characters - then the whole text went to the writer. Reproduced with
+   a page on the server's own loopback: 200, `name: "internal admin panel"`,
+   `preview: "... DB_PASSWORD=hunter2 ..."`. So anybody who could attach a
+   link could read what only FAM's machine can reach: its loopback, a
+   private network, its host's metadata address. **Now** a link is opened
+   only where *every* address its name resolves to is public
+   (`_public_addresses`: one private answer among public ones is how a name
+   is made to look safe), each redirect is checked the same way, and the
+   address that was checked is the one connected to - the name goes in
+   `Host` and in the TLS handshake, so a name cannot answer differently the
+   second time and the certificate is still verified against the site asked
+   for (tested with a certificate for another name: refused). The body is
+   read as it arrives and no further than the cap, where it used to be held
+   whole. Proxy settings from the environment are not used.
+   And **`/api/attach` did all of this on the event loop** - eight seconds of
+   fetch, or a PDF's parse, in which no other listener was served. It runs in
+   a thread now, as scrypt does (§241).
+9. **The admin's question box could read a reset code** (medium; SQLite
+   deployments - on Postgres a question's SQL is not run, §243).
+   `admin_tracker.SECRET_COLUMNS` is a list kept by hand ("a guard whose
+   subject is enumerated by hand is decorative") and three secrets were
+   added to the accounts store after it: `password_resets.code_hash` (§244),
+   `accounts.claim_code` (§587) and `identities.token` (§301). Reproduced:
+   `SELECT code_hash FROM accounts.password_resets` answered, and the six
+   digits were found from the hash at once. All three are listed, with a
+   mix's `join_token`; and any column *named* like a credential (`*token*`,
+   `*_hash`, `*secret*`, `password*`, `keys`) is hidden from the live schema
+   without being listed, as BLOB columns already were.
+10. **A visitor with no account could have photos checked by the paid model
+    without end** (low; about $0.0002 a photo). `/api/me` takes a guest's
+    name and picture, the check is paced by `_rate_limit`, and that pace
+    follows a session a guest never has to keep (fix 1's root cause again).
+    Reproduced: forty strangers, forty paid checks. A photo check needs an
+    account now, refused before the money is spent, as a guest's audio is.
+
+### What the independent review of these fixes found
+
+The fixes were written on one model and read by a fresh reviewer on another,
+given the diff and what each change was for and none of the conclusions
+above. It found two ways round them and four regressions; each is fixed and
+pinned (the last tests in the file, all failing on the code as reviewed).
+
+* **The count could be reset by naming addresses.** A full table dropped
+  everything not waiting, so twenty thousand made-up addresses bought five
+  fresh tries at the real one. An address that has used its free tries now
+  keeps its count for the hour; a table holding nothing else refuses a new
+  address rather than letting it through uncounted.
+* **The waitlist form said which addresses are admins**: only an admin's
+  address reached the count there, so only an admin's ever answered 429.
+* **A private address inside an IPv6 one passed as public** (NAT64,
+  IPv4-compatible, 6to4, site-local): `is_global` is true for them.
+* **Regressions in the link fetch**: an IPv6 link named itself without
+  brackets; only the first address of a name was tried, where the old code
+  let the name fall back to another; and the cap counted compressed bytes,
+  so 200 KB of gzip unpacked to 67 MB in one piece. Pages are asked for
+  uncompressed and unpacked only to the cap.
+* **The question box hid the ledger's token counts**: `token` anywhere in a
+  name caught `input_tokens`. Whole words now.
+* Left as it is: a 500 from an unhandled exception goes out above every
+  middleware and so without the new headers.
+
+### Open: each needs the owner's decision
+
+A. **An account's email changes with no password, and the next reset code
+   goes to the new address.** Whoever holds a signed-in browser for a minute
+   can make the account theirs for good. The old address is told now (fix 6)
+   but cannot take it back. The real fix is to ask for the current password
+   (or keep the old address able to undo it for a while); asking breaks
+   email-edit on the iOS builds already installed, so it was not done here.
+B. **An admin is whoever's account carries an address in
+   `FAM_ADMIN_ACCOUNTS`, and no address is verified.** Reproduced with an
+   address that had no account: join the waitlist with it, set a first
+   password, sign in to `/admin`, read the tracker. Safe only while every
+   listed address already has its admin's account, and it stops being safe
+   the day an admin changes their email or deletes their account. Fix 7
+   makes the gap visible; closing it means verifying addresses or naming
+   admins by listener id.
+C. **A way in that was linked before a reset survives it.** Somebody who
+   creates an account with another person's address (nothing verifies it)
+   and links their own Google or Apple to it keeps that link after the real
+   owner resets the password.
+D. **The waitlist's friend search answers "whose email or number is this?"**
+   with a name, handle and face, twenty a day per account - and accounts are
+   free and unverified, so the twenty is not a limit.
+E. **Nothing paces a client that does not keep its cookie.** Every such
+   request to `/api/*` is minted a new 90-day session row; sign-up, the
+   waitlist join and a sign-in at an unknown address (two password hashes,
+   about a tenth of a second of CPU) are unpaced per client. Fix 1 closes
+   password guessing; pacing a *client* needs the listener's real address
+   from the proxy (on Render, the header its edge sets), which is a setting
+   that has to be checked on the deployed service.
+F. **A reset code is six digits and five tries, five codes an hour**: 25
+   guesses an hour at one account, which holds. Across many addresses at once
+   it is 25 an hour *each* - about one account per 40,000 account-hours of
+   trying, with every one of them receiving five emails an hour.
+H. **Made-up addresses count as invites.** Joining needs an address and
+   nothing proves it, so five joins with one referral code earn its owner
+   the free month and a higher place; `WAITLIST_REFERRALS_PER_HOUR` slows
+   that and does not stop it. The same missing step as A to D: an address
+   somebody has shown they can read.
+I. **Already decided, recorded here so the audit is whole** (§619, the
+   owner, with the trade stated): until a let-in account sets its password,
+   its email address alone signs in as it. Never an admin's. Fix 1's count
+   does not bear on it - the first try is the one that gets in.
+J. **Fix 1's lock can be held against a phone-only account** (the
+   review): it has no reset, so four wrong tries an hour at its number keep
+   a new device out of it. An email account resets its way past. The cure
+   is E's - knowing one visitor from another - not a weaker lock. An account
+   with an email and a number also has a count on each, twice the rate.
+G. Low: a sign-up keeps the session token the browser already had (a risk
+   only if somebody could plant a cookie); an unknown address costs a
+   sign-in two hashes and a known one one (sign-up already says whether an
+   address is registered).
+
+**Two causes sit under most of the open list**: FAM never checks that an
+address is its owner's (A, B, C, D, H), and it cannot tell one visitor from
+another once they stop sending a cookie (D, E, F). A confirmation email at
+join - `mail.py` already sends - and the listener's real address from the
+proxy would close most of it.
+
+### Checked and found sound
+
+Sessions (server-minted, stored only as a hash, a fresh token at every
+sign-in, ended on reset and password change); password storage (scrypt,
+bounded input); the reset code itself (hash only, tries counted atomically);
+Google and Apple (verified or refused, account reached by subject, never by
+address); the let-in link (22 characters from `secrets`, a way in only while
+the account has no password); the waitlist gate (every request, on the
+decoded path); **every `/api/admin/*` route calls `_require_admin`** (all
+checked by script; only the empty HTML shells do not); the admin token
+compare (constant time, 404 when unset); voice worker registration (off
+without its token, constant-time); message threads and groups (membership
+checked in the store), saved episodes, mixes and invites (scoped to their
+owner in the store, tokens from `secrets`); comments, replies and vibes
+(author or post owner); stored pictures (four image types, served by a fixed
+type, named by a validated hash - no SVG, no path); the shared-episode page
+and story card (escaped).
+
+**Script injection in the web app, tested by running it.** Every
+human-written field in every API answer (names, titles, messages, captions,
+notes, queries, places...) was given a marker payload - as markup, as an
+attribute breakout and as an inline handler's string - and a browser opened
+the app's screens, called all 160 of its no-argument loaders and clicked
+what appeared. Up to 76 tainted values were on screen at once, drawn as
+text. **One ran**: the plans screen draws a tier's `name` unescaped, and a
+tier name is a constant from `entitlements.py`, not anything a person
+types. `topicRowHTML`, `favTopicRowHTML` and `recoRowHTML` also draw a title
+unescaped and are fed only by the built-in topic table. Neither is a hole
+today; both are worth an `escapeHtml` the next time that code is touched.
+No value a person types reaches an inline handler's string (checked by
+script: every one is an id, a validated handle or a constant). The admin
+pages escape through `esc()` throughout, the generic table included.
+
+SQL: forty statements are built with an f-string and every interpolated
+value is a constant, an integer or a schema name; everything else is
+parameterised. Stored pictures cannot be SVG or HTML.
+
+### Not audited yet
+
+Stopped by the usage limit, to be resumed: `static/waitlist.html` and
+`listen.html` by running them (read, not driven); document parsing (a hostile
+PDF or .docx); the rest of what a stranger or a waitlisted account can make FAM
+spend, endpoint by endpoint (the photo check is fix 10); a push subscription's endpoint (the server later posts
+to an https address the browser supplied - blind, low); secrets in logs; the iOS app's own storage. (The repository and
+its history hold no credential: every key-shaped string is a placeholder or
+a test's.)
+
+**Not verified here:** that Render's router sends `X-Forwarded-Proto` on
+every request (fix 2 and HSTS rest on it; `_public_base` has relied on it
+since §114), and whether it overwrites a caller's `X-Forwarded-Host`.

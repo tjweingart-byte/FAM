@@ -19,9 +19,11 @@ from __future__ import annotations
 import base64
 import binascii
 import io
+import ipaddress
 import json
 import logging
 import re
+import socket
 import sqlite3
 
 import db as store_db
@@ -29,7 +31,9 @@ import threading
 import time
 import uuid
 import zipfile
+import zlib
 from dataclasses import dataclass, field
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from paths import data_path
 
@@ -190,6 +194,147 @@ def html_to_text(html: str) -> tuple[str, str]:
     return title, _clip(body)
 
 
+#: Redirects a link may take before it is given up on.
+MAX_REDIRECTS = 5
+
+NOT_PUBLIC = "That link is not a page on the public internet."
+
+#: IPv6 ranges `is_global` calls public that are another address in
+#: disguise (the independent review of §620): an IPv4 address carried inside
+#: an IPv6 one - NAT64, IPv4-compatible, 6to4, Teredo - which on a host that
+#: translates is the metadata address or a private network by another
+#: spelling; and the old site-local range.
+_V6_NOT_PUBLIC = tuple(ipaddress.ip_network(net) for net in (
+    "64:ff9b::/96", "64:ff9b:1::/48", "::/96", "2002::/16", "2001::/32",
+    "fec0::/10"))
+
+
+def _public_addresses(host: str, port: int) -> list[str]:
+    """Where `host` is, if every address it names is on the public internet.
+
+    **The server fetches whatever address a listener types** (PROBLEMS.md
+    §620), and it sits somewhere a listener does not: beside the database,
+    the voice worker, its own loopback and its host's metadata address. So a
+    link is opened only where *every* address its name resolves to is a
+    public one - one private answer among several is how a name is made to
+    look safe - and the caller then connects to the address checked here,
+    never to the name again, so a name cannot answer differently the second
+    time it is asked.
+    """
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise AttachmentError("That link could not be opened (its address "
+                              "was not found).") from exc
+    found: list[str] = []
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])
+        except ValueError as exc:
+            raise AttachmentError(NOT_PUBLIC) from exc
+        mapped = getattr(ip, "ipv4_mapped", None)
+        if mapped is not None:
+            ip = mapped
+        if not ip.is_global or ip.is_multicast:
+            raise AttachmentError(NOT_PUBLIC)
+        if ip.version == 6 and any(ip in net for net in _V6_NOT_PUBLIC):
+            raise AttachmentError(NOT_PUBLIC)
+        if str(ip) not in found:
+            found.append(str(ip))
+    if not found:
+        raise AttachmentError(NOT_PUBLIC)
+    return found
+
+
+#: Addresses of one name tried before a link is given up on.
+MAX_ADDRESSES = 3
+
+
+def _capped_body(response) -> str:
+    """The page, read as it arrives and no further than `MAX_BYTES` - of the
+    page, not of what was sent. A page is never held whole in memory because
+    somebody linked a very large one, and a compressed one is unpacked only
+    as far as the cap: 200 KB of gzip can be 67 MB of page (the independent
+    review of §620), which `iter_bytes` would have handed over in one piece.
+    """
+    packed = response.headers.get("content-encoding", "").strip().lower()
+    if packed in ("", "identity"):
+        unpack = None
+    elif packed in ("gzip", "x-gzip", "deflate"):
+        unpack = zlib.decompressobj(zlib.MAX_WBITS | 32)
+    else:
+        raise AttachmentError("That link could not be opened.")
+    kept, size = [], 0
+    for chunk in response.iter_raw():
+        if unpack is not None:
+            chunk = unpack.decompress(chunk, MAX_BYTES - size)
+        kept.append(chunk)
+        size += len(chunk)
+        if size >= MAX_BYTES:
+            break
+    return b"".join(kept)[:MAX_BYTES].decode(response.encoding or "utf-8", "replace")
+
+
+def _read_public(client, url: str) -> str:
+    """The page at `url`, read from a public address and no further than
+    `MAX_BYTES`. Redirects are followed by hand, each one checked as the
+    first address was: a public page that answers "go to 169.254.169.254"
+    is the same request by another route."""
+    import httpx
+
+    for _ in range(MAX_REDIRECTS + 1):
+        parts = urlsplit(url)
+        scheme = (parts.scheme or "").lower()
+        host = parts.hostname or ""
+        if scheme not in ("http", "https") or not host:
+            raise AttachmentError("A link needs to start with http:// or https://")
+        if parts.username or parts.password:
+            raise AttachmentError(NOT_PUBLIC)
+        try:
+            port = parts.port or (443 if scheme == "https" else 80)
+        except ValueError as exc:
+            raise AttachmentError(NOT_PUBLIC) from exc
+        try:
+            name = host.encode("idna").decode("ascii")
+        except UnicodeError:
+            name = host
+        literal = ":" in name          # an IPv6 address written in the link
+        named = f"[{name}]" if literal else name
+        default = port == (443 if scheme == "https" else 80)
+        headers = {"Host": named if default else f"{named}:{port}",
+                   "User-Agent": "FAM/1.0 (+briefing)",
+                   # Asked for as it is, so the cap below counts the page.
+                   "Accept-Encoding": "identity"}
+        onward, unreachable = "", None
+        # Each checked address in turn: a name with an IPv6 address this
+        # machine cannot reach must still open by its IPv4 one, as it did
+        # when the name itself was connected to.
+        for ip in _public_addresses(name, port)[:MAX_ADDRESSES]:
+            at = f"[{ip}]" if ":" in ip else ip
+            target = urlunsplit((scheme, f"{at}:{port}", parts.path or "/",
+                                 parts.query, ""))
+            try:
+                # The address that was checked is the one connected to; the
+                # name still goes in `Host` and in the TLS handshake, so the
+                # certificate is verified against the site that was asked for.
+                with client.stream("GET", target, headers=headers,
+                                   extensions={} if literal else {"sni_hostname": name}
+                                   ) as response:
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        onward = response.headers.get("location", "")
+                        if not onward:
+                            raise AttachmentError("That link could not be opened.")
+                        break
+                    response.raise_for_status()
+                    return _capped_body(response)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                unreachable = exc
+        if not onward:
+            raise unreachable or AttachmentError("That link could not be opened.")
+        url = urljoin(url, onward)
+    raise AttachmentError("That link redirected too many times.")
+
+
 def fetch_link(url: str, timeout: float = 8.0) -> tuple[str, str]:
     """Read a page. Returns (title, text).
 
@@ -197,16 +342,21 @@ def fetch_link(url: str, timeout: float = 8.0) -> tuple[str, str]:
     the cost the project refuses to pay per search. It is acceptable here only
     because it happens when the link is *attached* - while the listener is
     still typing - and never on the generation path.
+
+    Only a page on the public internet (`_public_addresses`, §620), and the
+    environment's proxy settings are not used: the address checked is the
+    one connected to.
     """
     import httpx
 
     if not re.match(r"^https?://", url or "", re.I):
         raise AttachmentError("A link needs to start with http:// or https://")
     try:
-        with httpx.Client(follow_redirects=True, timeout=timeout) as client:
-            response = client.get(url, headers={"User-Agent": "FAM/1.0 (+briefing)"})
-            response.raise_for_status()
-            body = response.text[: MAX_BYTES]
+        with httpx.Client(follow_redirects=False, timeout=timeout,
+                          trust_env=False) as client:
+            body = _read_public(client, url)
+    except AttachmentError:
+        raise
     except Exception as exc:
         raise AttachmentError(f"That link could not be opened ({type(exc).__name__}).") from exc
     title, text = html_to_text(body)

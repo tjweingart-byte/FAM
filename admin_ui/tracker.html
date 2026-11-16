@@ -1802,8 +1802,17 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     ev.preventDefault();
     $("loginErr").hidden = true; $("loginBtn").disabled = true;
     api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value })
-      .then(function () {
+      .then(function (signedIn) {
         $("adminPassword").value = "";
+        // An admin address no account holds is a seat anybody can take
+        // (§620): said to the admin who can fix it, every time they sign in.
+        var loose = (signedIn && signedIn.unclaimed_admin_entries) || 0;
+        if (loose) {
+          window.alert(loose + (loose === 1 ? " address" : " addresses") + " in FAM_ADMIN_ACCOUNTS " +
+            (loose === 1 ? "has" : "have") + " no FAM account. An address is not verified, so whoever " +
+            "signs up with one becomes an admin. Create the account" + (loose === 1 ? "" : "s") +
+            " now, or take the entr" + (loose === 1 ? "y" : "ies") + " out of FAM_ADMIN_ACCOUNTS on Render.");
+        }
         return load().then(start);
       })
       .catch(function (e) {

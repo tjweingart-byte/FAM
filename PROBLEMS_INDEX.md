@@ -611,3 +611,4 @@ and `limit` = Lines.
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
 | 37339 | 56 | 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16) |
+| 37395 | 240 | 620. The security audit: sign-in, sessions and what every response says (2026-11-16) |
