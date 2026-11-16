@@ -711,6 +711,9 @@ async def lifespan(_: FastAPI):
     # Before the first listener signs up into a database that is about to be
     # replaced by the next push.
     _announce_storage()
+    # An admin address nobody holds is an admin seat for whoever registers it
+    # (§620): said here, where the deploy log is read.
+    _warn_unclaimed_admins()
     # Episodes still filed under a node the owner took out (§600): moved to
     # what it became, or unfiled for Nando - in a thread, never awaited.
     asyncio.get_running_loop().run_in_executor(None, _refile_owner_edits)
@@ -1693,6 +1696,144 @@ def _read_limit(request: Request) -> None:
     if not hits:
         _prune(_read_hits, now, lambda v: v[-1] if v else 0.0)
     hits.append(now)
+
+
+# --- wrong passwords are counted against the address being tried (§620) -----
+#
+# `_rate_limit` paces a *client*, and its key is the session. A sign-in has
+# no client to pace: a request with no cookie is minted a fresh session and
+# so a fresh, full bucket, and a script that never sends a cookie was never
+# refused - forty wrong passwords in a row for one address, all answered,
+# the admin dashboard's sign-in included. The address being tried is the one
+# thing a guesser cannot change, so that is what is counted.
+#
+# Five tries are free. The fifth starts a one-minute wait and every try after
+# it doubles the wait, to fifteen minutes; an hour without a try forgets the
+# count and getting it right clears it. That is about a hundred guesses a day
+# at one account instead of twenty a second.
+#
+# A lock is something a stranger can cause, so it must not keep the owner
+# out: a request already signed in to that account passes it (a reset code
+# signs a browser in, and is bounded by its own code). And it reads the same
+# for an address with no account, so it says nothing about who is registered.
+
+#: Tries an address gets before it has to wait.
+AUTH_FREE_FAILURES = 5
+#: The first wait, doubled by every try after it, up to the longest.
+AUTH_LOCK_SECONDS = 60.0
+AUTH_LOCK_MAX_SECONDS = 15 * 60.0
+#: A count nobody has added to for this long is forgotten.
+AUTH_FORGET_SECONDS = 3600.0
+#: Addresses counted at once. Past it the ones not waiting are forgotten:
+#: a guesser naming a million addresses must not be able to fill the memory.
+AUTH_TRACKED_MAX = 50_000
+#: address -> [tries, when the last one was, when its wait ends]
+_auth_failures: dict[str, list] = {}
+
+AUTH_LOCKED = ("Too many wrong tries for this account. Wait {wait} and try "
+               "again, or reset your password.")
+
+
+def _auth_clock() -> float:
+    return time.monotonic()
+
+
+def _auth_key(kind: str, identifier: str) -> str:
+    """The one spelling an address is counted under, however it was typed."""
+    try:
+        value = (accounts_mod.clean_phone(identifier) if kind == "phone"
+                 else accounts_mod.clean_email(identifier))
+    except accounts_mod.AuthError:
+        value = " ".join(str(identifier or "").split()).lower()[:accounts_mod.MAX_EMAIL]
+    return f"{kind}:{value}"
+
+
+def _auth_own_device(request: Request, key: str) -> bool:
+    """Whether this request is already signed in to the account `key` names."""
+    held = getattr(request.state, "listener", None)
+    if held is None or not held.is_authenticated:
+        return False
+    try:
+        return held.user_id == ACCOUNTS.user_id_for(key.split(":", 1)[1])
+    except Exception:  # noqa: BLE001 - unsure is not an exemption
+        return False
+
+
+def _auth_attempt(request: Request, kind: str, identifier: str) -> str:
+    """Count one password try at this address, or refuse it with a 429.
+
+    Counted *before* the password is checked, as a reset code's tries are:
+    counting afterwards would let guesses sent together all pass the check
+    before any of them had added one. Returns the key for `_auth_passed`,
+    or "" for the account's own device, which is neither counted nor locked.
+    """
+    key = _auth_key(kind, identifier)
+    now = _auth_clock()
+    entry = _auth_failures.get(key)
+    if entry is not None and now - entry[1] > AUTH_FORGET_SECONDS:
+        _auth_failures.pop(key, None)
+        entry = None
+    if entry is not None and now < entry[2]:
+        if _auth_own_device(request, key):
+            return ""
+        wait = entry[2] - now
+        minutes = max(1, int((wait + 59) // 60))
+        raise HTTPException(
+            status_code=429,
+            detail=AUTH_LOCKED.format(
+                wait="a minute" if minutes == 1 else f"{minutes} minutes"),
+            headers={"Retry-After": str(max(1, int(wait + 0.999))),
+                     "X-FAM-Refused-By": "sign-in"})
+    if entry is None:
+        if len(_auth_failures) >= AUTH_TRACKED_MAX:
+            # Full. Forget only what has not earned a wait: an address that
+            # has used its free tries keeps its count until an hour of quiet,
+            # or a guesser would name twenty thousand made-up addresses to
+            # have the one they are after start again at five (found by the
+            # independent review of this section).
+            for spare in [k for k, v in _auth_failures.items()
+                          if v[0] < AUTH_FREE_FAILURES
+                          or now - v[1] > AUTH_FORGET_SECONDS]:
+                del _auth_failures[spare]
+            if len(_auth_failures) >= AUTH_TRACKED_MAX:
+                # Every address held is one being guessed at. A new one is
+                # refused rather than let through uncounted.
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many sign-in attempts right now. Try again in a few minutes.",
+                    headers={"Retry-After": "300", "X-FAM-Refused-By": "sign-in"})
+        entry = _auth_failures[key] = [0, now, 0.0]
+    entry[0] += 1
+    entry[1] = now
+    over = entry[0] - AUTH_FREE_FAILURES
+    if over >= 0:
+        entry[2] = now + min(AUTH_LOCK_MAX_SECONDS, AUTH_LOCK_SECONDS * 2 ** min(over, 16))
+        # No address in the log: it is somebody's, and the count is enough.
+        log.warning("sign-in: %d wrong tries at one address; it waits %.0fs",
+                    entry[0], entry[2] - now)
+    return key
+
+
+def _auth_passed(key: str) -> None:
+    """The password was right: the address's count starts again."""
+    if key:
+        _auth_failures.pop(key, None)
+
+
+def _over_https(request: Request) -> bool:
+    """Whether the listener's side of this request was https (§620).
+
+    Behind Render's router the connection the app sees is plain HTTP and the
+    scheme the listener used is in `X-Forwarded-Proto` (`_public_base` reads
+    it for the same reason), so `request.url.scheme` alone never said https
+    on the deployed site and both cookies went out without `Secure`. The
+    header is the client's to forge only against itself: claiming https on a
+    plain connection gets a cookie that browser then will not send.
+    """
+    if request.url.scheme == "https":
+        return True
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return proto == "https"
 
 
 def _has_password(user_id: str) -> bool:
@@ -2921,9 +3062,13 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
     after it, which is the session-fixation bug.
     """
     _rate_limit(request)
+    kind = _one_identifier(req)
+    # Counted against the address, whoever is asking (§620): the pace above
+    # follows the session, and a guesser does not keep one.
+    tried = _auth_attempt(request, kind, req.email if kind == "email" else req.phone)
     try:
         # scrypt off the event loop, as at sign-up (§241).
-        if _one_identifier(req) == "email":
+        if kind == "email":
             listener = await asyncio.to_thread(ACCOUNTS.log_in, req.email, req.password)
         else:
             listener = await asyncio.to_thread(ACCOUNTS.log_in_phone, req.phone,
@@ -2945,6 +3090,7 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
                                 detail=_no_password_words(exc.user_id)) from exc
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    _auth_passed(tried)
     listener = _admit_admin(listener)
     old = _session_token(request)
     token, _user_id = ACCOUNTS.new_session(listener.user_id)
@@ -3076,7 +3222,11 @@ async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
         _user_id, address, code = minted
         # Where to paste it, when this server knows its own address (§297):
         # the reset page every log-in links to.
-        base = _public_base(request)
+        # From settings alone, never `_public_base(request)` (§620, as §304
+        # did for the report alert): that reads the caller's own
+        # `X-Forwarded-Host`, and whoever asks for somebody's code must not
+        # choose the page FAM's email tells them to type it into.
+        base = settings.public_base_url or settings.app_home_url
         where = (f"Paste it into the FAM reset password page: {base}/reset\n\n"
                  if base else "")
         mail_mod.send_later(
@@ -3195,6 +3345,8 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
         gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
         if gone is not None:
             return gone
+    held_before = (ACCOUNTS.account(user) or {}) if req.email is not None else {}
+    before = held_before.get("email", "")
     try:
         account = ACCOUNTS.update_profile(
             user, display_name=req.display_name,
@@ -3202,7 +3354,72 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
             gender=req.gender)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _tell_old_address(before, account.get("email", ""), user,
+                      float(held_before.get("created") or 0))
     return account
+
+
+#: An address is told its account's email changed only when the account is at
+#: least this old, once a day for one account, and no more than this many
+#: times an hour for the whole server (§620, second pass). The notice goes to
+#: an address nobody has verified, so without these it was a way to have FAM
+#: email anybody: join with their address, change it, and they are written to
+#: - twenty a minute from one account, and accounts are free. A takeover is
+#: of an account somebody has had for a while; a throwaway is new.
+ADDRESS_NOTICE_MIN_AGE = 24 * 3600.0
+ADDRESS_NOTICE_PER_HOUR = 30
+_address_noticed: dict[str, float] = {}
+_address_notices: deque = deque()
+
+
+def _may_tell_old_address(user: str, created: float) -> bool:
+    now = time.time()
+    if not created or now - created < ADDRESS_NOTICE_MIN_AGE:
+        return False
+    if now - _address_noticed.get(user, 0.0) < 86400:
+        return False
+    while _address_notices and now - _address_notices[0] > 3600:
+        _address_notices.popleft()
+    if len(_address_notices) >= ADDRESS_NOTICE_PER_HOUR:
+        log.warning("email-change notices: over %d this hour; one was not sent",
+                    ADDRESS_NOTICE_PER_HOUR)
+        return False
+    if len(_address_noticed) > 20_000:
+        _address_noticed.clear()
+    _address_noticed[user] = now
+    _address_notices.append(now)
+    return True
+
+
+def _tell_old_address(before: str, after: str, user: str = "",
+                      created: float = 0.0) -> None:
+    """Tell the address an account just left that it was changed (§620).
+
+    A reset code goes to the account's address, so whoever changes the
+    address - with no more than a signed-in browser, since the change asks
+    for no password - is who the next code goes to. The address it left is
+    told, as a reset and a first password are (§244, §571): it used to be
+    told nothing. Only where mail can be sent; never fails the change.
+    """
+    if not before or before == after:
+        return
+    try:
+        if not mail_mod.status().get("available"):
+            return
+        if not _may_tell_old_address(user, created):
+            return
+        contact = (f" or write to {settings.support_email}"
+                   if settings.support_email else "")
+        mail_mod.send_later(
+            before, "The email on your FAM account was changed",
+            "The email address on your FAM account was just changed"
+            + (f" to {after}" if after else " (it was removed)") + ".\n\n"
+            "From now on a password reset code goes to the new address, "
+            "not this one.\n\n"
+            "If that was not you, somebody else has been in your account: "
+            f"reply to this email{contact} and we will put it right.\n")
+    except Exception:  # noqa: BLE001 - the change already happened
+        log.exception("could not tell an old address its account's email changed")
 
 
 @app.get("/api/activation")
@@ -6935,6 +7152,52 @@ def client_version(app):
 app.add_middleware(client_version)
 
 
+#: What every response says about how a browser may treat it (§620). The
+#: server sent none of these: any site could draw FAM - `/admin` included -
+#: inside a frame of its own, a response could be read as a type it was not
+#: sent as, and nothing told a browser to come back over https.
+SECURITY_HEADERS = {
+    # Never guess a type: a picture is a picture, never a page.
+    "X-Content-Type-Options": "nosniff",
+    # Only FAM's own pages may frame FAM (the demo page frames the app).
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'",
+    # A share or invite link's own address is not sent on to other sites.
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+#: Sent only on a request that came over https (`_over_https`'s rule): told
+#: once, a browser never tries this host over plain http again, which is the
+#: one moment a cookie could be read off the air.
+HSTS = "max-age=31536000"
+
+
+def security_headers(app):
+    """Add `SECURITY_HEADERS` to every response, and `HSTS` to one that was
+    asked for over https. Plain ASGI, as the others are (§241); a header a
+    handler set itself is left as it is. Added last, so it wraps every other
+    middleware and covers what they answer themselves."""
+    async def asgi(scope, receive, send):
+        if scope["type"] != "http":
+            await app(scope, receive, send)
+            return
+        https = scope.get("scheme") == "https" or (
+            Headers(scope=scope).get("x-forwarded-proto", "")
+            .split(",")[0].strip().lower() == "https")
+
+        def add(headers):
+            for name, value in SECURITY_HEADERS.items():
+                if name not in headers:
+                    headers[name] = value
+            if https and "Strict-Transport-Security" not in headers:
+                headers["Strict-Transport-Security"] = HSTS
+
+        await app(scope, receive, _on_response_start(send, add))
+    return asgi
+
+
+app.add_middleware(security_headers)
+
+
 @app.get("/api/client-status")
 async def client_status(request: Request) -> dict:
     """What the server makes of the calling client: supported, deprecated
@@ -7022,7 +7285,7 @@ def _set_session_cookie(response, request: Request, token: str) -> None:
         max_age=accounts_mod.SESSION_TTL,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=_over_https(request),
         path="/",
     )
 
@@ -7362,7 +7625,11 @@ async def attach(req: AttachRequest, request: Request) -> dict:
     else:
         _read_limit(request)
     try:
-        item = attachments_mod.build(req.kind, req.name, req.data, req.url)
+        # Off the event loop (§620): a link is an outbound fetch of up to
+        # eight seconds and a PDF is seconds of parsing, and on the loop that
+        # is every listener's audio stopped while one attachment is read.
+        item = await asyncio.to_thread(attachments_mod.build, req.kind, req.name,
+                                       req.data, req.url)
     except attachments_mod.AttachmentError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     ATTACHMENTS.put(_listener(request), item)
@@ -8152,6 +8419,27 @@ async def push_prefs(req: PushPrefs, request: Request):
     return {"ok": True, "prefs": await asyncio.to_thread(_push_choices, account)}
 
 
+def _refuse_private_push_endpoint(subscription) -> None:
+    """A push subscription names an https address FAM later posts to, and the
+    browser - or anybody with an account - chooses it (§620, second pass).
+    One that is this machine, a private network or a metadata address is
+    refused, by the rule a linked page is held to. A name that does not
+    resolve at all is let through: nothing can be posted to it either, and
+    a subscription must not fail because a lookup did."""
+    from urllib.parse import urlsplit
+
+    endpoint = str((subscription or {}).get("endpoint") or "") \
+        if isinstance(subscription, dict) else ""
+    host = urlsplit(endpoint).hostname or ""
+    if not host:
+        return
+    try:
+        attachments_mod._public_addresses(host, 443)
+    except attachments_mod.AttachmentError as exc:
+        if str(exc) == attachments_mod.NOT_PUBLIC:
+            raise ValueError("That is not a notification address FAM can send to.") from exc
+
+
 @app.post("/api/push/subscribe")
 async def push_subscribe(req: PushSubscription, request: Request):
     _read_limit(request)
@@ -8159,6 +8447,7 @@ async def push_subscribe(req: PushSubscription, request: Request):
     if not push_mod.status()["available"]:
         raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
     try:
+        await asyncio.to_thread(_refuse_private_push_endpoint, req.subscription)
         PUSH.subscribe(account, req.subscription)
         if push_mod.clean_zone(req.tz):  # unreadable never erases a kept zone
             PUSH.set_prefs(account, tz=req.tz)
@@ -10674,6 +10963,13 @@ async def _check_photo(request: Request, user: str, data_url: Optional[str],
     # A paid model call: paced like one (`limit-episodes`) - and only when
     # one will actually be made.
     if image_check.will_call():
+        # And only for an account (§620). `/api/me` takes a guest's name, and
+        # a guest is a session anybody mints by sending no cookie: each such
+        # request had a fresh bucket, so the pace below never refused one and
+        # a stranger could have pictures checked on FAM's bill without end.
+        # As with audio, a guest is turned away before the money is spent.
+        if not _has_account(request):
+            raise HTTPException(status_code=401, detail=ACCOUNT_REQUIRED)
         _rate_limit(request)
     usage = metering.Usage()
     verdict = await image_check.check(data_url, usage=usage)
@@ -10846,7 +11142,10 @@ async def delete_note(note_id: int, request: Request) -> dict:
     """Take one of your own notes off your story. A note is only a story, so
     taking it down deletes it."""
     _read_limit(request)
-    return {"ok": SOCIAL.remove_note(note_id, _listener(request))}
+    # `remove_note` reads an empty id as a moderator taking it down for
+    # everybody (§620): a request whose session could not be minted has an
+    # empty id, so it is refused here rather than handed that meaning.
+    return {"ok": SOCIAL.remove_note(note_id, _require_listener(request))}
 
 
 class CloseFriendRequest(BaseModel):
@@ -13006,6 +13305,50 @@ def _admin_configured() -> bool:
     return bool(ADMIN_TOKEN or _admin_accounts())
 
 
+def _unclaimed_admin_entries() -> int:
+    """How many `FAM_ADMIN_ACCOUNTS` entries no account holds (§620).
+
+    An admin is whoever's account carries a listed address, and an address is
+    never verified: FAM sends nothing to prove one. So a listed email or
+    number with **no account** is an admin seat for whoever registers it
+    first - reproduced as join with the address, set a first password, sign
+    in to `/admin`. Every listed address must already belong to the admin it
+    names. This counts the ones that do not, for the boot log and the
+    dashboard's sign-in; it never says which, to anybody.
+    """
+    unclaimed = 0
+    for entry in _admin_accounts():
+        try:
+            if "@" in entry or re.fullmatch(r"[+\d][\d\s().\-]{6,}", entry):
+                held = ACCOUNTS.user_id_for(entry)
+            else:
+                # A listener id, lower-cased as `_allowed_admin` compares it.
+                row = ACCOUNTS._conn().execute(  # noqa: SLF001 - one read
+                    "SELECT 1 FROM accounts WHERE lower(user_id) = ?",
+                    (entry,)).fetchone()
+                held = bool(row)
+        except Exception:  # noqa: BLE001 - unreadable is not unclaimed
+            log.exception("could not check an admin entry")
+            continue
+        if not held:
+            unclaimed += 1
+    return unclaimed
+
+
+def _warn_unclaimed_admins() -> None:
+    """Say it at boot, where the deploy log is read. Never raises."""
+    try:
+        missing = _unclaimed_admin_entries()
+    except Exception:  # noqa: BLE001
+        log.exception("could not check FAM_ADMIN_ACCOUNTS")
+        return
+    if missing:
+        log.error(
+            "FAM_ADMIN_ACCOUNTS lists %d address(es) that no account holds. "
+            "An address is not verified, so whoever registers one becomes an "
+            "admin: create those accounts now, or take the entries out.", missing)
+
+
 #: The admin page's own session cookie. Signing in to the app is not signing
 #: in to `/admin`: the dashboard asks for an admin's email and password every
 #: time, and what that mints is a session held here and nowhere else - so a
@@ -13259,12 +13602,16 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     if not _admin_accounts():
         raise HTTPException(status_code=404, detail="Not found")
     _rate_limit(request)
+    # The same count as the app's own sign-in (§620): this door opens every
+    # store, and it had no limit on guesses at all.
+    tried = _auth_attempt(request, "email", req.email)
     refused = HTTPException(status_code=401,
                             detail="That email and password are not an admin's.")
     try:
         listener = await asyncio.to_thread(ACCOUNTS.log_in, req.email, req.password)
     except accounts_mod.AuthError:
         raise refused from None
+    _auth_passed(tried)
     if not _allowed_admin(listener):
         log.warning("admin sign-in refused for a non-admin account")
         raise refused
@@ -13272,11 +13619,14 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     if old:
         ACCOUNTS.end_session(old)
     token, _ = ACCOUNTS.new_session(listener.user_id)
-    response = JSONResponse({"ok": True, "email": listener.email})
+    response = JSONResponse({"ok": True, "email": listener.email,
+                             # How many `FAM_ADMIN_ACCOUNTS` entries no account
+                             # holds (§620) - a number, never which.
+                             "unclaimed_admin_entries": _unclaimed_admin_entries()})
     # No max_age: a browser-session cookie, never a remembered sign-in.
     response.set_cookie(ADMIN_COOKIE, token,
                         httponly=True, samesite="strict",
-                        secure=request.url.scheme == "https", path="/")
+                        secure=_over_https(request), path="/")
     return response
 
 
@@ -14683,10 +15033,19 @@ def _admin_previewing_join(req, request: Request):
             return None
         listener = _admit_admin(listener)
         return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me"}
+    # A password try like any other (§620): counted against the address.
+    # A lock is answered as any refusal here is - with nothing: only an
+    # admin's address reaches this line, so a 429 from it would tell the
+    # form's visitor which addresses are admins.
+    try:
+        tried = _auth_attempt(request, "email", email)
+    except HTTPException:
+        return None
     try:
         listener = ACCOUNTS.log_in(email, req.password)
     except accounts_mod.AuthError:
         return None
+    _auth_passed(tried)
     if not _allowed_admin(listener):
         return None
     listener = _admit_admin(listener)

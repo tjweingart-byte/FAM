@@ -611,14 +611,15 @@ and `limit` = Lines.
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
 | 37339 | 56 | 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16) |
-| 37395 | 87 | 620. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
-| 37482 | 48 | 621. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
-| 37530 | 36 | 622. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
-| 37566 | 64 | 623. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
-| 37630 | 67 | 624. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
-| 37697 | 54 | 625. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
-| 37751 | 43 | 626. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
-| 37794 | 41 | 627. The material check extended to what the writer "can" do with a figure (2026-11-16) |
-| 37835 | 105 | 628. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |
-| 37940 | 45 | 629. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
-| 37985 | 22 | 630. The plan for 2027, from an interview with the owner (2026-11-16) |
+| 37395 | 302 | 620. The security audit: sign-in, sessions and what every response says (2026-11-16) |
+| 37697 | 87 | 621. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
+| 37784 | 48 | 622. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
+| 37832 | 36 | 623. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
+| 37868 | 64 | 624. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
+| 37932 | 67 | 625. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
+| 37999 | 54 | 626. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
+| 38053 | 43 | 627. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
+| 38096 | 41 | 628. The material check extended to what the writer "can" do with a figure (2026-11-16) |
+| 38137 | 105 | 629. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |
+| 38242 | 45 | 630. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
+| 38287 | 22 | 631. The plan for 2027, from an interview with the owner (2026-11-16) |
