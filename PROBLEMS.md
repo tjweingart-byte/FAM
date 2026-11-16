@@ -37693,3 +37693,95 @@ removed. They are a launch checklist, not a change to make now.
 
 Still not audited: every other endpoint's cost one by one with the gate
 off; the voice worker's own image.
+
+## 621. The owner's 11.16 notes: edit topics, Friends | Following, captions that start off and scroll, a lock for private search, the player on an iPad (2026-11-16)
+
+**What was asked.** A PDF, "11.16.26 Implementations", from the iPhone: in a
+mix's three dots, "add the ability to 'edit topics' ... they will all have an
+X next to them so you can click on the x to remove it from the mix"; "remove
+the 'Sat:' and 'today:' popups from myFAM mix tiles"; "on iPad, the audio
+player is not displaying correctly. The return to home and go deeper buttons
+are being covered ... you get stuck on the audio player", and whether an iPad
+build is possible; a sketch turning the Friends page's stacked Friends and
+Following groups into two tabs; "every time you listen to an audio episode, I
+want close captions to be off ... Additionally, I want the ability to scroll
+through close captions of everything that has already been said"; "confirm
+that the my FAM cards are centered and fill the screen"; "when someone clicks
+on private search, I want it to be less aggressive and extreme. Just a simple
+lock button"; and a bug, the first sentence of some episodes spoken twice
+(below).
+
+**Edit topics.** The mix's menu, the owner's and a joint member's
+(`joint-mixes`: members edit topics), has "Edit topics". It is the mix page
+itself in an edit state: a bar ("Tap × to remove a topic from this mix",
+Done) where "Add topics to mix" and the play buttons were, and an X where
+each topic's play button was. An X sends the remaining list
+(`PATCH /api/mixes/{id}`, `topic_ids`, a typed topic as its words - the write
+a reorder already makes). One removal at a time: a second X pressed before
+the first was answered would have sent a list that still held the first
+topic and put it back. Done, leaving the page, or removing the last topic
+ends it. Web `editMixTopics` / `removeMixTopic`; iPhone `MixView.editing`.
+
+**The day bubbles.** §545's Q5 drew what was last heard and today's episode
+as two bubbles under a changed topic ("Sat: ...", "→ Today: ..."). Gone on
+both clients (`mixBubblesHTML`, `MixBubbles`, `BubbleFlow` deleted). The
+"Trending · since you last listened" tag, the outline and "Start with what
+changed" stay; `since` is still what marks a topic as changed.
+
+**Friends | Following.** Two tabs with their counts in place of three stacked
+groups under "12 friends · 15 following · 12 followers". Following lists
+everyone followed, friends included (the count the server already gave);
+somebody who follows the listener and is not followed back is under Friends
+in a "Follows you" group. The page opens on Following when there is nobody
+to show under Friends. This reverses the old page's "nobody in two groups":
+that was about one scrolling list, and two tabs are two questions.
+
+**Captions.** Off at the start of every episode on both clients; §519's
+remembered setting is removed and the old `fam.captions` value deleted where
+it was kept. On, the box shows every sentence spoken so far, dimmed, above
+the one being read, and scrolls. It follows the voice until the listener
+scrolls back and again once they are within a line of the end. Nothing ahead
+of the voice is drawn (§127's reason for one sentence at a time still holds
+for what has not been said).
+
+**The mix cards.** Read as: a listener with one mix saw one card in the left
+half of the page with nothing beside it. An only mix now takes the whole
+width (name 26, headline 13); two or more stay two to a row (§616). The grid
+already had equal margins and filled its columns. **This is an
+interpretation** - the screenshot was a crop of one card - and wants the
+owner's yes.
+
+**Private search.** A 44-point round lock beside Length and Voice: open
+while off, closed and copper while on. The page no longer turns charcoal in
+either theme, no blind falls (§298), and the note under the bubbles is gone;
+the toast says "Private search on · kept out of history and feeds". What
+private means and where it is stored are untouched. On the iPhone this
+removed `SearchPalette`, the blind, `darkChrome` and the tab bar's dark
+palette, none of which had another user.
+
+**The player on an iPad.** The app is iPhone-only
+(`TARGETED_DEVICE_FAMILY: "1"`), so an iPad runs it in a compatibility
+window, which newer iPadOS lets be resized. The player's picture was always
+"width + 40, 4:3" tall, centred in its stage and unclipped; in a window
+short for its width it overflowed upward, and being a later sibling with an
+opaque ground it drew over the Home mark and GO DEEPER and took their taps.
+Read from the layout, not reproduced (no simulator here): about a 55-point
+overflow onto a 54-point row at 480x640. Now the picture is the smaller of
+4:3 and the stage's height, the top row is drawn and hit above the stage,
+and anything that cannot fit leaves by the bottom. The web's player was
+checked at 820x1180, 1180x820, 507x700 and 375x560 and keeps its top row.
+
+**An iPad build** is possible and is not in this change. It takes
+`TARGETED_DEVICE_FAMILY: "1,2"`, iPad orientations (Apple expects all four
+and resizable windows; portrait-only needs `UIRequiresFullScreen`, which is
+deprecated), 13-inch screenshots, and a first pass capping every root
+screen's content at about 600 points, centred - the player, the search bar
+(width - 36), the mix grid, the rails' fixed column counts and the story
+viewer (type sized in 360ths of the width) all assume a phone's width. Adding
+iPad to a bundle id cannot be undone in a later version.
+
+Tests: `tests/test_owner_notes_1116.py`; one smoke check pressing all of it
+in a browser ("The 11.16 notes ..."); the three tests that pinned the
+reversed behaviour say so. The iPhone compiled in `ios.yml` (run 90).
+**Not verified here:** the captions' follow-the-voice scrolling and the
+player in a resized window on a real iPad.
