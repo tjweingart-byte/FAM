@@ -10,6 +10,8 @@ and a rule always wins over this file. Rules are cited here by ID, never
 restated: `grep -n 'rule:ID' docs/claude/*.md` gives the full text. It was
 written at the end of a session that did the work in section 5 (PROBLEMS.md
 §619, §620); the examples below are what happened, not advice in general.
+A session on another model then followed it on a real task and corrected
+three things in it (§621); those corrections are in the text.
 
 ## 1. Before you change anything
 
@@ -28,7 +30,8 @@ written at the end of a session that did the work in section 5 (PROBLEMS.md
 4. **Check the machine, not the document about the machine.** `[no-api-key]`
    says there is no key here; the environment may hold `FAM_ANTHROPIC_KEY`
    and the search keys (`[ -n "$FAM_ANTHROPIC_KEY" ] && echo set`). Never
-   print a key. Check the Python version too (`[ci-python]`).
+   print a key. `[ci-python]` names the container's Python; run
+   `python3 --version`, because the container has moved since.
 5. **Check CI on `Main`** before starting (`[ci-green-first]`).
 
 ## 2. Working out what is being asked
@@ -73,7 +76,13 @@ attribution. In 36 real drafts the failures were of these kinds:
   other way in an example.
 
 A failure the instructions already forbid is not fixed by forbidding it
-again. The levers left are an example, a pair, or a check in code.
+again. **Find the check that already exists for it and ask why it missed.**
+`OpeningGuard` and `MaterialGuard` in `script_generator.py` drop sentences
+about the writer's own material on every episode, and each was narrowed
+after it ate real reporting (§94, §288). What a frozen draft holds is what
+got past them; what they dropped is not saved in it, so a count from drafts
+is of leaks, never of attempts. Only after that are the levers an example,
+a pair, or a wider check with the old false positives kept as tests.
 
 ## 4. Verify, do not inspect
 
@@ -87,6 +96,9 @@ again. The levers left are an example, a pair, or a check in code.
 - Check your own facts hardest where they sound best. A draft example said
   the measles vaccine came decades before any antiviral drug. Both date
   from 1963. Any "first", "before" or "decades" is checked or cut.
+- A count from one pattern is a lower bound. This file first said three of
+  36 drafts spoke about their own material. The session that tried it
+  counted again with wider patterns: four drafts, seven sentences.
 - End a log entry with what was not verified, as PROBLEMS.md does.
 
 ## 5. Changing the writing: examples and pairs
@@ -174,7 +186,12 @@ without them would say, for a few dollars."
 
 **"The writer keeps saying 'I don't have a confirmed result'. Fix it."**
 Weak: add a line to the writer's instructions forbidding it.
-Better: the instructions already forbid it (`[missed-not-absent]`), and 3
-of 36 drafts did it anyway. So count it first, read those packets to see
-what they had in common, then choose between a pair that shows it fixed
-and a check in code, and say which and why.
+Better: the writer's instructions already forbid it, twice
+(`script_generator.py`, from §288), and `[missed-not-absent]` rules out
+saying the gap aloud instead. Four of 36 drafts did it anyway, in seven
+sentences, three of the four at low effort and three about a moving price.
+So count it, read those packets for what they share, and find the guard:
+`MaterialGuard` was narrowed to "I", "me" and "my" in §288, and the drafts
+say "we". The fix is to widen that guard with §288's false positives kept
+as tests, and to tell the owner what a dropped sentence costs when it is
+the one carrying the figure.
