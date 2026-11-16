@@ -37691,3 +37691,46 @@ figure its own time; the instruction's bad example is one the check drops;
 the evidence block names the plural). `tests/test_eval_findings_527.py`
 puts the example and pairs in for the length of the test to check the two
 arms hide them.
+
+## 625. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16)
+
+The owner: "stop spending money. Test the rewording on the four packets for
+as cheap as you can (or free)."
+
+**How, with no API spend.** The exact prompts the writer gets - cached
+instructions and request - were built in code for the four packets (oil,
+Nvidia, bitcoin, Starship), once as §624 left them and once with its three
+edits reversed. Sixteen Haiku runs inside the coding session, two a packet a
+wording, each told only to follow the file. **A stand-in, not the
+production call**: no effort setting, the session's own wrapper around the
+model, and it counts against the plan's usage (about 110,000 tokens a run,
+far more than the prompt itself). It reproduced the leak under the old
+wording, which is what makes it worth reading.
+
+**Read by hand** (sentences about what the writer has or can see):
+
+| | scripts that leak | leaking sentences | "establish" echoed |
+|---|---|---|---|
+| old wording | 5 of 8 | 12 | 4 times |
+| new wording | 2 of 8 | 4 | never |
+
+Under the new wording the price comes with its time as a fact in most
+scripts ("At a quarter past ten on Sunday morning, Eastern time, bitcoin was
+trading at..."; "that Friday close is the newest settled figure there is").
+Starship did not leak under either. Eight scripts a side is a direction, not
+a rate.
+
+**The check (§622) caught none of the sixteen leaking sentences.** They are
+in forms it does not list: "the newest price we can establish", "the last
+price we can date", "the last figure we can stand behind", "the last price
+we can put a time on", "not something we can see", "is not something we
+have", "not a figure I can give you". A first scan by pattern reported no
+leaks in either wording; reading the openings found them. Not widened here:
+"the oldest fossils we can date" is the world, so the new forms need tying
+to a price or figure, and that is a change to what episodes lose.
+
+**Also seen:** two new-wording scripts end by telling the listener how to
+take the number ("treat ninety-five forty-five as a reading from ten
+fifty-nine, not a live price"; "where prices stand this afternoon is not
+known yet") - not about the writer, but a gap said aloud
+([missed-not-absent]).

@@ -616,3 +616,4 @@ and `limit` = Lines.
 | 37510 | 64 | 622. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
 | 37574 | 67 | 623. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
 | 37641 | 54 | 624. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
+| 37695 | 43 | 625. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
