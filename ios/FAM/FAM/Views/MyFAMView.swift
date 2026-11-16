@@ -146,6 +146,13 @@ struct MyFAMView: View {
         case .ready:
             if mixes.mixes.isEmpty {
                 EmptyNote(text: "No mixes yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
+            } else if mixes.mixes.count == 1, let only = mixes.mixes.first {
+                // One mix alone (11.16 notes, `.mix-a-grid.solo`): the card
+                // takes the whole width, the page's 18 pt either side,
+                // rather than the left half with nothing beside it.
+                Button { path.append(.mix(only.id)) } label: { MixDeckCard(mix: only, solo: true) }
+                    .buttonStyle(.press)
+                    .frame(maxWidth: .infinity)
             } else {
                 // Option A, two to a row (§616, `.mix-a-grid`).
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 11, alignment: .top),

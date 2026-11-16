@@ -7,10 +7,13 @@ import SwiftUI
 /// today's first three stories fanned on it, best on top, the name across
 /// the bottom, and today's headline under the card. With a photo of its
 /// own, the photo fills the square and the stack steps aside to a corner.
-/// No picture anywhere: the colour and the folder.
+/// No picture anywhere: the colour and the folder. A listener's only mix
+/// is drawn `solo` (11.16 notes, `.mix-a-grid.solo`): the whole width, its
+/// name at 26 pt and its headline at 13.
 struct MixDeckCard: View {
     @EnvironmentObject private var mixes: MixesModel
     let mix: Mix
+    var solo = false
 
     private var photo: Bool { !mix.cover.isEmpty }
     private var tiles: [MixCoverTile] { Array(mix.coverTiles.prefix(3)) }
@@ -146,13 +149,13 @@ struct MixDeckCard: View {
 
     private var name: some View {
         Text(mix.name)
-            .font(FAMFont.heading(16, .semibold))
+            .font(FAMFont.heading(solo ? 26 : 16, .semibold))
             .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             .lineLimit(2)
             .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
             .padding(.horizontal, 8)
-            .padding(.bottom, 9)
+            .padding(.bottom, solo ? 16 : 9)
     }
 
     // MARK: The headline (`mixHeadlineHTML`)
@@ -160,14 +163,14 @@ struct MixDeckCard: View {
     @ViewBuilder private var headline: some View {
         if let h = mix.headline, !h.title.isEmpty {
             (whyLead(h) + Text(h.topic.isEmpty ? "" : " \u{00B7} ") + Text(h.title).foregroundColor(FAMColor.text))
-                .font(FAMFont.body(11.5))
+                .font(FAMFont.body(solo ? 13 : 11.5))
                 .lineSpacing(2)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 2)
         } else {
             Text(quietLine)
-                .font(FAMFont.body(11.5))
+                .font(FAMFont.body(solo ? 13 : 11.5))
                 .foregroundStyle(FAMColor.textMuted)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)

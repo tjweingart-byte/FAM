@@ -1,7 +1,6 @@
 # FAM - working context
 
-Read before making changes: where the product is going, which constraints
-are load-bearing, which settled decisions not to re-litigate.
+Read before changing anything: where the product is going and what is settled.
 
 ## How this file works
 
@@ -55,8 +54,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
 - **Search is Google's shape** (§190): mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
-  every return to the app; **Private** is a third bubble (§282). [search-bar]
-- **Private search** (§282/§285): charcoal; on till off (bubble=Settings)
+  every return to the app; **Private** is a lock (§621). [search-bar]
+- **Private search** (§282/§285): a lock; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos (§247) [autocorrect-at-send]
@@ -86,7 +85,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
   §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right (§192), CC pill,
-  captions on the picture (§519), ⋯ menu; no "exclude from taste"; searcher
+  captions on the picture, off per episode (§621), ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
@@ -213,13 +212,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   private; `loadMixes` takes the bank before the 401; dormant after 48h
   unplayed (§359). [op-dailyfam-mixes] [mix-dormancy]
 - **A mix is made by naming it** (§498), filled on its page; plays
-  best first (§616). [mix-made-by-naming] Long typed topics are named short.
+  best first (§616); Edit topics: X (§621). [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
 - **Push** (§562): one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
   once admin-approved; team finals; written first; quiet 22-8. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
-  swipe goes to the next friend's, the picture to the profile; Friends has
+  swipe goes to the next friend's, the picture to the profile; Friends | Following tabs (§621),
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you** (§187): subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no

@@ -784,7 +784,8 @@ def test_the_shared_screen_moves_and_reads_as_listen_html_584():
     assert "if listen.loaded {" in view
     # The window's status bar is dark over it whatever the theme.
     app = _swift("FAMApp.swift")
-    assert "model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)" in app
+    # `darkChrome` was the charcoal private search's, gone with it (§621).
+    assert "model.sharedListenShown || FAMTheme.isDark(theme)" in app
     assert "EnvRibbonWindow.restyle(dark: dark)" in app
     assert "EnvRibbonWindow.reattach()" in app
     ribbon = _swift("Views", "EnvRibbon.swift")
