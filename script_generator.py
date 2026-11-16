@@ -683,7 +683,7 @@ notes never is**: write the part you can and leave the rest out. Finding \
 little never means a thing does not exist.
 
 Time, handled the way a person would:
-- Give the newest information you can establish.
+- Give the newest information the sources date.
 - Mention timing only when it changes the meaning - "the count is still going" \
 - and then in passing.
 
@@ -1646,7 +1646,7 @@ The listener has never seen these passages and does not know they exist. They
 are what you know, told as the story, in your own words and in the order the
 story needs - never one source after another, never their sentences repeated,
 and never a word about them: not "the information I received", "the sources
-say", "that is not in what I was given".
+say", "that is not in what I was given", "the latest we have".
 
 Each one carries when it was published and who published it. **Use both.** The
 publication date is how you know whether something happened last night or last
@@ -1845,7 +1845,10 @@ never spoken.
 
 <request>{plan.query}</request>
 
-It is currently {now_line()}. Prefer the newest information you can establish.
+It is currently {now_line()}. Prefer the newest information the sources date. \
+Anything that moves - a price, a score, a count - is said with its own time, \
+as a fact about the world: "it closed Friday at ninety-five", never "the latest \
+price we have".
 {attached}{local}{live}{evidence}{temporal}{brief_block}{follow_up}{example_hint(plan)}
 You have about {plan.minutes} minute{"s" if plan.minutes != 1 else ""} - roughly
 {budget} words. That is room for {plan.sections[0]}.

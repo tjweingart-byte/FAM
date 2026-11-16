@@ -44,8 +44,10 @@ money or changes what a listener hears.
 - If the request is about something you cannot read (a link, a file), say
   so in the first line and get it read. Never assess what you have not seen.
 - If it would change what every episode is written from, the first version
-  goes somewhere nothing loads, for the owner to read. Move it in when the
-  owner says to. They did, the same day.
+  goes somewhere nothing loads, for the owner to read, **and it is measured
+  before it moves in**. The owner adopted seven candidates on a table of
+  gate results; the measurement afterwards showed the writing was marked
+  lower with them in, and they came back out the same day (§623, §624).
 - Ask only when the answer changes what you do next: spending on the
   owner's key, or anything `CLAUDE.md` files under "discuss before undoing".
   For everything else pick the sensible default and say which you picked.
@@ -131,14 +133,22 @@ length or shape (`docs/story_shapes.md` lists which shapes have none); name
 its facet in `examples/facets.json`; write its worked plan and run
 `python tools/editor_teaching.py --check`.
 
-Whether a change to `examples/` moves the writing is a measurement
-(`tools/editor_eval.py`, arms with and without, as §527), not a feeling.
-Say when it has not been measured.
+**Passing the gates is not a gain.** All six pairs passed both gates, and
+with them in its instructions the writer was marked lower on storytelling
+(-0.41 [-0.77, -0.05] on 44 held-out questions, §623). The gates say a
+rewrite is better than its draft; they say nothing about what showing it
+to the writer does. So before proposing that anything be adopted, run
+`tools/editor_eval.py --run --arms none,none_before_619` and
+`--compare none,none_before_619`, leave out the questions a pair came from
+(the tool does), and bring the owner that table, not the gate results.
+What was taken out is in `examples/candidates/`, with why.
 
 ## 6. Spending the owner's key
 
 - Ask once, with an estimate. Report the actual afterwards, split into
-  measured and estimated.
+  measured and estimated. An estimate from an old log entry is a guess:
+  §527's 2.5 cents a grade was 5.4 cents by §623, and the run cost double
+  what the owner was told. Price a new run from five scripts of its own.
 - Take the cheapest run that answers the question, and the smallest set of
   questions that covers the facets.
 - Nothing is spent on staging (`[zero-spend-staging]`), and
@@ -182,7 +192,8 @@ read it.
 Weak: "All six pass and improve the writing."
 Better: "All six pass the tool's two gates (table). Whether they change
 what the writer produces is unmeasured; `tools/editor_eval.py` with and
-without them would say, for a few dollars."
+without them would say, for about nine dollars." When it was run, the
+answer was no."
 
 **"The writer keeps saying 'I don't have a confirmed result'. Fix it."**
 Weak: add a line to the writer's instructions forbidding it.

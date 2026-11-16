@@ -111,11 +111,13 @@ def test_at_the_opening_the_sentence_leaning_on_it_goes_too():
 
 
 def test_no_house_example_or_pair_rewrite_trips_either_check():
+    examples = ROOT / "examples"
     texts = [p.read_text(encoding="utf-8").partition("\n\n")[2]
-             for p in (ROOT / "examples").glob("*.txt")]
+             for folder in (examples, examples / "candidates") for p in folder.glob("*.txt")]
     texts += [sg.parse_pair(p.read_text(encoding="utf-8"))["after"]
-              for p in (ROOT / "examples" / "pairs").glob("*.txt")]
-    assert len(texts) >= 19
+              for folder in (examples / "pairs", examples / "candidates" / "pairs")
+              for p in folder.glob("*.txt")]
+    assert len(texts) >= 12
     for text in texts:
         for sentence in re.split(r"(?<=[.!?])\s+", " ".join(text.split())):
             assert not sg.is_material_sentence(sentence), sentence

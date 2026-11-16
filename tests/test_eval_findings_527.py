@@ -66,9 +66,24 @@ def test_none_low_writes_at_low_effort_and_the_rest_at_high():
 
 
 # ------------------------------------------------------------------ §621
-def test_the_arms_that_measure_what_the_adoption_bought():
+def _adopt(monkeypatch):
+    """Put §620's example and one pair where the writer reads them, as they
+    were when the arms were made (they were taken back out in §624)."""
+    import pathlib
+
+    folder = pathlib.Path(ROOT) / "examples" / "candidates"
+    query, _, script = (folder / "3-virus-and-bacteria.txt").read_text().partition("\n\n")
+    monkeypatch.setattr(sg, "STYLE_EXAMPLES", sg.STYLE_EXAMPLES + [(query.strip(), script.strip())])
+    monkeypatch.setitem(sg.EXAMPLE_STEMS, query.strip(), "3-virus-and-bacteria")
+    pairs = [sg.parse_pair(p.read_text()) for p in sorted((folder / "pairs").glob("*.txt"))]
+    monkeypatch.setattr(sg, "TEACHING_PAIRS", pairs)
+    return pairs
+
+
+def test_the_arms_that_measure_what_an_adoption_buys(monkeypatch):
     tool = _eval()
     assert {"none_unpaired", "none_before_619"} <= set(tool.ARMS)
+    _adopt(monkeypatch)
     with_all = sg.system_prompt()
     assert "<pair query=" in with_all and "virus and bacteria" in with_all
     with tool._Settings("none_unpaired"):
@@ -82,20 +97,23 @@ def test_the_arms_that_measure_what_the_adoption_bought():
     assert sg.system_prompt() == with_all               # taken back after
 
 
-def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path):
+def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path, monkeypatch):
+    import json
+
+    import episode_quality
+
     tool = _eval()
+    assert tool.seen_questions() == set()               # none is committed (§624)
+    pairs = _adopt(monkeypatch)
     seen = tool.seen_questions()
-    assert len(seen) == len(sg.TEACHING_PAIRS) > 0
+    assert len(seen) == len(pairs) == 6
 
     def script(i, arm, mark, claims):
-        grade = {m: {"score": mark} for m in tool_metrics}
+        grade = {m: {"score": mark} for m in episode_quality.METRICS}
         grade["unsupported_claims"] = ["x"] * claims
         (tmp_path / f"q{i:02d}.{arm}.json").write_text(json.dumps(
             {"arm": arm, "grade": grade, "ear": 1.0, "sentences": ["A."]}))
 
-    import episode_quality
-    import json
-    tool_metrics = episode_quality.METRICS
     held_out = [i for i in range(len(tool.QUESTIONS)) if i not in seen][:4]
     for i in held_out:
         script(i, "none", 4, 0)

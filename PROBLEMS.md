@@ -37637,3 +37637,57 @@ owner adopted them and decides.
 **Cost: $9.08, about double the estimate given.** Writing $0.58 and
 grading $8.15, both measured; research about $0.35, estimated. The
 estimate used §527's $0.025 a grade; these cost $0.054.
+
+## 624. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16)
+
+The owner, on §623's table and §622's "not done": "Take both back out and
+apply the rewording."
+
+**Taken back out.** `3-virus-and-bacteria.txt`, its worked plan and the six
+pairs are in `examples/candidates/` again, unloaded; its facet is out of
+`facets.json`. **The writer's cached instructions are what they were before
+§619 but for one phrase** (32,898 characters; twelve examples, no pairs).
+`examples/candidates/README.md` now says what the measurement found and
+what to run before anything there is moved in. [examples-lever] has a
+Current note: a candidate that passes the gates is not yet a gain.
+`tools/editor_eval.py` keeps its two arms and `--compare`; with nothing
+adopted they write as `none` does.
+
+**The rewording**, read by the owner first (three places in
+`script_generator.py`):
+- the request, beside the current time: "Prefer the newest information you
+  can establish" is now "Prefer the newest information the sources date.
+  Anything that moves - a price, a score, a count - is said with its own
+  time, as a fact about the world: "it closed Friday at ninety-five", never
+  "the latest price we have".";
+- the house rules: "Give the newest information you can establish" is "Give
+  the newest information the sources date" - one character shorter, so the
+  7,800 bound holds without a pass (7,793);
+- the evidence block's list of things never said about the sources gains
+  "the latest we have".
+§622's leaks echoed "you can establish" nearly word for word, and nothing
+told the writer the honest form of what it was reaching for. **Unmeasured**:
+whether the leaks fall. The four packets that leaked, written at low effort
+with and without, would say for about ten cents; the /admin "material
+check" notices will say in production.
+
+**The skill** (`.claude/skills/fam-method`) now carries the two lessons:
+measure before proposing an adoption, and price a run from a few scripts of
+its own.
+
+**The full check.** One run on this branch finished with 1 failure in 7,627:
+`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one` reads
+`script_generator.py`'s source by line number, and the file was edited while
+the run was going. It passes alone. Runs now happen in a separate checkout
+(`git worktree`), so an edit cannot move a file under a test.
+
+Tests: `tests/test_example_candidates_624.py` (no candidate reaches the
+writer, has a facet or a loaded plan; no pair is committed where the writer
+reads it; the example is about its length; each pair is still one the code
+prefers and trips no check; the folder says what the measurement found)
+replaces §620's adopted-state test. `tests/test_writer_time_wording_624.py`
+(the echoed phrase is gone from both places; the request gives a moving
+figure its own time; the instruction's bad example is one the check drops;
+the evidence block names the plural). `tests/test_eval_findings_527.py`
+puts the example and pairs in for the length of the test to check the two
+arms hide them.
