@@ -164,7 +164,7 @@ the inbox, not just the address. Around that:
 * a reset ends every session, like a password change, and emails the owner
   "Your FAM password was changed";
 * `_rate_limit` paces both endpoints per session, which a client that
-  keeps no cookie is not held to (§619); what bounds a reset is the
+  keeps no cookie is not held to (§620); what bounds a reset is the
   per-account count above.
 
 Delivery is `mail.py`: plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
@@ -172,7 +172,7 @@ Delivery is `mail.py`: plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
 or Gmail is a dashboard choice. Failures are logged and counted in
 `/api/health` (`mail`). Staging never sends.
 
-### Wrong passwords are counted against the address (§619)
+### Wrong passwords are counted against the address (§620)
 
 `_rate_limit` paces a client by its session, and a sign-in has no client to
 pace: a request with no cookie is minted a fresh session, so a script that

@@ -1,4 +1,4 @@
-"""The security audit of 2026-11-16 (PROBLEMS.md §619): what it found in
+"""The security audit of 2026-11-16 (PROBLEMS.md §620): what it found in
 sign-in and sessions, each pinned as the behaviour that closes it.
 
 Every test here failed against the code as the audit found it - that failure

@@ -124,7 +124,7 @@ SECRET_COLUMNS = {
     ("accounts", "accounts", "password"),
     ("accounts", "sessions", "token_hash"),
     ("accounts", "identities", "subject"),
-    # §619: three secrets added to the accounts store after this list was
+    # §620: three secrets added to the accounts store after this list was
     # written. A reset code's hash is the code - six digits fall out of it in
     # under a second; a claim code signs a let-in account in; the kept token
     # is Sign in with Apple's own.
@@ -173,7 +173,7 @@ def _blob_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, s
 
 
 #: A column named like a credential is hidden whether or not it is listed
-#: above (§619). The list is kept by hand and so falls behind: `code_hash`,
+#: above (§620). The list is kept by hand and so falls behind: `code_hash`,
 #: `claim_code` and `identities.token` were each added to a store later and
 #: read out in the clear here until the audit. A new store's `*_token`,
 #: `*_hash`, `*secret*`, `password*` or `keys` column is covered the day it

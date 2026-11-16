@@ -37336,7 +37336,7 @@ font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
 
-## 619. The security audit: sign-in, sessions and what every response says (2026-11-16)
+## 620. The security audit: sign-in, sessions and what every response says (2026-11-16)
 
 **Asked for** by the owner: a full security audit, the first dedicated one
 since §72, after about 550 sections that added phone sign-up, emailed reset
@@ -37348,7 +37348,7 @@ query box and what a stranger can make FAM spend), so those areas are **not
 audited yet** and are listed at the end rather than called clean.
 
 Every finding below was reproduced against the running app before it was
-touched; `tests/test_security_audit_619.py` is those reproductions, each
+touched; `tests/test_security_audit_620.py` is those reproductions, each
 failing on the old code.
 
 ### Fixed

@@ -203,7 +203,7 @@ def _public_addresses(host: str, port: int) -> list[str]:
     """Where `host` is, if every address it names is on the public internet.
 
     **The server fetches whatever address a listener types** (PROBLEMS.md
-    §619), and it sits somewhere a listener does not: beside the database,
+    §620), and it sits somewhere a listener does not: beside the database,
     the voice worker, its own loopback and its host's metadata address. So a
     link is opened only where *every* address its name resolves to is a
     public one - one private answer among several is how a name is made to
@@ -294,7 +294,7 @@ def fetch_link(url: str, timeout: float = 8.0) -> tuple[str, str]:
     because it happens when the link is *attached* - while the listener is
     still typing - and never on the generation path.
 
-    Only a page on the public internet (`_public_addresses`, §619), and the
+    Only a page on the public internet (`_public_addresses`, §620), and the
     environment's proxy settings are not used: the address checked is the
     one connected to.
     """

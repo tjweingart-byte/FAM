@@ -712,7 +712,7 @@ async def lifespan(_: FastAPI):
     # replaced by the next push.
     _announce_storage()
     # An admin address nobody holds is an admin seat for whoever registers it
-    # (§619): said here, where the deploy log is read.
+    # (§620): said here, where the deploy log is read.
     _warn_unclaimed_admins()
     # Episodes still filed under a node the owner took out (§600): moved to
     # what it became, or unfiled for Nando - in a thread, never awaited.
@@ -1698,7 +1698,7 @@ def _read_limit(request: Request) -> None:
     hits.append(now)
 
 
-# --- wrong passwords are counted against the address being tried (§619) -----
+# --- wrong passwords are counted against the address being tried (§620) -----
 #
 # `_rate_limit` paces a *client*, and its key is the session. A sign-in has
 # no client to pace: a request with no cookie is minted a fresh session and
@@ -1809,7 +1809,7 @@ def _auth_passed(key: str) -> None:
 
 
 def _over_https(request: Request) -> bool:
-    """Whether the listener's side of this request was https (§619).
+    """Whether the listener's side of this request was https (§620).
 
     Behind Render's router the connection the app sees is plain HTTP and the
     scheme the listener used is in `X-Forwarded-Proto` (`_public_base` reads
@@ -3045,7 +3045,7 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     kind = _one_identifier(req)
-    # Counted against the address, whoever is asking (§619): the pace above
+    # Counted against the address, whoever is asking (§620): the pace above
     # follows the session, and a guesser does not keep one.
     tried = _auth_attempt(request, kind, req.email if kind == "email" else req.phone)
     try:
@@ -3193,7 +3193,7 @@ async def auth_reset_start(req: ResetStartRequest, request: Request) -> dict:
         _user_id, address, code = minted
         # Where to paste it, when this server knows its own address (§297):
         # the reset page every log-in links to.
-        # From settings alone, never `_public_base(request)` (§619, as §304
+        # From settings alone, never `_public_base(request)` (§620, as §304
         # did for the report alert): that reads the caller's own
         # `X-Forwarded-Host`, and whoever asks for somebody's code must not
         # choose the page FAM's email tells them to type it into.
@@ -3329,7 +3329,7 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
 
 
 def _tell_old_address(before: str, after: str) -> None:
-    """Tell the address an account just left that it was changed (§619).
+    """Tell the address an account just left that it was changed (§620).
 
     A reset code goes to the account's address, so whoever changes the
     address - with no more than a signed-in browser, since the change asks
@@ -7086,7 +7086,7 @@ def client_version(app):
 app.add_middleware(client_version)
 
 
-#: What every response says about how a browser may treat it (§619). The
+#: What every response says about how a browser may treat it (§620). The
 #: server sent none of these: any site could draw FAM - `/admin` included -
 #: inside a frame of its own, a response could be read as a type it was not
 #: sent as, and nothing told a browser to come back over https.
@@ -7559,7 +7559,7 @@ async def attach(req: AttachRequest, request: Request) -> dict:
     else:
         _read_limit(request)
     try:
-        # Off the event loop (§619): a link is an outbound fetch of up to
+        # Off the event loop (§620): a link is an outbound fetch of up to
         # eight seconds and a PDF is seconds of parsing, and on the loop that
         # is every listener's audio stopped while one attachment is read.
         item = await asyncio.to_thread(attachments_mod.build, req.kind, req.name,
@@ -10875,7 +10875,7 @@ async def _check_photo(request: Request, user: str, data_url: Optional[str],
     # A paid model call: paced like one (`limit-episodes`) - and only when
     # one will actually be made.
     if image_check.will_call():
-        # And only for an account (§619). `/api/me` takes a guest's name, and
+        # And only for an account (§620). `/api/me` takes a guest's name, and
         # a guest is a session anybody mints by sending no cookie: each such
         # request had a fresh bucket, so the pace below never refused one and
         # a stranger could have pictures checked on FAM's bill without end.
@@ -11055,7 +11055,7 @@ async def delete_note(note_id: int, request: Request) -> dict:
     taking it down deletes it."""
     _read_limit(request)
     # `remove_note` reads an empty id as a moderator taking it down for
-    # everybody (§619): a request whose session could not be minted has an
+    # everybody (§620): a request whose session could not be minted has an
     # empty id, so it is refused here rather than handed that meaning.
     return {"ok": SOCIAL.remove_note(note_id, _require_listener(request))}
 
@@ -13218,7 +13218,7 @@ def _admin_configured() -> bool:
 
 
 def _unclaimed_admin_entries() -> int:
-    """How many `FAM_ADMIN_ACCOUNTS` entries no account holds (§619).
+    """How many `FAM_ADMIN_ACCOUNTS` entries no account holds (§620).
 
     An admin is whoever's account carries a listed address, and an address is
     never verified: FAM sends nothing to prove one. So a listed email or
@@ -13514,7 +13514,7 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     if not _admin_accounts():
         raise HTTPException(status_code=404, detail="Not found")
     _rate_limit(request)
-    # The same count as the app's own sign-in (§619): this door opens every
+    # The same count as the app's own sign-in (§620): this door opens every
     # store, and it had no limit on guesses at all.
     tried = _auth_attempt(request, "email", req.email)
     refused = HTTPException(status_code=401,
@@ -13533,7 +13533,7 @@ async def admin_login(req: AdminLogin, request: Request) -> JSONResponse:
     token, _ = ACCOUNTS.new_session(listener.user_id)
     response = JSONResponse({"ok": True, "email": listener.email,
                              # How many `FAM_ADMIN_ACCOUNTS` entries no account
-                             # holds (§619) - a number, never which.
+                             # holds (§620) - a number, never which.
                              "unclaimed_admin_entries": _unclaimed_admin_entries()})
     # No max_age: a browser-session cookie, never a remembered sign-in.
     response.set_cookie(ADMIN_COOKIE, token,
@@ -14945,7 +14945,7 @@ def _admin_previewing_join(req, request: Request):
             return None
         listener = _admit_admin(listener)
         return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me"}
-    # A password try like any other (§619): counted against the address.
+    # A password try like any other (§620): counted against the address.
     tried = _auth_attempt(request, "email", email)
     try:
         listener = ACCOUNTS.log_in(email, req.password)

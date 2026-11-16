@@ -1805,7 +1805,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       .then(function (signedIn) {
         $("adminPassword").value = "";
         // An admin address no account holds is a seat anybody can take
-        // (§619): said to the admin who can fix it, every time they sign in.
+        // (§620): said to the admin who can fix it, every time they sign in.
         var loose = (signedIn && signedIn.unclaimed_admin_entries) || 0;
         if (loose) {
           window.alert(loose + (loose === 1 ? " address" : " addresses") + " in FAM_ADMIN_ACCOUNTS " +
