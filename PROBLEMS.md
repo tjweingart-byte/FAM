@@ -37693,3 +37693,51 @@ removed. They are a launch checklist, not a change to make now.
 
 Still not audited: every other endpoint's cost one by one with the gate
 off; the voice worker's own image.
+
+## 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16)
+
+**What came in.** The admin of a Facebook science group posted a FAM link
+(the brain-implant episode) and wrote back: his posts usually reach
+thousands, this one reached 168 with no link clicks; Facebook limits
+external audio links and "users scroll past them without a visual hook.
+Adding the episode title directly on the thumbnail will definitely help",
+and a 15-30 second captioned clip posted natively "would perform 10x
+better". Five options were put to the owner; the owner chose the first two.
+The clip, a native photo post and a per-group post kit are not built.
+
+**What the screenshot showed that he did not say.** (a) The picture was an
+observatory: the episode had no picture of its own, and the player's
+borrowing (`thumbnails.pick_for_player`, up the branch, then the facet) is
+what the link drew. (b) Facebook draws link pictures at 1.91:1 and cropped
+the 1200-square preview (§559) to a strip - the FAM badge at the top left
+and the play button at the bottom right were both outside it.
+
+**Built.**
+
+1. `link_preview.wide`: 1200x630, the picture filling it under a shade that
+   rises from the bottom, the badge, "1.5 MIN EPISODE", the title (smaller
+   rather than cut, §615) and the play button, all inside a 60px margin.
+   With no picture, the same on FAM's ground. `GET /api/share/<id>/wide.jpg`,
+   public behind the waitlist like the other three.
+2. `/s/<id>` names it as `og:image` (with 1200x630 and an `og:image:alt`)
+   only when the reader is Facebook's crawler (`sharing.wants_wide`:
+   `facebookexternalhit`, `Facebot`), and says `Vary: User-Agent`. Everyone
+   else gets the head they got before. Why this is not §76's user-agent
+   list is at the rule ([link-picture]).
+3. `app._preview_picture` returns no picture when the picker says
+   `fallback` - so the square, the wide card, the sticker and the story all
+   draw the title cover instead of a borrowed picture. The player is
+   unchanged.
+
+**What this does not fix, said to the owner before building.** A better
+card can raise clicks among the people who see the post. It does nothing
+about the 168: Facebook holds back posts that link out, whatever they look
+like. Only content posted natively (the photo post or the clip) addresses
+reach, and neither is built.
+
+**Not verified here.** How Facebook actually draws it: nothing in this
+container can post to Facebook. After deploy, paste a share link into
+Facebook's Sharing Debugger and press "Scrape Again" - Facebook keeps the
+old picture for a link it has already read until that is done.
+
+Tests: the last block of `tests/test_share_landing.py`.

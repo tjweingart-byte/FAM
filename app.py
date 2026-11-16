@@ -4984,11 +4984,14 @@ def _card_url(share_id: str, request: Request | None = None) -> str:
     return f"{base}/api/share/card?share={quote(share_id)}" if base else ""
 
 
-def _preview_url(share_id: str, request: Request | None = None) -> str:
+def _preview_url(share_id: str, request: Request | None = None,
+                 wide: bool = False) -> str:
     """The link preview's address, absolute or "" - the same refusal as
-    `_card_url`: a relative Open Graph image is no image at all."""
+    `_card_url`: a relative Open Graph image is no image at all. `wide` is
+    the 1200x630 card Facebook's crawler is named (§621)."""
     base = _public_base(request)
-    return f"{base}/api/share/{quote(share_id)}/preview.jpg" if base else ""
+    name = "wide.jpg" if wide else "preview.jpg"
+    return f"{base}/api/share/{quote(share_id)}/{name}" if base else ""
 
 
 def _share_image_url(share_id: str, name: str, request: Request | None = None) -> str:
@@ -5026,6 +5029,14 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         found = _player_picture(record.get("query") or "",
                                 record.get("title") or "",
                                 as_minutes(record.get("minutes")))
+        # **Its own picture or none** (§621). The player borrows - a branch's
+        # picture, then the facet's - because one episode at a time should
+        # never play over a blank screen; a link is the opposite case: the
+        # picture is all a stranger sees, and a brain-implant story went out
+        # to a Facebook group under the science facet's observatory. So a
+        # borrowed picture is not drawn here, and the title cover is.
+        if found.get("fallback"):
+            return "", None
         row = found.get("picture") or found.get("node") or ""
         if not row or not thumbnails._exists():
             return "", None
@@ -5038,12 +5049,13 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
 
 async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
     """One of a share's drawn pictures (`link_preview`): "preview" (the
-    square JPEG), "sticker" (the player card, PNG) or "story" (the card on
+    square JPEG), "wide" (the 1200x630 card with the title on it, for
+    Facebook), "sticker" (the player card, PNG) or "story" (the card on
     9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
     record = await _share_titled(SHARES.get(share_id))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
-    host = _share_host(request) if kind != "preview" else ""
+    host = _share_host(request) if kind in ("sticker", "story") else ""
     key = (share_id, record.get("title") or "", kind, host)
     now = time.time()
     kept = _PREVIEWS.get(key)
@@ -5059,6 +5071,8 @@ async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
         data = await asyncio.to_thread(link_preview.card, picture, title, minutes, host)
     elif kind == "story":
         data = await asyncio.to_thread(link_preview.story, picture, title, minutes, host)
+    elif kind == "wide":
+        data = await asyncio.to_thread(link_preview.wide, picture, title, minutes)
     else:
         data = await asyncio.to_thread(link_preview.draw, picture, title, minutes)
     if data is None:
@@ -5082,6 +5096,18 @@ async def share_preview(share_id: str, request: Request) -> Response:
     data = await _share_drawing(share_id, "preview", request)
     # As briefly as the page that names it: a re-written title is a new
     # picture within minutes, not an hour.
+    return Response(content=data, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/wide.jpg")
+async def share_wide(share_id: str, request: Request) -> Response:
+    """The picture a shared link previews with on Facebook (§621): 1200x630,
+    the shape Facebook draws, with the logo, the play button and the title
+    all inside it. Named in the page's head only to Facebook's crawler
+    (`sharing.wants_wide`); public, like the link."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "wide", request)
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=300"})
 
@@ -5176,18 +5202,24 @@ async def share_open(share_id: str, request: Request):
     The open is not counted here. See `share_opened`.
     """
     record = await _share_titled(SHARES.get(share_id))
+    # Facebook's crawler is named the wide card (§621); everyone else the
+    # square, as before.
+    wide = sharing.wants_wide(request.headers.get("user-agent", ""))
     payload = sharing.landing_payload(
         record or {}, url=_share_url(share_id, request)[0],
         card_url=_card_url(share_id, request) if record else "",
-        image_url=_preview_url(share_id, request) if record else "",
-        app_store=settings.app_store_url,
+        image_url=_preview_url(share_id, request, wide) if record else "",
+        app_store=settings.app_store_url, wide=wide,
     )
     return HTMLResponse(
         content=sharing.render_landing(_landing_template(), payload),
         status_code=200 if record else 404,
         # A share is one episode's worth of fixed text. Cacheable, but briefly:
-        # the title can be re-written when an episode is regenerated.
-        headers={"Cache-Control": "public, max-age=300"},
+        # the title can be re-written when an episode is regenerated. The
+        # head differs for Facebook's crawler, so a cache must not hand one
+        # reader the other's page.
+        headers={"Cache-Control": "public, max-age=300",
+                 "Vary": "User-Agent"},
     )
 
 
@@ -6967,7 +6999,8 @@ def _shared_episode_request(request: Request) -> bool:
     if request.method in ("GET", "HEAD") and (
             path == "/api/share/card"
             or (path.startswith("/api/share/")
-                and path.endswith(("/preview.jpg", "/sticker.png", "/story.jpg")))):
+                and path.endswith(("/preview.jpg", "/wide.jpg", "/sticker.png",
+                                   "/story.jpg")))):
         return True
     if path != "/api/audio":
         return False

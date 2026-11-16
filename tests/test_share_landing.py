@@ -267,3 +267,118 @@ def test_the_link_picture_fits_under_whatsapps_limit():
     noisy.save(buf, format="PNG")
     data = link_preview.draw(buf.getvalue(), "Title", 3)
     assert data and len(data) <= link_preview.MAX_BYTES
+
+
+# --- §621: the wide card for Facebook, and a link's own picture or none -----
+
+FACEBOOK = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+
+
+def test_facebooks_crawler_is_named_the_wide_card_and_nobody_else(client, shared, monkeypatch):
+    """Facebook crops a square picture to a 1.91:1 strip, which cut the logo
+    and the play button off; its crawler is named a picture drawn at that
+    shape. Messages and the rest keep the square (§559)."""
+    _public(monkeypatch)
+    theirs = client.get(f"/s/{shared}", headers={"user-agent": FACEBOOK})
+    assert f"/api/share/{shared}/wide.jpg" in theirs.text
+    assert 'og:image:height" content="630"' in theirs.text
+    assert "preview.jpg" not in theirs.text
+    assert "User-Agent" in theirs.headers.get("vary", "")
+    ours = client.get(f"/s/{shared}", headers={"user-agent": "WhatsApp/2.23"})
+    assert f"/api/share/{shared}/preview.jpg" in ours.text
+    assert "wide.jpg" not in ours.text
+    assert 'og:image:height" content="1200"' in ours.text
+
+
+def test_the_wide_card_is_1200_by_630(client, shared):
+    import io
+
+    from PIL import Image
+
+    got = client.get(f"/api/share/{shared}/wide.jpg")
+    assert got.status_code == 200
+    assert got.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(got.content)).size == (1200, 630)
+    assert client.get("/api/share/nope/wide.jpg").status_code == 404
+
+
+def test_the_wide_card_has_the_title_on_the_picture():
+    """The same picture with and without a title differs where the title is
+    drawn, and nowhere near the top right, where nothing is."""
+    import io
+
+    from PIL import Image, ImageChops
+
+    import link_preview
+
+    src = io.BytesIO()
+    Image.new("RGB", (1600, 900), (200, 30, 30)).save(src, format="PNG")
+    a = Image.open(io.BytesIO(link_preview.wide(src.getvalue(), "Brain implants", 1.5)))
+    b = Image.open(io.BytesIO(link_preview.wide(src.getvalue(), "Zebra crossing", 1.5)))
+    diff = ImageChops.difference(a.convert("L"), b.convert("L")).point(lambda v: 255 if v > 40 else 0)
+    box = diff.getbbox()
+    assert box is not None
+    left, top, right, bottom = box
+    m = link_preview.WIDE_MARGIN
+    assert left >= m - 4 and bottom <= link_preview.WIDE[1] - m + 12
+    assert top > link_preview.BADGE[3] and right <= m + link_preview.WIDE_TITLE_WIDTH
+    # The picture itself shows above the shade.
+    r, g, bl = a.convert("RGB").getpixel((700, 40))
+    assert r > 150 and g < 80 and bl < 80
+
+
+def test_the_wide_card_never_cuts_a_long_title():
+    import io
+
+    from PIL import Image
+
+    import link_preview
+
+    seen = []
+    real = link_preview._wrap
+
+    def spy(d, text, font, width, most=0):
+        lines = real(d, text, font, width, most)
+        seen.append((" ".join(lines), most))
+        return lines
+
+    title = "why the central bank held rates and what three governors said " * 3
+    try:
+        link_preview._wrap = spy
+        data = link_preview.wide(None, title, 3)
+    finally:
+        link_preview._wrap = real
+    assert Image.open(io.BytesIO(data)).size == link_preview.WIDE
+    assert seen[-1] == (" ".join(title.split()), 0)
+    assert len(data) <= link_preview.MAX_BYTES
+
+
+def test_a_link_never_wears_a_borrowed_picture(monkeypatch):
+    """A brain-implant story went to a Facebook group under the science
+    facet's observatory. The player may borrow; a link draws the episode's
+    own picture or the title cover."""
+    import app as appmod
+    import thumbnails
+
+    class Store:
+        def image(self, row):
+            return (b"bytes", "image/png")
+
+    monkeypatch.setattr(thumbnails, "_exists", lambda: True)
+    monkeypatch.setattr(thumbnails, "store", lambda: Store())
+    record = {"query": "brain implants", "title": "A Voice", "minutes": 2}
+    monkeypatch.setattr(appmod, "_player_picture", lambda *a, **k: {
+        "node": "science", "fallback": True})
+    assert appmod._preview_picture(record) == ("", None)
+    monkeypatch.setattr(appmod, "_player_picture", lambda *a, **k: {
+        "node": "neuroscience", "fallback": False})
+    assert appmod._preview_picture(record) == ("neuroscience", b"bytes")
+
+
+def test_the_wide_card_is_public_behind_the_waitlist():
+    """Facebook's crawler has no account: the gate lets the picture through
+    with the other three (§575)."""
+    import pathlib
+
+    source = (pathlib.Path(__file__).resolve().parent.parent / "app.py").read_text()
+    assert '"/preview.jpg", "/wide.jpg", "/sticker.png"' in source

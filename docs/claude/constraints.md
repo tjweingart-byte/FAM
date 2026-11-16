@@ -1717,6 +1717,33 @@
   > A pasted link's preview is no longer the story card (§559): `og:image`
   > is a square JPEG of the episode's picture with a play button
   > (`link_preview`), because the SVG card was skipped by Messages.
+<!-- rule:link-picture -->
+- **A link's picture is the episode's own or the title cover, and Facebook
+  is named a wide one with the title on it** (§621, the owner's pick of two
+  from five options, after a Facebook group's admin posted a FAM link that
+  reached 168 people with no clicks). Two things, both in what a stranger
+  sees before any word of the episode:
+  **(1) `link_preview.wide`**, 1200x630, the shape Facebook draws a link's
+  picture at. Facebook crops the square preview (§559) to that strip, which
+  cut the logo and the play button off and left a picture with nothing
+  saying it is audio. The wide card has the logo, the length, the play
+  button and **the title on the picture** - the one drawing where the words
+  are on it, because a feed is scrolled past. It is named only in the head
+  served to Facebook's crawler (`sharing.wants_wide`, `WIDE_AGENTS`), and
+  the page says `Vary: User-Agent`. Messages, WhatsApp, X and the rest keep
+  the wordless square the owner picked in §559. This is not the user-agent
+  list §76 settled against: that list decided what was *counted*, so a
+  crawler it missed was a wrong number; a crawler this one misses gets the
+  square every previewer got before. Do not widen it to make another site
+  look better without asking - each previewer's shape is its own question.
+  **(2) No borrowed picture on anything a share draws**
+  (`app._preview_picture`: the square, the wide card, the sticker, the
+  story). The player borrows up the branch and then the facet
+  ([player-layout]) because one episode at a time should never play over a
+  blank screen; a link is the opposite case, and a brain-implant story went
+  out under the science facet's observatory. `fallback` from
+  `thumbnails.pick_for_player` means borrowed, and a borrowed picture is
+  replaced by the title cover. The title is never cut on either (§615).
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

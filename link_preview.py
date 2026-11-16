@@ -218,12 +218,7 @@ def _cover(title: str, minutes: float):
     for line in lines:
         d.text((96, y), line, font=font, fill=PAPER)
         y += step
-    # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
-    try:
-        length = max(0.5, float(minutes or 1))
-    except (TypeError, ValueError):
-        length = 1.0
-    pill = f"{length:g} MIN EPISODE"
+    pill = _length(minutes)
     small = _font("GeistMono-Bold.ttf", 34)
     w = d.textlength(pill, font=small)
     d.rounded_rectangle((96, y + 50, 96 + w + 54, y + 50 + 72), radius=36,
@@ -252,24 +247,112 @@ def _preview(picture: Optional[bytes], title: str, minutes: float):
     return im
 
 
+def _jpeg(im) -> bytes:
+    """`im` as a JPEG under `MAX_BYTES` where that can be had: quality
+    first; a picture still too big after that (very fine detail) is drawn
+    smaller, which every previewer scales anyway."""
+    data = b""
+    w, h = im.size
+    for scale in (1.0, 0.8, 2 / 3, 8 / 15):
+        frame = im if scale == 1.0 else im.resize((round(w * scale), round(h * scale)))
+        for quality in (QUALITY, 80, 74, 68, 60):
+            out = io.BytesIO()
+            frame.save(out, format="JPEG", quality=quality, optimize=True)
+            data = out.getvalue()
+            if len(data) <= MAX_BYTES:
+                return data
+    return data
+
+
 def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes]:
     """The preview as JPEG bytes; `None` only if Pillow itself fails."""
     try:
-        im = _preview(picture, title, minutes)
-        data = b""
-        # Quality first; a picture still too big after that (very fine
-        # detail) is drawn smaller, which every previewer scales anyway.
-        for side in (SIZE, 960, 800, 640):
-            frame = im if side == SIZE else im.resize((side, side))
-            for quality in (QUALITY, 80, 74, 68, 60):
-                out = io.BytesIO()
-                frame.save(out, format="JPEG", quality=quality, optimize=True)
-                data = out.getvalue()
-                if len(data) <= MAX_BYTES:
-                    return data
-        return data
+        return _jpeg(_preview(picture, title, minutes))
     except Exception:  # noqa: BLE001 - a preview is never worth a 500
         log.exception("link preview: could not draw")
+        return None
+
+
+# --- The wide card, for Facebook (§621) -------------------------------------
+#
+# Facebook draws a link's picture at 1.91:1 and crops a square one to that
+# strip: the badge and the play button of the square preview fell outside
+# it, and what was left was a picture with nothing saying it is audio. A
+# group's admin, after a post of a FAM link reached 168 people with no
+# clicks: "users scroll past them without a visual hook. Adding the episode
+# title directly on the thumbnail will definitely help." So Facebook's
+# crawler is named this picture instead (`sharing.wants_wide`): 1200x630,
+# everything inside the frame, and the title on it - the one place the
+# words are drawn on the picture, because a feed is scrolled, not read.
+# Messages and the rest keep the wordless square (§559).
+
+WIDE = (1200, 630)
+WIDE_MARGIN = 60
+#: The title's sizes on the wide card, largest first, the width it wraps
+#: in (clear of the play button) and the height its lines share - smaller
+#: rather than cut, as on the cover (§615).
+WIDE_SIZES = (76, 66, 58, 50, 44, 38, 32, 28)
+WIDE_TITLE_WIDTH = 860
+WIDE_ROOM = 300
+
+
+def _length(minutes: float) -> str:
+    # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
+    try:
+        length = max(0.5, float(minutes or 1))
+    except (TypeError, ValueError):
+        length = 1.0
+    return f"{length:g} MIN EPISODE"
+
+
+def _wide(picture: Optional[bytes], title: str, minutes: float):
+    """The wide card as an image: the picture filling it and darkened
+    towards the bottom, else FAM's ground; then the badge, the length, the
+    title and the play button, all inside `WIDE_MARGIN`."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+    w, h = WIDE
+    im = None
+    if picture:
+        try:
+            src = ImageOps.exif_transpose(Image.open(io.BytesIO(picture))).convert("RGB")
+            im = ImageOps.fit(src, WIDE, Image.LANCZOS)
+            # A shade rising from the bottom, so the title reads on any
+            # picture: clear at the top third, near-solid under the words.
+            shade = Image.new("L", (1, h), 0)
+            for y in range(h):
+                t = max(0.0, (y - h * 0.22) / (h * 0.78))
+                shade.putpixel((0, y), round(235 * min(1.0, t * 1.25)))
+            im.paste(Image.new("RGB", WIDE, INK), (0, 0), shade.resize(WIDE))
+        except Exception:  # noqa: BLE001 - an unreadable picture
+            log.warning("link preview: the episode's picture would not "
+                        "open; drawing the wide cover instead")
+            im = None
+    if im is None:
+        im = Image.new("RGB", WIDE, GROUND)
+        ImageDraw.Draw(im).ellipse((-400, -500, 800, 500), fill=(84, 66, 52))
+        im = im.filter(ImageFilter.GaussianBlur(140))
+    _badge(im)
+    d = ImageDraw.Draw(im)
+    _play(d, cx=w - WIDE_MARGIN - 90, cy=h - WIDE_MARGIN - 90, r=84)
+    font, lines, step = _fitted(d, title or "A FAM episode",
+                                "BricolageGrotesque-SemiBold.ttf",
+                                WIDE_SIZES, WIDE_TITLE_WIDTH, WIDE_ROOM)
+    y = h - WIDE_MARGIN - len(lines) * step
+    small = _font("GeistMono-Bold.ttf", 26)
+    d.text((WIDE_MARGIN, y - 44), _length(minutes), font=small, fill=COPPER)
+    for line in lines:
+        d.text((WIDE_MARGIN, y), line, font=font, fill=PAPER)
+        y += step
+    return im
+
+
+def wide(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes]:
+    """The wide card as JPEG bytes; `None` only if Pillow itself fails."""
+    try:
+        return _jpeg(_wide(picture, title, minutes))
+    except Exception:  # noqa: BLE001 - a preview is never worth a 500
+        log.exception("link preview: could not draw the wide card")
         return None
 
 

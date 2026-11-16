@@ -108,6 +108,15 @@ arrived as words. The story card is unchanged for Instagram and Snapchat.
 Drawn on request, a few kept in memory, nothing stored; links already sent
 keep the preview they arrived with.
 
+**Facebook is the exception, and a link never wears a borrowed picture
+(§621).** Facebook draws a link's picture at 1.91:1 and cropped the square
+to a strip with the badge and the play button outside it, so its crawler
+alone is named `/api/share/<id>/wide.jpg` (`link_preview.wide`, 1200x630):
+the same picture with the badge, the length, the play button and the title
+on it. And "the picture the player shows" now stops short of the player's
+borrowing: an episode with no picture of its own draws the title cover on
+every share picture, rather than its branch's or its facet's.
+
 **Sent from the app, not only pasted (§601).** The tile appears when a link
 is *pasted* into Messages; a link the app types in through `sms:&body=` or
 `mailto:` arrives as plain text and Messages and Mail send it bare. So on
