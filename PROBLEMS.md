@@ -37687,5 +37687,9 @@ no client calls) can then be asked for new episodes without end. Before
 `WAITLIST=0`: require an account to generate, or turn the allowance on,
 or pace by the listener's real address.
 
+**The owner's answer (16/11):** FAM is in beta behind the waitlist, and all
+of the open items in this section are to be done before the waitlist is
+removed. They are a launch checklist, not a change to make now.
+
 Still not audited: every other endpoint's cost one by one with the gate
 off; the voice worker's own image.
