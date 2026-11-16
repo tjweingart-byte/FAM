@@ -37970,3 +37970,14 @@ candidates at three minutes and on search (8), the list's other builds
 
 Tests: `tests/test_writer_time_wording_625.py` (the instructions never
 speak of what "we have" outside their own bad examples).
+
+**The final instructions tried on the four packets, again for nothing**
+(eight Haiku runs inside the session, two a packet, read by hand; the
+first attempt stopped at the plan's five-hour usage limit and was run again
+once it lifted). Every one of the eight opens on the figure with its time,
+as a fact. Two scripts leak, one sentence each, both on Nvidia ("where the
+shares are trading on Monday is not something this can tell you yet"; "...
+is not a figure I can give you") - and **the check drops both**, so none
+reaches a listener. Against §626: 13 leaking sentences in 5 of 8 scripts
+under the old wording, 4 in 2 of 8 after §625, 2 in 2 of 8 now. Eight
+scripts is a direction, not a rate.

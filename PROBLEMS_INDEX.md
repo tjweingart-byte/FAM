@@ -620,4 +620,4 @@ and `limit` = Lines.
 | 37751 | 43 | 626. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
 | 37794 | 41 | 627. The material check extended to what the writer "can" do with a figure (2026-11-16) |
 | 37835 | 105 | 628. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |
-| 37940 | 34 | 629. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
+| 37940 | 45 | 629. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
