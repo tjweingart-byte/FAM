@@ -845,7 +845,8 @@ def test_the_front_door_words_are_the_webs_584():
     assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in auth
     door = _swift("Views", "FrontDoor.swift")
     assert "That password is too long." not in door and 'Saving\\u{2026}" : "Set password"' not in door
-    assert "if typed.count > 1024 { password = String(typed.prefix(1024)) }" in door
+    # Both of §619's boxes, one helper.
+    assert "if typed.count > 1024 { text.wrappedValue = String(typed.prefix(1024)) }" in door
     assert ".font(FAMFont.body(15, month.earned ? .semibold : .regular))" in door
     assert ".fm-line{ margin-top:10px; font-size:15px;" in (ROOT / "static" / "waitlist.html").read_text()
     for sf in ("arrow.up.right", "square.and.arrow.up", 'systemName: "link"'):
@@ -913,6 +914,24 @@ def test_the_join_asks_no_password_and_a_let_in_account_sets_one_first_606():
     door = _swift("Views", "FrontDoor.swift")
     assert "struct PasswordFirstView: View" in door and "WaitlistPasswordCard" not in door
     assert "model.api.setPassword(password)" in door
+
+
+def test_the_first_password_is_typed_twice_and_the_email_alone_signs_in_619():
+    """§619: the first password has a Confirm field, each box its own eye,
+    and a mismatch is said before any request; Log in sends an empty
+    password, which signs a let-in account in to set one."""
+    door = _swift("Views", "FrontDoor.swift")
+    fields = door[door.index("struct FirstPasswordFields"):door.index("struct WaitlistCard")]
+    assert fields.count("secret(text: $") == 2
+    assert '"Confirm password"' in fields and "showConfirm" in fields
+    assert fields.count('Image(systemName: shown.wrappedValue ? "eye.slash" : "eye")') == 1
+    assert "Those passwords don\\u{2019}t match." in fields
+    assert fields.index("confirm == password") < fields.index("api.setPassword")
+    auth = _swift("Views", "AuthView.swift")
+    act = auth[auth.index("private func logIn() async"):]
+    act = act[:act.index("\n    }\n")]
+    assert "password.isEmpty" not in act
+    assert "Just off the waitlist? Leave the password empty" in auth
 
 
 # --- The tour (§594, §595) ---------------------------------------------------

@@ -1353,19 +1353,28 @@ def test_the_let_in_link_never_signs_in_a_waitlisted_or_passworded_account(world
 
 
 def test_signing_in_to_a_passwordless_account_says_how_to_get_in(world, monkeypatch):
-    """§606: recognised, not "do not match" - waiting, it is told the link
-    comes when let in; let in, to open that link."""
-    import mail
-    monkeypatch.setattr(mail, "status", lambda: {"available": False, "reason": "off"})
+    """§606: recognised, not "do not match" - waiting, it is told it signs
+    in with the email once let in. §619: let in, the email alone signs in,
+    and the app's first step is the password (no link, no inbox)."""
     _member, body = _join("nopw@fam.test", password="")
     door = TestClient(appmod.app)
-    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": "anything-at-all"})
+    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": ""})
     assert r.status_code == 401 and "on the waitlist" in r.json()["error"]
+    assert "sign in with your email alone" in r.json()["error"]
+    assert door.get("/api/auth/me").json().get("authenticated") is not True
     appmod.WAITLIST.grant([body["user_id"]])
-    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": "anything-at-all"})
-    assert r.status_code == 401
-    assert "Open the link we sent you when you were let in" in r.json()["error"]
-    assert "Forgot password?" not in r.json()["error"]
+    r = door.post("/api/auth/login", json={"email": "nopw@fam.test", "password": ""})
+    assert r.status_code == 200 and r.json()["user_id"] == body["user_id"]
+    assert r.json()["password_needed"] is True
+    me = door.get("/api/auth/me").json()
+    assert me["user_id"] == body["user_id"] and me["password_needed"] is True
+    # Set, the email alone is never a way in again.
+    assert door.post("/api/auth/password/set", json={"new": PASSWORD}).status_code == 200
+    stranger = TestClient(appmod.app)
+    r = stranger.post("/api/auth/login", json={"email": "nopw@fam.test", "password": ""})
+    assert r.status_code == 401 and "do not match" in r.json()["error"]
+    r = stranger.post("/api/auth/login", json={"email": "nopw@fam.test", "password": PASSWORD})
+    assert r.status_code == 200 and r.json()["password_needed"] is False
     # A wrong password on an account that has one is still the one sentence.
     _join("withpw@fam.test", password=PASSWORD)
     r = door.post("/api/auth/login", json={"email": "withpw@fam.test", "password": "wrong-password"})
@@ -1384,6 +1393,31 @@ def test_the_app_opens_on_set_your_password_when_it_is_needed():
     submit = page.split("function submitPasswordFirst(){", 1)[1].split("\n  }\n", 1)[0]
     assert '"/api/auth/password/set"' in submit and "routeFirstScreen()" in submit
     assert "Use at least 8 characters for your password." in submit
+    # §619: typed twice, each box with its own eye, the mismatch said first.
+    assert 'id="passwordFirstConfirm"' in screen and screen.count('class="pw-eye"') == 2
+    assert "togglePasswordShown('passwordFirstConfirm', this)" in screen
+    assert submit.index("again.value !== pw") < submit.index("fetch(")
+
+
+def test_an_admin_account_never_signs_in_by_email_alone(world, monkeypatch):
+    """§619's email-alone sign-in is never a way into /admin."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", "boss@fam.test")
+    _member, body = _join("boss@fam.test", password="")
+    assert appmod.ACCOUNTS.account(body["user_id"])["status"] == "active"
+    door = TestClient(appmod.app)
+    r = door.post("/api/auth/login", json={"email": "boss@fam.test", "password": ""})
+    assert r.status_code == 401 and "admin account" in r.json()["error"]
+    assert door.get("/api/auth/me").json().get("authenticated") is not True
+
+
+def test_log_in_sends_the_email_alone_and_opens_set_your_password():
+    """§619: the app's Log in no longer refuses an empty password, and a
+    sign-in that comes back `password_needed` opens the first-password screen."""
+    page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    form = page.split("function submitAuthForm(){", 1)[1].split("\n  function ", 1)[0]
+    assert 'if(!password && authMode === "signup")' in form
+    assert form.index("AUTH.password_needed") < form.index("afterAccount()")
+    assert 'id="authLetInNote"' in page
 
 
 def test_launch_day_asks_a_waitlisted_account_for_its_password(world, monkeypatch):
