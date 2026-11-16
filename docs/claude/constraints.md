@@ -1796,6 +1796,27 @@
   nothing ([no-social-posting]). Not built: the app's share sheet, and
   per-group link tagging (§621's option 5). Unmeasured: whether a clip
   post restores reach, and how the production voice sounds in one.
+<!-- rule:post-kit -->
+- **Each community has its own share link, so its opens are its own**
+  (§624, the last of §621's five options). `/admin/groups` made one share
+  owned by `communities.SHARER` for an episode, and a share is one row per
+  (owner, question, length) - so every group offered the same episode got
+  the same link, and "0 link clicks" was known only because an admin said
+  so. `communities.sharer_for(lead)` owns one share per lead: same
+  question and length, so **the same cached episode and no extra spend**,
+  a different id. `opens` is the link's own count - reported by the page,
+  never the serve ([share-link]), so a crawler is not an open - and the
+  list says `own_link`; a link made before this is shared, and the card
+  says its count is every group's together and that Listen again makes
+  the community its own. **The kit** (`GET /api/admin/groups/kit`, admin,
+  read only): that link, the photo ([post-photo]), the clip ([post-clip]),
+  a suggested caption and the first comment. The caption is composed in
+  code (`communities.caption_for`: title, the cached one line, "Link in
+  the first comment") and **never contains the link** - a post that links
+  out is held back; the link is the first comment. A person sends all of
+  it; nothing here sends or posts ([community-outreach]). Opens are
+  counted; plays, reach and anything Facebook knows are not - reach is
+  still the admin's to report.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

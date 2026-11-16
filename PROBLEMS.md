@@ -37815,3 +37815,36 @@ timings, and its frames looked at. How Facebook treats the upload, and
 whether reach recovers, is the admin's to report.
 
 Tests: `tests/test_clip_623.py`.
+
+## 624. The post kit: a link per community, its opens counted (2026-11-17)
+
+The fifth of §621's options. After §621-623 a person on `/admin/groups`
+could send an admin a better link, a photo and a clip - and still could
+not tell whether anybody in that group followed the link, except by
+asking.
+
+**Why they could not.** `admin_groups_listen` made the share as
+`communities.SHARER`, and `ShareStore.create` returns the existing row for
+the same (owner, question, length). Two groups pitched the same episode
+got the same `/s/<id>`, and its `opens` was both groups'.
+
+**Built.** The share is owned by `communities.sharer_for(lead id)`, so a
+lead has a link of its own - the same question and length, so the same
+cache key and the same kept episode. `/api/admin/groups` adds `opens` and
+`own_link` to a lead with a link; the card says "Opened N times from this
+community's own link", or, for a link made before this, that its count is
+every group's together and Listen again gives the community its own.
+`GET /api/admin/groups/kit?id=`: the link, the photo, the clip, a caption
+composed in code and the first-comment line; the card has **Copy caption**
+and **Copy first comment** beside the photo and the clip.
+
+**What an open is.** The landing page reports it once it is running in
+front of a person (`share_opened`), so link previewers and crawlers are
+not counted. It is not a play, and it is not reach: how many people
+Facebook showed the post to is still only the admin's to say.
+
+**Not built.** The kit is buttons on the card, not a page the group's
+admin opens - a person still sends the pieces. Egan's first message is
+unchanged and pitches a link. Opens are a total, not a history by day.
+
+Tests: `tests/test_post_kit_624.py`.

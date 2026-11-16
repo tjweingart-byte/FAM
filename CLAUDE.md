@@ -441,7 +441,7 @@ Accounts, tiers, sharing
   counted by the page; its join note always goes to `/waitlist` (§319) -
   other doors need `APP_STORE_URL`; no `user_id`; host from the request;
   picture own or cover, Facebook wide, post photo, clip (§621-3). [share-link] [link-picture] [post-photo] [post-clip]
-- FAM never posts, holds no posting token; /admin/groups. [no-social-posting] [community-outreach]
+- FAM never posts; link per group (§624). [no-social-posting] [community-outreach] [post-kit]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never

@@ -81,6 +81,34 @@ log = logging.getLogger("fam.communities")
 #: The share links this page makes are owned by this id, never a listener's.
 SHARER = "fam-outreach"
 
+
+def sharer_for(lead_id: str) -> str:
+    """The owner of one community's share link (§624). A share is one row
+    per (owner, question, length), so an owner per lead is a link per
+    community: the link's own open count is then that community's, where
+    one shared link counted every group together."""
+    return f"{SHARER}:{lead_id}"
+
+
+def share_id_of(link: str) -> str:
+    """The share id in a `/s/<id>` link, or ""."""
+    found = re.search(r"/s/([A-Za-z0-9_-]+)", link or "")
+    return found.group(1) if found else ""
+
+
+def caption_for(title: str, hook: str, minutes: float) -> str:
+    """The words suggested for a native post of an episode's photo or clip
+    (§624), composed in code: the title, the episode's one line when there
+    is one, and where the link is - the first comment, because a post that
+    links out is held back. A suggestion; the person posting edits it."""
+    try:
+        length = f"{max(0.5, float(minutes or 1)):g}"
+    except (TypeError, ValueError):
+        length = "1"
+    parts = [" ".join((title or "").split()), " ".join((hook or "").split()),
+             f"A {length}-minute listen from FAM. Link in the first comment."]
+    return "\n\n".join(p for p in parts if p)
+
 #: Statuses, in the order a lead moves through them. `set_aside` is a lead
 #: the read judged a poor fit: kept so the next run neither reads nor judges
 #: it again, listed for audit, never actionable.

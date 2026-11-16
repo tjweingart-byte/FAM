@@ -14479,6 +14479,55 @@ def _groups_suggested() -> list:
     return list(found)
 
 
+def _groups_opens(leads: list[dict]) -> None:
+    """Each lead's link, counted (§624): `opens` is how many times its
+    share link was followed (reported by the page, so a crawler is not an
+    open), and `own_link` whether the link is this community's alone. A
+    link made before §624 is one every group with that episode shares, so
+    its count says nothing about one group; the card says so. Never raises."""
+    for lead in leads:
+        share_id = communities.share_id_of(lead.get("share_url") or "")
+        if not share_id:
+            continue
+        try:
+            record = SHARES.get(share_id) or {}
+        except Exception:  # noqa: BLE001 - a count is not worth the list
+            record = {}
+        lead["opens"] = int(record.get("opens") or 0)
+        lead["own_link"] = record.get("user_id") == communities.sharer_for(lead.get("id") or "")
+
+
+@app.get("/api/admin/groups/kit")
+async def admin_groups_kit(request: Request, id: str = Query(..., min_length=3, max_length=140)) -> dict:
+    """Everything a person sends a community's admin to post one episode
+    natively (§624): the community's own link (for the first comment), the
+    photo (§622), the clip (§623), suggested words, and how many times the
+    link has been opened. Read only: nothing is made, voiced or sent."""
+    _require_admin(request)
+    if not communities._exists():
+        raise HTTPException(status_code=404, detail="No leads yet")
+    lead = await asyncio.to_thread(communities.store().get, id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="No such lead")
+    share_id = communities.share_id_of(lead.get("share_url") or "")
+    record = await _share_titled(SHARES.get(share_id)) if share_id else None
+    if not record:
+        raise HTTPException(status_code=409, detail=(
+            "Listen to this lead's episode first: that makes the link the kit is built on."))
+    hook = await _share_hook(record)
+    minutes = as_minutes(record.get("minutes"), 1)
+    link = lead["share_url"]
+    return {
+        "url": link,
+        "photo": _share_image_url(share_id, "post.jpg", request) + "?download=1",
+        "clip": f"/api/admin/share/{quote(share_id)}/clip.mp4",
+        "caption": communities.caption_for(record.get("title") or "", hook, minutes),
+        "first_comment": f"Listen to the full episode: {link}",
+        "opens": int(record.get("opens") or 0),
+        "own_link": record.get("user_id") == communities.sharer_for(lead["id"]),
+    }
+
+
 @app.get("/api/admin/groups")
 async def admin_groups(request: Request, status: str = "", platform: str = "") -> dict:
     """Every lead (to contact first, best first), whether a search can run,
@@ -14491,6 +14540,7 @@ async def admin_groups(request: Request, status: str = "", platform: str = "") -
     leads = []
     if communities._exists():
         leads = await asyncio.to_thread(communities.store().all, status, platform)
+        await asyncio.to_thread(_groups_opens, leads)
     suggested = await asyncio.to_thread(_groups_suggested)
     health = await asyncio.to_thread(communities.health)
     return {"health": health, "running": bool(_GROUPS_RUNNING),
@@ -14584,7 +14634,8 @@ async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
     if not episode.get("query"):
         raise HTTPException(status_code=409, detail="This lead has no kept episode.")
     try:
-        share = SHARES.create(communities.SHARER, episode["query"],
+        # A link of this community's own (§624), so its opens are its own.
+        share = SHARES.create(communities.sharer_for(req.id), episode["query"],
                               as_minutes(episode.get("minutes") or 1),
                               episode.get("title") or "")
     except sharing.ShareError as exc:
