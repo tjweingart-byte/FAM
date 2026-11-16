@@ -439,10 +439,9 @@ Accounts, tiers, sharing
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
   counted by the page; its join note always goes to `/waitlist` -
-  other doors need `APP_STORE_URL`; no `user_id`; host from the request (`_public_base`,
-  `X-Forwarded-Proto`, loopback refused); story cards are PNG files to the share
-  sheet. [share-link]
-- FAM never posts, holds no posting token; /admin/groups. [no-social-posting] [community-outreach]
+  other doors need `APP_STORE_URL`; no `user_id`; host from the request;
+  picture own or cover, Facebook wide, post photo, clip. [share-link] [link-picture] [post-photo] [post-clip]
+- FAM never posts; link per group. [no-social-posting] [community-outreach] [post-kit]
 - **App review**: Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked; Terms ticked at sign-up. [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never

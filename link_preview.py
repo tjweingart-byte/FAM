@@ -218,12 +218,7 @@ def _cover(title: str, minutes: float):
     for line in lines:
         d.text((96, y), line, font=font, fill=PAPER)
         y += step
-    # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
-    try:
-        length = max(0.5, float(minutes or 1))
-    except (TypeError, ValueError):
-        length = 1.0
-    pill = f"{length:g} MIN EPISODE"
+    pill = _length(minutes)
     small = _font("GeistMono-Bold.ttf", 34)
     w = d.textlength(pill, font=small)
     d.rounded_rectangle((96, y + 50, 96 + w + 54, y + 50 + 72), radius=36,
@@ -252,24 +247,230 @@ def _preview(picture: Optional[bytes], title: str, minutes: float):
     return im
 
 
+def _jpeg(im) -> bytes:
+    """`im` as a JPEG under `MAX_BYTES` where that can be had: quality
+    first; a picture still too big after that (very fine detail) is drawn
+    smaller, which every previewer scales anyway."""
+    data = b""
+    w, h = im.size
+    for scale in (1.0, 0.8, 2 / 3, 8 / 15):
+        frame = im if scale == 1.0 else im.resize((round(w * scale), round(h * scale)))
+        for quality in (QUALITY, 80, 74, 68, 60):
+            out = io.BytesIO()
+            frame.save(out, format="JPEG", quality=quality, optimize=True)
+            data = out.getvalue()
+            if len(data) <= MAX_BYTES:
+                return data
+    return data
+
+
 def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes]:
     """The preview as JPEG bytes; `None` only if Pillow itself fails."""
     try:
-        im = _preview(picture, title, minutes)
-        data = b""
-        # Quality first; a picture still too big after that (very fine
-        # detail) is drawn smaller, which every previewer scales anyway.
-        for side in (SIZE, 960, 800, 640):
-            frame = im if side == SIZE else im.resize((side, side))
-            for quality in (QUALITY, 80, 74, 68, 60):
-                out = io.BytesIO()
-                frame.save(out, format="JPEG", quality=quality, optimize=True)
-                data = out.getvalue()
-                if len(data) <= MAX_BYTES:
-                    return data
-        return data
+        return _jpeg(_preview(picture, title, minutes))
     except Exception:  # noqa: BLE001 - a preview is never worth a 500
         log.exception("link preview: could not draw")
+        return None
+
+
+# --- The wide card, for Facebook (§621) -------------------------------------
+#
+# Facebook draws a link's picture at 1.91:1 and crops a square one to that
+# strip: the badge and the play button of the square preview fell outside
+# it, and what was left was a picture with nothing saying it is audio. A
+# group's admin, after a post of a FAM link reached 168 people with no
+# clicks: "users scroll past them without a visual hook. Adding the episode
+# title directly on the thumbnail will definitely help." So Facebook's
+# crawler is named this picture instead (`sharing.wants_wide`): 1200x630,
+# the owner's pick of two drawn layouts - **the picture beside the words**:
+# the episode's picture, square and untouched, on the left; the wordmark,
+# the length, the title and the play button on FAM's ground on the right.
+# With no picture of its own, the same words across the whole card.
+#
+# **A long title is cut here, with an ellipsis** (the owner, on seeing one
+# set small enough to fit: "way too much text"). The drawings made
+# for a feed (this, the post photo, the clip) are where §615's "never cut"
+# gives way: a feed is scrolled, not read, and
+# Facebook prints the whole title under the picture anyway. Messages and
+# the rest keep the wordless square (§559).
+
+WIDE = (1200, 630)
+WIDE_MARGIN = 50
+#: Beside a picture: the title's sizes, largest first, the height its lines
+#: share, and the most lines it is given at the smallest size.
+WIDE_SIZES = (58, 52, 46, 40)
+WIDE_ROOM = 260
+WIDE_LINES = 4
+#: With no picture, across the card: larger, and three lines.
+WIDE_COVER_SIZES = (76, 66)
+WIDE_COVER_ROOM = 270
+WIDE_COVER_LINES = 3
+WIDE_COVER_WIDTH = 860
+
+
+def _length(minutes: float) -> str:
+    # A half minute stays a half minute (§332): "1.5 MIN EPISODE".
+    try:
+        length = max(0.5, float(minutes or 1))
+    except (TypeError, ValueError):
+        length = 1.0
+    return f"{length:g} MIN EPISODE"
+
+
+def _clipped(d, text: str, sizes, width: int, room: int, most: int):
+    """`(font, lines, line height)`: the largest size whose lines fit in
+    `room`; at the smallest, at most `most` lines, the last ending in an
+    ellipsis."""
+    font, lines, step = _fitted(d, text, "BricolageGrotesque-SemiBold.ttf",
+                                sizes, width, room)
+    if len(lines) > most:
+        lines = _wrap(d, text, font, width, most)
+    return font, lines, step
+
+
+def _wide(picture: Optional[bytes], title: str, minutes: float):
+    """The wide card as an image."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+    w, h = WIDE
+    title = title or "A FAM episode"
+    left = None
+    if picture:
+        try:
+            src = ImageOps.exif_transpose(Image.open(io.BytesIO(picture))).convert("RGB")
+            left = ImageOps.fit(src, (h, h), Image.LANCZOS)
+        except Exception:  # noqa: BLE001 - an unreadable picture
+            log.warning("link preview: the episode's picture would not "
+                        "open; drawing the wide cover instead")
+    if left is None:
+        im = Image.new("RGB", WIDE, GROUND)
+        ImageDraw.Draw(im).ellipse((-400, -500, 800, 500), fill=(84, 66, 52))
+        im = im.filter(ImageFilter.GaussianBlur(140))
+        _badge(im)
+        d = ImageDraw.Draw(im)
+        _play(d, cx=w - 150, cy=h - 150, r=84)
+        font, lines, step = _clipped(d, title, WIDE_COVER_SIZES, WIDE_COVER_WIDTH,
+                                     WIDE_COVER_ROOM, WIDE_COVER_LINES)
+        x, y = 60, h - 60 - len(lines) * step
+        small = _font("GeistMono-Bold.ttf", 26)
+    else:
+        im = Image.new("RGB", WIDE, GROUND)
+        im.paste(left, (0, 0))
+        x = h + WIDE_MARGIN
+        _wordmark(im, x, 54, 44)
+        d = ImageDraw.Draw(im)
+        _play(d, cx=x + 62, cy=h - 112, r=58)
+        font, lines, step = _clipped(d, title, WIDE_SIZES, w - x - WIDE_MARGIN,
+                                     WIDE_ROOM, WIDE_LINES)
+        y = 180
+        small = _font("GeistMono-Bold.ttf", 24)
+    d.text((x, y - 44), _length(minutes), font=small, fill=COPPER)
+    for line in lines:
+        d.text((x, y), line, font=font, fill=PAPER)
+        y += step
+    return im
+
+
+def wide(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes]:
+    """The wide card as JPEG bytes; `None` only if Pillow itself fails."""
+    try:
+        return _jpeg(_wide(picture, title, minutes))
+    except Exception:  # noqa: BLE001 - a preview is never worth a 500
+        log.exception("link preview: could not draw the wide card")
+        return None
+
+
+# --- The photo for a native post (§622) -------------------------------------
+#
+# Facebook holds back a post that links out, whatever the link looks like:
+# the group admin's post of a FAM link reached 168 people where his posts
+# reach thousands. What is not held back is a photo. So this is the episode
+# as a photo somebody posts themselves - 1080x1350, the tallest a feed
+# shows whole - with the link put in the first comment by the person
+# posting. The picture on top; under it the length, the title, the
+# episode's one line (its hook, as a card draws it) and where to listen,
+# because the photo itself carries no link. FAM posts nothing: this is a
+# file a person downloads.
+
+POST = (1080, 1350)
+POST_PICTURE = 720
+POST_MARGIN = 64
+POST_TITLE_SIZES = (72, 64, 56)
+POST_TITLE_ROOM = 250
+POST_TITLE_LINES = 3
+POST_HOOK_LINES = 3
+
+
+def _post(picture: Optional[bytes], title: str, hook: str, minutes: float,
+          host: str):
+    """The photo as an image."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+    w, h = POST
+    m = POST_MARGIN
+    title = title or "A FAM episode"
+    im = Image.new("RGB", POST, GROUND)
+    top = 0
+    if picture:
+        try:
+            src = ImageOps.exif_transpose(Image.open(io.BytesIO(picture))).convert("RGB")
+            im.paste(ImageOps.fit(src, (w, POST_PICTURE), Image.LANCZOS), (0, 0))
+            top = POST_PICTURE
+        except Exception:  # noqa: BLE001 - an unreadable picture
+            log.warning("link preview: the episode's picture would not "
+                        "open; drawing the post without it")
+    if not top:
+        ImageDraw.Draw(im).ellipse((-500, -600, 900, 700), fill=(84, 66, 52))
+        im = im.filter(ImageFilter.GaussianBlur(170))
+        _wordmark(im, m, 110, 70)
+    d = ImageDraw.Draw(im)
+    width = w - 2 * m
+    # With a picture the words start under it; without one they are set
+    # larger and lower, as the cover's are.
+    sizes = POST_TITLE_SIZES if top else (96, 84, 72)
+    room = POST_TITLE_ROOM if top else 420
+    most = POST_TITLE_LINES if top else 4
+    font, lines, step = _clipped(d, title, sizes, width, room, most)
+    y = top + 62 if top else 330
+    d.text((m, y), _length(minutes), font=_font("GeistMono-Bold.ttf", 28), fill=COPPER)
+    y += 56
+    for line in lines:
+        d.text((m, y), line, font=font, fill=PAPER)
+        y += step
+    hook = " ".join((hook or "").split())
+    if hook:
+        hook_font = _font("Geist-Regular.ttf", 36)
+        y += 18
+        # As many whole lines as there is room for above the foot.
+        fits = min(POST_HOOK_LINES, (h - 190 - y) // 48)
+        for line in (_wrap(d, hook, hook_font, width, fits) if fits > 0 else ()):
+            d.text((m, y), line, font=hook_font, fill=MUTED)
+            y += 48
+    # The foot: the play button, and where to listen - the photo has no link.
+    cy = h - 108
+    _play(d, cx=m + 56, cy=cy, r=52)
+    x = m + 56 + 52 + 30
+    d.text((x, cy - 46), "LISTEN TO THE FULL EPISODE",
+           font=_font("GeistMono-Bold.ttf", 24), fill=COPPER)
+    d.text((x, cy - 8), host or "familiarize.net",
+           font=_font("Geist-SemiBold.ttf", 36), fill=PAPER)
+    if top:
+        _wordmark(im, w - m - wordmark_width(40), cy - 20, 40)
+    return im
+
+
+def post(picture: Optional[bytes], title: str, hook: str, minutes: float,
+         host: str = "") -> Optional[bytes]:
+    """The photo for a native post as JPEG bytes; `None` only if Pillow
+    fails. Not held to `MAX_BYTES`: it is uploaded by a person, not fetched
+    by a previewer."""
+    try:
+        out = io.BytesIO()
+        _post(picture, title, hook, minutes, host).save(
+            out, format="JPEG", quality=90, optimize=True)
+        return out.getvalue()
+    except Exception:  # noqa: BLE001 - never worth a 500
+        log.exception("link preview: could not draw the post photo")
         return None
 
 
