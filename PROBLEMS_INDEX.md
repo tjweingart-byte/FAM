@@ -614,3 +614,4 @@ and `limit` = Lines.
 | 37395 | 302 | 620. The security audit: sign-in, sessions and what every response says (2026-11-16) |
 | 37697 | 52 | 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16) |
 | 37749 | 30 | 622. The episode as a photo to post, the link in the first comment (2026-11-17) |
+| 37779 | 40 | 623. The episode's opening as a captioned clip to post (2026-11-17) |

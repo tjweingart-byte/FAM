@@ -14598,6 +14598,88 @@ async def admin_groups_listen(req: GroupsLead, request: Request) -> dict:
     return {"url": link}
 
 
+#: Rendered clips, newest last: (share id, title, host) -> (made at, MP4).
+#: One is about a megabyte and is asked for once or twice by one person.
+_CLIPS: "OrderedDict[tuple, tuple[float, bytes]]" = OrderedDict()
+CLIP_MEMORY = 4
+#: One clip is rendered at a time: it is seconds of one core's work.
+_CLIP_LOCK = asyncio.Lock()
+
+
+def _clip_audio(record: dict):
+    """The shared episode's kept audio (`cache.StoredAudio`) in whichever
+    voice it was last played, or None. Reads only: nothing is voiced."""
+    if SCRIPT_CACHE is None:
+        return None
+    key = _heard_key(record.get("query") or "",
+                     max(1, as_minutes(record.get("minutes"), 1)),
+                     record.get("episode") or "")
+    if not key:
+        return None
+    rates = []
+    try:
+        rates.append(int(build_engine().sample_rate))
+    except Exception:  # noqa: BLE001 - the production rates below
+        pass
+    for voice in SCRIPT_CACHE.audio_voices(key):
+        for rate in dict.fromkeys(rates + [24000, 22050]):
+            found = SCRIPT_CACHE.get_audio(key, voice, rate)
+            if found is not None:
+                return found
+    return None
+
+
+@app.get("/api/admin/share/{share_id}/clip.mp4")
+async def admin_share_clip(share_id: str, request: Request) -> Response:
+    """A shared episode's opening as a captioned video to post natively
+    (`clip.py`, §623): 15-30 seconds of its kept audio, the words on screen.
+
+    Admin only, where the photo (`share_post`) is public: a clip is seconds
+    of processor time to make, so it is not something a stranger's request
+    may start. Cut from kept audio and its measured sentence timings -
+    nothing is voiced, written or guessed, so an episode not yet played
+    through has no clip and the answer says so. FAM posts nothing: the
+    person downloads this and sends or uploads it."""
+    _require_admin(request)
+    record = await _share_titled(SHARES.get(share_id))
+    if not record:
+        raise HTTPException(status_code=404, detail="No such share.")
+    host = _share_host(request)
+    title = record.get("title") or ""
+    key = (share_id, title, host)
+    kept = _CLIPS.get(key)
+    if kept is None:
+        import clip as clip_mod
+
+        async with _CLIP_LOCK:
+            audio = await asyncio.to_thread(_clip_audio, record)
+            if audio is None:
+                raise HTTPException(status_code=409, detail=(
+                    "This episode has no kept audio yet. Play it through once "
+                    "from its link, then make the clip."))
+            if not audio.starts or len(audio.starts) != len(audio.sentences):
+                raise HTTPException(status_code=409, detail=(
+                    "This episode's audio was kept without sentence timings, "
+                    "so captions cannot be placed on it. No clip."))
+            _row, picture = await asyncio.to_thread(_preview_picture, record)
+            data = await asyncio.to_thread(
+                lambda: clip_mod.render(audio.pcm(), audio.sample_rate,
+                                        audio.sentences, audio.starts,
+                                        picture, title, host))
+        if not data:
+            raise HTTPException(status_code=409, detail=(
+                "No clip could be cut: the episode's first sentence runs "
+                f"past {int(clip_mod.LONGEST)} seconds, or the video encoder failed."))
+        kept = (time.time(), data)
+        _CLIPS[key] = kept
+        while len(_CLIPS) > CLIP_MEMORY:
+            _CLIPS.popitem(last=False)
+    name = re.sub(r"[^A-Za-z0-9_-]", "", share_id)
+    return Response(content=kept[1], media_type="video/mp4", headers={
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": f'attachment; filename="fam-{name}.mp4"'})
+
+
 class GroupsMove(BaseModel):
     id: str = Field(..., min_length=3, max_length=140, pattern=r"^[a-z]+:[A-Za-z0-9._:-]+$")
     status: str = Field(..., pattern="^(new|contacted|replied|invited|joined|passed)$")

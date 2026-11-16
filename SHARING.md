@@ -123,6 +123,12 @@ episode as a 1080x1350 photo - picture, title, its one line, and where to
 listen - for a person to post themselves with the link in the first
 comment. `/admin/groups` offers it on a card; FAM posts nothing.
 
+**And a clip (§623).** `/api/admin/share/<id>/clip.mp4` (admin only) is
+the episode's opening - the whole sentences that fit in 30 seconds - as a
+captioned 1080x1350 video, cut from the kept audio and its measured
+sentence timings (`clip.py`). Nothing is voiced for it: an episode nobody
+has played through has no clip yet.
+
 **Sent from the app, not only pasted (§601).** The tile appears when a link
 is *pasted* into Messages; a link the app types in through `sms:&body=` or
 `mailto:` arrives as plain text and Messages and Mail send it bare. So on

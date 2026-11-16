@@ -1769,6 +1769,33 @@
   no clip (§621's option 3) or per-group link tagging (option 5).
   Whether a photo post actually restores reach is **unmeasured** - it is
   the test this was built to run.
+<!-- rule:post-clip -->
+- **An episode's opening can be had as a captioned video clip, cut from
+  kept audio, and a person posts it** (§623, the owner's fourth pick from
+  §621's options; the group admin's own request: "a quick 15-30 second
+  audiogram/video clip (with captions and visuals) to post natively").
+  `clip.py` -> MP4 (H.264/AAC through PyAV, already the Opus codec's
+  dependency; 1080x1350, 10 fps): the picture ([link-picture]), the title,
+  the words on screen as spoken, a bar that fills, then a 2.5s card saying
+  where the whole episode is. Three things are settled:
+  **(1) Nothing is voiced, written or guessed for it.** It reads
+  `SCRIPT_CACHE.get_audio` and the sentence timings measured when that
+  audio was voiced (`StoredAudio.starts`). No kept audio, or audio without
+  timings, is a 409 that says so - never captions placed by estimate.
+  Within a sentence the pieces share its measured span by their letters;
+  no piece leaves its sentence's time.
+  **(2) The opening, in whole sentences** (`clip.opening`): the last
+  sentence that ends inside 30 seconds. No model picks an excerpt - the
+  first sentences are the hook by the writing rules ([situate],
+  [opening-last]). It may run under 15 seconds rather than stop mid-word;
+  a first sentence longer than 30 is no clip.
+  **(3) Admin only** (`GET /api/admin/share/<id>/clip.mp4`), where the
+  photo ([post-photo]) is public: a clip is seconds of one core, so a
+  stranger's request may not start one; one renders at a time and four
+  are remembered. `/admin/groups` has **Video clip for a post**. FAM posts
+  nothing ([no-social-posting]). Not built: the app's share sheet, and
+  per-group link tagging (§621's option 5). Unmeasured: whether a clip
+  post restores reach, and how the production voice sounds in one.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

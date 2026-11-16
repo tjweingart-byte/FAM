@@ -37775,3 +37775,43 @@ reach. Egan's first message still pitches a link, not a photo - a person
 says the rest.
 
 Tests: the last block of `tests/test_share_landing.py`.
+
+## 623. The episode's opening as a captioned clip to post (2026-11-17)
+
+The third thing the Facebook group's admin asked for (§621), and the
+owner's next pick: "a quick 15-30 second audiogram/video clip (with
+captions and visuals) to post natively on Facebook before linking to the
+full episode".
+
+**What already existed, which is why this is small.** Kept audio (Opus in
+R2, §237) is stored with the sentences spoken and where each begins
+(`StoredAudio.starts`, measured at voicing for the live captions). PyAV,
+the Opus codec's dependency, carries libx264 and AAC. So a clip is a cut
+and a drawing; no new dependency, no model, no voice.
+
+**Built.** `clip.py`: `opening` picks the whole sentences that end inside
+30 seconds; `cues` shows each sentence about seven words at a time inside
+its own measured span; `render` draws the post photo's frame (picture,
+title, play button, host, wordmark) with the caption large under the
+picture and a bar that fills, at 1080x1350 and 10 fps, then 2.5 seconds of
+"Hear the full episode on FAM" in silence; the audio fades over the last
+quarter second. Measured here: a 30-second clip renders in about 4
+seconds on one core and is about 0.8 MB.
+`GET /api/admin/share/<id>/clip.mp4`, admin only, one at a time, four
+remembered. `/admin/groups`: "Video clip for a post" beside the photo; a
+refusal's sentence is shown as it is.
+
+**Refusals, in words.** No kept audio ("Play it through once from its
+link, then make the clip" - Listen first does exactly that); audio kept
+without timings; a first sentence over 30 seconds.
+
+**Why admin only, when the photo is public.** The photo is a few
+milliseconds of drawing. A clip is seconds of a core and a megabyte held;
+§620 had just closed the ways a stranger could make this server work.
+
+**Not verified here.** No episode in the production voice exists in this
+container: the clip was rendered from a test tone with real sentence
+timings, and its frames looked at. How Facebook treats the upload, and
+whether reach recovers, is the admin's to report.
+
+Tests: `tests/test_clip_623.py`.
