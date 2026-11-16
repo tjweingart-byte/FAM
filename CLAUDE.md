@@ -545,10 +545,10 @@ Every change ends the same way, without being asked [ship-loop]:
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to
   `.github/workflows/ci.yml` by hand. [landing-smoke]
-- CI runs Python 3.12, this container 3.11: reproduce in 3.12 first. [ci-python]
+- CI runs Python 3.12, this container 3.13: reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ here and in CI; suspect them. [fonts-env]
-- No API key here: writing quality and latency unverified. [no-api-key]
+- Keys may be set here; spending needs the owner's yes. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without. [shots-probes]
 - Deleting CSS broke the app twice: `tools/check_css.py`, `tools/shots.py`. [css-deletion]
 - A top-level name declared twice in `static/index.html` silently wins (`tools/check_js.py`). [js-dup-names]

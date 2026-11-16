@@ -37936,3 +37936,37 @@ are §620-§628, and the tests and the arm named after them moved with them.
   is 3.13);
 - whether the rewording (§625) lowers the leak in production is unmeasured
   beyond §626's sixteen scripts; /admin's notices will show it.
+
+## 629. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16)
+
+The owner, on §628's list: "Do 3, 4, and 5. Don't do 6, 7, 8. Do 9, not 10
+and 11."
+
+**3. The order-of-sources rule** in every researched request
+(`script_generator.py`) ended "Where the top of that order is silent on
+something, the answer is that we do not have it - not that the one below it
+is promoted." It now ends "leave it out - the one below it is not
+promoted." Same rule, without the phrase the material check drops. With
+§625's three edits, nothing in the writer's instructions speaks of what
+"we have" any more except as an example of what not to say - a test holds
+that on a researched request.
+
+**4. Two rules described another machine.** `CLAUDE.md` said "No API key
+here" and "this container 3.11". It says the keys may be set and spending
+needs the owner's yes, and 3.13. Their full text in
+`docs/claude/workflow.md` has Current notes: how to check, that each spend
+is asked for with an estimate (the day's runs cost about $10.50, double
+what was first quoted), and that time to first audio and the production
+voice are still unverified from here. `CLAUDE.md` is 39,996 bytes of its
+40,000.
+
+**5.** `app.notion.com` and `www.notion.so`, allowed on the Default
+environment to read the list this work began from, are removed.
+
+**Not done, at the owner's direction:** measuring the rewording in
+production (§628's list, 6), the leaks with no safe pattern (7), the
+candidates at three minutes and on search (8), the list's other builds
+(10), and a pull request (11).
+
+Tests: `tests/test_writer_time_wording_625.py` (the instructions never
+speak of what "we have" outside their own bad examples).

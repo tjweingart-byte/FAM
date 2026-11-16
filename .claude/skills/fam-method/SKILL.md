@@ -27,11 +27,11 @@ three things in it (§622); those corrections are in the text.
 3. **Look for the tool before building one.** This repo usually has it.
    `ls tools | grep -i <word>`, then read the tool's docstring: it says what
    it reads, what it writes, what it costs and what it refuses to do.
-4. **Check the machine, not the document about the machine.** `[no-api-key]`
-   says there is no key here; the environment may hold `FAM_ANTHROPIC_KEY`
-   and the search keys (`[ -n "$FAM_ANTHROPIC_KEY" ] && echo set`). Never
-   print a key. `[ci-python]` names the container's Python; run
-   `python3 --version`, because the container has moved since.
+4. **Check the machine, not the document about the machine.** For a long
+   time `[no-api-key]` said there was no key here and `[ci-python]` named
+   the wrong Python; both are corrected (§629), and both will drift again.
+   `[ -n "$FAM_ANTHROPIC_KEY" ] && echo set` and `python3 --version` take
+   a second. Never print a key.
 5. **Check CI on `Main`** before starting (`[ci-green-first]`).
 
 ## 2. Working out what is being asked

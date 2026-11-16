@@ -31,6 +31,16 @@ def test_the_phrase_the_leaks_echoed_is_gone():
     assert "Prefer the newest information the sources date." in request
 
 
+def test_the_instructions_never_speak_of_what_we_have():
+    # §629: the order-of-sources rule said "the answer is that we do not
+    # have it", in every researched episode - the phrase the check drops.
+    request = _request()
+    assert "leave it out - the one below it is not promoted" in request
+    for phrase in ("we do not have", "we don't have", "we have"):
+        assert phrase not in (sg.SYSTEM_PROMPT + request).replace('"the latest price we have"', "") \
+            .replace('"the latest we have"', ""), phrase
+
+
 def test_the_request_gives_a_moving_figure_its_own_time():
     request = _request()
     assert ("Anything that moves - a price, a score, a count - is said with its own "
