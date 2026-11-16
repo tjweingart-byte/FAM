@@ -36,10 +36,12 @@ So the owner took both back out (§624).
    are short, plain recaps with one figure to a sentence - what the code
    rewards - and half of what a pair shows the writer is a draft going
    wrong.
-2. **Measure first**, without moving anything: after `--freeze`,
-   `python tools/editor_eval.py --run --arms none,none_candidates` writes
-   each question with and without everything in this folder, and
-   `--compare none_candidates,none` gives the paired table (§627). Budget
+2. **Measure first**, without moving anything, **in a new folder**:
+   `python tools/editor_eval.py --freeze --dir ~/.fam/<new>`, then
+   `--run --arms none,none_candidates --dir ...` writes each question with
+   and without everything here, and `--compare none_candidates,none --dir
+   ...` gives the paired table (§627). A folder from an earlier run holds
+   scripts written from other instructions under the same names. Budget
    about six cents a script graded by Opus (§623), not the 2.5 cents an
    earlier run cost.
 3. The example was not measured where it is meant to teach: at three

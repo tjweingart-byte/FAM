@@ -66,85 +66,142 @@ def test_none_low_writes_at_low_effort_and_the_rest_at_high():
 
 
 # ------------------------------------------------------------------ §621
-def _adopt(monkeypatch):
-    """Put §620's example and one pair where the writer reads them, as they
-    were when the arms were made (they were taken back out in §624)."""
-    import pathlib
+def _adopt(monkeypatch, tool):
+    """Put §620's example and the candidate pairs where the writer reads
+    them, as they were when the arms were made (taken back out in §624)."""
+    import pytest
 
-    folder = pathlib.Path(ROOT) / "examples" / "candidates"
-    query, _, script = (folder / "3-virus-and-bacteria.txt").read_text().partition("\n\n")
-    monkeypatch.setattr(sg, "STYLE_EXAMPLES", sg.STYLE_EXAMPLES + [(query.strip(), script.strip())])
-    monkeypatch.setitem(sg.EXAMPLE_STEMS, query.strip(), "3-virus-and-bacteria")
-    pairs = [sg.parse_pair(p.read_text()) for p in sorted((folder / "pairs").glob("*.txt"))]
+    named = [c for c in tool.candidate_examples() if c[2] in tool.ADOPTED_620]
+    pairs = tool.candidate_pairs()
+    if not named or not pairs:
+        pytest.skip("the candidates these arms were made for have moved")
+    query, script, stem = named[0]
+    monkeypatch.setattr(sg, "STYLE_EXAMPLES", sg.STYLE_EXAMPLES + [(query, script)])
+    monkeypatch.setitem(sg.EXAMPLE_STEMS, query, stem)
     monkeypatch.setattr(sg, "TEACHING_PAIRS", pairs)
-    return pairs
+    return query, pairs
 
 
-def test_the_arms_that_measure_what_an_adoption_buys(monkeypatch):
+def test_the_arms_that_measured_what_the_adoption_bought(monkeypatch):
     tool = _eval()
     assert {"none_unpaired", "none_before_619"} <= set(tool.ARMS)
-    _adopt(monkeypatch)
+    query, _ = _adopt(monkeypatch, tool)
     with_all = sg.system_prompt()
-    assert "<pair query=" in with_all and "virus and bacteria" in with_all
+    assert "<pair query=" in with_all and query in with_all
     with tool._Settings("none_unpaired"):
         unpaired = sg.system_prompt()
     with tool._Settings("none_before_619"):
         before = sg.system_prompt()
     with tool._Settings("none"):
         assert sg.system_prompt() == with_all
-    assert "<pair query=" not in unpaired and "virus and bacteria" in unpaired
-    assert "<pair query=" not in before and "virus and bacteria" not in before
+    assert "<pair query=" not in unpaired and query in unpaired
+    assert "<pair query=" not in before and query not in before
     assert sg.system_prompt() == with_all               # taken back after
 
 
-def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path, monkeypatch):
+def _script(folder, i, arm, marks, claims=0, **more):
     import json
 
     import episode_quality
 
+    marks = marks if isinstance(marks, dict) else {m: marks for m in episode_quality.METRICS}
+    grade = {m: {"score": v} for m, v in marks.items()}
+    grade["unsupported_claims"] = ["x"] * claims
+    (folder / f"q{i:02d}.{arm}.json").write_text(json.dumps(
+        {"arm": arm, "grade": grade, "ear": 1.0, "sentences": ["A."], **more}))
+
+
+def test_a_comparison_is_paired_and_leaves_out_what_it_should(tmp_path):
+    import episode_quality
+
     tool = _eval()
-    # The six pairs are candidates, not committed (§624) - and a question a
-    # candidate was made from is left out too (§627).
+    # A question a pair was made from is left out, committed or candidate (§627).
     seen = tool.seen_questions()
-    assert len(seen) == len(tool.candidate_pairs()) == 6
-
-    def script(i, arm, mark, claims):
-        grade = {m: {"score": mark} for m in episode_quality.METRICS}
-        grade["unsupported_claims"] = ["x"] * claims
-        (tmp_path / f"q{i:02d}.{arm}.json").write_text(json.dumps(
-            {"arm": arm, "grade": grade, "ear": 1.0, "sentences": ["A."]}))
-
-    held_out = [i for i in range(len(tool.QUESTIONS)) if i not in seen][:4]
-    for i in held_out:
-        script(i, "none", 4, 0)
-        script(i, "none_before_619", 3, 1)
-    one_seen = sorted(seen)[0]
-    script(one_seen, "none", 5, 0)
-    script(one_seen, "none_before_619", 1, 0)
-    table = tool.compare(tmp_path, "none", "none_before_619", leave_out=seen, draws=200)
+    assert len(seen) == len(tool.candidate_pairs()) + len(sg.TEACHING_PAIRS)
+    held_out = [i for i in range(len(tool.QUESTIONS)) if i not in seen][:5]
+    for i, a, b, claims_a, claims_b in zip(held_out, (4, 4, 3, 5), (3, 4, 3, 3),
+                                           (0, 1, 2, 0), (1, 1, 1, 2)):
+        _script(tmp_path, i, "none", a, claims_a)
+        _script(tmp_path, i, "none_before_619", b, claims_b)
+    # A script short of one of the six marks is not compared at all (§627).
+    short = {m: 5 for m in episode_quality.METRICS[:-1]}
+    _script(tmp_path, held_out[4], "none", 1)
+    _script(tmp_path, held_out[4], "none_before_619", short)
+    if seen:
+        _script(tmp_path, sorted(seen)[0], "none", 5)
+        _script(tmp_path, sorted(seen)[0], "none_before_619", 1)
+    table = tool.compare(tmp_path, "none", "none_before_619", leave_out=seen, draws=2000)
     assert table["questions"] == 4
-    assert table["mean of six"] == {"difference": 1.0, "low": 1.0, "high": 1.0,
-                                    "better": 4, "worse": 0, "level": 0}
-    # One fewer unsupported claim a script is better, not worse (§627).
-    assert table["unsupported claims"] == {"difference": -1.0, "low": -1.0, "high": -1.0,
-                                           "better": 4, "worse": 0, "level": 0}
-    everything = set(range(len(tool.QUESTIONS)))
-    assert tool.compare(tmp_path, "none", "none_before_619",
-                        leave_out=everything - seen, draws=200)["questions"] == 1
+    row = table["mean of six"]
+    assert row["difference"] == 0.75 and (row["better"], row["worse"], row["level"]) == (2, 0, 2)
+    # A real interval: inside the range of the differences, around the mean, not a point.
+    assert 0 <= row["low"] < row["difference"] < row["high"] <= 2
+    # Fewer unsupported claims is the better script, not the worse (§627).
+    claims = table["unsupported claims"]
+    assert claims["difference"] == -0.5
+    assert (claims["better"], claims["worse"], claims["level"]) == (2, 1, 1)
+    assert set(episode_quality.METRICS) <= set(table)       # every row, whatever the first script held
 
 
 # ------------------------------------------------------------------ §627
-def test_candidates_can_be_measured_without_adopting_them():
+def test_candidates_can_be_measured_without_adopting_them(monkeypatch):
+    import dataclasses
+
+    import pytest
+
     tool = _eval()
-    plain = sg.system_prompt()
-    assert "<pair query=" not in plain and "virus and bacteria" not in plain
-    minutes = dict(sg.EXAMPLE_MINUTES)
+    examples, pairs = tool.candidate_examples(), tool.candidate_pairs()
+    if not examples and not pairs:
+        pytest.skip("nothing is waiting in examples/candidates/")
+    plain, minutes = sg.system_prompt(), dict(sg.EXAMPLE_MINUTES)
+    # Even with the pairs switched off in the environment, the arm shows them.
+    monkeypatch.setattr(sg, "settings", dataclasses.replace(sg.settings, teaching_pairs=False))
+    off = sg.system_prompt()
     with tool._Settings("none_candidates"):
         shown = sg.system_prompt()
-        assert shown.count("<pair query=") == len(tool.candidate_pairs()) == 6
-        assert 'minutes="3"' in shown and "virus and bacteria" in shown
-    with tool._Settings("none"):
-        assert sg.system_prompt() == plain
-    # Taken back after: nothing a listener hears is touched.
-    assert sg.system_prompt() == plain and sg.TEACHING_PAIRS == []
-    assert sg.EXAMPLE_MINUTES == minutes
+        assert shown.count("<pair query=") == min(
+            len(pairs) + len(sg.TEACHING_PAIRS), sg.MAX_TEACHING_PAIRS)
+        for query, _, _ in examples:
+            assert query in shown
+        # In file-name order among the examples, as adopting them would give.
+        stems = [sg.EXAMPLE_STEMS.get(q) or next(s for cq, _, s in examples if cq == q)
+                 for q, _ in sg.STYLE_EXAMPLES]
+        assert stems == sorted(stems)
+    assert sg.system_prompt() == off and sg.EXAMPLE_MINUTES == minutes
+    assert tool.instructions_mark("none_candidates") != tool.instructions_mark("none")
+
+
+def test_a_failed_swap_leaves_nothing_swapped(monkeypatch):
+    import pytest
+
+    tool = _eval()
+    plain, examples, pairs = sg.system_prompt(), sg.STYLE_EXAMPLES, sg.TEACHING_PAIRS
+    settings = sg.settings
+
+    def broken():
+        raise UnicodeDecodeError("utf-8", b"", 0, 1, "a file that cannot be read")
+
+    monkeypatch.setattr(tool, "candidate_pairs", broken)
+    with pytest.raises(UnicodeDecodeError):
+        with tool._Settings("none_candidates"):
+            pass
+    assert sg.system_prompt() == plain and sg.settings is settings
+    assert sg.STYLE_EXAMPLES is examples and sg.TEACHING_PAIRS is pairs
+
+
+def test_a_script_from_other_instructions_is_not_taken_for_this_arms(tmp_path, capsys):
+    import asyncio
+    import pickle
+
+    from script_generator import plan_episode
+
+    tool = _eval()
+    question = tool.QUESTIONS[0]
+    (tmp_path / "q00.plan.pickle").write_bytes(pickle.dumps(
+        {"group": question[0], "question": question[1], "plan": plan_episode(question[1], 2)}))
+    _script(tmp_path, 0, "none", 3, instructions="0123456789ab")
+    asyncio.run(tool.run(None, tmp_path, [0], ["none"], True))
+    assert "written from other instructions" in capsys.readouterr().out
+    _script(tmp_path, 0, "none", 3, instructions=tool.instructions_mark("none"))
+    asyncio.run(tool.run(None, tmp_path, [0], ["none"], True))
+    assert "other instructions" not in capsys.readouterr().out

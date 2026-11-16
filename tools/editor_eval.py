@@ -30,11 +30,13 @@ to measure what `AHEAD_WRITER_EFFORT=high` buys against `none`.
 The first three arms run with both switched off, so they stay §437's
 comparison whatever the deployment's defaults are now.
 
-Two more (§621), to measure what §620's adoption bought: `none_unpaired` -
-no editor, the before-and-after pairs switched off (`TEACHING_PAIRS`); and
-`none_before_619` - that, and the examples §620 added hidden, so the
-writer's instructions are what they were before §619. Compare them with
-`none`:
+Two more (§621), which measured what §620's adoption bought (§623):
+`none_unpaired` - no editor, the before-and-after pairs switched off
+(`TEACHING_PAIRS`); and `none_before_619` - that, and the examples §620
+added hidden. **Since §624 took that adoption back out, both write exactly
+as `none` does**; they are kept for the record of that run and mean
+something again only while an example named in `ADOPTED_620` or a pair is
+committed. Compare any two arms with:
 
     python tools/editor_eval.py --compare none,none_before_619
 
@@ -45,11 +47,18 @@ its answer.
 
 And `none_candidates` (§627), for measuring **before** anything is adopted:
 no editor, with every example and pair in `examples/candidates/` put in
-front of the writer for that arm only. Nothing is moved and nothing a
-listener hears changes:
+front of the writer for that arm only - in file-name order among the
+examples, and no more pairs than it would ever be shown, as adopting them
+would. Nothing is moved and nothing a listener hears changes:
 
-    python tools/editor_eval.py --run --arms none,none_candidates
-    python tools/editor_eval.py --compare none_candidates,none
+    python tools/editor_eval.py --freeze --dir ~/.fam/<a new folder>
+    python tools/editor_eval.py --run --arms none,none_candidates --dir ...
+    python tools/editor_eval.py --compare none_candidates,none --dir ...
+
+**A new folder each time.** A run re-uses the scripts it finds, and a script
+written from other instructions under the same arm's name would be compared
+as if it were this one. Each result records a mark of the instructions it
+was written from, and `--run` says so and leaves it alone when they differ.
 
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
@@ -198,9 +207,11 @@ class _Settings:
         editor = ARM_EDITOR.get(arm)
         if editor:
             changes[ARM_SETTING[editor]] = ARM_MODEL[editor]
-        self.replaced = dataclasses.replace(config.settings, **changes)
         self.hide_examples = arm == "none_before_619"
         self.candidates = arm == "none_candidates"
+        if self.candidates:
+            changes["teaching_pairs"] = True
+        self.replaced = dataclasses.replace(config.settings, **changes)
 
     def __enter__(self):
         import config
@@ -209,25 +220,34 @@ class _Settings:
 
         self.modules = [config, script_generator, agent_models]
         self.kept = [m.settings for m in self.modules]
-        for m in self.modules:
-            m.settings = self.replaced
         self.examples = script_generator.STYLE_EXAMPLES
-        if self.hide_examples:
-            script_generator.STYLE_EXAMPLES = [
-                (query, script) for query, script in self.examples
-                if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_620]
         self.pairs = script_generator.TEACHING_PAIRS
         self.minutes = dict(script_generator.EXAMPLE_MINUTES)
-        if self.candidates:
-            # What adopting them would put in front of the writer, for this
-            # script only (§627).
-            extra = candidate_examples()
-            script_generator.STYLE_EXAMPLES = self.examples + [(q, s) for q, s, _ in extra]
-            for query, _, stem in extra:
-                head = stem.split("-", 1)[0]
-                if head.isdigit():
-                    script_generator.EXAMPLE_MINUTES[query] = script_generator.as_minutes(head)
-            script_generator.TEACHING_PAIRS = self.pairs + candidate_pairs()
+        try:
+            for m in self.modules:
+                m.settings = self.replaced
+            if self.hide_examples:
+                script_generator.STYLE_EXAMPLES = [
+                    (query, script) for query, script in self.examples
+                    if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_620]
+            if self.candidates:
+                # What adopting them would put in front of the writer, for
+                # this script only (§627): the examples in file-name order,
+                # and never more pairs than the writer is shown.
+                extra = candidate_examples()
+                named = [(script_generator.EXAMPLE_STEMS.get(q, ""), q, s)
+                         for q, s in self.examples] + [(stem, q, s) for q, s, stem in extra]
+                script_generator.STYLE_EXAMPLES = [(q, s) for _, q, s in sorted(named)]
+                for query, _, stem in extra:
+                    head = stem.split("-", 1)[0]
+                    if head.isdigit():
+                        script_generator.EXAMPLE_MINUTES[query] = script_generator.as_minutes(head)
+                script_generator.TEACHING_PAIRS = (
+                    self.pairs + candidate_pairs())[:script_generator.MAX_TEACHING_PAIRS]
+        except BaseException:
+            # Half-swapped state would be written under every later arm's name.
+            self.__exit__()
+            raise
         return self
 
     def __exit__(self, *exc) -> None:
@@ -239,6 +259,20 @@ class _Settings:
         script_generator.EXAMPLE_MINUTES.update(self.minutes)
         for m, kept in zip(self.modules, self.kept):
             m.settings = kept
+
+
+def instructions_mark(arm: str) -> str:
+    """A short mark of the instructions an arm writes from, kept in each
+    result so a script written from other instructions is never taken for
+    this arm's (§627)."""
+    import hashlib
+
+    import script_generator
+
+    with _Settings(arm):
+        return hashlib.sha256(script_generator.system_prompt().encode("utf-8")).hexdigest()[:12]
+
+
 MINUTES = 1.5
 
 
@@ -327,7 +361,8 @@ async def write_arm(generator, frozen: dict, arm: str) -> dict:
             if c.result == "fail":
                 fails[c.check] = fails.get(c.check, 0) + 1
     cost = metering.price_of(notes.usage)
-    return {"arm": arm, "sentences": sentences, "seconds": round(seconds, 2),
+    return {"arm": arm, "instructions": instructions_mark(arm),
+            "sentences": sentences, "seconds": round(seconds, 2),
             "editor_seconds": round(editor_seconds, 2), "dollars": round(cost.total, 5),
             "planned": bool(ARM_EDITOR.get(arm) and getattr(plan, "editor_outline", "")),
             # Without the sentences he chose: those are provider text.
@@ -365,6 +400,10 @@ async def run(generator, out: pathlib.Path, only: list, arms: list, no_grade: bo
         for arm in order:
             done = out / f"{_slug(i)}.{arm}.json"
             if done.exists():
+                was = json.loads(done.read_text()).get("instructions")
+                if was != instructions_mark(arm):
+                    print(f"  {_slug(i)} {arm}: kept, but written from other instructions "
+                          f"({was or 'unmarked'}) - compare it with nothing; use a new --dir")
                 continue
             try:
                 result = await write_arm(generator, frozen, arm)
@@ -470,7 +509,9 @@ def _graded(result: dict) -> dict:
         v = v.get("score") if isinstance(v, dict) else v
         if isinstance(v, (int, float)):
             marks[metric] = float(v)
-    if not marks:
+    # All six or none (§627): the grader drops a mark whose quote is not in
+    # the script, and a mean of the five left is not the same measure.
+    if len(marks) != len(episode_quality.METRICS):
         return {}
     marks["mean of six"] = sum(marks.values()) / len(marks)
     marks["unsupported claims"] = float(len(grade.get("unsupported_claims") or []))
@@ -483,8 +524,11 @@ def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
     """`a` minus `b`, paired by question: the mean difference on each
     measure, a 95% bootstrap interval over questions, and how many
     questions were better, worse and level. Questions in `leave_out`, or
-    with either script ungraded, are not in it."""
+    with either script short of all six marks, are not in it; a measure
+    taken on fewer questions than the rest says how many."""
     import random
+
+    import episode_quality
 
     pairs = []
     for i in range(len(QUESTIONS)):
@@ -502,7 +546,7 @@ def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
     rng = random.Random(621)
     # Fewer claims the grader could not support is the better script.
     lower_is_better = {"unsupported claims"}
-    for measure in pairs[0][0]:
+    for measure in (*episode_quality.METRICS, "mean of six", "unsupported claims", "code: ear"):
         diffs = [x[measure] - y[measure] for x, y in pairs
                  if isinstance(x.get(measure), (int, float))
                  and isinstance(y.get(measure), (int, float))]
@@ -517,6 +561,8 @@ def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
                           "worse": sum((d > 0) if measure in lower_is_better else (d < 0)
                                        for d in diffs),
                           "level": sum(d == 0 for d in diffs)}
+        if len(diffs) != len(pairs):
+            table[measure]["questions"] = len(diffs)
     return table
 
 
@@ -524,8 +570,9 @@ def print_comparison(table: dict, a: str, b: str) -> None:
     print(f"{a} minus {b}, paired by question ({table.get('questions', 0)} questions)")
     for measure, row in table.items():
         if isinstance(row, dict):
+            fewer = f"  (on {row['questions']} questions)" if "questions" in row else ""
             print(f"  {measure:20} {row['difference']:+.3f}  [{row['low']:+.3f}, {row['high']:+.3f}]"
-                  f"  better {row['better']}, worse {row['worse']}, level {row['level']}")
+                  f"  better {row['better']}, worse {row['worse']}, level {row['level']}{fewer}")
 
 
 async def main() -> int:
