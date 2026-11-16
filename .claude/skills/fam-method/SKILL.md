@@ -98,6 +98,9 @@ a pair, or a wider check with the old false positives kept as tests.
 - Check your own facts hardest where they sound best. A draft example said
   the measles vaccine came decades before any antiviral drug. Both date
   from 1963. Any "first", "before" or "decades" is checked or cut.
+- **Read the output, not only the scan.** A pattern over sixteen scripts
+  reported no leaks in either wording; reading their first two sentences
+  found thirteen (§625).
 - A count from one pattern is a lower bound. This file first said three of
   36 drafts spoke about their own material. The session that tried it
   counted again with wider patterns: four drafts, seven sentences.
@@ -138,9 +141,11 @@ with them in its instructions the writer was marked lower on storytelling
 (-0.41 [-0.77, -0.05] on 44 held-out questions, §623). The gates say a
 rewrite is better than its draft; they say nothing about what showing it
 to the writer does. So before proposing that anything be adopted, run
-`tools/editor_eval.py --run --arms none,none_before_619` and
-`--compare none,none_before_619`, leave out the questions a pair came from
-(the tool does), and bring the owner that table, not the gate results.
+`tools/editor_eval.py --run --arms none,none_candidates` and
+`--compare none_candidates,none` - the arm shows the writer what is in
+`examples/candidates/` without moving it, and the tool leaves out the
+questions a pair came from - and bring the owner that table, not the gate
+results.
 What was taken out is in `examples/candidates/`, with why.
 
 ## 6. Spending the owner's key
@@ -158,9 +163,12 @@ What was taken out is in `examples/candidates/`, with why.
 
 Follow `[ship-loop]` and `[problems-log]`. What the rules do not say:
 
-- `./dev.sh check` takes about an hour in the cloud container. Run it once,
-  in the background, on the final tree. Before that, run only the tests
-  that mention what you touched:
+- `./dev.sh check` runs about 7,600 tests in some 35 minutes here, then the
+  browser smoke runs. Run it once, in the background, **in its own
+  checkout** (`git worktree add --detach <dir> HEAD`): a test reads
+  `script_generator.py` by line number, and editing that file under a
+  running check failed it (§624). Before that, run only the tests that
+  mention what you touched:
   `grep -lE '<names you changed>' tests/*.py`, then pytest on those files.
 - A test that assumed the old state is evidence, not an obstacle: read why
   it assumed it. Fix the assumption, never the assertion's point.

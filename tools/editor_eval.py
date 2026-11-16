@@ -43,6 +43,14 @@ each metric, with a 95% bootstrap interval. A question a pair was made from
 is left out of that table and counted beside it: the writer has been shown
 its answer.
 
+And `none_candidates` (§627), for measuring **before** anything is adopted:
+no editor, with every example and pair in `examples/candidates/` put in
+front of the writer for that arm only. Nothing is moved and nothing a
+listener hears changes:
+
+    python tools/editor_eval.py --run --arms none,none_candidates
+    python tools/editor_eval.py --compare none_candidates,none
+
 Each script is scored on what needs no person (decided item 30):
 `episode_quality.measure`'s six code measures; Mclovin's sentence checks
 (§435), every check counted, none enforced, so the arms are compared on what
@@ -131,7 +139,7 @@ QUESTIONS = [
 ]
 
 ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low",
-        "none_unpaired", "none_before_619")
+        "none_unpaired", "none_before_619", "none_candidates")
 #: What `--arms` runs when it is not given: §437's three.
 DEFAULT_ARMS = ("none", "haiku", "sonnet")
 #: The editor each arm runs, or none.
@@ -143,6 +151,27 @@ TAUGHT_ARMS = frozenset({"none_matched", "haiku_taught"})
 UNPAIRED_ARMS = frozenset({"none_unpaired", "none_before_619"})
 #: The examples §620 added, hidden from `none_before_619`.
 ADOPTED_620 = ("3-virus-and-bacteria",)
+CANDIDATES = pathlib.Path(__file__).resolve().parent.parent / "examples" / "candidates"
+
+
+def candidate_examples() -> list:
+    """`examples/candidates/*.txt` as (query, script, file name without .txt)."""
+    found = []
+    for path in sorted(CANDIDATES.glob("*.txt")):
+        head, _, body = path.read_text(encoding="utf-8").partition("\n\n")
+        if head.strip() and body.strip():
+            found.append((head.strip(), body.strip(), path.stem))
+    return found
+
+
+def candidate_pairs() -> list:
+    """`examples/candidates/pairs/*.txt`, as the writer's own reader parses
+    them, at most as many as it would ever be shown."""
+    import script_generator
+
+    pairs = [script_generator.parse_pair(p.read_text(encoding="utf-8"))
+             for p in sorted((CANDIDATES / "pairs").glob("*.txt"))]
+    return [p for p in pairs if p][:script_generator.MAX_TEACHING_PAIRS]
 #: Each editor's model setting for Shakespeare (always at high effort, ahead).
 ARM_SETTING = {"haiku": "editor_search_model", "sonnet": "editor_model"}
 #: The model each editor runs, whatever the deployment's defaults are now: the
@@ -171,6 +200,7 @@ class _Settings:
             changes[ARM_SETTING[editor]] = ARM_MODEL[editor]
         self.replaced = dataclasses.replace(config.settings, **changes)
         self.hide_examples = arm == "none_before_619"
+        self.candidates = arm == "none_candidates"
 
     def __enter__(self):
         import config
@@ -186,12 +216,27 @@ class _Settings:
             script_generator.STYLE_EXAMPLES = [
                 (query, script) for query, script in self.examples
                 if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_620]
+        self.pairs = script_generator.TEACHING_PAIRS
+        self.minutes = dict(script_generator.EXAMPLE_MINUTES)
+        if self.candidates:
+            # What adopting them would put in front of the writer, for this
+            # script only (§627).
+            extra = candidate_examples()
+            script_generator.STYLE_EXAMPLES = self.examples + [(q, s) for q, s, _ in extra]
+            for query, _, stem in extra:
+                head = stem.split("-", 1)[0]
+                if head.isdigit():
+                    script_generator.EXAMPLE_MINUTES[query] = script_generator.as_minutes(head)
+            script_generator.TEACHING_PAIRS = self.pairs + candidate_pairs()
         return self
 
     def __exit__(self, *exc) -> None:
         import script_generator
 
         script_generator.STYLE_EXAMPLES = self.examples
+        script_generator.TEACHING_PAIRS = self.pairs
+        script_generator.EXAMPLE_MINUTES.clear()
+        script_generator.EXAMPLE_MINUTES.update(self.minutes)
         for m, kept in zip(self.modules, self.kept):
             m.settings = kept
 MINUTES = 1.5
@@ -403,11 +448,13 @@ def print_table(table: dict) -> None:
 
 # ------------------------------------------------------------------ two arms
 def seen_questions() -> set:
-    """The frozen questions a committed before-and-after pair was made from:
-    the writer is shown their answers, so a comparison leaves them out."""
+    """The frozen questions a before-and-after pair was made from, committed
+    or still a candidate: an arm that shows the pair shows the answer, so a
+    comparison leaves those questions out."""
     import script_generator
 
-    asked = {" ".join(p["query"].lower().split()) for p in script_generator.TEACHING_PAIRS}
+    asked = {" ".join(p["query"].lower().split())
+             for p in script_generator.TEACHING_PAIRS + candidate_pairs()}
     return {i for i, (_, q) in enumerate(QUESTIONS) if " ".join(q.lower().split()) in asked}
 
 
@@ -453,6 +500,8 @@ def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
     if not pairs:
         return table
     rng = random.Random(621)
+    # Fewer claims the grader could not support is the better script.
+    lower_is_better = {"unsupported claims"}
     for measure in pairs[0][0]:
         diffs = [x[measure] - y[measure] for x, y in pairs
                  if isinstance(x.get(measure), (int, float))
@@ -463,8 +512,10 @@ def compare(out: pathlib.Path, a: str, b: str, leave_out: set = frozenset(),
         table[measure] = {"difference": round(statistics.mean(diffs), 3),
                           "low": round(means[int(0.025 * draws)], 3),
                           "high": round(means[int(0.975 * draws) - 1], 3),
-                          "better": sum(d > 0 for d in diffs),
-                          "worse": sum(d < 0 for d in diffs),
+                          "better": sum((d < 0) if measure in lower_is_better else (d > 0)
+                                        for d in diffs),
+                          "worse": sum((d > 0) if measure in lower_is_better else (d < 0)
+                                       for d in diffs),
                           "level": sum(d == 0 for d in diffs)}
     return table
 

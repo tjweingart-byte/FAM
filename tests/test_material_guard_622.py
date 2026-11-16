@@ -66,6 +66,8 @@ REPORTING = [
     "There is nothing we can see beyond the horizon.",
     "Nothing we can find in the fossil record suggests otherwise.",
     "Where the market stands today is not something anyone can know.",
+    "What happened this morning is not something we can ignore.",
+    "What the court did today is not something we can undo.",
     '"That is the last price we can establish," the analyst said.',
     "That Friday close is the newest settled figure there is.",
     "At a quarter past ten on Sunday morning, Eastern time, it was trading at ninety dollars.",

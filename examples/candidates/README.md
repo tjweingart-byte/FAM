@@ -36,11 +36,12 @@ So the owner took both back out (§624).
    are short, plain recaps with one figure to a sentence - what the code
    rewards - and half of what a pair shows the writer is a draft going
    wrong.
-2. **Measure first**:
-   `python tools/editor_eval.py --run --arms none,none_before_619` on the
-   frozen questions, then `--compare none,none_before_619`. Budget about
-   six cents a script graded by Opus (§623), not the 2.5 cents an earlier
-   run cost.
+2. **Measure first**, without moving anything: after `--freeze`,
+   `python tools/editor_eval.py --run --arms none,none_candidates` writes
+   each question with and without everything in this folder, and
+   `--compare none_candidates,none` gives the paired table (§627). Budget
+   about six cents a script graded by Opus (§623), not the 2.5 cents an
+   earlier run cost.
 3. The example was not measured where it is meant to teach: at three
    minutes, and on searchFAM's low effort. That run has not been done.
 4. A pair's facts were true of its packet on the day it was frozen.

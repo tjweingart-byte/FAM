@@ -103,10 +103,10 @@ def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path
     import episode_quality
 
     tool = _eval()
-    assert tool.seen_questions() == set()               # none is committed (§624)
-    pairs = _adopt(monkeypatch)
+    # The six pairs are candidates, not committed (§624) - and a question a
+    # candidate was made from is left out too (§627).
     seen = tool.seen_questions()
-    assert len(seen) == len(pairs) == 6
+    assert len(seen) == len(tool.candidate_pairs()) == 6
 
     def script(i, arm, mark, claims):
         grade = {m: {"score": mark} for m in episode_quality.METRICS}
@@ -125,7 +125,26 @@ def test_a_comparison_leaves_out_the_questions_the_pairs_were_made_from(tmp_path
     assert table["questions"] == 4
     assert table["mean of six"] == {"difference": 1.0, "low": 1.0, "high": 1.0,
                                     "better": 4, "worse": 0, "level": 0}
-    assert table["unsupported claims"]["difference"] == -1.0
+    # One fewer unsupported claim a script is better, not worse (§627).
+    assert table["unsupported claims"] == {"difference": -1.0, "low": -1.0, "high": -1.0,
+                                           "better": 4, "worse": 0, "level": 0}
     everything = set(range(len(tool.QUESTIONS)))
     assert tool.compare(tmp_path, "none", "none_before_619",
                         leave_out=everything - seen, draws=200)["questions"] == 1
+
+
+# ------------------------------------------------------------------ §627
+def test_candidates_can_be_measured_without_adopting_them():
+    tool = _eval()
+    plain = sg.system_prompt()
+    assert "<pair query=" not in plain and "virus and bacteria" not in plain
+    minutes = dict(sg.EXAMPLE_MINUTES)
+    with tool._Settings("none_candidates"):
+        shown = sg.system_prompt()
+        assert shown.count("<pair query=") == len(tool.candidate_pairs()) == 6
+        assert 'minutes="3"' in shown and "virus and bacteria" in shown
+    with tool._Settings("none"):
+        assert sg.system_prompt() == plain
+    # Taken back after: nothing a listener hears is touched.
+    assert sg.system_prompt() == plain and sg.TEACHING_PAIRS == []
+    assert sg.EXAMPLE_MINUTES == minutes

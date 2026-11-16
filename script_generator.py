@@ -501,10 +501,13 @@ _MATERIAL_PHRASES = (
     # "Where it stands this afternoon is not something we can see", "...is
     # not a figure I can give you". Only about a thing in time - now, this
     # afternoon, where it stands - so "what dark matter is made of is not
-    # something we can see" passes.
+    # something we can see" passes, and only what the writer cannot see,
+    # tell or give: "what happened today is not something we can ignore"
+    # is an opinion (§627).
     r"\b(?:where|what)\s+(?=[^.?!]{0,90}?\b(?:now|moment|afternoon|morning|evening|"
     r"today|tonight|stands?|trading)\b)[^.?!]{3,90}?\s+is\s+not\s+(?:something|a\s+"
-    r"(?:figure|price|number))\s+(?:that\s+)?(?:we|i|this)\s+(?:can|have)\b",
+    r"(?:figure|price|number))\s+(?:that\s+)?(?:we|i|this)\s+(?:have|can\s+(?:see|tell|"
+    r"give|say|know|establish|confirm|verify|date|find|report|answer|put))\b",
     # "establish" is the instruction's own old word (§624), echoed.
     r"\bnothing\s+we\s+can\s+establish\b",
     r"\bwhat\s+we\s+can\s+(?:date|establish)\s+is\b",
