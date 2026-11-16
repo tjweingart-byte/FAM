@@ -37631,3 +37631,65 @@ a test's.)
 **Not verified here:** that Render's router sends `X-Forwarded-Proto` on
 every request (fix 2 and HSTS rest on it; `_public_base` has relied on it
 since §114), and whether it overwrites a caller's `X-Forwarded-Host`.
+
+### The second pass (2026-11-16, after #310 merged)
+
+The areas the first pass listed as not audited, done alone rather than by
+parallel reviewers. Tests are the last block of
+`tests/test_security_audit_620.py`.
+
+**Fixed.**
+
+11. **One Word file could take the server down** (high). A .docx is a zip,
+    and `_docx_text` read `word/document.xml` whole: 402 KB of upload was
+    400 MB of XML and, measured, **1.2 GB of memory and 8 seconds** - on a
+    512 MB instance that is the app killed by one attachment. Only the first
+    `MAX_DOCX_XML` (8 MB) is unpacked now, and `_clip` tidies only the front
+    of a long text (collapsing the spaces of 8 MB of words alone made a
+    hundred megabytes of pieces). Same file after: 0.15 s, 22 MB. A PDF was
+    already safe: pypdf stops a stream at 75 MB and the bomb is refused in
+    0.2 s.
+12. **Fix 6's own notice was a way to have FAM email anybody** (medium, and
+    this section's doing). It goes to the address an account is leaving,
+    which nobody verified: join with somebody's address, change it, and FAM
+    wrote to them - twenty a minute from one account. It is now sent only
+    for an account at least a day old, once a day for one account, and at
+    most `ADDRESS_NOTICE_PER_HOUR` times an hour for the whole server. A
+    takeover is of an account somebody has had for a while; a throwaway is
+    new.
+13. **A push subscription could name an address inside the network** (low).
+    FAM later posts to the https address the browser - or anybody with an
+    account - supplied. One that is this machine, a private network or a
+    metadata address is refused at subscribe, by the rule a linked page is
+    held to; a name that does not resolve is let through.
+
+**Driven in a browser, nothing ran.** `static/waitlist.html` (the status
+page, with a marker payload in every name, place, email and code the API
+answers with: twelve drawn as text) and the shared-episode page (a share
+whose title and question carry markup and a closing script tag; a dead link
+whose id carries markup).
+
+**Read and sound.** Logs carry no password, code, token or key (the one
+credential-shaped value logged is an invite code, which is printed on the
+page it comes from). The iPhone keeps the session token in the Keychain,
+`AfterFirstUnlockThisDeviceOnly`, with no transport-security exception.
+
+**The spend that opens the day the waitlist closes - the owner's decision
+before launch.** While `WAITLIST=1` a stranger or a waitlisted account
+reaches nothing that spends (the photo check was the one, fix 10). With the
+gate off, by settled design a guest may search, and a search is a brief, a
+research call, a script and a voicing. `ACCOUNTS.md` calls the free
+allowance "a budget shaped like a limit" because a cookie can be thrown
+away - and it is weaker than that today: `ENFORCE_QUOTAS=0`, and the
+three-second pace follows the session, so a script that sends no cookie is
+not paced at all (fix 1's root cause). `/api/audio` and `/api/script` (which
+no client calls) can then be asked for new episodes without end. Before
+`WAITLIST=0`: require an account to generate, or turn the allowance on,
+or pace by the listener's real address.
+
+**The owner's answer (16/11):** FAM is in beta behind the waitlist, and all
+of the open items in this section are to be done before the waitlist is
+removed. They are a launch checklist, not a change to make now.
+
+Still not audited: every other endpoint's cost one by one with the gate
+off; the voice worker's own image.
