@@ -3345,7 +3345,8 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
         gone = _under_age_gate(user, req.birth_date, req.confirm_under_13, request)
         if gone is not None:
             return gone
-    before = (ACCOUNTS.account(user) or {}).get("email", "") if req.email is not None else ""
+    held_before = (ACCOUNTS.account(user) or {}) if req.email is not None else {}
+    before = held_before.get("email", "")
     try:
         account = ACCOUNTS.update_profile(
             user, display_name=req.display_name,
@@ -3353,11 +3354,45 @@ async def account_update(req: ProfileRequest, request: Request) -> dict:
             gender=req.gender)
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _tell_old_address(before, account.get("email", ""))
+    _tell_old_address(before, account.get("email", ""), user,
+                      float(held_before.get("created") or 0))
     return account
 
 
-def _tell_old_address(before: str, after: str) -> None:
+#: An address is told its account's email changed only when the account is at
+#: least this old, once a day for one account, and no more than this many
+#: times an hour for the whole server (§620, second pass). The notice goes to
+#: an address nobody has verified, so without these it was a way to have FAM
+#: email anybody: join with their address, change it, and they are written to
+#: - twenty a minute from one account, and accounts are free. A takeover is
+#: of an account somebody has had for a while; a throwaway is new.
+ADDRESS_NOTICE_MIN_AGE = 24 * 3600.0
+ADDRESS_NOTICE_PER_HOUR = 30
+_address_noticed: dict[str, float] = {}
+_address_notices: deque = deque()
+
+
+def _may_tell_old_address(user: str, created: float) -> bool:
+    now = time.time()
+    if not created or now - created < ADDRESS_NOTICE_MIN_AGE:
+        return False
+    if now - _address_noticed.get(user, 0.0) < 86400:
+        return False
+    while _address_notices and now - _address_notices[0] > 3600:
+        _address_notices.popleft()
+    if len(_address_notices) >= ADDRESS_NOTICE_PER_HOUR:
+        log.warning("email-change notices: over %d this hour; one was not sent",
+                    ADDRESS_NOTICE_PER_HOUR)
+        return False
+    if len(_address_noticed) > 20_000:
+        _address_noticed.clear()
+    _address_noticed[user] = now
+    _address_notices.append(now)
+    return True
+
+
+def _tell_old_address(before: str, after: str, user: str = "",
+                      created: float = 0.0) -> None:
     """Tell the address an account just left that it was changed (§620).
 
     A reset code goes to the account's address, so whoever changes the
@@ -3370,6 +3405,8 @@ def _tell_old_address(before: str, after: str) -> None:
         return
     try:
         if not mail_mod.status().get("available"):
+            return
+        if not _may_tell_old_address(user, created):
             return
         contact = (f" or write to {settings.support_email}"
                    if settings.support_email else "")
@@ -8382,6 +8419,27 @@ async def push_prefs(req: PushPrefs, request: Request):
     return {"ok": True, "prefs": await asyncio.to_thread(_push_choices, account)}
 
 
+def _refuse_private_push_endpoint(subscription) -> None:
+    """A push subscription names an https address FAM later posts to, and the
+    browser - or anybody with an account - chooses it (§620, second pass).
+    One that is this machine, a private network or a metadata address is
+    refused, by the rule a linked page is held to. A name that does not
+    resolve at all is let through: nothing can be posted to it either, and
+    a subscription must not fail because a lookup did."""
+    from urllib.parse import urlsplit
+
+    endpoint = str((subscription or {}).get("endpoint") or "") \
+        if isinstance(subscription, dict) else ""
+    host = urlsplit(endpoint).hostname or ""
+    if not host:
+        return
+    try:
+        attachments_mod._public_addresses(host, 443)
+    except attachments_mod.AttachmentError as exc:
+        if str(exc) == attachments_mod.NOT_PUBLIC:
+            raise ValueError("That is not a notification address FAM can send to.") from exc
+
+
 @app.post("/api/push/subscribe")
 async def push_subscribe(req: PushSubscription, request: Request):
     _read_limit(request)
@@ -8389,6 +8447,7 @@ async def push_subscribe(req: PushSubscription, request: Request):
     if not push_mod.status()["available"]:
         raise HTTPException(status_code=409, detail=push_mod.status()["reason"])
     try:
+        await asyncio.to_thread(_refuse_private_push_endpoint, req.subscription)
         PUSH.subscribe(account, req.subscription)
         if push_mod.clean_zone(req.tz):  # unreadable never erases a kept zone
             PUSH.set_prefs(account, tz=req.tz)

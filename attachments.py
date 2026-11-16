@@ -42,6 +42,9 @@ log = logging.getLogger(__name__)
 #: Biggest file accepted, before base64. Large enough for a long report, small
 #: enough that a phone upload does not stall.
 MAX_BYTES = 8 * 1024 * 1024
+#: How much of a .docx's `document.xml` is unpacked. Markup is most of that
+#: file, so this is still far more text than `MAX_TEXT_CHARS` keeps.
+MAX_DOCX_XML = 8 * 1024 * 1024
 #: Extracted text kept per attachment. A whole book would swamp the prompt and
 #: cost more than the episode is worth; this is several thousand words.
 MAX_TEXT_CHARS = 24_000
@@ -104,7 +107,10 @@ def _suffix(name: str) -> str:
 
 
 def _clip(text: str) -> str:
-    text = re.sub(r"[ \t]+", " ", (text or "")).strip()
+    # Only the front of a very long text is tidied (§620, second pass):
+    # collapsing the spaces of eight megabytes of words made a list of
+    # millions of pieces - a hundred megabytes - to keep 24,000 characters.
+    text = re.sub(r"[ \t]+", " ", (text or "")[:MAX_TEXT_CHARS * 8]).strip()
     if len(text) > MAX_TEXT_CHARS:
         # Say so in the text itself: the model must not describe a truncated
         # document as though it had read all of it.
@@ -116,8 +122,16 @@ def _docx_text(data: bytes) -> str:
     """A .docx is a zip of XML. No dependency needed to read the words out."""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            xml = archive.read("word/document.xml").decode("utf-8", "replace")
-    except (zipfile.BadZipFile, KeyError) as exc:
+            # Unpacked only as far as `MAX_DOCX_XML` (PROBLEMS.md §620, second pass): a
+            # .docx is a zip, and 400 KB of zip can be 400 MB of
+            # `document.xml` - read whole, that was 1.2 GB of memory for one
+            # upload, on a server with half of that. The words kept are the
+            # first `MAX_TEXT_CHARS` either way, so a long document loses
+            # nothing it was going to keep.
+            with archive.open("word/document.xml") as packed:
+                xml = packed.read(MAX_DOCX_XML).decode("utf-8", "replace")
+    except (zipfile.BadZipFile, KeyError, OSError, EOFError, zlib.error,
+            NotImplementedError, RuntimeError) as exc:
         raise AttachmentError("That .docx could not be opened.") from exc
     xml = re.sub(r"</w:p>", "\n", xml)
     xml = re.sub(r"<w:tab[^>]*/>", "\t", xml)

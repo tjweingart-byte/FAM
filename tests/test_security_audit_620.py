@@ -268,7 +268,18 @@ def test_the_admin_page_says_when_an_admin_address_is_unclaimed(server, monkeypa
 # --- 5. the address an account leaves ----------------------------------------
 
 
+def _a_day_old(user="u1"):
+    """The account as one somebody has had for a while (the notice is not
+    sent for a new one - see the second pass, below)."""
+    appmod._address_noticed.clear()
+    appmod._address_notices.clear()
+    appmod.ACCOUNTS._conn().execute(
+        "UPDATE accounts SET created = created - ? WHERE user_id = ?",
+        (2 * appmod.ADDRESS_NOTICE_MIN_AGE, user))
+
+
 def test_the_old_address_is_told_when_the_email_changes(server, outbox):
+    _a_day_old()
     client = _stranger(server)
     assert _login(client, GOOD).status_code == 200
     appmod._gen_tokens.clear()
@@ -281,6 +292,7 @@ def test_the_old_address_is_told_when_the_email_changes(server, outbox):
 
 
 def test_nothing_is_sent_when_the_email_did_not_change(server, outbox):
+    _a_day_old()
     client = _stranger(server)
     assert _login(client, GOOD).status_code == 200
     appmod._gen_tokens.clear()
@@ -799,3 +811,102 @@ def test_a_compressed_page_is_unpacked_only_to_the_cap(monkeypatch):
     assert seen["accept"] == "identity"
     assert 0 < len(body) <= 50_000
     assert max(grown) <= 50_000, "one piece of the page was unpacked past the cap"
+
+
+# --- the second pass ----------------------------------------------------------
+#
+# The areas the first pass did not reach: the waitlist and shared-episode
+# pages driven in a browser (nothing ran), hostile documents, what the
+# server can be made to send, the push endpoint, logs and the iPhone's
+# storage of the token (the last two sound).
+
+
+def test_a_word_file_is_unpacked_only_so_far():
+    """A .docx is a zip: 400 KB of it was 400 MB of `document.xml`, read
+    whole - 1.2 GB of memory for one upload, measured, on a server with half
+    of that."""
+    import io
+    import tracemalloc
+    import zipfile
+
+    packed = io.BytesIO()
+    with zipfile.ZipFile(packed, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        with z.open("word/document.xml", "w") as f:
+            for _ in range(120):
+                f.write(b"<w:p><w:t>" + b"word " * 200_000 + b"</w:t></w:p>")
+    data = packed.getvalue()
+    assert len(data) < attachments.MAX_BYTES
+    tracemalloc.start()
+    try:
+        text = attachments.extract_document("long.docx", data)
+        _now, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert text.startswith("word word")
+    assert len(text) <= attachments.MAX_TEXT_CHARS + 100
+    assert peak < 12 * attachments.MAX_DOCX_XML, f"unpacking held {peak >> 20} MB"
+
+
+def test_an_ordinary_word_file_still_reads():
+    import io
+    import zipfile
+
+    packed = io.BytesIO()
+    with zipfile.ZipFile(packed, "w") as z:
+        z.writestr("word/document.xml",
+                   "<w:document><w:p><w:t>Hello there.</w:t></w:p>"
+                   "<w:p><w:t>Second line.</w:t></w:p></w:document>")
+    assert attachments.extract_document("a.docx", packed.getvalue()).split() == \
+        ["Hello", "there.", "Second", "line."]
+
+
+def test_a_new_account_cannot_have_fam_email_anybody(server, outbox):
+    """The notice above goes to an address nobody verified. Join with
+    somebody's address, change it, and FAM wrote to them - twenty a minute
+    from one account, and accounts are free."""
+    appmod._address_noticed.clear()
+    appmod._address_notices.clear()
+    client = _stranger(server)
+    assert _login(client, GOOD).status_code == 200
+    for n in range(4):
+        appmod._gen_tokens.clear()
+        assert client.post("/api/account",
+                           json={"email": f"stranger{n}@example.com"}).status_code == 200
+    assert outbox == []
+
+
+def test_an_old_account_is_told_once_a_day_not_every_change(server, outbox):
+    _a_day_old()
+    client = _stranger(server)
+    assert _login(client, GOOD).status_code == 200
+    for n in range(4):
+        appmod._gen_tokens.clear()
+        assert client.post("/api/account",
+                           json={"email": f"next{n}@example.com"}).status_code == 200
+    assert [m[0] for m in outbox] == [EMAIL]
+
+
+def test_the_notices_have_a_ceiling_for_the_whole_server(server, outbox, monkeypatch):
+    monkeypatch.setattr(appmod, "ADDRESS_NOTICE_PER_HOUR", 2)
+    appmod._address_noticed.clear()
+    appmod._address_notices.clear()
+    old = appmod.time.time() - 2 * appmod.ADDRESS_NOTICE_MIN_AGE
+    assert [appmod._may_tell_old_address(f"acct{n}", old) for n in range(4)] == \
+        [True, True, False, False]
+
+
+@pytest.mark.parametrize("endpoint", [
+    "https://127.0.0.1/push", "https://10.0.0.8:8443/x", "https://169.254.169.254/latest",
+    "https://[::1]/p", "https://[64:ff9b::a9fe:a9fe]/p"])
+def test_a_push_address_inside_the_network_is_refused(endpoint):
+    with pytest.raises(ValueError):
+        appmod._refuse_private_push_endpoint({"endpoint": endpoint, "keys": {}})
+
+
+def test_a_real_push_address_and_an_unresolvable_one_pass(monkeypatch):
+    appmod._refuse_private_push_endpoint({"endpoint": "https://93.184.216.34/send/abc"})
+    # A name that cannot be looked up here is not a private address.
+    appmod._refuse_private_push_endpoint(
+        {"endpoint": "https://updates.push.services.example.invalid/wpush/v2/abc"})
+    appmod._refuse_private_push_endpoint({})
+    appmod._refuse_private_push_endpoint({"token": "an-apns-device-token"})
