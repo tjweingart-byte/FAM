@@ -38305,3 +38305,14 @@ the owner's own numbers, and when the runway ends.
 
 No code changed. Not run: the full check, on a commit that adds a document,
 a log entry and a line to an index.
+
+## 632. CLAUDE.md trimmed, not its budget raised (2026-11-16)
+
+The owner asked why the core is held to 40,000 bytes and whether to raise
+it; it was at 39,996, so the next rule would not have fitted. Chosen:
+trim. **The 132 bare section references in the core - " (§190)",
+" (§282/§285)" - are out**, 1,149 bytes. Each is history, which §168 puts
+in the topic files, and every one of those sections is cited in
+`docs/claude/` at the rule the line's ID points to. No rule, ID or word of
+a rule changed; references that are part of a sentence ("§499, reversing
+§171 there") stay. The core is 38,847 bytes.

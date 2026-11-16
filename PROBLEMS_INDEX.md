@@ -623,3 +623,4 @@ and `limit` = Lines.
 | 38137 | 105 | 629. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |
 | 38242 | 45 | 630. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
 | 38287 | 22 | 631. The plan for 2027, from an interview with the owner (2026-11-16) |
+| 38309 | 11 | 632. CLAUDE.md trimmed, not its budget raised (2026-11-16) |
