@@ -37734,3 +37734,44 @@ take the number ("treat ninety-five forty-five as a reading from ten
 fifty-nine, not a live price"; "where prices stand this afternoon is not
 known yet") - not about the writer, but a gap said aloud
 ([missed-not-absent]).
+
+## 626. The material check extended to what the writer "can" do with a figure (2026-11-16)
+
+The owner, on §625: "Extend the guard."
+
+**Added to `_MATERIAL_PHRASES`** (`script_generator.py`), each dropped
+anywhere in the piece:
+- "the newest / latest / last ... price, score, result, reading, figure,
+  number we can date, establish, confirm, see, stand behind, put a time
+  on, give you";
+- "where / what ... is not something (or a figure, a price) we, I or this
+  can ... / have" - only when the clause is about a thing in time (now,
+  this afternoon, where it stands, trading);
+- "nothing we can establish" and "what we can date / establish is" -
+  "establish" being the instruction's own old word (§624).
+
+Tied to a figure or to a moment on purpose. These pass and are tests: "the
+oldest fossils we can date", "the earliest eclipse we can date", "dark
+matter is not something we can see", "what dark matter is made of is not
+something we can see directly", "nothing we can find in the fossil record",
+"where the market stands today is not something anyone can know", the same
+words inside quotation marks, and the honest forms §624 asked for ("that
+Friday close is the newest settled figure there is").
+
+**Replayed.** §625's sixteen scripts: 16 of their 17 leaking sentences
+caught (reading found twelve under the old wording; the check found a
+thirteenth), none else in 233 sentences. **Still passing:** "The last
+figure we have is from that Sunday morning" - left alone because "the
+latest figures we have from the census are from 2020" is the world, and the
+two cannot be told apart by their words. Every frozen draft from §619 and
+§623, 2,868 sentences: nine caught, all nine about the writer's own access
+- §622's six, and three in §623's drafts that nobody had counted ("where
+the stock stands at this minute is not something I have"; "where they're
+trading this afternoon, I can't tell you"; "I can't tell you what the
+judges said ..., so I won't pretend to").
+
+**The cost is the same as §622's**: a dropped sentence takes its figure
+with it, and nothing is said in its place. Each drop is on /admin's errors.
+
+Tests: `tests/test_material_guard_622.py` (twelve more leaks caught, ten
+more look-alikes pass).

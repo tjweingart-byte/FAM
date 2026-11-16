@@ -489,6 +489,25 @@ _MATERIAL_PHRASES = (
     r"\bwe\s+(?:don['’]?t|do\s+not)\s+(?:yet\s+)?have\s+(?:a|an|any|the)\s+"
     r"(?:[\w-]+\s+){0,2}?(?:figure|figures|price|prices|number|numbers|result|"
     r"results|score|scores|update|updates|reading|readings|confirmation)\b",
+    # What the writer can do with a figure, not only what it has (§626):
+    # "the newest price we can establish", "the last price we can date",
+    # "the last figure we can stand behind". Tied to the figure: "the oldest
+    # fossils we can date" is the world.
+    r"\b(?:latest|most\s+recent|newest|last)\s+(?:[\w-]+\s+){0,3}?(?:price|prices|"
+    r"score|scores|result|results|update|updates|reading|readings|quote|quotes|"
+    r"figure|figures|number|numbers)\s+(?:that\s+)?we\s+(?:can|could)\s+"
+    r"(?:date|establish|confirm|verify|see|find|stand\s+behind|vouch\s+for|"
+    r"put\s+a\s+time\s+on|give\s+you|point\s+to)\b",
+    # "Where it stands this afternoon is not something we can see", "...is
+    # not a figure I can give you". Only about a thing in time - now, this
+    # afternoon, where it stands - so "what dark matter is made of is not
+    # something we can see" passes.
+    r"\b(?:where|what)\s+(?=[^.?!]{0,90}?\b(?:now|moment|afternoon|morning|evening|"
+    r"today|tonight|stands?|trading)\b)[^.?!]{3,90}?\s+is\s+not\s+(?:something|a\s+"
+    r"(?:figure|price|number))\s+(?:that\s+)?(?:we|i|this)\s+(?:can|have)\b",
+    # "establish" is the instruction's own old word (§624), echoed.
+    r"\bnothing\s+we\s+can\s+establish\b",
+    r"\bwhat\s+we\s+can\s+(?:date|establish)\s+is\b",
 )
 _MATERIAL = re.compile("|".join(_MATERIAL_PHRASES), re.I)
 

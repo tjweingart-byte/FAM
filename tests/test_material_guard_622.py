@@ -30,6 +30,19 @@ LEAKS = [
     "whether it was made.",
     "We do not yet have a confirmed result from the count.",
     "I can't confirm the score, and I don't want to guess.",
+    # §626: what the writer can do with a figure, from sixteen more scripts.
+    "The index was slipping on Monday morning, at ninety dollars at ten GMT, the newest price we can date.",
+    "That is the newest price we can establish.",
+    "The last figure we can stand behind is Friday's close: ninety dollars.",
+    "That is the last price we can put a time on.",
+    "The last price we can date, from Sunday morning, is two thousand dollars above that band.",
+    "Where the price stands at this moment is not something this can tell you, and both forces are live.",
+    "What the shares are doing this afternoon is not something we can see yet.",
+    "Where it stands now, on Monday afternoon, is not something we can see.",
+    "Where they are trading this afternoon is not a figure I can give you.",
+    "The coin trades around the clock, so where it stands on Monday afternoon is not something we have.",
+    "Nothing we can establish gives a reason for Friday's fall itself.",
+    "What we can date is a sell-off that has been building for weeks.",
 ]
 
 # Sentences about the world that look like them.
@@ -45,6 +58,17 @@ REPORTING = [
     "It's the latest score in a rivalry that's lasted decades.",
     '"I don\'t have the numbers," the coach said.',
     "'I don't know yet,' the manager said.",
+    # §626's look-alikes.
+    "The oldest fossils we can date are three and a half billion years old.",
+    "The earliest eclipse we can date is from 1375 BC.",
+    "Dark matter is not something we can see.",
+    "What dark matter is made of is not something we can see directly.",
+    "There is nothing we can see beyond the horizon.",
+    "Nothing we can find in the fossil record suggests otherwise.",
+    "Where the market stands today is not something anyone can know.",
+    '"That is the last price we can establish," the analyst said.',
+    "That Friday close is the newest settled figure there is.",
+    "At a quarter past ten on Sunday morning, Eastern time, it was trading at ninety dollars.",
     # A title is not a disclaimer.
     "The Eagles closed the set with I Can't Tell You Why.",
     "James Ingram's I Don't Have the Heart reached number one in 1990.",
