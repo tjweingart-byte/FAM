@@ -288,8 +288,9 @@ def draw(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes
 # With no picture of its own, the same words across the whole card.
 #
 # **A long title is cut here, with an ellipsis** (the owner, on seeing one
-# set small enough to fit: "way too much text"). This is the one drawing
-# where §615's "never cut" gives way: a feed is scrolled, not read, and
+# set small enough to fit: "way too much text"). The drawings made
+# for a feed (this, the post photo, the clip) are where §615's "never cut"
+# gives way: a feed is scrolled, not read, and
 # Facebook prints the whole title under the picture anyway. Messages and
 # the rest keep the wordless square (§559).
 

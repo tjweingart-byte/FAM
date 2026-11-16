@@ -148,3 +148,6 @@ def test_the_outreach_card_offers_the_clip():
             / "admin_ui" / "groups.html").read_text()
     assert "Video clip for a post" in page
     assert "/api/admin/share/$1/clip.mp4" in page
+    # Same origin, whatever host the share link names: the pattern eats the
+    # link's scheme and host, so the admin's session goes with the request.
+    assert 'replace(/^.*\\/s\\/' in page

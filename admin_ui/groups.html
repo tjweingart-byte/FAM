@@ -142,7 +142,9 @@
     return String(link || "").replace(/\/s\/([^\/?#]+).*$/, "/api/share/$1/post.jpg?download=1");
   }
 function clipVideo(link) {
-    return String(link || "").replace(/\/s\/([^\/?#]+).*$/, "/api/admin/share/$1/clip.mp4");
+    // A path on this page's own origin: the link may name another host
+    // (PUBLIC_BASE_URL), and the admin's session is only sent to this one.
+    return String(link || "").replace(/^.*\/s\/([^\/?#]+).*$/, "/api/admin/share/$1/clip.mp4");
   }
     function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {

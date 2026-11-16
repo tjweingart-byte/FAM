@@ -1731,8 +1731,9 @@
   untouched, on the left; the logo, the length, the title and the play
   button on FAM's ground on the right. **A long title is cut with an
   ellipsis here** (four lines; three on the no-picture card) - the owner
-  on one set small enough to fit: "way too much text". It is the one
-  exception to §615; Facebook prints the whole title under the card. It is named only in the head
+  on one set small enough to fit: "way too much text". The drawings made for a feed (this, the
+  photo and the clip) are the exceptions to §615; Facebook prints the
+  whole title under the card. It is named only in the head
   served to Facebook's crawler (`sharing.wants_wide`, `WIDE_AGENTS`), and
   the page says `Vary: User-Agent`. Messages, WhatsApp, X and the rest keep
   the wordless square the owner picked in §559. This is not the user-agent
@@ -1765,8 +1766,8 @@
   `/admin/groups` a card with a link heard has **Photo for a post** and
   says why: send the admin the photo to post and the link for the first
   comment. **FAM still posts nothing** ([no-social-posting]): it is a
-  file. Not built: the in-app share sheet does not offer it, and there is
-  no clip (§621's option 3) or per-group link tagging (option 5).
+  file. Not built: the in-app share sheet does not offer it. The clip and
+  the per-community link came after ([post-clip], [post-kit]).
   Whether a photo post actually restores reach is **unmeasured** - it is
   the test this was built to run.
 <!-- rule:post-clip -->
@@ -1793,8 +1794,8 @@
   photo ([post-photo]) is public: a clip is seconds of one core, so a
   stranger's request may not start one; one renders at a time and four
   are remembered. `/admin/groups` has **Video clip for a post**. FAM posts
-  nothing ([no-social-posting]). Not built: the app's share sheet, and
-  per-group link tagging (§621's option 5). Unmeasured: whether a clip
+  nothing ([no-social-posting]). Not built: the app's share sheet.
+  Unmeasured: whether a clip
   post restores reach, and how the production voice sounds in one.
 <!-- rule:post-kit -->
 - **Each community has its own share link, so its opens are its own**
