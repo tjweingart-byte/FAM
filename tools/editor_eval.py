@@ -30,22 +30,22 @@ to measure what `AHEAD_WRITER_EFFORT=high` buys against `none`.
 The first three arms run with both switched off, so they stay §437's
 comparison whatever the deployment's defaults are now.
 
-Two more (§623), which measured what §622's adoption bought (§625):
+Two more (§627), which measured what §626's adoption bought (§629):
 `none_unpaired` - no editor, the before-and-after pairs switched off
-(`TEACHING_PAIRS`); and `none_before_621` - that, and the examples §622
-added hidden. **Since §626 took that adoption back out, both write exactly
+(`TEACHING_PAIRS`); and `none_before_625` - that, and the examples §626
+added hidden. **Since §630 took that adoption back out, both write exactly
 as `none` does**; they are kept for the record of that run and mean
-something again only while an example named in `ADOPTED_622` or a pair is
+something again only while an example named in `ADOPTED_626` or a pair is
 committed. Compare any two arms with:
 
-    python tools/editor_eval.py --compare none,none_before_621
+    python tools/editor_eval.py --compare none,none_before_625
 
 prints the paired difference by question on the grader's mean of six and on
 each metric, with a 95% bootstrap interval. A question a pair was made from
 is left out of that table and counted beside it: the writer has been shown
 its answer.
 
-And `none_candidates` (§629), for measuring **before** anything is adopted:
+And `none_candidates` (§633), for measuring **before** anything is adopted:
 no editor, with every example and pair in `examples/candidates/` put in
 front of the writer for that arm only - in file-name order among the
 examples, and no more pairs than it would ever be shown, as adopting them
@@ -148,7 +148,7 @@ QUESTIONS = [
 ]
 
 ARMS = ("none", "haiku", "sonnet", "none_matched", "haiku_taught", "none_low",
-        "none_unpaired", "none_before_621", "none_candidates")
+        "none_unpaired", "none_before_625", "none_candidates")
 #: What `--arms` runs when it is not given: §437's three.
 DEFAULT_ARMS = ("none", "haiku", "sonnet")
 #: The editor each arm runs, or none.
@@ -156,10 +156,10 @@ ARM_EDITOR = {"haiku": "haiku", "sonnet": "sonnet", "haiku_taught": "haiku"}
 #: The arms taught as §521 teaches: the writer's examples matched to the
 #: story and Shakespeare's worked plans. Every other arm has both off.
 TAUGHT_ARMS = frozenset({"none_matched", "haiku_taught"})
-#: The arms that write without the before-and-after pairs (§623).
-UNPAIRED_ARMS = frozenset({"none_unpaired", "none_before_621"})
-#: The examples §622 added, hidden from `none_before_621`.
-ADOPTED_622 = ("3-virus-and-bacteria",)
+#: The arms that write without the before-and-after pairs (§627).
+UNPAIRED_ARMS = frozenset({"none_unpaired", "none_before_625"})
+#: The examples §626 added, hidden from `none_before_625`.
+ADOPTED_626 = ("3-virus-and-bacteria",)
 CANDIDATES = pathlib.Path(__file__).resolve().parent.parent / "examples" / "candidates"
 
 
@@ -207,7 +207,7 @@ class _Settings:
         editor = ARM_EDITOR.get(arm)
         if editor:
             changes[ARM_SETTING[editor]] = ARM_MODEL[editor]
-        self.hide_examples = arm == "none_before_621"
+        self.hide_examples = arm == "none_before_625"
         self.candidates = arm == "none_candidates"
         if self.candidates:
             changes["teaching_pairs"] = True
@@ -229,10 +229,10 @@ class _Settings:
             if self.hide_examples:
                 script_generator.STYLE_EXAMPLES = [
                     (query, script) for query, script in self.examples
-                    if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_622]
+                    if script_generator.EXAMPLE_STEMS.get(query) not in ADOPTED_626]
             if self.candidates:
                 # What adopting them would put in front of the writer, for
-                # this script only (§629): the examples in file-name order,
+                # this script only (§633): the examples in file-name order,
                 # and never more pairs than the writer is shown.
                 extra = candidate_examples()
                 named = [(script_generator.EXAMPLE_STEMS.get(q, ""), q, s)
@@ -264,7 +264,7 @@ class _Settings:
 def instructions_mark(arm: str) -> str:
     """A short mark of the instructions an arm writes from, kept in each
     result so a script written from other instructions is never taken for
-    this arm's (§629)."""
+    this arm's (§633)."""
     import hashlib
 
     import script_generator
@@ -509,7 +509,7 @@ def _graded(result: dict) -> dict:
         v = v.get("score") if isinstance(v, dict) else v
         if isinstance(v, (int, float)):
             marks[metric] = float(v)
-    # All six or none (§629): the grader drops a mark whose quote is not in
+    # All six or none (§633): the grader drops a mark whose quote is not in
     # the script, and a mean of the five left is not the same measure.
     if len(marks) != len(episode_quality.METRICS):
         return {}
@@ -583,7 +583,7 @@ async def main() -> int:
     ap.add_argument("--arms", default=",".join(DEFAULT_ARMS))
     ap.add_argument("--only", default="", help="question numbers, e.g. 0,1,2")
     ap.add_argument("--no-grade", action="store_true")
-    ap.add_argument("--compare", default="", help="two arms, e.g. none,none_before_621")
+    ap.add_argument("--compare", default="", help="two arms, e.g. none,none_before_625")
     ap.add_argument("--dir", default="")
     args = ap.parse_args()
     out = _dir(args.dir)

@@ -305,7 +305,7 @@ the two lists are still kept in step by hand.
 What is true but not obvious from the code:
 
 <!-- rule:ci-python -->
-> **Current (PROBLEMS.md §629, §630):** this container now runs Python **3.13** (`python3 --version`; it was 3.11 when this was written, and it will move again). The rule is unchanged: CI pins 3.12, so a failure there that passes here is reproduced in a 3.12 environment first.
+> **Current (PROBLEMS.md §633, §634):** this container now runs Python **3.13** (`python3 --version`; it was 3.11 when this was written, and it will move again). The rule is unchanged: CI pins 3.12, so a failure there that passes here is reproduced in a 3.12 environment first.
 - **The gate runs a different Python from the build container**, and that gap
   hid a failing test for days (§106). `.github/workflows/ci.yml` pins 3.12;
   this container has 3.11. A green `./dev.sh check` is therefore not the same
@@ -336,7 +336,7 @@ What is true but not obvious from the code:
   prints the font, the size, the line height and both heights precisely
   because the answer is not in the source.
 <!-- rule:no-api-key -->
-> **Current (PROBLEMS.md §527, §621, §630):** the cloud environment may now hold the keys (`FAM_ANTHROPIC_KEY`, the search keys; check with `[ -n "$FAM_ANTHROPIC_KEY" ]`, never print one), so `write.py` and `tools/editor_eval.py` can run here. **Spending on them is the owner's decision, asked for with an estimate each time** - a day's runs cost about $10.50 in §629, double what was first quoted. Time to first audio and how an episode sounds in the production voice are still unverified from here.
+> **Current (PROBLEMS.md §527, §625, §634):** the cloud environment may now hold the keys (`FAM_ANTHROPIC_KEY`, the search keys; check with `[ -n "$FAM_ANTHROPIC_KEY" ]`, never print one), so `write.py` and `tools/editor_eval.py` can run here. **Spending on them is the owner's decision, asked for with an estimate each time** - a day's runs cost about $10.50 in §633, double what was first quoted. Time to first audio and how an episode sounds in the production voice are still unverified from here.
 - There is **no API key** in the build container, so writing quality and
   time-to-first-audio cannot be verified here. Tests, the interface checks and
   the browser smoke test all run without one. Anything about *how the writing

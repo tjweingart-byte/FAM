@@ -9,9 +9,9 @@ This is method, not rules. The rules are in `CLAUDE.md` and `docs/claude/`,
 and a rule always wins over this file. Rules are cited here by ID, never
 restated: `grep -n 'rule:ID' docs/claude/*.md` gives the full text. It was
 written at the end of a session that did the work in section 5 (PROBLEMS.md
-§621, §622); the examples below are what happened, not advice in general.
+§625, §626); the examples below are what happened, not advice in general.
 A session on another model then followed it on a real task and corrected
-three things in it (§623); those corrections are in the text.
+three things in it (§627); those corrections are in the text.
 
 ## 1. Before you change anything
 
@@ -29,7 +29,7 @@ three things in it (§623); those corrections are in the text.
    it reads, what it writes, what it costs and what it refuses to do.
 4. **Check the machine, not the document about the machine.** For a long
    time `[no-api-key]` said there was no key here and `[ci-python]` named
-   the wrong Python; both are corrected (§630), and both will drift again.
+   the wrong Python; both are corrected (§634), and both will drift again.
    `[ -n "$FAM_ANTHROPIC_KEY" ] && echo set` and `python3 --version` take
    a second. Never print a key.
 5. **Check CI on `Main`** before starting (`[ci-green-first]`).
@@ -47,7 +47,7 @@ money or changes what a listener hears.
   goes somewhere nothing loads, for the owner to read, **and it is measured
   before it moves in**. The owner adopted seven candidates on a table of
   gate results; the measurement afterwards showed the writing was marked
-  lower with them in, and they came back out the same day (§625, §626).
+  lower with them in, and they came back out the same day (§629, §630).
 - Ask only when the answer changes what you do next: spending on the
   owner's key, or anything `CLAUDE.md` files under "discuss before undoing".
   For everything else pick the sensible default and say which you picked.
@@ -100,7 +100,7 @@ a pair, or a wider check with the old false positives kept as tests.
   from 1963. Any "first", "before" or "decades" is checked or cut.
 - **Read the output, not only the scan.** A pattern over sixteen scripts
   reported no leaks in either wording; reading their first two sentences
-  found thirteen (§627).
+  found thirteen (§631).
 - A count from one pattern is a lower bound. This file first said three of
   36 drafts spoke about their own material. The session that tried it
   counted again with wider patterns: four drafts, seven sentences.
@@ -138,7 +138,7 @@ its facet in `examples/facets.json`; write its worked plan and run
 
 **Passing the gates is not a gain.** All six pairs passed both gates, and
 with them in its instructions the writer was marked lower on storytelling
-(-0.41 [-0.77, -0.05] on 44 held-out questions, §625). The gates say a
+(-0.41 [-0.77, -0.05] on 44 held-out questions, §629). The gates say a
 rewrite is better than its draft; they say nothing about what showing it
 to the writer does. So before proposing that anything be adopted, run
 `tools/editor_eval.py --run --arms none,none_candidates` and
@@ -152,7 +152,7 @@ What was taken out is in `examples/candidates/`, with why.
 
 - Ask once, with an estimate. Report the actual afterwards, split into
   measured and estimated. An estimate from an old log entry is a guess:
-  §527's 2.5 cents a grade was 5.4 cents by §625, and the run cost double
+  §527's 2.5 cents a grade was 5.4 cents by §629, and the run cost double
   what the owner was told. Price a new run from five scripts of its own.
 - Take the cheapest run that answers the question, and the smallest set of
   questions that covers the facets.
@@ -167,7 +167,7 @@ Follow `[ship-loop]` and `[problems-log]`. What the rules do not say:
   browser smoke runs. Run it once, in the background, **in its own
   checkout** (`git worktree add --detach <dir> HEAD`): a test reads
   `script_generator.py` by line number, and editing that file under a
-  running check failed it (§626). Before that, run only the tests that
+  running check failed it (§630). Before that, run only the tests that
   mention what you touched:
   `grep -lE '<names you changed>' tests/*.py`, then pytest on those files.
 - A test that assumed the old state is evidence, not an obstacle: read why

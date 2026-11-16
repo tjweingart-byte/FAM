@@ -1,4 +1,4 @@
-"""How the writer is told to date what it says (§626).
+"""How the writer is told to date what it says (§630).
 
 Sentences like "the latest price we have" and "nothing I can establish"
 echoed the instruction "the newest information you can establish". The
@@ -32,7 +32,7 @@ def test_the_phrase_the_leaks_echoed_is_gone():
 
 
 def test_the_instructions_never_speak_of_what_we_have():
-    # §630: the order-of-sources rule said "the answer is that we do not
+    # §634: the order-of-sources rule said "the answer is that we do not
     # have it", in every researched episode - the phrase the check drops.
     request = _request()
     assert "leave it out - the one below it is not promoted" in request
@@ -49,7 +49,7 @@ def test_the_request_gives_a_moving_figure_its_own_time():
 
 
 def test_what_the_writer_is_shown_as_wrong_is_what_the_check_drops():
-    # Each bad example in the instructions is one the guard catches (§624, §629).
+    # Each bad example in the instructions is one the guard catches (§628, §633).
     request = _request()
     assert '"that is not in what I was given", "the latest we have".' in request
     for leak in ("That is the latest price we have.", "That is the latest we have.",

@@ -1,4 +1,4 @@
-"""The material check, widened and then reviewed (§624, §628, §629).
+"""The material check, widened and then reviewed (§628, §632, §633).
 
 Real drafts spoke about the writer's own access in ways §288's check let
 through: in the plural ("the latest price we have"), in the singular after
@@ -33,7 +33,7 @@ LEAKS = [
     "We do not yet have a confirmed result from the count.",
     "I can't confirm the score, and I don't want to guess.",
     "I can't tell you what the judges said about the book, so I won't pretend to.",
-    # §628: what the writer can do with a figure.
+    # §632: what the writer can do with a figure.
     "The index was slipping on Monday morning, at ninety dollars at ten GMT, the newest price we can date.",
     "That is the newest price we can establish.",
     "The last figure we can stand behind is Friday's close: ninety dollars.",
@@ -44,7 +44,7 @@ LEAKS = [
     "Where it stands now, on Monday afternoon, is not something we can see.",
     "Where they are trading this afternoon is not a figure I can give you.",
     "The coin trades around the clock, so where it stands on Monday afternoon is not something we have.",
-    # §629: the same leaks in the forms the review found still passing.
+    # §633: the same leaks in the forms the review found still passing.
     "The latest price I have is ninety.",
     "That is the latest we have.",
     "Where it stands right now isn't something we can see.",
@@ -78,7 +78,7 @@ REPORTING = [
     '"That is the last price we can establish," the analyst said.',
     "That Friday close is the newest settled figure there is.",
     "At a quarter past ten on Sunday morning, Eastern time, it was trading at ninety dollars.",
-    # §629, the review's: history and science told with "we".
+    # §633, the review's: history and science told with "we".
     "What is happening in the Arctic today is not something we have seen in recorded history.",
     "What is happening now is not something we have seen since 1929.",
     "What happened in the first moment after the Big Bang is not something we can see.",
@@ -163,7 +163,7 @@ def test_a_script_that_is_nothing_else_is_still_spoken():
 
 
 def test_a_dropped_opening_does_not_take_the_facts_after_it():
-    # The review's (§629): "It was three to one" leans on nothing that was
+    # The review's (§633): "It was three to one" leans on nothing that was
     # dropped for being a disclaimer - the score is in it.
     spoken, reader = _read(["The last score we have is from the seventh inning.",
                             "It was three to one, Dodgers.",
