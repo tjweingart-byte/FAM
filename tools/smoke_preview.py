@@ -2368,6 +2368,88 @@ def main() -> int:
             assert left == 0, f"{left} motion copies were left on the page"
             page.evaluate("closeSheet(); QUEUE = []; drawMixSkip(false)")
 
+        def round_three_motion_holds_nothing():
+            """§619: the shared round-three picks. Curves and times are the
+            named tokens, read alike by CSS and script; a tab change leaves
+            nothing of the old tab on its first frame; a sheet closes as a
+            transition, inert while it goes, and is gone after; a drag from
+            the left edge goes back and a drag from the middle does not;
+            the mini player's line is scaled, never sized; a line with Undo
+            stays five seconds; and nothing drawn for any of it is left."""
+            tokens = page.evaluate("""() => {
+                var css = getComputedStyle(document.documentElement);
+                return {out: css.getPropertyValue('--ease-out').trim(),
+                        js: Motion.EASE.OUT, page: Motion.DUR.page, sheet: Motion.DUR.sheetIn};
+            }""")
+            assert tokens["out"].replace(" ", "") == "cubic-bezier(.32,.72,0,1)", tokens
+            assert tokens["js"] == tokens["out"], f"Motion does not read the CSS's curve: {tokens}"
+            assert tokens["page"] == 340 and tokens["sheet"] == 280, tokens
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(400)
+            page.evaluate("setTab('myfam')")
+            leaving = page.evaluate("document.querySelectorAll('.screen.leaving').length")
+            assert leaving == 0, "the old tab was still drawn on the new tab's first frame"
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam"
+            page.wait_for_timeout(400)
+            # A sheet: open, then closed half way - it turns round, inert.
+            page.evaluate("openLengthMenu()")
+            page.wait_for_timeout(120)
+            page.evaluate("closeSheet()")
+            state = page.evaluate("""() => { var o = document.getElementById('sheetOverlay');
+                return {closing: o.classList.contains('closing'), inert: o.inert,
+                        active: o.classList.contains('active')}; }""")
+            assert state["closing"] and state["inert"] and not state["active"], \
+                f"a closing sheet was not held, inert, on its way out: {state}"
+            page.wait_for_timeout(400)
+            state = page.evaluate("""() => { var o = document.getElementById('sheetOverlay');
+                return {closing: o.classList.contains('closing'), inert: o.inert,
+                        shown: getComputedStyle(o).display}; }""")
+            assert not state["closing"] and not state["inert"] and state["shown"] == "none", \
+                f"the sheet was left behind: {state}"
+            # Back by a drag from the left edge, under the finger.
+            page.evaluate("setTab('profile'); openSettings()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-settings"
+            frame = page.eval_on_selector(".screen.active", "e => { var r = e.getBoundingClientRect();"
+                                          " return {x: r.left, y: r.top + 24, w: r.width}; }")
+            # From the middle: a sideways drag is not a back.
+            page.mouse.move(frame["x"] + frame["w"] / 2, frame["y"])
+            page.mouse.down()
+            page.mouse.move(frame["x"] + frame["w"] / 2 + 150, frame["y"], steps=6)
+            page.mouse.up()
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-settings", \
+                "a drag from the middle of the page went back"
+            page.mouse.move(frame["x"] + 6, frame["y"])
+            page.mouse.down()
+            page.mouse.move(frame["x"] + 60, frame["y"], steps=4)
+            moved = page.eval_on_selector("#screen-settings", "e => e.style.transform")
+            assert "translateX" in moved, f"the page did not follow the finger: {moved!r}"
+            page.mouse.move(frame["x"] + frame["w"] * 0.7, frame["y"], steps=4)
+            page.mouse.up()
+            page.wait_for_timeout(50)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile", \
+                "a drag from the left edge past half way did not go back"
+            page.wait_for_timeout(600)
+            left = page.evaluate("""() => ({
+                leaving: document.querySelectorAll('.screen.leaving, .screen.arriving').length,
+                styled: document.getElementById('screen-settings').style.transform})""")
+            assert left["leaving"] == 0 and not left["styled"], f"the drag left the page moved: {left}"
+            # The mini player's line is scaled from its left edge, never sized.
+            fill = page.eval_on_selector("#nowFill", "e => getComputedStyle(e).transformOrigin")
+            assert fill.startswith("0px"), f"the mini player's line is not drawn from its left: {fill}"
+            assert page.evaluate("SNACK_ACTION_MS") >= 5000, "an Undo line stays under five seconds"
+            page.evaluate("setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark')")
+            assert page.evaluate("document.documentElement.classList.contains('theme-switching')"), \
+                "a theme change did not turn transitions off while it happened"
+            page.wait_for_timeout(300)
+            left = page.evaluate("""() => document.documentElement.classList.contains('theme-switching')
+                + document.querySelectorAll('.motion-ghost, .motion-icon, .motion-copy, .motion-lab,'
+                + ' .motion-title, .motion-row, .motion-roll-old').length""")
+            assert left == 0, f"{left} motion copies (or the theme switch) were left behind"
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -4561,6 +4643,8 @@ def main() -> int:
         check("The player's menu and the queue", the_player_menu_and_the_queue)
         check("Round-two motion holds nothing and leaves nothing behind",
               round_two_motion_holds_nothing)
+        check("Round-three motion holds nothing and leaves nothing behind",
+              round_three_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

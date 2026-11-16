@@ -84,6 +84,53 @@
   /* The status bar's height, read by everything drawn beneath it. */
   :root{ --sb-h:38px; }
 
+  /* -------- Motion tokens (round three, §619; tokens: A) --------
+     Every curve and duration in the app's movement, named once and read by
+     the CSS here and by the `Motion` module (which reads these same
+     properties at start), so like things move alike. The skill's three
+     curves: `out` for anything arriving or answering a touch, `in` for
+     anything leaving, `in-out` for something moving from one place to
+     another on screen. The springs are drawn as `linear()` curves sampled
+     from a damped spring (duration, bounce), cut at the 450 ms ceiling
+     (`rule:motion`), where the bounce-free ones are within 0.3% of rest. */
+  :root{
+    --ease-out:cubic-bezier(.32,.72,0,1);
+    --ease-in:cubic-bezier(.55,0,1,.45);
+    --ease-in-out:cubic-bezier(.77,0,.175,1);
+    --spring-page:linear(0, 0.0477, 0.1531, 0.2784, 0.4028, 0.5162, 0.6144, 0.6965, 0.7636, 0.8174, 0.86, 0.8932, 0.919, 0.9389, 0.954, 0.9656, 0.9743, 0.9808, 0.9858, 0.9894, 0.9922, 0.9942, 0.9958, 0.9969, 1);
+    --spring-soft:linear(0, 0.039, 0.1312, 0.2485, 0.3724, 0.4913, 0.5987, 0.6915, 0.7689, 0.8317, 0.8812, 0.9192, 0.9477, 0.9684, 0.983, 0.9929, 0.9994, 1.0032, 1.0053, 1.0062, 1.0062, 1.0058, 1.0052, 1.0044, 1);
+    --spring-icon:linear(0, 0.0575, 0.1802, 0.3206, 0.4549, 0.5727, 0.6709, 0.7499, 0.812, 0.86, 0.8965, 0.9239, 0.9444, 0.9596, 0.9707, 0.9789, 0.9848, 0.9891, 0.9922, 0.9944, 0.996, 0.9972, 0.998, 0.9986, 1);
+    --dur-press-down:90ms; --dur-press-up:220ms;
+    --dur-colour:150ms;
+    --dur-tab:160ms;
+    --dur-page:340ms; --dur-page-back:260ms;
+    --dur-modal-in:220ms; --dur-modal-out:160ms;
+    --dur-sheet-in:280ms; --dur-sheet-out:200ms;
+    --dur-toast-in:240ms; --dur-toast-out:170ms;
+    --dur-fade-in:240ms; --dur-fade-out:200ms; --dur-hand-over:120ms;
+    --dur-flight:360ms;
+    --dur-bar-in:260ms; --dur-bar-out:190ms;
+    --dur-icon:350ms; --dur-spring:450ms; --dur-settle-delay:30ms;
+    --dur-title:240ms; --dur-picture:240ms;
+    --dur-label:900ms;
+    --dur-nextup:280ms;
+    --dur-step:260ms; --dur-roll:300ms;
+    --dur-tour:340ms;
+    /* What a tile shows before its picture lands (pictures: B). No
+       dominant colour is sent with a thumbnail yet, so it is one neutral
+       colour from the palette (§619). */
+    --pic-placeholder:var(--surface-2);
+  }
+  /* Browsers without `linear()` get the plain curve in place of a spring. */
+  @supports not (transition-timing-function: linear(0, 1)){
+    :root{ --spring-page:var(--ease-out); --spring-soft:var(--ease-out); --spring-icon:var(--ease-out); }
+  }
+  /* Changing the theme (reduced: A, the theme-switch recipe): every
+     transition is off for the two frames the colours change in, so the
+     whole page turns at once instead of each part at its own speed. */
+  html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after{
+    transition:none !important; }
+
   /* Only the phone is the demo. The explainer above it and the footnote
      below were for a desktop visitor and said nothing the app does not. */
   .top, .footnote{ display:none; }
@@ -176,23 +223,22 @@
      rest - glides from feature to feature over the real screens, and a card
      says what each one is. The overlay takes every tap while it is up, so
      nothing underneath is touched by accident; Skip is on every card.
-     Every movement is 380 ms or less (rule `motion`); with reduced motion
-     the hole jumps and the card only fades. */
+     The hole and the card glide on one clock, drawn with transforms
+     (tour: A, §619): each is laid out where it is going and moved there
+     from where it was, 340 ms in-out; the track fills by scaleX. With
+     reduced motion each step appears in place. */
   .fam-tour{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
     z-index:470; overflow:hidden; touch-action:none; }
   .fam-tour[hidden], .fam-tour.paused{ display:none; }
   .tour-hole{ position:absolute; border-radius:18px; pointer-events:none;
     box-shadow:0 0 0 2px rgba(255,210,63,0.9), 0 0 0 9999px rgba(10,9,18,0.72);
-    transition:top 380ms cubic-bezier(.2,.8,.2,1), left 380ms cubic-bezier(.2,.8,.2,1),
-      width 380ms cubic-bezier(.2,.8,.2,1), height 380ms cubic-bezier(.2,.8,.2,1),
-      border-radius 380ms cubic-bezier(.2,.8,.2,1), box-shadow 380ms ease; }
+    transition:box-shadow var(--dur-tour) var(--ease-in-out); }
   .tour-hole.none{ box-shadow:0 0 0 0 rgba(255,210,63,0), 0 0 0 9999px rgba(10,9,18,0.72); }
   .tour-card{ position:absolute; left:16px; right:16px; max-width:420px; margin:0 auto;
     background:var(--surface); color:var(--text); border:1px solid var(--border-strong);
     border-radius:20px; padding:18px 18px 14px; box-sizing:border-box;
     max-height:calc(100% - 32px); overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
-    box-shadow:0 18px 48px rgba(0,0,0,0.45);
-    transition:top 380ms cubic-bezier(.2,.8,.2,1); }
+    box-shadow:0 18px 48px rgba(0,0,0,0.45); }
   .tour-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
   .tour-kicker{ flex:1; font-family:'Geist Mono', monospace; font-size:10.5px;
     letter-spacing:0.14em; text-transform:uppercase; color:var(--copper); }
@@ -213,8 +259,9 @@
   .tour-progress{ flex:1; display:flex; flex-direction:column; gap:5px; min-width:0; }
   .tour-count{ font-family:'Geist Mono', monospace; font-size:10px; color:var(--text-faint); }
   .tour-track{ height:3px; border-radius:2px; background:var(--border-strong); overflow:hidden; }
-  .tour-fill{ height:100%; width:0; background:var(--copper); border-radius:2px;
-    transition:width 380ms cubic-bezier(.2,.8,.2,1); }
+  .tour-fill{ height:100%; width:100%; background:var(--copper); border-radius:2px;
+    transform:scaleX(0); transform-origin:0 50%;
+    transition:transform var(--dur-tour) var(--ease-in-out); }
   .tour-next{ height:40px; padding:0 18px; border-radius:20px; cursor:pointer;
     background:var(--copper); border:1px solid var(--copper); color:var(--ink);
     font-family:'Geist', sans-serif; font-size:13.5px; font-weight:700; white-space:nowrap; }
@@ -1166,10 +1213,11 @@
   .mix-empty{ padding:16px 14px; border:1px dashed var(--border-strong); border-radius:12px;
     font-size:11px; line-height:1.5; color:var(--text-muted); margin-bottom:14px; }.tile-big .tname{ font-size:12.5px; font-weight:600; color:var(--text); }.connect-sub{ font-size:10.5px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }.cr-toggle .knob{
     position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%;
-    background:var(--text-muted); transition:all .2s;
+    background:var(--text-muted);
+    transition:transform 200ms var(--ease-out), background-color 200ms ease;
   }
   .cr-toggle.on{ background:var(--copper); border-color:var(--copper); }
-  .cr-toggle.on .knob{ left:19px; background:var(--ink); }.recommended .rk{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }.rbtns .yes{ background:var(--sage); color:var(--ink); }
+  .cr-toggle.on .knob{ transform:translateX(17px); background:var(--ink); }.recommended .rk{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; }.rbtns .yes{ background:var(--sage); color:var(--ink); }
   .rbtns .no{ background:rgba(var(--fg-rgb),0.1); color:var(--text-muted); }
 
   /* -------- detail (topic list) -------- */
@@ -1399,7 +1447,7 @@
 
   .sidebar{ width:50px; flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:0 6px; border-left:1px dashed var(--border); }
   .sb-icon{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
-  .sb-icon .circ{ width:30px; height:30px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; transition:all .15s; }
+  .sb-icon .circ{ width:30px; height:30px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; transition:background-color .15s ease, border-color .15s ease; }
   .sb-icon.on .circ{ background:var(--copper); border-color:var(--copper); }
   /* The icons are drawn in `--paper` for the dark circle; on light mode's
      white circle they take the text colour, except in a filled state,
@@ -1417,20 +1465,17 @@
   .captions-panel.on .cc-copybtn{ border-color:rgba(244,239,228,0.22); color:var(--paper); opacity:0.85; }
   .captions-panel.on .cc-text{ font-size:12px; color:var(--paper); line-height:1.55; }
   .captions-panel.on .cc-text mark{ background:var(--copper); color:var(--ink); border-radius:3px; padding:0 3px; }
-  /* One sentence at a time (§127): the leaving one and the arriving one share
-     a grid cell and cross-fade, so the panel never jumps in height between
-     them and never shows two sentences at rest. */
-  .captions-panel.on .cc-text{ display:grid; }
-  .captions-panel.on .cc-text .cc-line{ grid-area:1 / 1; }
+  /* Highlight only (captions: B, §619): the sentence before stays where it
+     is and dims; the one being spoken is in full colour. Colour is the only
+     thing that changes - 150 ms - and nothing under the eyes moves, with or
+     without reduced motion. `@starting-style` gives each its first colour. */
+  .captions-panel.on .cc-text .cc-line{ transition:color var(--dur-colour) ease; }
   .captions-panel.on .cc-text mark.cc-now{ background:none; color:var(--paper);
-    padding:0; font-size:13px; animation:ccIn .32s ease both; }
-  .captions-panel.on .cc-text .cc-leaving{ color:var(--paper);
-    animation:ccOut .32s ease both; pointer-events:none; }
-  @keyframes ccIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
-  @keyframes ccOut{ from{ opacity:1; } to{ opacity:0; transform:translateY(-4px); } }
-  @media (prefers-reduced-motion: reduce){
-    .captions-panel.on .cc-text mark.cc-now, .captions-panel.on .cc-text .cc-leaving{ animation:none; }
-    .captions-panel.on .cc-text .cc-leaving{ display:none; }
+    padding:0; font-size:13px; }
+  .captions-panel.on .cc-text .cc-past{ color:rgba(244,239,228,0.42); pointer-events:none; }
+  @starting-style{
+    .captions-panel.on .cc-text mark.cc-now{ color:rgba(244,239,228,0.42); }
+    .captions-panel.on .cc-text .cc-past{ color:var(--paper); }
   }
 
   /* Where this episode's facts came from. Collapsed by default: it is a thing
@@ -1931,6 +1976,11 @@
      chip so it reads over any picture, in the same face as before. */
   .seed-thumb .seed-img{ position:absolute; inset:0; width:100%; height:100%;
     object-fit:cover; display:block; }
+  /* Colour first (pictures: B, §619): a tile waiting for its picture shows
+     a colour at once, over the drawing, and the picture fades in over the
+     colour when it lands. The drawing comes back if the picture fails
+     (seedImgFailed takes `has-img` off). */
+  .seed-thumb.has-img::before{ content:""; position:absolute; inset:0; background:var(--pic-placeholder); }
   .seed-thumb.has-img .seed-tag{ z-index:1; left:9px; bottom:8px;
     background:rgba(237,230,214,0.92); color:#2A2530; padding:3px 6px 2px;
     border-radius:4px; max-width:calc(100% - 18px); white-space:normal;
@@ -2026,7 +2076,9 @@
   .nowbar-x:active{ color:var(--text); }
   .nowbar-progress{ position:absolute; left:0; right:0; bottom:0; height:2px;
     background:var(--border-strong); }
-  .nowbar-fill{ height:100%; width:0%; background:var(--copper); transition:width 200ms linear; }
+  /* Drawn by scaleX from the left edge (mini-player: B), never width. */
+  .nowbar-fill{ height:100%; width:100%; background:var(--copper); transform:scaleX(0);
+    transform-origin:0 50%; transition:transform 200ms linear; }
   /* display:flex above beats the hidden attribute, so restate it. */
   .nowbar[hidden]{ display:none; }
 
@@ -2044,8 +2096,8 @@
   .tabbar .tab.active .lbl{ color:var(--copper); font-weight:700; }
   /* The icons with some life in them (10.11 packet): the same symbols,
      larger, each with a soft tint inside its shape, sitting in a copper
-     pill that springs up when the tab is chosen - rather than thin lines
-     in a dot. */
+     pill - rather than thin lines in a dot. The pill no longer springs up
+     when a tab is chosen (tabs: C, §619): nothing bounces on navigation. */
   .tabbar .tab .dot{ width:44px; height:28px; border-radius:14px; display:flex;
     align-items:center; justify-content:center; color:var(--text-muted);
     transition:background 200ms ease, color 200ms ease; }
@@ -2054,12 +2106,6 @@
   .tabbar .tab .dot svg{ transition:transform 140ms ease; }
   .tabbar .tab.active .dot{ background:color-mix(in srgb, var(--copper) 18%, transparent); color:var(--copper); }
   .tabbar .tab.active .dot .tone{ opacity:0.45; }
-  .tabbar .tab.active .dot svg{ animation:tabPop 420ms cubic-bezier(.3,1.6,.5,1); }
-  @keyframes tabPop{ 0%{ transform:scale(0.7) translateY(2px); }
-    60%{ transform:scale(1.12) translateY(-1px); } 100%{ transform:none; } }
-  @media (prefers-reduced-motion: reduce){
-    .tabbar .tab.active .dot svg{ animation:none; }
-  }
   .tabbar .tab:focus-visible{ outline:2px solid var(--copper); outline-offset:3px; border-radius:8px; }
 
   /* -------- Motion (§292) --------
@@ -2077,18 +2123,14 @@
   /* A picture flying between two places (player open and close, the queue). */
   .motion-ghost{ position:absolute; z-index:60; pointer-events:none;
     background:var(--paper) center / cover no-repeat; }
-  /* The burst when save, vibe or like is turned on: a ring and six sparks. */
-  .motion-ring{ position:absolute; z-index:61; pointer-events:none; border-radius:50%;
-    border:2px solid var(--copper); }
-  .motion-spark{ position:absolute; z-index:61; pointer-events:none; width:4px; height:4px;
-    border-radius:50%; background:var(--copper); }
-  /* "SAVED", "VIBED", "LIKED": said beside the control that was just lit. */
+  /* "SAVED", "VIBED", "LIKED": said beside the control that was just lit,
+     while its icon swaps (burst: A, §619 - the ring and sparks are gone). */
   .motion-lab{ position:absolute; z-index:61; pointer-events:none; white-space:nowrap;
     font-family:'Geist Mono', monospace; font-size:9px; font-weight:600; letter-spacing:0.08em;
     padding:4px 7px; border-radius:999px; background:var(--copper); color:var(--ink); }
   /* How many are queued, on the player's queue button. */
   .q-badge{ position:absolute; top:-6px; right:-8px; min-width:15px; height:15px; padding:0 4px;
-    border-radius:8px; background:var(--copper); color:var(--ink); pointer-events:none;
+    border-radius:8px; background:var(--copper); color:var(--ink); pointer-events:none; overflow:hidden;
     font-family:'Geist Mono', monospace; font-size:9px; font-weight:600; line-height:15px; text-align:center; }
   .q-badge[hidden]{ display:none; }
   /* Round two (§298). The play/pause icon on its way out, drawn over the
@@ -2103,30 +2145,63 @@
   /* The tick that draws itself into Following. */
   .motion-tick{ display:inline-block; vertical-align:-1px; margin-right:4px; flex:none; }
   .motion-tick path{ stroke-dasharray:1; }
-  /* Sign-up's three steps, filled to the one on screen. */
+  /* A number rolling (the queue's count, sign-up's step): the old one
+     leaves over the new one in the same place. */
+  .motion-roll{ display:inline-block; }
+  .motion-roll-old{ position:absolute; left:0; right:0; top:0; text-align:center; pointer-events:none; }
+  /* The old title rising out over the new one (title-wipe: C). */
+  .motion-title{ position:absolute !important; margin:0 !important; pointer-events:none; }
+  /* A removed row leaving over the rows that have already closed up. */
+  .motion-row{ position:absolute !important; margin:0 !important; z-index:1; pointer-events:none; }
+  /* Sign-up's three steps, filled to the one on screen, and which one it
+     is in words (signup-steps: B). */
   .motion-steps{ position:absolute; top:calc(var(--sb-h) + 6px); left:50%; transform:translateX(-50%);
-    z-index:50; display:flex; gap:5px; pointer-events:none; }
+    z-index:50; display:flex; flex-direction:column; align-items:center; gap:4px; pointer-events:none; }
   .motion-steps[hidden]{ display:none; }
+  .motion-steps-bars{ display:flex; gap:5px; }
   .motion-steps i{ display:block; width:18px; height:3px; border-radius:2px;
     background:var(--border-strong); transform-origin:0 50%; }
   .motion-steps i.on{ background:var(--copper); }
-  /* Every sheet and modal fades and lifts 14px in, and drops 8px out. The
-     way out is a class the script holds for the 150 ms it takes after
-     `active` goes, so nothing that closes an overlay has to know about it. */
-  .modal-overlay.active, .sheet-overlay.active{ animation:mo-in 200ms cubic-bezier(.2,.8,.2,1) backwards; }
-  .modal-overlay.active > *, .sheet-overlay.active > *{ animation:mo-lift 200ms cubic-bezier(.2,.8,.2,1) backwards; }
+  .motion-steps-word{ font-family:'Geist Mono', monospace; font-size:8.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-faint); white-space:nowrap; }
+  .motion-steps-n{ position:relative; display:inline-block; min-width:0.7em; text-align:center;
+    font-weight:inherit; color:var(--copper); overflow:hidden; vertical-align:bottom;
+    font-variant-numeric:tabular-nums; }
+
+  /* -------- Sheets and modals (sheets: A, §619) --------
+     Transitions, never keyframes, so one closed half open turns round from
+     where it is. A bottom sheet slides all the way up from the bottom edge
+     (280 ms in, 200 ms out, back down to the edge); a centred popup grows
+     from 97% and fades (220 / 160 ms). The backdrop fades on the same
+     clock. `@starting-style` gives the first frame of an opening; the way
+     out is `closing`, which the script holds (inert) for as long as the
+     way out takes after `active` goes, so nothing that closes an overlay
+     has to know about it. */
+  .modal-overlay.active, .sheet-overlay.active{ background-color:rgba(10,9,15,0.62); }
   .modal-overlay.closing, .sheet-overlay.closing{ display:flex; pointer-events:none;
-    animation:mo-out 150ms cubic-bezier(.4,0,1,1) forwards; }
-  .modal-overlay.closing > *, .sheet-overlay.closing > *{ animation:mo-drop 150ms cubic-bezier(.4,0,1,1) forwards; }
-  @keyframes mo-in{ from{ opacity:0; } }
-  @keyframes mo-lift{ from{ transform:translateY(14px); } }
-  @keyframes mo-out{ to{ opacity:0; } }
-  @keyframes mo-drop{ to{ transform:translateY(8px); } }
-  /* Reduced motion: a 120 ms fade in, nothing lifts, and closing is
-     immediate (the script holds no `closing` then). */
+    background-color:rgba(10,9,15,0); }
+  .sheet-overlay.active{ transition:background-color var(--dur-sheet-in) var(--ease-out); }
+  .sheet-overlay.closing{ transition:background-color var(--dur-sheet-out) var(--ease-in); }
+  .sheet-overlay.active > *{ transform:translateY(0%);
+    transition:transform var(--dur-sheet-in) var(--ease-out); }
+  .sheet-overlay.closing > *{ transform:translateY(100%);
+    transition:transform var(--dur-sheet-out) var(--ease-in); }
+  .modal-overlay.active{ transition:background-color var(--dur-modal-in) var(--ease-out); }
+  .modal-overlay.closing{ transition:background-color var(--dur-modal-out) var(--ease-in); }
+  .modal-overlay.active > *{ opacity:1; transform:scale(1);
+    transition:opacity var(--dur-modal-in) var(--ease-out), transform var(--dur-modal-in) var(--ease-out); }
+  .modal-overlay.closing > *{ opacity:0; transform:scale(.97);
+    transition:opacity var(--dur-modal-out) var(--ease-in), transform var(--dur-modal-out) var(--ease-in); }
+  @starting-style{
+    .modal-overlay.active, .sheet-overlay.active{ background-color:rgba(10,9,15,0); }
+    .sheet-overlay.active > *{ transform:translateY(100%); }
+    .modal-overlay.active > *{ opacity:0; transform:scale(.97); }
+  }
+  /* Reduced motion: open and close at once (the script holds no `closing`
+     then). */
   @media (prefers-reduced-motion: reduce){
-    .modal-overlay.active, .sheet-overlay.active{ animation-duration:120ms; }
-    .modal-overlay.active > *, .sheet-overlay.active > *{ animation:none; }
+    .modal-overlay.active, .sheet-overlay.active,
+    .modal-overlay.active > *, .sheet-overlay.active > *{ transition:none; }
   }
 
   /* The centre tab breaks the row: a larger disc lifted above the bar's top
@@ -2153,6 +2228,7 @@
   .next-hint.show{ display:flex; }
   .next-hint svg{ animation:bob 1.4s infinite ease-in-out; }
   @keyframes bob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-3px); } }
+  @media (prefers-reduced-motion: reduce){ .next-hint svg{ animation:none; } }
 
   /* -------- the loading screen -------- */
   /* Shown for every wait on every surface: a search, a myFAM tile, a DailyFAM
@@ -2342,12 +2418,14 @@
   @keyframes famGlideDot{ from{ width:6px; } to{ width:18px; } }
 
   /* Motion is decoration here; the words are the information. Anyone who has
-     asked for less of it still gets the full status line. */
+     asked for less of it still gets the full status line. Nothing moves;
+     but a frozen loader reads as a hang, so the marks that say work is
+     still happening keep a gentle opacity pulse (reduced: A, §619). */
   @media (prefers-reduced-motion: reduce){
-    .fam-loading-mark .chev{ animation:none; opacity:1; }
-    .fam-loading-dots i{ animation:none; opacity:.7; }
-    .fam-steps li.active .fam-step-dot{ animation:none; }
-    .fam-ld-title, .fam-ld-status::before, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
+    .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    .fam-steps li.active .fam-step-dot{ animation:famLdPulse 1.6s ease-in-out infinite; }
+    .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
     .fam-dev-faces .src-mark, .fam-dev-names,
     .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }
@@ -2395,14 +2473,19 @@
     background:var(--surface); border:1px solid var(--border-strong);
     box-shadow:0 16px 34px -14px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.12);
     font-family:'Geist', sans-serif; font-size:13.5px; font-weight:500; line-height:1.35;
-    opacity:0; transform:translateY(8px) scale(0.98); pointer-events:none;
-    transition:opacity .2s ease, transform .22s cubic-bezier(.2,.8,.2,1); }
+    opacity:0; transform:translateY(16px); pointer-events:none;
+    transition:opacity var(--dur-toast-out) var(--ease-in), transform var(--dur-toast-out) var(--ease-in); }
+  /* The skill's toast (bottom-line: B, §619): rises 16 px as it fades in,
+     leaves the same way a little faster; the copper dot lands a beat after
+     the line and settles on a soft spring - a part, never the words. */
   .toast::before, .snack::before{ content:""; flex:none; width:7px; height:7px; border-radius:50%;
     background:var(--copper); transform:scale(0); transform-origin:50% 50%;
-    transition:transform .26s cubic-bezier(.2,.8,.2,1) .06s; }
-  .toast.show, .snack.show{ opacity:1; transform:translateY(0) scale(1); }
+    transition:transform 0s linear var(--dur-toast-out); }
+  .toast.show, .snack.show{ opacity:1; transform:translateY(0);
+    transition:opacity var(--dur-toast-in) var(--ease-out), transform var(--dur-toast-in) var(--ease-out); }
   @media (max-width:520px){ .toast, .snack{ left:0; right:0; max-width:calc(100% - 32px); } }
-  .toast.show::before, .snack.show::before{ transform:scale(1); }
+  .toast.show::before, .snack.show::before{ transform:scale(1);
+    transition:transform var(--dur-spring) var(--spring-soft) var(--dur-settle-delay); }
   /* Only the action takes a tap; the line and its fade leave the page under
      them pressable. */
   .snack.show .snack-act{ pointer-events:auto; }
@@ -2425,10 +2508,11 @@
     border-radius:16px; background:var(--surface); border:1px solid var(--border-strong);
     box-shadow:0 22px 44px -18px rgba(0,0,0,0.75);
     transform:translateY(-140%); opacity:0; pointer-events:none;
-    transition:transform .28s cubic-bezier(.2,.8,.3,1), opacity .2s ease;
+    transition:transform var(--dur-toast-out) var(--ease-in), opacity var(--dur-toast-out) var(--ease-in);
     cursor:pointer;
   }
-  .notif.show{ transform:translateY(0); opacity:1; pointer-events:auto; }
+  .notif.show{ transform:translateY(0); opacity:1; pointer-events:auto;
+    transition:transform var(--dur-toast-in) var(--ease-out), opacity var(--dur-toast-in) var(--ease-out); }
   /* Its box is `.phone`, whose 14px bezel is gone on a phone-sized screen. */
   @media (max-width:520px){
     .notif{ top:calc(var(--sb-h) + 4px); left:12px; right:12px; }
@@ -2451,7 +2535,7 @@
     display:flex; align-items:center; justify-content:center; padding:0;
   }
   @media (prefers-reduced-motion: reduce){
-    .notif{ transition:opacity .2s ease; transform:none; }
+    .notif, .notif.show{ transition:none; transform:none; }
   }
 
   .chat-input-row{ flex:none; display:flex; gap:8px; padding:10px 16px 18px; border-top:1px solid var(--border); }
@@ -2827,16 +2911,26 @@
   .nextup-card{ background:var(--surface); border-radius:20px; padding:18px;
     width:86%; border:1px solid var(--border-strong);
     box-shadow:0 30px 60px -20px rgba(0,0,0,0.6); }
-  /* Twice the old arrival. The card used to appear instantly at the moment
-     the voice stopped, which reads as an interruption rather than as the
-     episode handing over. `--nextup-fade` is set from NEXT_UP_SECONDS' sibling
-     in the script, so the two timings cannot drift apart. */
-  #nextUpOverlay.active .nextup-card{
-    animation:nextup-in var(--nextup-fade, 360ms) cubic-bezier(0.22,0.7,0.3,1);
+  /* The card used to appear instantly at the moment the voice stopped,
+     which reads as an interruption rather than as the episode handing over.
+     Now one soft rise (nextup: B, §619): 8 px up, a 2 px blur clearing, on
+     the arrival curve - the calmest arrival in the app, at the end people
+     remember. `--nextup-fade` is set from NEXT_UP_FADE_MS in the script, so
+     the two timings cannot drift apart. The countdown is the lead tile's
+     own bar. With reduced motion the card is simply there; the bar still
+     drains. */
+  #nextUpOverlay.active > .nextup-card{ opacity:1; transform:none; filter:blur(0px);
+    transition:opacity var(--nextup-fade, var(--dur-nextup)) var(--ease-out),
+      transform var(--nextup-fade, var(--dur-nextup)) var(--ease-out),
+      filter var(--nextup-fade, var(--dur-nextup)) var(--ease-out); }
+  #nextUpOverlay.closing > .nextup-card{ opacity:0; transform:translateY(8px); filter:blur(2px);
+    transition:opacity var(--dur-modal-out) var(--ease-in), transform var(--dur-modal-out) var(--ease-in),
+      filter var(--dur-modal-out) var(--ease-in); }
+  @starting-style{
+    #nextUpOverlay.active > .nextup-card{ opacity:0; transform:translateY(8px); filter:blur(2px); }
   }
-  @keyframes nextup-in{ from{ opacity:0; transform:translateY(12px) scale(0.985); } }
   @media (prefers-reduced-motion: reduce){
-    #nextUpOverlay.active .nextup-card{ animation:none; }
+    #nextUpOverlay.active > .nextup-card{ transition:none; }
   }
   .nextup-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:16px;
     color:var(--text); margin-bottom:3px; }
@@ -5856,25 +5950,86 @@
     if(typeof paintLengthControls === "function") paintLengthControls();
   });
 
-  // ---------------- Motion (§292) ----------------
+  // ---------------- Motion (§292, §298, §619) ----------------
   //
   // The app snapped from one state to the next; the owner chose, area by
-  // area, how each change should move (the motion options page, 10.20):
-  // screens push in from the right and back out to it; tabs nudge toward
-  // the side the new tab is on; the player grows out of the picture that
-  // was tapped and shrinks back into the mini player's; every button
-  // squeezes and springs back; save, vibe and like burst and say so; sheets
-  // fade and lift; new rails arrive tile by tile; a queued episode flies to
-  // the queue; and Explore's reel snaps and then settles.
+  // area, how each change should move (the motion options pages, 10.20,
+  // 10.21 and round three, 11.16): screens push in from the right and back
+  // out to it, and a drag from the left edge takes the page back under the
+  // finger; tabs nudge toward the side the new tab is on; the player grows
+  // out of the picture that was tapped and shrinks back into the mini
+  // player's; every button squeezes and springs back; save, vibe and like
+  // swap their icon and say so; sheets slide up from the bottom and popups
+  // grow from 97%; new rails arrive tile by tile; a queued episode arcs to
+  // the queue, whose count rolls; and Explore's reel snaps and then settles.
   //
   // Nothing waits on any of it. The new screen is active and tappable from
-  // its first frame, audio starts on the tap, and everything is 120-450 ms.
-  // The search's five loading steps are untouched: they are an honest wait.
-  // Reduced motion turns every screen change into a 120 ms crossfade and
-  // everything else off.
+  // its first frame, audio starts on the tap, and every movement is 450 ms
+  // or less. The search's five loading steps are untouched: they are an
+  // honest wait. Reduced motion turns every one of these off, fades
+  // included (§619); only loading indicators keep a gentle pulse.
+  //
+  // Every curve and duration is a named token on :root (`--ease-*`,
+  // `--dur-*`, `--spring-*`), read here once, so the script and the CSS
+  // cannot drift apart.
   var Motion = (function(){
-    var EASE = "cubic-bezier(.2,.8,.2,1)", EASE_IO = "cubic-bezier(.4,0,.2,1)",
-        EASE_IN = "cubic-bezier(.4,0,1,1)";
+    var rootStyle = getComputedStyle(document.documentElement);
+    function token(name, fallback){
+      var v = (rootStyle.getPropertyValue(name) || "").trim();
+      return v || fallback;
+    }
+    function msToken(name, fallback){
+      var v = parseFloat(token(name, ""));
+      return isFinite(v) ? v : fallback;
+    }
+    // The three curves (tokens: A): `out` for what arrives or answers a
+    // touch, `in` for what leaves, `io` for what moves across the screen.
+    var EASE = token("--ease-out", "cubic-bezier(.32,.72,0,1)"),
+        EASE_IN = token("--ease-in", "cubic-bezier(.55,0,1,.45)"),
+        EASE_IO = token("--ease-in-out", "cubic-bezier(.77,0,.175,1)");
+    var DUR = {
+      pressDown: msToken("--dur-press-down", 90), pressUp: msToken("--dur-press-up", 220),
+      tab: msToken("--dur-tab", 160),
+      page: msToken("--dur-page", 340), pageBack: msToken("--dur-page-back", 260),
+      modalIn: msToken("--dur-modal-in", 220), modalOut: msToken("--dur-modal-out", 160),
+      sheetIn: msToken("--dur-sheet-in", 280), sheetOut: msToken("--dur-sheet-out", 200),
+      fadeIn: msToken("--dur-fade-in", 240), fadeOut: msToken("--dur-fade-out", 200),
+      handOver: msToken("--dur-hand-over", 120),
+      flight: msToken("--dur-flight", 360),
+      barIn: msToken("--dur-bar-in", 260), barOut: msToken("--dur-bar-out", 190),
+      icon: msToken("--dur-icon", 350), spring: msToken("--dur-spring", 450),
+      settleDelay: msToken("--dur-settle-delay", 30),
+      title: msToken("--dur-title", 240), picture: msToken("--dur-picture", 240),
+      label: msToken("--dur-label", 900),
+      step: msToken("--dur-step", 260), roll: msToken("--dur-roll", 300),
+      tour: msToken("--dur-tour", 340)
+    };
+    // A spring as a `linear()` curve: a damped spring of the given duration
+    // and bounce (the skill's form), with `v0` the speed it starts at, in
+    // distances-to-go per second - so a drag let go fast keeps its speed.
+    // Cut at the 450 ms ceiling, where a bounce-free one is within 0.3% of
+    // rest. The CSS tokens are the same function at v0 = 0.
+    var canLinear = !!(window.CSS && CSS.supports && CSS.supports("transition-timing-function", "linear(0, 1)"));
+    function spring(ms, bounce, v0){
+      var span = Math.min(ms, DUR.spring);
+      if(!canLinear) return { easing: EASE, duration: span };
+      var T = ms / 1000, z = 1 - (bounce || 0), v = v0 || 0, f;
+      if(z >= 1){
+        var w = 9.23 / T;
+        f = function(t){ return 1 + (-1 + (v - w) * t) * Math.exp(-w * t); };
+      } else {
+        var w2 = 6.9 / (z * T), wd = w2 * Math.sqrt(1 - z * z), c = (v - z * w2) / wd;
+        f = function(t){ return 1 + Math.exp(-z * w2 * t) * (-Math.cos(wd * t) + c * Math.sin(wd * t)); };
+      }
+      var pts = [];
+      for(var i = 0; i <= 24; i++) pts.push(i === 24 ? 1 : Math.round(f(span / 1000 * i / 24) * 10000) / 10000);
+      return { easing: "linear(" + pts.join(", ") + ")", duration: span };
+    }
+    var SPRING = {
+      page: spring(500, 0),     // a drag let go: .5 s, no bounce
+      soft: spring(500, 0.15),  // follow-through: the part that settles a beat late
+      icon: spring(350, 0)      // icon swaps: .35 s, no bounce
+    };
     // The tab bar's order, left to right, so a tab change knows its side.
     var TAB_ORDER = ["myfam", "playfam", "home", "messages", "profile"];
     var reduced = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -5930,19 +6085,30 @@
       var bg = getComputedStyle(el).backgroundImage || "";
       return bg.indexOf("url(") >= 0 ? bg : "";
     }
-    function ghost(picture, r, radius){
+    // A copy of a picture laid out at `r`, for the flights below to move by
+    // transform alone.
+    function ghost(picture, r){
       var g = document.createElement("div");
       g.className = "motion-ghost";
       g.style.backgroundImage = picture;
       g.style.left = r.x + "px"; g.style.top = r.y + "px";
       g.style.width = r.w + "px"; g.style.height = r.h + "px";
-      g.style.borderRadius = radius || "0px";
+      g.style.transformOrigin = "0 0";
       frameEl().appendChild(g);
       return g;
     }
-    function place(r, radius){
-      return { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px",
-               borderRadius: radius };
+    // FLIP (player-open: A): a ghost laid out at the big box, drawn as the
+    // small one - scaled evenly to cover it, cropped to it by a clip with
+    // its corners, centred as `background-size: cover` crops - so a
+    // flight between the two is transform and clip only, never layout.
+    var FLAT = { transform: "translate(0px, 0px) scale(1)", clipPath: "inset(0px 0px 0px 0px round 0px)" };
+    function asSmall(big, small, radius){
+      var s = Math.max(small.w / big.w, small.h / big.h) || 1;
+      var ix = (big.w - small.w / s) / 2, iy = (big.h - small.h / s) / 2;
+      var tx = small.x - big.x - s * ix, ty = small.y - big.y - s * iy;
+      var r = (parseFloat(radius) || 0) / s;
+      return { transform: "translate(" + tx + "px, " + ty + "px) scale(" + s + ")",
+               clipPath: "inset(" + iy + "px " + ix + "px " + iy + "px " + ix + "px round " + r + "px)" };
     }
 
     // ---- what was tapped ----
@@ -6016,89 +6182,97 @@
     // hand; the setTab it ends in must not animate them a second time.
     var stillUntil = 0;
     function still(){ stillUntil = Date.now() + 100; }
+    // A back that a drag from the left edge let go of (screens: B): how far
+    // the page had already gone (0-1) and how fast (px/ms), so the pop goes
+    // on from there instead of starting again.
+    var swiped = null;
     function screen(from, to, how){
       settle();
+      var drag = swiped && Date.now() - swiped.at < 300 ? swiped : null;
+      swiped = null;
       if(Date.now() < stillUntil){ stillUntil = 0; return; }
-      if(!how || !from || from === to || !canAnimate) return;
+      // Reduced motion: every screen change is instant (reduced: A).
+      if(!how || !from || from === to || !on()) return;
       var anims = [], ghosts = [], hidden = [], flights = [];
+      if(how === "tab"){
+        // Tabs (tabs: C): the old tab's content is gone on the first frame;
+        // the new tab's nudges 12 px in from the side the tab sits on. The
+        // tab bar is the new screen's from the first frame, so it never moves.
+        var dir = tabSide(from, to);
+        contentOf(to, fixedParts(to)).forEach(function(el){
+          anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(" + (12 * dir) + "px)" },
+                                           { opacity: 1, transform: "translateX(0px)" }],
+                                      DUR.tab, { easing: EASE }));
+        });
+        track(anims, function(){ anims.forEach(function(x){ try { x.cancel(); } catch(e){} }); });
+        return;
+      }
       from.classList.add("leaving");
       from.setAttribute("aria-hidden", "true");
       to.classList.add("arriving");
-      if(!on()){
-        anims.push(run(to, [{ opacity: 0 }, { opacity: 1 }], 120));
-      } else {
-        if(how === "player-open"){
-          var src = tappedPicture(from), bg = document.getElementById("playerBg");
-          if(src && seen(bg)){
-            var a = src.box, b = box(bg);
-            var g = ghost(src.picture, a, src.radius);
-            ghosts.push(g);
-            bg.style.visibility = "hidden"; hidden.push(bg);
-            flights.push(run(g, [place(a, src.radius), place(b, "0px")], 380));
-            anims.push(flights[flights.length - 1]);
-            anims.push(run(to, [{ opacity: 0 }, { opacity: 1 }], 240));
-          } else {
-            how = "push";
-          }
+      if(how === "player-open"){
+        var src = tappedPicture(from), bg = document.getElementById("playerBg");
+        if(src && seen(bg)){
+          var b = box(bg);
+          var g = ghost(src.picture, b);
+          ghosts.push(g);
+          bg.style.visibility = "hidden"; hidden.push(bg);
+          flights.push(run(g, [asSmall(b, src.box, src.radius), FLAT], DUR.flight, { easing: EASE_IO }));
+          anims.push(flights[flights.length - 1]);
+          anims.push(run(to, [{ opacity: 0 }, { opacity: 1 }], DUR.fadeIn));
+        } else {
+          how = "push";
         }
-        if(how === "player-close"){
-          var pbg = document.getElementById("playerBg"), thumb = document.getElementById("nowThumb");
-          var bar = document.getElementById("nowBar");
-          if(pictureOf(pbg) && seen(pbg) && bar && !bar.hidden && to.contains(bar) && seen(thumb)){
-            var pa = box(pbg), pb = box(thumb), tr = getComputedStyle(thumb).borderRadius;
-            var pg = ghost(pictureOf(pbg), pa, "0px");
-            ghosts.push(pg);
-            thumb.style.visibility = "hidden"; hidden.push(thumb);
-            from.classList.add("on-top");
-            flights.push(run(pg, [place(pa, "0px"), place(pb, tr)], 340, { easing: EASE_IO }));
-            anims.push(flights[flights.length - 1]);
-            anims.push(run(from, [{ opacity: 1 }, { opacity: 0 }], 200));
-            anims.push(run(bar, [{ opacity: 0 }, { opacity: 1 }], 200, { delay: 140 }));
-          } else {
-            how = "pop";
-          }
+      }
+      if(how === "player-close"){
+        var pbg = document.getElementById("playerBg"), thumb = document.getElementById("nowThumb");
+        var bar = document.getElementById("nowBar");
+        if(pictureOf(pbg) && seen(pbg) && bar && !bar.hidden && to.contains(bar) && seen(thumb)){
+          var pa = box(pbg), pb = box(thumb), tr = getComputedStyle(thumb).borderRadius;
+          var pg = ghost(pictureOf(pbg), pa);
+          ghosts.push(pg);
+          thumb.style.visibility = "hidden"; hidden.push(thumb);
+          from.classList.add("on-top");
+          flights.push(run(pg, [FLAT, asSmall(pa, pb, tr)], DUR.flight, { easing: EASE_IO }));
+          anims.push(flights[flights.length - 1]);
+          anims.push(run(from, [{ opacity: 1 }, { opacity: 0 }], DUR.fadeOut, { easing: EASE_IN }));
+          anims.push(run(bar, [{ opacity: 0 }, { opacity: 1 }], DUR.fadeOut, { delay: 140 }));
+        } else {
+          how = "pop";
         }
-        if(how === "push"){
-          anims = anims.concat(slide(to, "100%", "0%", 320, EASE),
-                               slide(from, "0%", "-28%", 320, EASE, [1, 0.55]));
-        } else if(how === "pop"){
-          from.classList.add("on-top");
-          anims = anims.concat(slide(from, "0%", "100%", 260, EASE_IO),
-                               slide(to, "-28%", "0%", 260, EASE_IO, [0.55, 1]));
-        } else if(how === "tab"){
-          // Only the content moves: the old tab's slides out over the new
-          // one, which slides in from the side the new tab sits on. The tab
-          // bar is the new screen's from the first frame, so it never dims.
-          var dir = tabSide(from, to), keep = fixedParts(from).concat(fixedParts(to));
-          from.classList.add("on-top");
-          from.style.background = "transparent";
-          fixedParts(from).forEach(function(part){ part.style.visibility = "hidden"; hidden.push(part); });
-          contentOf(from, keep).forEach(function(el){
-            anims = anims.concat(runAdd(el, [{ opacity: 1, transform: "translateX(0px)" },
-                                             { opacity: 0, transform: "translateX(" + (-18 * dir) + "px)" }],
-                                        110, { easing: EASE_IN }));
-          });
-          contentOf(to, keep).forEach(function(el){
-            anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(" + (18 * dir) + "px)" },
-                                             { opacity: 1, transform: "translateX(0px)" }],
-                                        200, { delay: 90 }));
-          });
-        } else if(how === "step"){
-          // Sign-up's steps (§298): the words slide a short way and fade;
-          // the bars at the top say which step this is.
-          from.classList.add("on-top");
-          from.style.background = "transparent";
-          contentOf(from, []).forEach(function(el){
-            anims = anims.concat(runAdd(el, [{ opacity: 1, transform: "translateX(0px)" },
-                                             { opacity: 0, transform: "translateX(-24px)" }],
-                                        160, { easing: EASE_IN }));
-          });
-          contentOf(to, []).forEach(function(el){
-            anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(24px)" },
-                                             { opacity: 1, transform: "translateX(0px)" }],
-                                        260, { delay: 80 }));
-          });
+      }
+      if(how === "push"){
+        anims = anims.concat(slide(to, "100%", "0%", DUR.page, EASE),
+                             slide(from, "0%", "-28%", DUR.page, EASE, [1, 0.55]));
+      } else if(how === "pop"){
+        from.classList.add("on-top");
+        if(drag){
+          // Let go of a drag: on from where the finger left it, at the speed
+          // it was going, on a spring.
+          var p = Math.max(0, Math.min(0.98, drag.p)), w = from.getBoundingClientRect().width || 1;
+          var sp = spring(500, 0, drag.v * 1000 / (w * (1 - p)));
+          anims = anims.concat(slide(from, (p * 100) + "%", "100%", sp.duration, sp.easing),
+                               slide(to, (-28 * (1 - p)) + "%", "0%", sp.duration, sp.easing,
+                                     [0.55 + 0.45 * p, 1]));
+        } else {
+          anims = anims.concat(slide(from, "0%", "100%", DUR.pageBack, EASE),
+                               slide(to, "-28%", "0%", DUR.pageBack, EASE, [0.55, 1]));
         }
+      } else if(how === "step"){
+        // Sign-up's steps (§298): the words slide a short way and fade;
+        // the bars at the top say which step this is.
+        from.classList.add("on-top");
+        from.style.background = "transparent";
+        contentOf(from, []).forEach(function(el){
+          anims = anims.concat(runAdd(el, [{ opacity: 1, transform: "translateX(0px)" },
+                                           { opacity: 0, transform: "translateX(-24px)" }],
+                                      160, { easing: EASE_IN }));
+        });
+        contentOf(to, []).forEach(function(el){
+          anims = anims.concat(runAdd(el, [{ opacity: 0, transform: "translateX(24px)" },
+                                           { opacity: 1, transform: "translateX(0px)" }],
+                                      260, { delay: 80 }));
+        });
       }
       var finish = function(){
         anims.forEach(function(x){ try { x.cancel(); } catch(e){} });
@@ -6120,11 +6294,21 @@
           // Keep each picture where it landed once its flight is cancelled.
           flights.forEach(function(x){ try { x.commitStyles(); } catch(e){} });
           ghosts.forEach(function(g){
-            run(g, [{ opacity: 1 }, { opacity: 0 }], 120).finished
+            run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.handOver).finished
               .then(function(){ g.remove(); }, function(){ g.remove(); });
           });
           ghosts = [];
         }
+        finish();
+      }, function(){});
+    }
+    // A set of animations the next screen change finishes at once.
+    function track(anims, finish){
+      finishing.push(finish);
+      Promise.all(anims.map(function(x){ return x.finished; })).then(function(){
+        var i = finishing.indexOf(finish);
+        if(i < 0) return;
+        finishing.splice(i, 1);
         finish();
       }, function(){});
     }
@@ -6135,10 +6319,150 @@
       return b > a ? 1 : -1;
     }
 
+    // ---- back by a drag from the left edge (screens: B) ----
+    // iOS's gesture (Jakob's law): a drag that starts within EDGE px of the
+    // left edge of a screen that has a back control moves the page 1:1
+    // under the finger, the screen it goes back to drawn beneath it. Let go
+    // past half way, or with a flick faster than 0.1 px/ms, and the screen's
+    // own back control is pressed - so a back that returns by name (rule
+    // `intro-not-on-stack`) still does - and the page carries on from where
+    // the finger left it on a spring; else it springs home. It never takes
+    // a rail's swipe: only a drag from the edge, only once it is plainly
+    // sideways, and never inside something scrolled sideways that the same
+    // drag would scroll back.
+    var EDGE = 24, FLICK = 0.1;
+    var edge = null;
+    function backControl(screen){
+      var list = screen.querySelectorAll(".back, .yf-back");
+      for(var i = 0; i < list.length; i++) if(seen(list[i])) return list[i];
+      return null;
+    }
+    function scrolledSideways(el, root){
+      for(var n = el; n && n !== root; n = n.parentElement){
+        if(n.scrollLeft > 0 && n.scrollWidth > n.clientWidth + 1) return true;
+      }
+      return false;
+    }
+    function beneath(screen){
+      var s = typeof stack !== "undefined" && stack.length > 1 ? stack[stack.length - 2] : "";
+      var el = s ? document.getElementById("screen-" + s) : null;
+      return el && el !== screen && !el.classList.contains("active") ? el : null;
+    }
+    document.addEventListener("pointerdown", function(e){
+      edge = null;
+      if(e.button > 0 || e.isPrimary === false || !e.target || !e.target.closest) return;
+      var f = frameEl();
+      if(!f) return;
+      var fr = f.getBoundingClientRect();
+      if(e.clientX < fr.left || e.clientX - fr.left > EDGE) return;
+      var scr = e.target.closest(".screen");
+      if(!scr || !scr.classList.contains("active") || scr.classList.contains("arriving")) return;
+      if(document.querySelector(".modal-overlay.active, .sheet-overlay.active, .fam-loading.active")) return;
+      if(e.target.closest("input, textarea, select, .progress-wrap, [data-no-edge-swipe]")) return;
+      if(scrolledSideways(e.target, scr)) return;
+      var back = backControl(scr);
+      if(!back) return;
+      edge = { id: e.pointerId, x0: e.clientX, y0: e.clientY, screen: scr, back: back,
+               width: fr.width, engaged: false, x: 0, last: [] };
+    }, true);
+    function dragTo(x){
+      var p = x / edge.width;
+      edge.x = x;
+      edge.screen.style.transform = "translateX(" + x + "px)";
+      fixedParts(edge.screen).forEach(function(part){ part.style.transform = "translateX(" + (-x) + "px)"; });
+      if(edge.under){
+        edge.under.style.transform = "translateX(" + (-0.28 * edge.width * (1 - p)) + "px)";
+        edge.under.style.opacity = String(0.55 + 0.45 * p);
+      }
+    }
+    function undrag(s){
+      s.screen.style.transform = "";
+      fixedParts(s.screen).forEach(function(part){ part.style.transform = ""; });
+      s.screen.classList.remove("arriving");
+      if(s.under){
+        s.under.style.transform = ""; s.under.style.opacity = "";
+        s.under.classList.remove("leaving");
+        s.under.removeAttribute("aria-hidden");
+      }
+    }
+    document.addEventListener("pointermove", function(e){
+      if(!edge || e.pointerId !== edge.id) return;
+      var dx = e.clientX - edge.x0, dy = e.clientY - edge.y0;
+      if(!edge.engaged){
+        if(Math.abs(dy) > 10 && Math.abs(dy) >= dx){ edge = null; return; }
+        if(!(dx > 10 && dx > Math.abs(dy) * 1.2)) return;
+        settle();
+        edge.engaged = true;
+        edge.under = beneath(edge.screen);
+        edge.screen.classList.add("arriving");
+        if(edge.under){
+          edge.under.classList.add("leaving");
+          edge.under.setAttribute("aria-hidden", "true");
+        }
+      }
+      var x = Math.max(0, Math.min(edge.width, dx));
+      edge.last.push({ x: x, t: e.timeStamp || Date.now() });
+      if(edge.last.length > 6) edge.last.shift();
+      dragTo(x);
+    }, true);
+    // Once a drag is the page's, the browser must not also scroll with it.
+    // A sideways drag from the edge is the page's before it is engaged too,
+    // or the browser would start a pan with its first few pixels.
+    document.addEventListener("touchmove", function(e){
+      if(!edge || !e.cancelable || !e.touches.length) return;
+      var t = e.touches[0], dx = t.clientX - edge.x0, dy = t.clientY - edge.y0;
+      if(edge.engaged || dx > Math.abs(dy)) e.preventDefault();
+    }, { passive: false, capture: true });
+    function letGo(e){
+      if(!edge || (e && e.pointerId !== edge.id)) return;
+      var s = edge;
+      edge = null;
+      if(!s.engaged) return;
+      var v = 0, a = s.last[0], b = s.last[s.last.length - 1];
+      if(a && b && b.t > a.t) v = (b.x - a.x) / (b.t - a.t);
+      var p = s.x / s.width;
+      var go = e && e.type !== "pointercancel" && v > -FLICK && (v > FLICK || p > 0.5);
+      if(go){
+        undrag(s);
+        swiped = { p: p, v: Math.max(0, v), at: Date.now() };
+        s.back.click();
+        swiped = null;
+      }
+      // The click a drag ends in is not a tap on whatever it ended over.
+      var eat = function(c){ c.stopPropagation(); c.preventDefault(); };
+      document.addEventListener("click", eat, true);
+      setTimeout(function(){ document.removeEventListener("click", eat, true); }, 0);
+      if(go) return;
+      if(!on()){ undrag(s); return; }
+      // Home again, on a spring that keeps the speed it was let go at.
+      var sp = spring(500, 0, s.x > 0 ? -v * 1000 / s.x : 0), x0 = s.x + "px";
+      var anims = [run(s.screen, [{ transform: "translateX(" + x0 + ")" }, { transform: "translateX(0px)" }],
+                       sp.duration, { easing: sp.easing })];
+      fixedParts(s.screen).forEach(function(part){
+        anims.push(run(part, [{ transform: "translateX(-" + x0 + ")" }, { transform: "translateX(0px)" }],
+                       sp.duration, { easing: sp.easing }));
+      });
+      if(s.under){
+        anims.push(run(s.under, [{ transform: s.under.style.transform, opacity: s.under.style.opacity },
+                                 { transform: "translateX(" + (-0.28 * s.width) + "px)", opacity: 0.55 }],
+                       sp.duration, { easing: sp.easing }));
+      }
+      undrag(s);
+      if(s.under){ s.under.classList.add("leaving"); s.under.setAttribute("aria-hidden", "true"); }
+      s.screen.classList.add("arriving");
+      track(anims, function(){
+        anims.forEach(function(x){ try { x.cancel(); } catch(err){} });
+        undrag(s);
+      });
+    }
+    document.addEventListener("pointerup", letGo, true);
+    document.addEventListener("pointercancel", letGo, true);
+
     // ---- every button: squeeze and spring back ----
     // Down to about 4 px smaller (a big card barely moves, a small button
     // visibly does), held while pressed, sprung back on release. A press
-    // that turns into a scroll or a drag lets go at once.
+    // that turns into a scroll or a drag lets go at once. Kept as it was
+    // (press: C, round three); only its curve and times are the tokens.
     // The classes that had a press style of their own before this one
     // replaced them all, named too in case one is ever drawn without onclick.
     var PRESSABLE = 'button, a[href], [role="button"], [onclick], .tab, .seed-card, .seed-act, '
@@ -6153,8 +6477,8 @@
       if(!r.width || r.width * r.height > 0.3 * f.width * f.height) return;
       if(!canAdd && getComputedStyle(el).transform !== "none") return;
       var s = Math.max(0.9, 1 - 8 / Math.max(r.width, r.height));
-      var down = run(el, [{ transform: "scale(1)" }, { transform: "scale(" + s + ")" }], 90,
-                     { easing: "ease-out", fill: "forwards", add: true });
+      var down = run(el, [{ transform: "scale(1)" }, { transform: "scale(" + s + ")" }], DUR.pressDown,
+                     { easing: EASE, fill: "forwards", add: true });
       var x0 = e.clientX, y0 = e.clientY, gone = false;
       function release(){
         if(gone) return;
@@ -6165,7 +6489,7 @@
         var over = 1 + (1 - s) * 0.3;
         var back = function(){
           var up = run(el, [{ transform: "scale(" + s + ")" }, { transform: "scale(" + over + ")", offset: 0.6 },
-                            { transform: "scale(1)" }], 220, { easing: "ease-out", fill: "none", add: true });
+                            { transform: "scale(1)" }], DUR.pressUp, { easing: EASE, fill: "none", add: true });
           down.cancel();
           up.finished.catch(function(){});
         };
@@ -6180,72 +6504,80 @@
       window.addEventListener("pointermove", moved, true);
     }, true);
 
-    // ---- save, vibe, like: burst and say it ----
-    // A copper ring and six sparks spread from the icon as it pops, and a
-    // label says what happened (the owner's mix of two options, 10.20).
-    // Only when the listener turns one on, never when a control is painted
-    // to match what the server says (setSaved / setEchoed run for both).
-    // Turning one off stays quiet.
+    // ---- icon swaps (play-pause: A; burst: A) ----
+    // The skill's recipe: an icon arrives from 30% with a 3 px blur on a
+    // .35 s spring with no bounce, and one leaving goes the same way at the
+    // same moment - never one after the other.
+    function iconIn(el, delay){
+      var o = { easing: SPRING.icon.easing, delay: delay || 0, fill: "backwards" };
+      return [run(el, [{ transform: "scale(.3)" }, { transform: "scale(1)" }], SPRING.icon.duration,
+                  { easing: o.easing, delay: o.delay, fill: o.fill, add: true }),
+              run(el, [{ opacity: 0, filter: "blur(3px)" }, { opacity: 1, filter: "blur(0px)" }],
+                  SPRING.icon.duration, o)];
+    }
+    function iconOut(el){
+      return run(el, [{ transform: "scale(1)", opacity: 1, filter: "blur(0px)" },
+                      { transform: "scale(.3)", opacity: 0, filter: "blur(3px)" }],
+                 SPRING.icon.duration, { easing: SPRING.icon.easing });
+    }
+
+    // ---- save, vibe, like: the icon fills and a word says so ----
+    // (burst: A, round three.) The control is already lit when this runs;
+    // its icon arrives on the icon-swap spring and "SAVED", "VIBED" or
+    // "LIKED" shows beside it for a moment - no ring, no sparks. Only when
+    // the listener turns one on, never when a control is painted to match
+    // what the server says (setSaved / setEchoed run for both). Turning one
+    // off stays quiet. Under reduced motion the word still shows, still.
     function celebrate(selector, label){
-      if(!on()) return;
+      if(!canAnimate) return;
       document.querySelectorAll(selector).forEach(function(el){
         if(!seen(el) || !el.closest(".screen.active")) return;
         var icon = el.querySelector("svg");
-        var r = box(icon || el), cx = r.x + r.w / 2, cy = r.y + r.h / 2, size = Math.max(r.w, r.h) + 8;
-        if(icon){
-          run(icon, [{ transform: "scale(1)" }, { transform: "scale(.8)", offset: 0.2 },
-                     { transform: "scale(1.2)", offset: 0.6 }, { transform: "scale(1)" }], 380,
-              { easing: "ease-out", fill: "none", add: true });
-        }
-        var ring = document.createElement("span");
-        ring.className = "motion-ring";
-        ring.style.left = (cx - size / 2) + "px"; ring.style.top = (cy - size / 2) + "px";
-        ring.style.width = ring.style.height = size + "px";
-        frameEl().appendChild(ring);
-        run(ring, [{ transform: "scale(.4)", opacity: 1 }, { transform: "scale(1.7)", opacity: 0 }], 450,
-            { easing: "ease-out" }).finished.then(function(){ ring.remove(); }, function(){ ring.remove(); });
-        for(var k = 0; k < 6; k++){
-          var spark = document.createElement("span"), ang = k * Math.PI / 3, reach = size * 0.8;
-          spark.className = "motion-spark";
-          spark.style.left = (cx - 2) + "px"; spark.style.top = (cy - 2) + "px";
-          frameEl().appendChild(spark);
-          (function(sp){
-            run(sp, [{ transform: "translate(0,0)", opacity: 1 },
-                     { transform: "translate(" + (Math.cos(ang) * reach) + "px," + (Math.sin(ang) * reach) + "px) scale(.4)", opacity: 0 }],
-                450, { easing: "ease-out" }).finished.then(function(){ sp.remove(); }, function(){ sp.remove(); });
-          })(spark);
-        }
+        var r = box(icon || el);
+        if(icon && on()) iconIn(icon);
         var lab = document.createElement("span");
         lab.className = "motion-lab";
+        lab.setAttribute("aria-hidden", "true");
         lab.textContent = label;
         frameEl().appendChild(lab);
         var w = lab.offsetWidth, h = lab.offsetHeight;
         var left = r.x - w - 8 < 6 ? r.x + r.w + 8 : r.x - w - 8;
         lab.style.left = left + "px";
         lab.style.top = (r.y + r.h / 2 - h / 2) + "px";
-        var dx = left > r.x ? -8 : 8;
-        run(lab, [{ opacity: 0, transform: "translateX(" + dx + "px)" },
-                  { opacity: 1, transform: "none", offset: 0.18 },
-                  { opacity: 1, transform: "none", offset: 0.82 },
-                  { opacity: 0, transform: "translateX(" + (dx / 2) + "px)" }], 1100, { easing: "linear" })
-          .finished.then(function(){ lab.remove(); }, function(){ lab.remove(); });
+        if(!on()){ setTimeout(gone(lab), DUR.label); return; }
+        run(lab, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }],
+            DUR.label, { easing: "linear" }).finished.then(gone(lab), gone(lab));
       });
     }
 
-    // ---- sheets and modals: fade and lift, drop on the way out ----
-    // The CSS draws both; this holds `closing` on an overlay for 150 ms
-    // after whatever closed it took `active` away.
+    // ---- sheets and modals (sheets: A) ----
+    // The CSS draws both as transitions, so closing one half open turns it
+    // round from where it is: a sheet slides up from the bottom edge and
+    // back down to it, a popup grows from 97% and fades. This holds
+    // `closing` on an overlay for as long as its way out takes after
+    // whatever closed it took `active` away, and makes it inert meanwhile,
+    // so nothing in a leaving sheet can take focus or a tap.
     function watchOverlays(){
       if(typeof MutationObserver === "undefined") return;
       var obs = new MutationObserver(function(list){
         list.forEach(function(m){
           var el = m.target, was = (m.oldValue || "").split(/\s+/).indexOf("active") >= 0;
           var is = el.classList.contains("active");
-          if(is){ if(el.classList.contains("closing")) el.classList.remove("closing"); return; }
+          if(is){
+            if(el.classList.contains("closing")) el.classList.remove("closing");
+            if(el._motionInert){ el.inert = false; el._motionInert = false; }
+            clearTimeout(el._closing);
+            return;
+          }
           if(!was || !on()) return;
           el.classList.add("closing");
+          if(!el.inert){ el.inert = true; el._motionInert = true; }
           clearTimeout(el._closing);
-          el._closing = setTimeout(function(){ el.classList.remove("closing"); }, 160);
+          var out = el.classList.contains("sheet-overlay") ? DUR.sheetOut : DUR.modalOut;
+          el._closing = setTimeout(function(){
+            el.classList.remove("closing");
+            if(el._motionInert){ el.inert = false; el._motionInert = false; }
+          }, out + 20);
         });
       });
       document.querySelectorAll(".modal-overlay, .sheet-overlay").forEach(function(el){
@@ -6284,7 +6616,39 @@
       return now;
     }
 
-    // ---- the queue: the episode flies to it ----
+    // ---- a number that changes rolls (queue: A; signup-steps: B) ----
+    // The element already holds the new number; the old one rolls out the
+    // way it is going (up when it grows) while the new one rolls in, at
+    // the same moment. The old one is an inert span inside the element for
+    // as long as it takes; then the element is plain text again.
+    function roll(el, before, delay){
+      var now = el ? el.textContent : "";
+      if(!el || !on() || before === undefined || String(before) === now || !seen(el)) return;
+      var dir = (parseFloat(now) || 0) >= (parseFloat(before) || 0) ? 1 : -1;
+      var nu = document.createElement("span"), old = document.createElement("span");
+      nu.className = "motion-roll"; nu.textContent = now;
+      old.className = "motion-roll motion-roll-old"; old.textContent = String(before);
+      old.setAttribute("aria-hidden", "true");
+      el.textContent = "";
+      el.appendChild(nu); el.appendChild(old);
+      var o = { easing: EASE_IO, delay: delay || 0 };
+      run(nu, [{ transform: "translateY(" + (90 * dir) + "%)", opacity: 0 },
+               { transform: "translateY(0%)", opacity: 1 }], DUR.roll,
+          { easing: o.easing, delay: o.delay, fill: "backwards" });
+      var done = function(){
+        if(old.parentNode === el) el.removeChild(old);
+        if(el.childNodes.length === 1 && el.firstChild === nu) el.textContent = nu.textContent;
+      };
+      run(old, [{ transform: "translateY(0%)", opacity: 1 },
+                { transform: "translateY(" + (-90 * dir) + "%)", opacity: 0 }], DUR.roll, o)
+        .finished.then(done, done);
+    }
+
+    // ---- the queue: the episode arcs to it (queue: A) ----
+    // A small copy of its picture lifts (to at most 1.15), travels on a
+    // curve that bulges 15% of the way it goes, and lands in the queue
+    // button - transform and opacity only - and the count rolls up once it
+    // has landed.
     function toQueue(picture, from){
       var q = document.getElementById("queueBtn"), thumb = document.getElementById("nowThumb");
       var target = null;
@@ -6294,24 +6658,34 @@
       });
       var badge = document.getElementById("queueBadge");
       if(!on()) return;
-      if(badge && !badge.hidden && seen(badge)){
-        run(badge, [{ transform: "scale(0)" }, { transform: "scale(1.25)", offset: 0.6 }, { transform: "scale(1)" }],
-            260, { delay: target ? 450 : 0, fill: "backwards" });
+      if(badge && !badge.hidden){
+        var n = parseInt(badge.textContent, 10) || 0;
+        roll(badge, n > 1 ? String(n - 1) : "", target ? DUR.flight : 0);
       }
       if(!target) return;
       var f = frameEl().getBoundingClientRect();
       var s = from && seen(from) ? box(from) : { x: f.width / 2 - 14, y: f.height / 2 - 11, w: 28, h: 22 };
       var e = box(target);
-      var sx = s.x + s.w / 2 - 14, sy = s.y + s.h / 2 - 11, ex = e.x + e.w / 2 - 6, ey = e.y + e.h / 2 - 5;
-      var g = ghost(picture || pictureOf(pictured(from)), { x: sx, y: sy, w: 28, h: 22 }, "5px");
-      run(g, [{ left: sx + "px", top: sy + "px", width: "28px", height: "22px", opacity: 1 },
-              { left: ((sx + ex) / 2 + 10) + "px", top: (Math.min(sy, ey) - 24) + "px", width: "20px", height: "16px", opacity: 1, offset: 0.5 },
-              { left: ex + "px", top: ey + "px", width: "12px", height: "10px", opacity: 0 }], 450, { easing: EASE_IO })
-        .finished.then(function(){
-          g.remove();
-          run(target, [{ transform: "scale(1)" }, { transform: "scale(1.3)", offset: 0.4 }, { transform: "scale(1)" }],
-              260, { fill: "none", add: true });
-        }, function(){ g.remove(); });
+      var sx = s.x + s.w / 2, sy = s.y + s.h / 2, ex = e.x + e.w / 2, ey = e.y + e.h / 2;
+      var g = ghost(picture || pictureOf(pictured(from)), { x: sx - 14, y: sy - 11, w: 28, h: 22 });
+      g.style.borderRadius = "5px";
+      g.style.transformOrigin = "50% 50%";
+      var dx = ex - sx, dy = ey - sy, d = Math.hypot(dx, dy) || 1;
+      // The bulge, on whichever side of the line is up: a quadratic curve's
+      // middle is half its control point's offset, so 2 x 15%.
+      var nx = -dy / d, ny = dx / d;
+      if(ny > 0){ nx = -nx; ny = -ny; }
+      var cx = dx / 2 + nx * 0.3 * d, cy = dy / 2 + ny * 0.3 * d;
+      var frames = [];
+      for(var i = 0; i <= 10; i++){
+        var t = i / 10, u = 1 - t;
+        var x = 2 * u * t * cx + t * t * dx, y = 2 * u * t * cy + t * t * dy;
+        var lift = 1 + 0.15 * Math.sin(Math.PI * t);
+        var size = t <= 0.5 ? 1 : 1 - (t - 0.5) * 2 * (1 - 12 / 28);
+        frames.push({ offset: t, transform: "translate(" + x + "px, " + y + "px) scale(" + (lift * size) + ")",
+                      opacity: t < 0.8 ? 1 : (1 - t) / 0.2 });
+      }
+      run(g, frames, DUR.flight, { easing: EASE_IO }).finished.then(gone(g), gone(g));
     }
 
     // ---- round two (§298): the owner's twelve picks of 10.21 ----
@@ -6338,8 +6712,9 @@
         && el.closest(".screen.active:not(.arriving), .sheet-overlay.active, .modal-overlay.active"));
     }
 
-    // Play and pause: the old icon shrinks away, the new one pops in. The
-    // new one is in the button at once; the old one leaves as a copy.
+    // Play and pause (play-pause: A): the new icon is in the button at
+    // once and grows in while a copy of the old one shrinks away - both at
+    // the same moment, on the icon-swap spring.
     function swapIcon(el, html, key){
       if(!el) return;
       var was = el._iconKey, old = el.firstElementChild;
@@ -6355,23 +6730,29 @@
       g.style.color = color;
       g.appendChild(old);
       frameEl().appendChild(g);
-      run(g, [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.5)", opacity: 0 }], 90,
-          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      iconOut(g).finished.then(gone(g), gone(g));
       var nu = el.firstElementChild;
-      if(nu) run(nu, [{ transform: "scale(.5)", opacity: 0 }, { transform: "scale(1.1)", opacity: 1, offset: 0.7 },
-                      { transform: "scale(1)", opacity: 1 }], 180, { easing: "ease-out", delay: 90, fill: "backwards" });
+      if(nu) iconIn(nu);
     }
 
     // The mini player rises from behind the tab bar and drops back behind
     // it: moved down by its own height, and clipped by the same amount, so
-    // nothing of it is ever drawn over the tabs.
+    // nothing of it is ever drawn over the tabs. Its picture and play
+    // button land a beat after it and settle (mini-player: B) - never its
+    // words.
     function barFrames(h){
       return [{ transform: "translateY(" + h + "px)", clipPath: "inset(0px 0px " + h + "px 0px)" },
               { transform: "translateY(0px)", clipPath: "inset(0px 0px 0px 0px)" }];
     }
     function riseBar(bar){
       if(!on() || !onActive(bar)) return;
-      run(bar, barFrames(bar.offsetHeight), 260, { fill: "none" });
+      run(bar, barFrames(bar.offsetHeight), DUR.barIn, { fill: "none" });
+      ["nowThumb", "nowPlay"].forEach(function(id){
+        var part = document.getElementById(id);
+        if(!part || !bar.contains(part)) return;
+        run(part, [{ transform: "translateY(8px)" }, { transform: "translateY(0px)" }], SPRING.soft.duration,
+            { easing: SPRING.soft.easing, delay: DUR.settleDelay, fill: "backwards", add: true });
+      });
     }
     function dropBar(bar){
       if(!on() || !onActive(bar)) return;
@@ -6380,41 +6761,50 @@
       g.style.left = r.x + "px"; g.style.top = r.y + "px";
       g.style.width = r.w + "px"; g.style.height = r.h + "px";
       frameEl().appendChild(g);
-      run(g, barFrames(r.h).reverse(), 200, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      run(g, barFrames(r.h).reverse(), DUR.barOut, { easing: EASE_IN }).finished.then(gone(g), gone(g));
     }
 
-    // The writer's title wipes in left to right over the one the player
-    // opened on. The words are the new ones from the first frame.
+    // The writer's title (title-wipe: C): the words are the new ones from
+    // the first frame and rise 8 px into place, while a copy of the old
+    // title rises 8 px out of it - both at once, in the same spot.
     function retitle(el, text){
       if(!el || el.textContent === text) return;
-      var animate = on() && el.textContent && onActive(el);
+      var g = null;
+      if(on() && el.textContent && onActive(el) && el.parentNode){
+        g = inertCopy(el);
+        g.classList.add("motion-title");
+        g.style.left = el.offsetLeft + "px"; g.style.top = el.offsetTop + "px";
+        g.style.width = el.offsetWidth + "px";
+      }
       el.textContent = text;
-      if(animate) run(el, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)" }], 320,
-                      { easing: EASE_IO, fill: "none" });
+      if(!g) return;
+      el.parentNode.insertBefore(g, el.nextSibling);
+      run(g, [{ opacity: 1, transform: "translateY(0px)" }, { opacity: 0, transform: "translateY(-8px)" }],
+          DUR.title).finished.then(gone(g), gone(g));
+      runAdd(el, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0px)" }],
+             DUR.title, { fill: "none" });
     }
 
-    // Pictures blur up as they land: soft and slightly large, then sharp.
-    // Only a picture that arrives after its tile was drawn - one already on
-    // the device appears at once, so nothing looks slower than it is.
-    var BLUR_UP = [{ opacity: 0, filter: "blur(8px)", transform: "scale(1.12)" },
-                   { opacity: 1, filter: "blur(0px)", transform: "scale(1)" }];
+    // Pictures (pictures: B): the tile shows a colour at once (the CSS's
+    // placeholder) and the picture fades in over it when it lands. Only a
+    // picture that arrives after its tile was drawn - one already on the
+    // device appears at once, so nothing looks slower than it is.
     document.addEventListener("load", function(e){
       var img = e.target;
       if(!img || img.tagName !== "IMG" || !img.classList.contains("seed-img") || !on()) return;
       var drawn = +img.getAttribute("data-drawn") || 0;
       if(!drawn || Date.now() - drawn < 100 || !seen(img)) return;
-      run(img, BLUR_UP, 320, { fill: "none" });
+      run(img, [{ opacity: 0 }, { opacity: 1 }], DUR.picture, { fill: "none" });
     }, true);
     // A picture painted as a background (the player's, the reel's): held at
     // the first frame until it has loaded - it could not be shown before
-    // that anyway - then blurred up. Given up after eight seconds.
+    // that anyway - then faded in. Given up after eight seconds.
     function picture(el, url){
       if(!el || !url || !on()) return;
       var im = new Image();
       im.src = url;
       if(im.complete) return;
-      var a = run(el, [{ opacity: 0, filter: "blur(8px)", transform: "scale(1.06)" },
-                       { opacity: 1, filter: "blur(0px)", transform: "scale(1)" }], 320);
+      var a = run(el, [{ opacity: 0 }, { opacity: 1 }], DUR.picture);
       a.pause();
       var giveUp = setTimeout(function(){ a.cancel(); }, 8000);
       im.onload = function(){
@@ -6491,7 +6881,7 @@
         if(!el) return;
         el.style.transformOrigin = row.classList.contains("out") ? "100% 100%" : "0% 100%";
         run(el, [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1.04)", offset: 0.65 },
-                 { opacity: 1, transform: "scale(1)" }], 260, { easing: "ease-out", fill: "backwards" });
+                 { opacity: 1, transform: "scale(1)" }], 260, { easing: EASE, fill: "backwards" });
       });
     }
 
@@ -6516,10 +6906,10 @@
       if(!live || !seen(b)) return;
       if(!was){
         run(b, [{ opacity: 0, transform: "scale(0)" }, { opacity: 1, transform: "scale(1.25)", offset: 0.6 },
-                { opacity: 1, transform: "scale(1)" }], 300, { easing: "ease-out", fill: "none" });
+                { opacity: 1, transform: "scale(1)" }], 300, { easing: EASE, fill: "none" });
       } else if((parseInt(text, 10) || 0) > (parseInt(before, 10) || 0)){
         run(b, [{ transform: "scale(1)" }, { transform: "scale(1.3)", offset: 0.4 }, { transform: "scale(1)" }], 220,
-            { easing: "ease-out", fill: "none" });
+            { easing: EASE, fill: "none" });
       }
     }
 
@@ -6575,57 +6965,67 @@
       });
     }
 
-    // A row taken out of a list slides off to the left, then the gap closes.
-    // `redraw` takes it out for real, at once; a copy put back where it was
-    // does the leaving, so the rows below glide up as it folds away.
-    // `selector` names the list's rows, before and after.
+    // A row taken out of a list slides off to the left while the rows
+    // below glide up into its place - at the same time, by transform
+    // (queue: A, the review's "popLayout"). `redraw` takes it out for real,
+    // at once; a copy laid over where it was does the leaving, out of the
+    // list's flow. `selector` names the list's rows, before and after.
     function removeRow(row, redraw, selector){
       var rows = Array.prototype.slice.call(document.querySelectorAll(selector)), k = rows.indexOf(row);
       if(!on() || !row || k < 0 || !onActive(row)){ redraw(); return; }
-      // Read before the redraw: a computed style is live, and empty once the
-      // row has left the page.
-      var cs = getComputedStyle(row), h = row.offsetHeight, g = inertCopy(row), home = row.parentNode;
-      var gaps = { paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
-                   marginTop: cs.marginTop, marginBottom: cs.marginBottom };
+      // Read before the redraw: where the row and those below it were.
+      var g = inertCopy(row), at = { left: row.offsetLeft, top: row.offsetTop, width: row.offsetWidth },
+          tops = rows.map(function(r){ return r.getBoundingClientRect().top; });
       redraw();
-      var now = Array.prototype.slice.call(document.querySelectorAll(selector)), ref = now[k] || null;
-      var parent = ref ? ref.parentNode : now.length ? now[now.length - 1].parentNode
-                 : home && home.isConnected ? home : null;
+      var now = Array.prototype.slice.call(document.querySelectorAll(selector));
+      var parent = now[k] ? now[k].parentNode : now.length ? now[now.length - 1].parentNode : null;
       if(!parent) return;
-      g.style.overflow = "hidden";
-      parent.insertBefore(g, ref || (now.length ? now[now.length - 1].nextSibling : null));
+      g.classList.add("motion-row");
+      g.style.left = at.left + "px"; g.style.top = at.top + "px"; g.style.width = at.width + "px";
+      parent.appendChild(g);
       run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], 180,
-          { easing: EASE_IN });
-      run(g, [{ height: h + "px", paddingTop: gaps.paddingTop, paddingBottom: gaps.paddingBottom,
-                marginTop: gaps.marginTop, marginBottom: gaps.marginBottom },
-              { height: "0px", paddingTop: "0px", paddingBottom: "0px", marginTop: "0px", marginBottom: "0px" }],
-          200, { delay: 180 }).finished.then(gone(g), gone(g));
+          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      now.forEach(function(r, i){
+        if(i < k || i + 1 >= tops.length) return;
+        var dy = tops[i + 1] - r.getBoundingClientRect().top;
+        if(Math.abs(dy) < 1) return;
+        run(r, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], 200,
+            { fill: "none", add: true });
+      });
     }
 
-    // Sign-up's steps: three bars at the top, filled to the step on screen.
+    // Sign-up's steps (signup-steps: B): three bars at the top, each
+    // filling from its left edge when its step is reached and staying full,
+    // and "Step 2 of 3" under them, its number rolling on Continue.
     var stepBars = null;
     function steps(n){
       if(!stepBars){
         if(!n) return;
         stepBars = document.createElement("div");
         stepBars.className = "motion-steps";
-        stepBars.setAttribute("aria-hidden", "true");
-        stepBars.innerHTML = "<i></i><i></i><i></i>";
+        stepBars.innerHTML = '<div class="motion-steps-bars" aria-hidden="true"><i></i><i></i><i></i></div>'
+          + '<div class="motion-steps-word">Step <b class="motion-steps-n"></b> of 3</div>';
         frameEl().appendChild(stepBars);
       }
+      var wasShown = !stepBars.hidden;
       stepBars.hidden = !n;
-      Array.prototype.forEach.call(stepBars.children, function(bar, i){
+      var num = stepBars.querySelector(".motion-steps-n"), before = num.textContent;
+      if(n) num.textContent = String(n);
+      if(n && before && wasShown) roll(num, before);
+      Array.prototype.forEach.call(stepBars.querySelectorAll("i"), function(bar, i){
         var was = bar.classList.contains("on"), is = i < n;
         bar.classList.toggle("on", is);
-        if(is && !was && on()) run(bar, [{ transform: "scaleX(.3)" }, { transform: "scaleX(1)" }], 260, { fill: "none" });
+        if(is && !was && on()) run(bar, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], DUR.step,
+                                   { easing: EASE_IO, fill: "none" });
       });
     }
 
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
-             arrive: arrive, arriveRails: arriveRails, toQueue: toQueue,
+             arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
              growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory, popMessages: popMessages,
              badge: badge, dimDown: dimDown, follow: follow, removeRow: removeRow, steps: steps,
+             EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO }, DUR: DUR, spring: spring,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
   Motion.watchOverlays();
@@ -6732,6 +7132,7 @@
   // bar. `action` is { label, run } - where the thing just done can be
   // seen, or how to undo it - or nothing. The bar sits on whatever is lowest
   // on screen that it must not cover: the mini player, else the tabs.
+  var SNACK_ACTION_MS = 5000;
   function snack(msg, action){
     var bar = document.getElementById("snack");
     var btn = document.getElementById("snackAct");
@@ -6749,7 +7150,9 @@
     if(t) t.classList.remove("show");
     bar.classList.add("show");
     clearTimeout(bar._timer);
-    bar._timer = setTimeout(hideSnack, action ? 3500 : 2400);
+    // A line with something to do in it (Undo, Open) stays at least five
+    // seconds (bottom-line: B, §619): long enough to read and reach it.
+    bar._timer = setTimeout(hideSnack, action ? SNACK_ACTION_MS : 2400);
   }
   // Just above whatever is lowest on screen that it must not cover: the
   // mini player, else the tabs.
@@ -8983,19 +9386,18 @@
       return;
     }
     var here = captionIndexNow();
-    // **One sentence: the one being spoken** (§127, at the owner's
-    // direction). It was a window of four with the current one marked, which
-    // is a transcript with a highlighter on it. Now the sentence being read
-    // is the only thing on screen, the one before fades out as it goes and
-    // the next fades in as it arrives. Redrawn only when the sentence
-    // changes, so the fade happens once per sentence rather than every tick.
+    // **The sentence being spoken, after the one before it** (captions: B,
+    // §619, the owner's pick over §127's one sentence at a time). The one
+    // before stays put and dims; the one being read is in full colour.
+    // Only colour changes - nothing moves under the eyes. Redrawn only when
+    // the sentence changes, so the change happens once per sentence rather
+    // than every tick.
     if(here === captionShown && box.querySelector("mark.cc-now")) return;
-    var leaving = captionShown >= 0 && captionShown !== here
-      ? String(captionSentences[captionShown] || "").trim() : "";
     captionShown = here;
+    var past = here > 0 ? String(captionSentences[here - 1] || "").trim() : "";
     var text = escapeHtml(String(captionSentences[here] || "").trim());
-    box.innerHTML = (leaving
-        ? '<span class="cc-line cc-leaving" aria-hidden="true">' + escapeHtml(leaving) + '</span>'
+    box.innerHTML = (past
+        ? '<span class="cc-line cc-past" aria-hidden="true">' + escapeHtml(past) + '</span> '
         : '')
       + '<mark class="cc-line cc-now">' + text + '</mark>';
   }
@@ -9139,8 +9541,8 @@
       var left = Math.max(0, total - at);
       document.getElementById("nowMeta").textContent =
         (nowBarState.source ? nowBarState.source + " \u00b7 " : "") + formatTime(left) + " left";
-      document.getElementById("nowFill").style.width =
-        Math.min(100, (at / total) * 100) + "%";
+      document.getElementById("nowFill").style.transform =
+        "scaleX(" + Math.min(1, at / total) + ")";
       // Written as it plays rather than only on pause, so closing the tab
       // mid-episode still leaves a way back in. Throttled inside. Not while a
       // resumed episode is still on its way back to where it was left.
@@ -11417,6 +11819,17 @@
   }
   function setTheme(theme){
     var light = theme === "light";
+    // Transitions off for the two frames the colours change in (reduced: A,
+    // the theme-switch recipe, §619), so the page turns all at once rather
+    // than each part at its own speed.
+    var root = document.documentElement;
+    root.classList.add("theme-switching");
+    clearTimeout(setTheme._t);
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      root.classList.remove("theme-switching");
+    }); });
+    // A page in the background draws no frames; never leave it switched off.
+    setTheme._t = setTimeout(function(){ root.classList.remove("theme-switching"); }, 200);
     if(light) document.documentElement.setAttribute("data-theme", "light");
     else document.documentElement.removeAttribute("data-theme");
     try { localStorage.setItem("fam.theme", light ? "light" : "dark"); } catch(e){}
@@ -23952,8 +24365,8 @@
       var wrap = $("famTour");
       wrap.hidden = false;
       wrap.classList.remove("paused");
-      if(wrap.animate) wrap.animate([{ opacity: 0 }, { opacity: 1 }],
-        { duration: reduced() ? 120 : 240, easing: "ease-out" });
+      if(wrap.animate && !reduced()) wrap.animate([{ opacity: 0 }, { opacity: 1 }],
+        { duration: Motion.DUR.fadeIn, easing: Motion.EASE.OUT });
       document.addEventListener("keydown", onKey, true);
       window.addEventListener("resize", place);
       watchTimer = setInterval(watch, 400);
@@ -24034,7 +24447,7 @@
         // passed over (no friends yet) never shows as a jump in the count.
         var live = STEPS.filter(present), n = live.indexOf(step) + 1;
         $("tourCount").textContent = n + " of " + live.length;
-        $("tourFill").style.width = Math.round(n / live.length * 100) + "%";
+        $("tourFill").style.transform = "scaleX(" + (n / live.length) + ")";
         place();
         try { $("tourNext").focus({ preventScroll: true }); } catch(e){}
       };
@@ -24043,25 +24456,43 @@
         swap();
         if(!reduced()) card.animate([{ opacity: 0, transform: "translateY(10px)" },
                                      { opacity: 1, transform: "none" }],
-                                    { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+                                    { duration: Motion.DUR.step, easing: Motion.EASE.OUT });
         return;
       }
-      if(!card.animate){ swap(); return; }
+      // Reduced motion: each step appears in place (tour: A, §619).
+      if(!card.animate || reduced()){ swap(); return; }
       var out = card.animate([{ opacity: 1 }, { opacity: 0 }],
-                             { duration: reduced() ? 60 : 120, easing: "ease-in", fill: "forwards" });
+                             { duration: Motion.DUR.handOver, easing: Motion.EASE.IN, fill: "forwards" });
       out.finished.then(function(){
         out.cancel();
         if(!running || mine !== seq) return;   // a newer card is on its way
         swap();
-        card.animate(reduced()
-            ? [{ opacity: 0 }, { opacity: 1 }]
-            : [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }],
-          { duration: reduced() ? 120 : 220, easing: "cubic-bezier(.2,.8,.2,1)" });
+        card.animate([{ opacity: 0 }, { opacity: 1 }],
+                     { duration: Motion.DUR.modalIn, easing: Motion.EASE.OUT });
       }, swap);
       // A screen change, or a scroll into view, moves the control while it
       // happens: measure again once it has settled, and the hole glides.
       clearTimeout(settleTimer);
       settleTimer = setTimeout(place, 460);
+    }
+
+    // The hole and the card glide to where place() has just laid them out
+    // (tour: A, §619): FLIP - measured where they were, including any glide
+    // still under way, laid out where they go, then moved from the one to
+    // the other by transform alone, both on one clock. The card only
+    // translates; scaling it would stretch its words.
+    function glide(el, before, scale){
+      if(el._glide){ el._glide.cancel(); el._glide = null; }
+      if(!before || reduced() || !el.animate || $("famTour").hidden) return;
+      var after = el.getBoundingClientRect();
+      if(before.width < 1 || before.height < 1 || after.width < 1 || after.height < 1) return;
+      var dx = before.left - after.left, dy = before.top - after.top;
+      var sx = scale ? before.width / after.width : 1, sy = scale ? before.height / after.height : 1;
+      if(Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.005 && Math.abs(sy - 1) < 0.005) return;
+      el.style.transformOrigin = "0 0";
+      el._glide = el.animate([{ transform: "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")" },
+                              { transform: "none" }],
+                             { duration: Motion.DUR.tour, easing: Motion.EASE.IO });
     }
 
     // The hole round the control, and the card above or below it - below
@@ -24070,6 +24501,9 @@
     function place(){
       if(!running || at < 0) return;
       var wrap = $("famTour"), hole = $("tourHole"), card = $("tourCard");
+      var holeWas = hole.getBoundingClientRect(), cardWas = card.getBoundingClientRect();
+      if(hole._glide){ hole._glide.cancel(); hole._glide = null; }
+      if(card._glide){ card._glide.cancel(); card._glide = null; }
       var box = wrap.getBoundingClientRect();
       var W = box.width, H = box.height, gap = 14, pad = 6;
       var ch = card.offsetHeight;
@@ -24079,6 +24513,7 @@
         hole.style.left = (W / 2) + "px"; hole.style.top = (H / 2) + "px";
         hole.style.width = "0px"; hole.style.height = "0px";
         card.style.top = Math.max(16, (H - ch) / 2) + "px";
+        glide(card, cardWas, false);
         return;
       }
       var r = t.getBoundingClientRect();
@@ -24098,6 +24533,8 @@
       var round = Math.min(22, (y2 - y) / 2);
       hole.style.borderRadius = round + "px";
       card.style.top = Math.max(16, top) + "px";
+      glide(hole, holeWas, true);
+      glide(card, cardWas, false);
     }
 
     // A sheet, the activation step or the Terms opening part-way: the tour
@@ -24151,8 +24588,9 @@
         at = -1;
       };
       if(wrap.animate && !wrap.classList.contains("paused")){
+        if(reduced()){ close(); return; }
         wrap.animate([{ opacity: 1 }, { opacity: 0 }],
-                     { duration: reduced() ? 120 : 220, easing: "ease-in" })
+                     { duration: Motion.DUR.fadeOut, easing: Motion.EASE.IN })
           .finished.then(close, close);
       } else close();
     }
@@ -24229,9 +24667,9 @@
   // and still short enough that putting the phone down keeps the audio going,
   // which is the point of a countdown at all.
   var NEXT_UP_SECONDS = 15;
-  // Twice the old appearance. The card used to arrive in 180ms, which reads
-  // as an interruption rather than as the episode handing over.
-  var NEXT_UP_FADE_MS = 360;
+  // The card's soft rise (nextup: B, §619). It used to arrive in 180ms,
+  // which reads as an interruption rather than as the episode handing over.
+  var NEXT_UP_FADE_MS = 280;
 
   function nextUpAllowedHere(){
     var active = document.querySelector(".screen.active");
@@ -25026,7 +25464,9 @@
   function dismissNotification(){ hideNotification(); }
 
   // Swipe up to dismiss (§127). The banner follows the finger upward, and a
-  // pull past `NOTIF_SWIPE_PX` sends it away; anything less springs back.
+  // pull past `NOTIF_SWIPE_PX`, or a flick upward faster than 0.1 px/ms
+  // however short (bottom-line: B, §619), sends it away; anything less
+  // springs back.
   // The hide timer is held while a finger is on it, so it cannot vanish out
   // from under a thumb, and a swipe never also counts as a tap.
   var NOTIF_SWIPE_PX = 28;
@@ -25034,16 +25474,21 @@
   (function(){
     var banner = document.getElementById("notifBanner");
     if(!banner) return;
-    var startY = null, dy = 0;
+    var startY = null, dy = 0, lastY = 0, lastT = 0, speed = 0;
     banner.addEventListener("touchstart", function(e){
       if(!notifShowing || !e.touches.length) return;
       startY = e.touches[0].clientY; dy = 0; notifSwiped = false;
+      lastY = startY; lastT = e.timeStamp; speed = 0;
       clearTimeout(notifHideTimer);
       banner.style.transition = "none";
     }, { passive: true });
     banner.addEventListener("touchmove", function(e){
       if(startY === null || !e.touches.length) return;
       dy = Math.min(0, e.touches[0].clientY - startY);
+      if(e.timeStamp > lastT){
+        speed = (e.touches[0].clientY - lastY) / (e.timeStamp - lastT);
+        lastY = e.touches[0].clientY; lastT = e.timeStamp;
+      }
       if(dy < -4) notifSwiped = true;
       banner.style.transform = "translateY(" + dy + "px)";
     }, { passive: true });
@@ -25052,7 +25497,7 @@
       startY = null;
       banner.style.transition = "";
       banner.style.transform = "";
-      if(dy <= -NOTIF_SWIPE_PX){ hideNotification(); }
+      if(dy <= -NOTIF_SWIPE_PX || (dy < -4 && speed < -0.1)){ hideNotification(); }
       else if(notifShowing){
         notifHideTimer = setTimeout(hideNotification, NOTIF_SHOW_MS);
       }

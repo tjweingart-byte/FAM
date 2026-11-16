@@ -241,12 +241,14 @@
   @keyframes famGlideDot{ from{ width:6px; } to{ width:18px; } }
 
   /* Motion is decoration here; the words are the information. Anyone who has
-     asked for less of it still gets the full status line. */
+     asked for less of it still gets the full status line. Nothing moves;
+     but a frozen loader reads as a hang, so the marks that say work is
+     still happening keep a gentle opacity pulse (reduced: A, §619). */
   @media (prefers-reduced-motion: reduce){
-    .fam-loading-mark .chev{ animation:none; opacity:1; }
-    .fam-loading-dots i{ animation:none; opacity:.7; }
-    .fam-steps li.active .fam-step-dot{ animation:none; }
-    .fam-ld-title, .fam-ld-status::before, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
+    .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    .fam-steps li.active .fam-step-dot{ animation:famLdPulse 1.6s ease-in-out infinite; }
+    .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
     .fam-dev-faces .src-mark, .fam-dev-names,
     .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }

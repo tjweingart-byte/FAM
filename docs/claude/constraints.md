@@ -1912,6 +1912,30 @@
   *The bottom message (§299):* what an action did is a plain line - text
   under a short copper rule just above the mini player or the tabs, no box,
   no shadow - for both the old pill and the old Undo bar.
+  > **Current:** round three (PROBLEMS.md §619, the owner's picks of 11.16
+  > for what every page shares) changes several of these, still inside the
+  > rule above - nothing held, 450 ms or less, the change made first.
+  > Every curve and time is a named token (`--ease-out` .32,.72,0,1,
+  > `--ease-in`, `--ease-in-out`, `--dur-*`, `--spring-*` on `:root`), read
+  > alike by the CSS and `Motion`. **Tabs no longer slide the old tab out:**
+  > it is gone on the first frame and the new tab's content nudges 12 px in
+  > over 160 ms; the tab icon never pops. A drag from the left edge of a
+  > screen with a back control goes back under the finger (1:1, a spring on
+  > release, a flick over 0.1 px/ms) and never takes a rail's swipe.
+  > **Sheets slide all the way up from the bottom edge (280 / 200 ms) and
+  > centred popups grow from 97% and fade (220 / 160 ms)**, as transitions
+  > that turn round when closed half open. **Save, vibe and like swap their
+  > icon on a spring and say "SAVED" for 900 ms - no ring, no sparks.** Play
+  > and pause cross at the same moment; the writer's title rolls up 8 px
+  > over the old one; **a tile shows a colour at once and its picture fades
+  > in over it (no blur)**; captions change colour only, the sentence before
+  > dimmed beside the one being spoken; the player's picture flies by
+  > transform (FLIP); a queued episode arcs and the count rolls; the bottom
+  > line rises 16 px and an Undo stays five seconds. **With reduced motion
+  > every one of these is off, fades included - a screen change and a sheet
+  > are instant - and only loading indicators keep a gentle opacity pulse.**
+  > A theme change turns every transition off for two frames. The press and
+  > the opening intro are unchanged.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

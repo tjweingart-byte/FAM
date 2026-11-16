@@ -37335,3 +37335,85 @@ Tests: `tools/smoke_activation.py` blows the form's text up to 24px (as
 font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
+
+## 619. Motion, round three: the shared picks (2026-11-16)
+
+Every animation in the app was reviewed against the `charles-ux-animation`
+skill, page by page, with three options each, and the owner picked one per
+animation (`docs/motion/round-three/`, 88 picks). This is the first of six
+phases (`BUILD.md`): the 19 in `shared.json` - the `Motion` module and what
+every page shares.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Curves and times | A: the skill's, named | `:root` tokens `--ease-out` (.32,.72,0,1), `--ease-in` (.55,0,1,.45), `--ease-in-out` (.77,0,.175,1), `--dur-*`, `--spring-*`; `Motion` reads them at start (`Motion.EASE`, `Motion.DUR`), so CSS and script share one copy |
+| Press | C: keep today's | Unchanged - down 90 ms, back 220 ms through the overshoot - on the tokens (the bare `ease-out` became `--ease-out`) |
+| Screens | B: push + edge swipe | Push 340 ms, back 260 ms, both `out`; a drag from within 24 px of the left edge of a screen with a back control moves it 1:1, the screen beneath (`stack`'s previous) at -28% and dimmed; let go past half way or flicked over 0.1 px/ms and the screen's own back control is pressed, the pop going on from where the finger left it on a .5 s spring carrying the release speed; else it springs home |
+| Tabs | C: nudge, shortened | The old tab is gone on the first frame; the new tab's content nudges 12 px in, 160 ms `out`; `tabPop` deleted |
+| Sheets and modals | A: the skill's split | Transitions with `@starting-style`: `.sheet-overlay` slides its card from `translateY(100%)` 280 / 200 ms; `.modal-overlay` grows from .97 and fades 220 / 160 ms; the dim fades on the same clock; `closing` held for the way out, with `inert` |
+| Bottom line, banner | B: toast + follow-through | Rises 16 px in 240 ms `out`, leaves in 170 ms `in`; the copper dot lands 30 ms later on the soft spring (.5 s, bounce .15); a line with an action stays 5 s (`SNACK_ACTION_MS`); the banner already swiped away (§127) and now enters and leaves on the same tokens |
+| Opening the player | A: FLIP | The ghost is laid out at the player's picture and drawn as the tile by `translate + scale` and a `clip-path: inset(... round r)` crop, 360 ms `in-out`, both ways |
+| Mini player | B: rise + thumb settles | Rise 260 `out`, drop 190 `in`; the picture and play button settle 30 ms later on the soft spring; its line is `scaleX` from the left |
+| Play / pause | A: icon swap | Both at once: the new icon from .3 with a 3 px blur, the old to .3, on a .35 s spring with no bounce |
+| The writer's title | C: roll up | A copy of the old title rises 8 px out as the new rises 8 px in, 240 ms, both at once |
+| Pictures | B: colour first | A tile with a picture shows `--pic-placeholder` at once; a late picture fades in over it in 240 ms (no blur, no scale) |
+| Captions | B: highlight only | The sentence before stays, dimmed, beside the one being spoken; colour changes over 150 ms, nothing moves |
+| Save, like, VIBE! | A: quiet swap + word | The icon arrives on the icon-swap spring and the word shows for 900 ms; no ring, no sparks |
+| Queue | A: arc with lift | A 28x22 copy travels a quadratic curve bulging 15% of the way, lifting to 1.15 at the top and shrinking as it lands, 360 ms `in-out`, transform only; the count rolls up once it lands (`Motion.roll`). A removed row now slides out while the rows below glide up by transform, at the same time |
+| What's next | B: soft rise | The card rises 8 px with a 2 px blur clearing, 280 ms `out`; the countdown was already the lead tile's own bar |
+| Intro | C: keep | Unchanged |
+| Sign-up's steps | B: bars + words | Bars fill from their left edge 0 -> 1, 260 ms `in-out`; "Step 2 of 3" under them, the number rolling 300 ms `in-out` |
+| Tour | A: transforms | The hole and card are laid out where they go and glide there by FLIP (the card only translates), 340 ms `in-out`, one clock; the fill is `scaleX` |
+| Reduced motion | A: all off | Screens, sheets, the tour's steps: instant (the 120 ms crossfades are gone); the loading chevrons, dots and step dot keep an opacity pulse, the status dot keeps its own; a theme change adds `theme-switching` (`transition: none !important` everywhere) for two frames |
+
+**Reversals the owner made**, so the rule's text changed (`rule:motion`,
+`> **Current:**`): reduced motion is all off rather than a 120 ms
+crossfade; tabs no longer slide the old tab out and the icon no longer
+pops; sheets slide from the edge rather than lift 14 px; the burst is a
+quiet icon swap; pictures fade over a colour rather than blur up; and
+captions show the sentence before, dimmed, rather than one sentence at a
+time (§127) - option B's "all recent text stays put; the last one dims".
+
+**Pictures: no dominant colour yet.** The pick asks for each picture's main
+colour, computed server-side when the thumbnail is made. Nothing computes
+one today, so the placeholder is one neutral token colour
+(`--pic-placeholder`, the palette's `--surface-2`) for every tile. A
+`thumb_color` on the tile, set as a custom property on `.seed-thumb`, is
+the follow-up; the CSS reads only the token.
+
+**The springs.** There is no Motion library here (WAAPI and CSS only), so a
+spring is a `linear()` curve sampled from a damped spring of the skill's
+duration and bounce (`Motion.spring`, and the same function's output
+pasted as the `--spring-*` tokens). The .5 s ones are cut at the 450 ms
+ceiling, where the bounce-free spring is within 0.3% of rest; the edge
+swipe's starts at the speed the finger let go. A browser without
+`linear()` gets `--ease-out` instead.
+
+**Where the pick needed a judgement.** The edge swipe presses the screen's
+own `.back` / `.yf-back` rather than calling `goBack()`, so a back that
+returns by name (`rule:intro-not-on-stack`) is still the one taken; the
+screen drawn beneath during the drag is the stack's previous one, and if
+the back goes somewhere else the pop draws that instead. It starts only
+within 24 px of the edge, only once the drag is plainly sideways (10 px,
+1.2x the vertical), never on a field, the scrub bar or inside anything
+scrolled sideways that the same drag would scroll back, and never under a
+sheet or the loading screen. The queue's target bump (1.3, an overshoot)
+is dropped; the count rolling is the landing.
+
+**Not changed here**, left for their pages' phases: the unread badge's pop
+(messages), the next-hint's bob loop (now off under reduced motion), the
+rails' arrival, stories, private search and Follow (their curves are the
+tokens now; their numbers are their pages'). The iOS client's
+`Motion.swift` still draws round two (`ios/FAM/PARITY.md`); its parity is
+separate work.
+
+Tests: `tests/test_motion_round_three_619.py`; the smoke run's
+"Round-three motion holds nothing and leaves nothing behind" (tokens read
+alike, a tab change leaves nothing of the old tab, a sheet closed half way
+is held inert and then gone, an edge drag goes back and a middle drag
+does not, the mini player's line is scaled, an Undo line stays 5 s, a
+theme change switches transitions off and nothing is left behind).
+**Not verified here:** an iPhone's Safari (`@starting-style` and
+`linear()` need Safari 17.5 / 17.2; older ones open sheets at once and use
+the plain curve), and the edge swipe with a real finger - only a mouse in
+Chromium.
