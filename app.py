@@ -1726,7 +1726,7 @@ AUTH_LOCK_MAX_SECONDS = 15 * 60.0
 AUTH_FORGET_SECONDS = 3600.0
 #: Addresses counted at once. Past it the ones not waiting are forgotten:
 #: a guesser naming a million addresses must not be able to fill the memory.
-AUTH_TRACKED_MAX = 20_000
+AUTH_TRACKED_MAX = 50_000
 #: address -> [tries, when the last one was, when its wait ends]
 _auth_failures: dict[str, list] = {}
 
@@ -1786,10 +1786,22 @@ def _auth_attempt(request: Request, kind: str, identifier: str) -> str:
                      "X-FAM-Refused-By": "sign-in"})
     if entry is None:
         if len(_auth_failures) >= AUTH_TRACKED_MAX:
-            for stale in [k for k, v in _auth_failures.items() if now >= v[2]]:
-                del _auth_failures[stale]
+            # Full. Forget only what has not earned a wait: an address that
+            # has used its free tries keeps its count until an hour of quiet,
+            # or a guesser would name twenty thousand made-up addresses to
+            # have the one they are after start again at five (found by the
+            # independent review of this section).
+            for spare in [k for k, v in _auth_failures.items()
+                          if v[0] < AUTH_FREE_FAILURES
+                          or now - v[1] > AUTH_FORGET_SECONDS]:
+                del _auth_failures[spare]
             if len(_auth_failures) >= AUTH_TRACKED_MAX:
-                _auth_failures.clear()
+                # Every address held is one being guessed at. A new one is
+                # refused rather than let through uncounted.
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many sign-in attempts right now. Try again in a few minutes.",
+                    headers={"Retry-After": "300", "X-FAM-Refused-By": "sign-in"})
         entry = _auth_failures[key] = [0, now, 0.0]
     entry[0] += 1
     entry[1] = now
@@ -14963,7 +14975,13 @@ def _admin_previewing_join(req, request: Request):
         listener = _admit_admin(listener)
         return {**listener.as_dict(), "admin": True, "redirect": "/waitlist/me"}
     # A password try like any other (§620): counted against the address.
-    tried = _auth_attempt(request, "email", email)
+    # A lock is answered as any refusal here is - with nothing: only an
+    # admin's address reaches this line, so a 429 from it would tell the
+    # form's visitor which addresses are admins.
+    try:
+        tried = _auth_attempt(request, "email", email)
+    except HTTPException:
+        return None
     try:
         listener = ACCOUNTS.log_in(email, req.password)
     except accounts_mod.AuthError:

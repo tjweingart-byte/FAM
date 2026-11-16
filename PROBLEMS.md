@@ -37496,6 +37496,32 @@ failing on the old code.
     Reproduced: forty strangers, forty paid checks. A photo check needs an
     account now, refused before the money is spent, as a guest's audio is.
 
+### What the independent review of these fixes found
+
+The fixes were written on one model and read by a fresh reviewer on another,
+given the diff and what each change was for and none of the conclusions
+above. It found two ways round them and four regressions; each is fixed and
+pinned (the last tests in the file, all failing on the code as reviewed).
+
+* **The count could be reset by naming addresses.** A full table dropped
+  everything not waiting, so twenty thousand made-up addresses bought five
+  fresh tries at the real one. An address that has used its free tries now
+  keeps its count for the hour; a table holding nothing else refuses a new
+  address rather than letting it through uncounted.
+* **The waitlist form said which addresses are admins**: only an admin's
+  address reached the count there, so only an admin's ever answered 429.
+* **A private address inside an IPv6 one passed as public** (NAT64,
+  IPv4-compatible, 6to4, site-local): `is_global` is true for them.
+* **Regressions in the link fetch**: an IPv6 link named itself without
+  brackets; only the first address of a name was tried, where the old code
+  let the name fall back to another; and the cap counted compressed bytes,
+  so 200 KB of gzip unpacked to 67 MB in one piece. Pages are asked for
+  uncompressed and unpacked only to the cap.
+* **The question box hid the ledger's token counts**: `token` anywhere in a
+  name caught `input_tokens`. Whole words now.
+* Left as it is: a 500 from an unhandled exception goes out above every
+  middleware and so without the new headers.
+
 ### Open: each needs the owner's decision
 
 A. **An account's email changes with no password, and the next reset code
@@ -37539,6 +37565,11 @@ I. **Already decided, recorded here so the audit is whole** (§619, the
    owner, with the trade stated): until a let-in account sets its password,
    its email address alone signs in as it. Never an admin's. Fix 1's count
    does not bear on it - the first try is the one that gets in.
+J. **Fix 1's lock can be held against a phone-only account** (the
+   review): it has no reset, so four wrong tries an hour at its number keep
+   a new device out of it. An email account resets its way past. The cure
+   is E's - knowing one visitor from another - not a weaker lock. An account
+   with an email and a number also has a count on each, twice the rate.
 G. Low: a sign-up keeps the session token the browser already had (a risk
    only if somebody could plant a cookie); an unknown address costs a
    sign-in two hashes and a known one one (sign-up already says whether an

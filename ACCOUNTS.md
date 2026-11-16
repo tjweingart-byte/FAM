@@ -187,9 +187,15 @@ Two properties worth keeping:
 
 * **The lock says nothing about who is registered** - an address with no
   account locks the same way, with the same sentence.
-* **A lock cannot keep the owner out.** Anybody can cause one, so a request
-  already signed in to that account passes it; "Forgot password?" signs a
-  browser in and is bounded by its own code.
+* **A lock is something a stranger can cause**, so a request already
+  signed in to that account passes it, and "Forgot password?" signs a
+  browser in and is bounded by its own code. **That is a way round for an
+  email account where mail is configured, and not for everybody**: a
+  phone-only account has no reset, so somebody who keeps trying its number
+  (four requests an hour) keeps a *new* device out of it. Telling that
+  person from the owner needs the listener's real address from the proxy,
+  which is the open item in PROBLEMS.md §620.
+* An account with an email and a number has a count on each.
 
 Both cookies are `Secure` whenever the listener's side was https, read from
 `X-Forwarded-Proto` behind Render's router (`_over_https`), and an account's

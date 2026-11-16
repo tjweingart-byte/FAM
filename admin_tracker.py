@@ -181,7 +181,12 @@ def _blob_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, s
 #: Hiding one that turns out to be harmless costs a NULL in a table; missing
 #: one costs somebody's account.
 _SECRET_NAME = re.compile(
-    r"(password|secret|credential|token|_hash$|^hash$|^keys$|claim_code|api_key)")
+    r"(^|_)(password|secret|credential|token|api_key|apikey)($|_)"
+    r"|_hash$|^hash$|^keys$|claim_code")
+#: Named like one and not one: what a finished task's result hashed to.
+#: (Whole words only above, so `input_tokens` and the other counts of
+#: model tokens in the ledger are not caught - the first pattern hid them.)
+_NOT_SECRET = {("agents_tasks", "tasks", "done_hash")}
 
 
 def _secret_named_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str, str, str]]:
@@ -191,7 +196,8 @@ def _secret_named_columns(conn: sqlite3.Connection, alias: str) -> set[tuple[str
             f"SELECT name FROM {alias}.sqlite_master WHERE type='table'")]
         for table in tables:
             for row in conn.execute(f'PRAGMA {alias}.table_info("{table}")'):
-                if _SECRET_NAME.search((row[1] or "").lower()):
+                if (_SECRET_NAME.search((row[1] or "").lower())
+                        and (alias, table, row[1]) not in _NOT_SECRET):
                     out.add((alias, table, row[1]))
     except sqlite3.Error:
         pass

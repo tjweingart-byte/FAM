@@ -640,3 +640,162 @@ def test_a_guest_cannot_spend_a_photo_check(server, monkeypatch, tmp_path):
     saved = owner.post("/api/me", json={"name": "Ian", "handle": "ian", "avatar": _PIXEL})
     assert saved.status_code == 200, saved.text
     assert calls == [1]
+
+
+# --- what the independent review of these fixes found -------------------------
+#
+# A second reviewer, on a different model and given the code without the
+# author's conclusions, found two ways round the fixes above and four
+# regressions. Each is pinned here.
+
+
+def test_naming_made_up_addresses_cannot_reset_somebodys_count(server, monkeypatch):
+    """The table was emptied of everything not waiting when it filled, so a
+    guesser named twenty thousand addresses and had five fresh tries."""
+    monkeypatch.setattr(appmod, "AUTH_TRACKED_MAX", 50)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(appmod, "_auth_clock", lambda: clock["now"])
+    for n in range(appmod.AUTH_FREE_FAILURES + 1):
+        _login(_stranger(server), f"wrong-guess-{n}")
+    key = appmod._auth_key("email", EMAIL)
+    clock["now"] = appmod._auth_failures[key][2] + 1      # its wait has just ended
+    for n in range(120):                                  # the flood
+        appmod._gen_tokens.clear()
+        _login(_stranger(server), "x-wrong-guess", f"made-up-{n}@example.com")
+    assert appmod._auth_failures.get(key, [0])[0] >= appmod.AUTH_FREE_FAILURES, \
+        "a flood of made-up addresses forgot the count of the one being guessed at"
+    assert len(appmod._auth_failures) <= 50
+
+
+def test_a_table_full_of_locks_refuses_a_new_address_rather_than_forgetting(server, monkeypatch):
+    monkeypatch.setattr(appmod, "AUTH_TRACKED_MAX", 3)
+    now = appmod._auth_clock()
+    for n in range(3):
+        appmod._auth_failures[f"email:held-{n}@example.com"] = [9, now, now + 600]
+    answer = _login(_stranger(server), "anything-at-all", "new@example.com")
+    assert answer.status_code == 429
+    assert len(appmod._auth_failures) == 3
+
+
+def test_the_join_form_does_not_say_which_addresses_are_admins(server, monkeypatch):
+    """Only an admin's address reached the count on this form, so only an
+    admin's address ever answered 429."""
+    monkeypatch.setenv("FAM_ADMIN_ACCOUNTS", EMAIL)
+    appmod.ACCOUNTS.sign_up("u9", "plain@example.com", GOOD)
+
+    def joins(email):
+        out = []
+        for _ in range(appmod.AUTH_FREE_FAILURES + 2):
+            appmod._gen_tokens.clear()
+            out.append(_stranger(server).post("/api/waitlist/join", json={
+                "email": email, "password": "a-wrong-password", "accept_terms": True}).status_code)
+        return out
+
+    assert joins(EMAIL) == joins("plain@example.com")
+
+
+@pytest.mark.sqlite_file
+def test_counts_of_model_tokens_still_read_in_the_question_box(tmp_path, monkeypatch):
+    """`token` anywhere in a name hid `input_tokens` in the cost ledger."""
+    import sqlite3
+
+    import admin_tracker as AT
+
+    monkeypatch.setenv("ACCOUNTS_DB", str(tmp_path / "accounts.db"))
+    A.AccountStore(str(tmp_path / "accounts.db"))
+    extra = sqlite3.connect(str(tmp_path / "accounts.db"))
+    extra.execute("CREATE TABLE ledger (input_tokens INTEGER, output_tokens INTEGER,"
+                  " cache_read_tokens INTEGER, session_token TEXT, token TEXT, token_hash TEXT)")
+    extra.execute("INSERT INTO ledger VALUES (10, 20, 30, 's', 't', 'h')")
+    extra.commit()
+    extra.close()
+    assert AT.run_query("SELECT input_tokens, output_tokens, cache_read_tokens,"
+                        " session_token, token, token_hash FROM accounts.ledger"
+                        )["rows"] == [[10, 20, 30, None, None, None]]
+    assert not AT._SECRET_NAME.search("done_hash") or \
+        ("agents_tasks", "tasks", "done_hash") in AT._NOT_SECRET
+
+
+@pytest.mark.parametrize("address", [
+    "64:ff9b::a9fe:a9fe",    # NAT64 of 169.254.169.254
+    "64:ff9b::7f00:1",       # NAT64 of 127.0.0.1
+    "64:ff9b:1::a00:5",      # local-use NAT64 of 10.0.0.5
+    "::7f00:1",              # IPv4-compatible 127.0.0.1
+    "2002:a9fe:a9fe::1",     # 6to4 of 169.254.169.254
+    "fec0::1"])              # site-local
+def test_a_private_address_inside_an_ipv6_one_is_not_public(address):
+    with pytest.raises(attachments.AttachmentError):
+        attachments._public_addresses(address, 80)
+
+
+def test_a_real_ipv6_address_is_public():
+    assert attachments._public_addresses("2606:4700:4700::1111", 443) == ["2606:4700:4700::1111"]
+
+
+def test_an_ipv6_link_names_itself_in_brackets(inside, monkeypatch):
+    monkeypatch.setattr(attachments, "_public_addresses", lambda host, port: ["127.0.0.1"])
+    attachments.fetch_link(f"http://[2606:4700:4700::1111]:{inside}/page")
+    assert _Inside.hits == [("/page", f"[2606:4700:4700::1111]:{inside}")]
+
+
+def test_a_name_opens_by_its_second_address_when_the_first_does_not_answer(inside, monkeypatch):
+    """As when the name itself was connected to: a host that cannot reach
+    the IPv6 address listed first must still open the page."""
+    # Nothing listens on 127.0.0.9; the test server is on 127.0.0.1 only.
+    monkeypatch.setattr(attachments, "_public_addresses",
+                        lambda host, port: ["127.0.0.9", "127.0.0.1"])
+    title, _text = attachments.fetch_link(f"http://pages.example:{inside}/page")
+    assert title == "internal admin panel"
+
+
+def test_a_compressed_page_is_unpacked_only_to_the_cap(monkeypatch):
+    """200 KB of gzip can be 67 MB of page; it used to arrive in one piece."""
+    import gzip
+
+    import httpx
+
+    packed = gzip.compress(b"<p>" + b"a" * 30_000_000 + b"</p>")
+    assert len(packed) < 100_000
+    seen = {}
+
+    class Bomb(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            seen["accept"] = self.headers.get("Accept-Encoding")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Content-Length", str(len(packed)))
+            self.end_headers()
+            self.wfile.write(packed)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Bomb)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(attachments, "_public_addresses", lambda host, port: ["127.0.0.1"])
+    monkeypatch.setattr(attachments, "MAX_BYTES", 50_000)
+    grown = []
+    real = attachments.zlib.decompressobj
+
+    def watched(*args):
+        inner = real(*args)
+
+        class Watch:
+            def decompress(self, data, max_length=0):
+                out = inner.decompress(data, max_length)
+                grown.append(len(out))
+                return out
+
+        return Watch()
+
+    monkeypatch.setattr(attachments.zlib, "decompressobj", watched)
+    try:
+        with httpx.Client(follow_redirects=False, timeout=5, trust_env=False) as client:
+            body = attachments._read_public(
+                client, f"http://pages.example:{server.server_address[1]}/")
+    finally:
+        server.shutdown()
+    assert seen["accept"] == "identity"
+    assert 0 < len(body) <= 50_000
+    assert max(grown) <= 50_000, "one piece of the page was unpacked past the cap"

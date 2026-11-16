@@ -31,6 +31,7 @@ import threading
 import time
 import uuid
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
@@ -198,6 +199,15 @@ MAX_REDIRECTS = 5
 
 NOT_PUBLIC = "That link is not a page on the public internet."
 
+#: IPv6 ranges `is_global` calls public that are another address in
+#: disguise (the independent review of §620): an IPv4 address carried inside
+#: an IPv6 one - NAT64, IPv4-compatible, 6to4, Teredo - which on a host that
+#: translates is the metadata address or a private network by another
+#: spelling; and the old site-local range.
+_V6_NOT_PUBLIC = tuple(ipaddress.ip_network(net) for net in (
+    "64:ff9b::/96", "64:ff9b:1::/48", "::/96", "2002::/16", "2001::/32",
+    "fec0::/10"))
+
 
 def _public_addresses(host: str, port: int) -> list[str]:
     """Where `host` is, if every address it names is on the public internet.
@@ -227,6 +237,8 @@ def _public_addresses(host: str, port: int) -> list[str]:
             ip = mapped
         if not ip.is_global or ip.is_multicast:
             raise AttachmentError(NOT_PUBLIC)
+        if ip.version == 6 and any(ip in net for net in _V6_NOT_PUBLIC):
+            raise AttachmentError(NOT_PUBLIC)
         if str(ip) not in found:
             found.append(str(ip))
     if not found:
@@ -234,11 +246,42 @@ def _public_addresses(host: str, port: int) -> list[str]:
     return found
 
 
+#: Addresses of one name tried before a link is given up on.
+MAX_ADDRESSES = 3
+
+
+def _capped_body(response) -> str:
+    """The page, read as it arrives and no further than `MAX_BYTES` - of the
+    page, not of what was sent. A page is never held whole in memory because
+    somebody linked a very large one, and a compressed one is unpacked only
+    as far as the cap: 200 KB of gzip can be 67 MB of page (the independent
+    review of §620), which `iter_bytes` would have handed over in one piece.
+    """
+    packed = response.headers.get("content-encoding", "").strip().lower()
+    if packed in ("", "identity"):
+        unpack = None
+    elif packed in ("gzip", "x-gzip", "deflate"):
+        unpack = zlib.decompressobj(zlib.MAX_WBITS | 32)
+    else:
+        raise AttachmentError("That link could not be opened.")
+    kept, size = [], 0
+    for chunk in response.iter_raw():
+        if unpack is not None:
+            chunk = unpack.decompress(chunk, MAX_BYTES - size)
+        kept.append(chunk)
+        size += len(chunk)
+        if size >= MAX_BYTES:
+            break
+    return b"".join(kept)[:MAX_BYTES].decode(response.encoding or "utf-8", "replace")
+
+
 def _read_public(client, url: str) -> str:
     """The page at `url`, read from a public address and no further than
     `MAX_BYTES`. Redirects are followed by hand, each one checked as the
     first address was: a public page that answers "go to 169.254.169.254"
     is the same request by another route."""
+    import httpx
+
     for _ in range(MAX_REDIRECTS + 1):
         parts = urlsplit(url)
         scheme = (parts.scheme or "").lower()
@@ -255,34 +298,40 @@ def _read_public(client, url: str) -> str:
             name = host.encode("idna").decode("ascii")
         except UnicodeError:
             name = host
-        ip = _public_addresses(name, port)[0]
-        at = f"[{ip}]" if ":" in ip else ip
-        target = urlunsplit((scheme, f"{at}:{port}", parts.path or "/", parts.query, ""))
+        literal = ":" in name          # an IPv6 address written in the link
+        named = f"[{name}]" if literal else name
         default = port == (443 if scheme == "https" else 80)
-        headers = {"Host": name if default else f"{name}:{port}",
-                   "User-Agent": "FAM/1.0 (+briefing)"}
-        # The address that was checked is the one connected to; the name
-        # still goes in `Host` and in the TLS handshake, so the certificate
-        # is verified against the site that was asked for.
-        with client.stream("GET", target, headers=headers,
-                           extensions={"sni_hostname": name}) as response:
-            if response.status_code in (301, 302, 303, 307, 308):
-                onward = response.headers.get("location", "")
-                if not onward:
-                    raise AttachmentError("That link could not be opened.")
-                url = urljoin(url, onward)
-                continue
-            response.raise_for_status()
-            # Read as it arrives and stop at the cap: a page is never held
-            # whole in memory because somebody linked a very large one.
-            kept, size = [], 0
-            for chunk in response.iter_bytes():
-                kept.append(chunk)
-                size += len(chunk)
-                if size >= MAX_BYTES:
-                    break
-            return b"".join(kept)[:MAX_BYTES].decode(response.encoding or "utf-8",
-                                                     "replace")
+        headers = {"Host": named if default else f"{named}:{port}",
+                   "User-Agent": "FAM/1.0 (+briefing)",
+                   # Asked for as it is, so the cap below counts the page.
+                   "Accept-Encoding": "identity"}
+        onward, unreachable = "", None
+        # Each checked address in turn: a name with an IPv6 address this
+        # machine cannot reach must still open by its IPv4 one, as it did
+        # when the name itself was connected to.
+        for ip in _public_addresses(name, port)[:MAX_ADDRESSES]:
+            at = f"[{ip}]" if ":" in ip else ip
+            target = urlunsplit((scheme, f"{at}:{port}", parts.path or "/",
+                                 parts.query, ""))
+            try:
+                # The address that was checked is the one connected to; the
+                # name still goes in `Host` and in the TLS handshake, so the
+                # certificate is verified against the site that was asked for.
+                with client.stream("GET", target, headers=headers,
+                                   extensions={} if literal else {"sni_hostname": name}
+                                   ) as response:
+                    if response.status_code in (301, 302, 303, 307, 308):
+                        onward = response.headers.get("location", "")
+                        if not onward:
+                            raise AttachmentError("That link could not be opened.")
+                        break
+                    response.raise_for_status()
+                    return _capped_body(response)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                unreachable = exc
+        if not onward:
+            raise unreachable or AttachmentError("That link could not be opened.")
+        url = urljoin(url, onward)
     raise AttachmentError("That link redirected too many times.")
 
 
