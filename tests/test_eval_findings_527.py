@@ -65,13 +65,13 @@ def test_none_low_writes_at_low_effort_and_the_rest_at_high():
     assert sg.writer_for(edition)[1] == "high"          # taken back after
 
 
-# ------------------------------------------------------------------ §622
+# ------------------------------------------------------------------ §623
 def _adopt(monkeypatch, tool):
-    """Put §621's example and the candidate pairs where the writer reads
-    them, as they were when the arms were made (taken back out in §625)."""
+    """Put §622's example and the candidate pairs where the writer reads
+    them, as they were when the arms were made (taken back out in §626)."""
     import pytest
 
-    named = [c for c in tool.candidate_examples() if c[2] in tool.ADOPTED_621]
+    named = [c for c in tool.candidate_examples() if c[2] in tool.ADOPTED_622]
     pairs = tool.candidate_pairs()
     if not named or not pairs:
         pytest.skip("the candidates these arms were made for have moved")
@@ -84,13 +84,13 @@ def _adopt(monkeypatch, tool):
 
 def test_the_arms_that_measured_what_the_adoption_bought(monkeypatch):
     tool = _eval()
-    assert {"none_unpaired", "none_before_620"} <= set(tool.ARMS)
+    assert {"none_unpaired", "none_before_621"} <= set(tool.ARMS)
     query, _ = _adopt(monkeypatch, tool)
     with_all = sg.system_prompt()
     assert "<pair query=" in with_all and query in with_all
     with tool._Settings("none_unpaired"):
         unpaired = sg.system_prompt()
-    with tool._Settings("none_before_620"):
+    with tool._Settings("none_before_621"):
         before = sg.system_prompt()
     with tool._Settings("none"):
         assert sg.system_prompt() == with_all
@@ -115,35 +115,35 @@ def test_a_comparison_is_paired_and_leaves_out_what_it_should(tmp_path):
     import episode_quality
 
     tool = _eval()
-    # A question a pair was made from is left out, committed or candidate (§628).
+    # A question a pair was made from is left out, committed or candidate (§629).
     seen = tool.seen_questions()
     assert len(seen) == len(tool.candidate_pairs()) + len(sg.TEACHING_PAIRS)
     held_out = [i for i in range(len(tool.QUESTIONS)) if i not in seen][:5]
     for i, a, b, claims_a, claims_b in zip(held_out, (4, 4, 3, 5), (3, 4, 3, 3),
                                            (0, 1, 2, 0), (1, 1, 1, 2)):
         _script(tmp_path, i, "none", a, claims_a)
-        _script(tmp_path, i, "none_before_620", b, claims_b)
-    # A script short of one of the six marks is not compared at all (§628).
+        _script(tmp_path, i, "none_before_621", b, claims_b)
+    # A script short of one of the six marks is not compared at all (§629).
     short = {m: 5 for m in episode_quality.METRICS[:-1]}
     _script(tmp_path, held_out[4], "none", 1)
-    _script(tmp_path, held_out[4], "none_before_620", short)
+    _script(tmp_path, held_out[4], "none_before_621", short)
     if seen:
         _script(tmp_path, sorted(seen)[0], "none", 5)
-        _script(tmp_path, sorted(seen)[0], "none_before_620", 1)
-    table = tool.compare(tmp_path, "none", "none_before_620", leave_out=seen, draws=2000)
+        _script(tmp_path, sorted(seen)[0], "none_before_621", 1)
+    table = tool.compare(tmp_path, "none", "none_before_621", leave_out=seen, draws=2000)
     assert table["questions"] == 4
     row = table["mean of six"]
     assert row["difference"] == 0.75 and (row["better"], row["worse"], row["level"]) == (2, 0, 2)
     # A real interval: inside the range of the differences, around the mean, not a point.
     assert 0 <= row["low"] < row["difference"] < row["high"] <= 2
-    # Fewer unsupported claims is the better script, not the worse (§628).
+    # Fewer unsupported claims is the better script, not the worse (§629).
     claims = table["unsupported claims"]
     assert claims["difference"] == -0.5
     assert (claims["better"], claims["worse"], claims["level"]) == (2, 1, 1)
     assert set(episode_quality.METRICS) <= set(table)       # every row, whatever the first script held
 
 
-# ------------------------------------------------------------------ §628
+# ------------------------------------------------------------------ §629
 def test_candidates_can_be_measured_without_adopting_them(monkeypatch):
     import dataclasses
 

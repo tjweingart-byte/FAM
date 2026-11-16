@@ -366,12 +366,12 @@ _MARKDOWN = re.compile(r"[*_`#>\[\]]|^\s*[-•]\s+", re.MULTILINE)
 #: Quoted speech is somebody else's sentence. Stripped before matching so that
 #: a coach saying "I don't know yet" is not read as FAM disclaiming.
 #:
-#: An apostrophe inside a word is not a quote mark (§623). The pattern used
+#: An apostrophe inside a word is not a quote mark (§624). The pattern used
 #: to take any two as a pair, so "I don't have anything reliable on the
 #: Dodgers' opener" lost everything between them and matched nothing - the
 #: sentence §94 built the opening check for. A single quote opens only
 #: where no letter comes before it and closes only where none follows, and
-#: never at a dropped letter or a decade: "the '90s", "'em", "'tis" (§628).
+#: never at a dropped letter or a decade: "the '90s", "'em", "'tis" (§629).
 _QUOTED = re.compile(
     r"[\"“]([^\"“”]{0,600})[\"”]"
     r"|(?<!\w)['‘](?!\d|(?i:em|tis|twas|til|cause|bout|n)\b)"
@@ -470,10 +470,10 @@ _MATERIAL_PHRASES = (
     r"\bmy\s+(?:information|knowledge\s+cutoff|training\s+data)\b",
     r"\bi\s+(?:wasn'?t|was\s+not)\s+(?:given|handed|shown|provided)\b",
     r"\bnothing\s+(?:that\s+)?i\s+can\s+(?:establish|find|confirm|verify|see)\b",
-    # The plural (§623), which §288's narrowing to "I", "me" and "my" let
+    # The plural (§624), which §288's narrowing to "I", "me" and "my" let
     # through: "the latest price we have", "in the reporting we have", "we
     # don't have a figure for this morning's trading". Narrow on purpose,
-    # because "we" is also how history and science are told (§628): only a
+    # because "we" is also how history and science are told (§629): only a
     # price, a score or an update "we have"; only "the reporting we have"
     # after "in" or "from"; and "we don't have a figure" only where the
     # sentence is about now. "The best evidence we have suggests", "the
@@ -490,7 +490,7 @@ _MATERIAL_PHRASES = (
     r"prices|number|numbers|result|results|score|scores|update|updates|reading|"
     r"readings|confirmation)\b",
     r"\bwe\s+(?:can['’]?t|cannot)\s+tell\s+you\b",
-    # What the writer can do with a figure, not only what it has (§627):
+    # What the writer can do with a figure, not only what it has (§628):
     # "the newest price we can establish", "the last price we can date",
     # "the last figure we can stand behind". Tied to a figure that moves:
     # "the oldest fossils we can date" and "the last result we can verify
@@ -505,7 +505,7 @@ _MATERIAL_PHRASES = (
     # comet is now is not something we can see from Earth" passes - and only
     # what the writer cannot see, tell or give: "what happened today is not
     # something we can ignore" is an opinion, and "not something we have
-    # seen since 1929" is history (§628).
+    # seen since 1929" is history (§629).
     r"\b(?:where|what)\s+(?=[^.?!]{0,90}?\b(?:stands?|standing|trading|priced|"
     r"right\s+now|this\s+(?:morning|afternoon|evening|minute|hour)|at\s+this\s+"
     r"(?:moment|minute)|day\s+(?:morning|afternoon|evening))\b)[^.?!]{3,90}?\s+"
@@ -516,7 +516,7 @@ _MATERIAL_PHRASES = (
 _MATERIAL = re.compile("|".join(_MATERIAL_PHRASES), re.I)
 
 
-#: What the writer itself cannot do (§623): "I don't have a confirmed
+#: What the writer itself cannot do (§624): "I don't have a confirmed
 #: result", "so I can't tell you where it stands" - anywhere in the piece;
 #: the opening check has a wider list but stops after six sentences. Case
 #: matters: "I Can't Tell You Why" and "I Don't Have the Heart" are songs.
@@ -525,7 +525,7 @@ _OWN_ACCESS = re.compile(
     r"(?:(?:yet|still|really|currently) )?(?:have|confirm|verify|tell you|"
     r"establish|find|say (?:where|what|whether|when|how|if|who))\b")
 #: ...unless somebody is being reported saying it without quotation marks
-#: (§628): "I do not have the answer, Socrates admitted", "one admission: I
+#: (§629): "I do not have the answer, Socrates admitted", "one admission: I
 #: do not have the answer", "Ingram sings I don't have the heart".
 _REPORTED = re.compile(
     r",\s+[\w .'’-]{1,40}?\s+(?:said|says|told|added|joked|admitted|replied|sang|sings)\b"
@@ -549,7 +549,7 @@ class MaterialGuard:
     said in its place (no-filler)."""
 
     #: A quotation can run over several sentences, and the middle ones carry
-    #: no quote mark of their own (§628): "We got lucky. I don't have an
+    #: no quote mark of their own (§629): "We got lucky. I don't have an
     #: explanation for the second quarter. We will fix it." After this many
     #: sentences inside one, the mark is taken for a stray and forgotten.
     QUOTE_SPAN = 4
@@ -614,7 +614,7 @@ class OpeningGuard:
             return True
         if self.seen >= self.WINDOW:
             # Past the window this is the episode, and it counts as spoken
-            # (§628): left uncounted, `rescue` took the piece for nothing
+            # (§629): left uncounted, `rescue` took the piece for nothing
             # but disclaimer and said the dropped opening again after it.
             self.spoken += 1
             return True
@@ -632,7 +632,7 @@ class OpeningGuard:
 
     def retract(self) -> None:
         """The sentence just let through was dropped by another check before
-        it was spoken (§628): nothing has been said yet, so keep watching.
+        it was spoken (§629): nothing has been said yet, so keep watching.
         It starts no run - a sentence dropped for "the latest price we
         have" may carry a fact, and the one after it usually does."""
         if self._counted:
@@ -2338,7 +2338,7 @@ class _ScriptReader:
         return out
 
     def _may_say(self, sentence: str) -> bool:
-        """The opening check, then the material check (§623). The opening
+        """The opening check, then the material check (§624). The opening
         check goes first so that the sentence leaning on a disclaimer goes
         with it; a sentence it let through that the material check then
         drops has not been spoken, and it is told so."""
@@ -2365,7 +2365,7 @@ class _ScriptReader:
                 and self._may_say(tail):
             out.append(self._checked(tail))
         # Nothing but disclaimer is still better than nothing at all - and
-        # only then (§628): once anything has been said, a dropped opening
+        # only then (§629): once anything has been said, a dropped opening
         # is never said after it.
         rescued = "" if (out or self.emitted_words) else self.guard.rescue()
         if rescued:

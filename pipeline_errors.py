@@ -697,7 +697,7 @@ EXPLAIN = (
          "The writer dating a moving figure by its own notes, most often a "
          "price on a question about a market.",
          "If it is most market episodes, the writer's instructions on time "
-         "are where it is fixed (PROBLEMS.md §625-§628).")),
+         "are where it is fixed (PROBLEMS.md §626-§629).")),
     ("writer", r"^score check",
      _ex("The score check removed a sentence",
          "The writer said a score that is not on the scoreboard; the guard "
