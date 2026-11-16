@@ -98,6 +98,9 @@ empty folder simply means no examples, and the prompt is unchanged.
   sentence number. `python tools/editor_teaching.py --check` checks them;
   `--draft <example>` (with the key) drafts one for a new example. Read a
   draft before committing it.
+- **Candidates written for the owner to read** are in `candidates/`
+  (§619): a three-minute example and six before-and-after pairs. Nothing
+  there is loaded; `candidates/README.md` says how to adopt one.
 - **New candidates** come from what listeners heard through:
   `python tools/example_candidates.py --write` puts them in
   `~/.fam/example_candidates/`, never here. Move the ones worth keeping in

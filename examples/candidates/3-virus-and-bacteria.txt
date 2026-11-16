@@ -1,0 +1,15 @@
+what's the difference between a virus and bacteria
+
+A bacterium is alive on its own and a virus is not, and that one difference is why an antibiotic can clear strep throat in a few days and does nothing at all for a cold.
+
+Start with the bacterium. It is a complete cell: a wall around the outside, its own machinery for turning food into energy and building proteins, and a loop of DNA carrying the instructions. Give it warmth and something to eat and it splits in two, and in good conditions some species do that every twenty minutes. Most of them never trouble you. Trillions live in your gut, and a lot of them are helping you digest your lunch. The ones that make you ill do it by multiplying somewhere they shouldn't be, or by releasing a poison while they are there.
+
+A virus has none of that equipment. It is a strand of genetic instructions packed inside a protein shell, around a hundred times smaller than a bacterium, and outside a living cell it does nothing. It doesn't eat, it doesn't grow, and it can't copy itself. So it borrows. It latches onto one of your cells and gets its instructions inside. The cell's own machinery then starts turning out copies of the virus instead of doing its job, until the copies break out and move on to the cells next door.
+
+That is where the medicine divides. Penicillin, the first antibiotic, sabotages the wall a bacterium builds around itself, so the cell swells and bursts. Others jam the machinery bacteria use to make proteins, which is built differently enough from yours that the drug leaves your own cells alone. Every antibiotic is aimed at a part like that - something a bacterium has and you don't. A virus has no wall to break and no machinery to jam, because the machinery it is using is yours. There is nothing for the drug to hit.
+
+Drugs against viruses do exist, but they are harder to make, and for the same reason. Because a virus does its copying inside your cells, almost anything that stops the copying risks harming the cell as well. So an antiviral usually goes after one step that belongs to one virus. Tamiflu blocks the protein that flu uses to cut itself free of a cell it has finished with, and it is no use against anything that isn't flu. One antibiotic can cover dozens of species of bacteria. An antiviral tends to cover a single virus, or one family of them.
+
+A vaccine gets around the whole problem, because it never touches the germ. It shows your immune system what to look for, and your immune system attacks bacteria and viruses alike. That is why one childhood vaccine protects against whooping cough, which is caused by a bacterium, and another against measles, which is caused by a virus.
+
+An antibiotic taken for a cold still does something. It reaches the bacteria you were carrying anyway, kills the ones it can, and leaves the few that survived it with all the room to multiply.

@@ -37335,3 +37335,90 @@ Tests: `tools/smoke_activation.py` blows the form's text up to 24px (as
 font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
+
+## 619. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
+
+The owner, on a list of things worth having the session's stronger model
+build while it is available: "start on build 3" - a model's writing samples
+turned into what a weaker model follows. In FAM that is `examples/`
+([examples-lever]): the writer is Haiku 5.5 and matches examples more
+closely than rules.
+
+**What was missing.** No example at three minutes (1, 2, 4, 5 only), the
+first length past the two-minute band. `examples/pairs/` empty since §522,
+though the writer's instructions show up to six. Four examples with no
+worked plan (not done here).
+
+**Nothing the writer reads has changed.** Everything is in
+`examples/candidates/`, which no loader reads; the owner picks by ear and
+moves what is worth teaching (`examples/candidates/README.md`). The folder
+is in the repository because the session's machine is thrown away and
+`~/.fam/` goes with it.
+
+**The example** (`3-virus-and-bacteria.txt`, 510 words). A comparison -
+shape 10 in `docs/story_shapes.md`, "none - a gap" - on settled facts: opens
+on the difference that decides it, each side in its own terms, why the
+medicine divides, lands on what an antibiotic taken for a cold does do. No
+advice. By the code's measures it sits with the house examples (hook 1.0,
+flow 0.92, repetition 1.0, ear 1.0). A first draft claimed the measles
+vaccine came decades before any antiviral drug; it did not (both 1963), and
+the line is gone.
+
+**The pairs** (`pairs/`, six). `tools/editor_eval.py --freeze` researched 18
+of its fixed questions today into `~/.fam/editor_eval_fable/`, and `--run
+--arms none,none_low --no-grade` had the writer draft each twice (36
+scripts, $0.10). `teaching_pairs.candidates` ranked them by the flaws the
+code names. The six most flawed across facets - oil prices, Apple, the box
+office, the Eagles, Nvidia, the WTA Finals - were rewritten **by hand in the
+session from the same packet**, in place of the tool's Opus call, and put
+through the tool's own two gates:
+
+| pair | words | code flaws | grade (Opus, mean of six) | unsupported claims |
+|---|---|---|---|---|
+| oil prices | 286 → 229 | 4 → 0 | 3.67 → 4.17 | 3 → 0 |
+| Apple | 270 → 253 | 3 → 0 | 3.33 → 4.17 | 0 → 0 |
+| box office | 310 → 220 | 3 → 1 | 2.33 → 4.33 | 3 → 0 |
+| Eagles | 209 → 173 | 2 → 0 | 2.67 → 3.83 | 1 → 0 |
+| Nvidia | 184 → 176 | 2 → 0 | 2.67 → 4.17 | 1 → 0 |
+| WTA Finals | 149 → 144 | 2 → 0 | 2.67 → 3.33 | 2 → 0 |
+
+No story or ear score fell. The one flaw left is `visual` on the film title
+"You Can See Everything", which the draft has too. The grader named an
+unsupported detail in three first rewrites (which tankers, "ahead of all of
+them", "did not recover") and one inferred cause; each was taken out and
+the pair graded again, and the table is the final text. Three WHY lines
+carry a flaw found by reading, in the tool's own words, that the code did
+not flag: a two-sentence recap ending (box office, Nvidia) and the next
+game said twice (Eagles).
+
+**What the drafts showed, beside the pairs** (36 scripts, not a
+measurement):
+- three speak about their own material - "the latest price we have",
+  "the reporting we have", "I don't have a confirmed result for that
+  return" - against [missed-not-absent] and the house rules;
+- two end mid-sentence ("As", "But"); not diagnosed - the cut may be the
+  tool's, not the writer's;
+- the Starship draft says the landing is unconfirmed while one wire-grade
+  source in its packet reports the catch and the others, dated the same
+  day or the next, still preview it. Left out of the pairs: a pair must not
+  teach which way that goes ([started-not-finished]);
+- the box-office draft gave Paramount a claim that was another outlet's
+  headline, and the Eagles draft read as one win where the packet has two.
+
+**Cost**, on the owner's key, with their yes: about $0.80 - research ~$0.20
+(estimated from §527's rate), writing $0.10, twenty Opus grades ~$0.50
+(estimated likewise).
+
+**If adopted:** six pairs add about 2,800 words to the writer's cached
+block, the example about 500. Whether that helps is §527's kind of
+question: run `tools/editor_eval.py` on the frozen questions with and
+without.
+
+**Also true, and not changed here:** [no-api-key] says there is no key in
+the build container. This environment has `FAM_ANTHROPIC_KEY` and the
+search keys, as §527 found; the rule's wording is the owner's to change.
+
+Tests: `tests/test_example_candidates_619.py` (there are candidates; none
+reaches the writer's instructions; the example is about its length; each
+pair parses, has fewer flaws by the code than its draft, is no longer than
+it, and carries a reason line).
