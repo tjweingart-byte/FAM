@@ -123,8 +123,8 @@ class AuthError(ValueError):
 class NoPasswordYet(AuthError):
     """A sign-in to an account that has never had a password (§606): an
     email-only waitlist join, or Google or Apple. Its own class so the
-    server can say how *that* account gets in - the let-in link, or the
-    provider - instead of "do not match", which sends somebody round
+    server can say how *that* account gets in - its email alone once let
+    in (§619), or the provider - instead of "do not match", which sends somebody round
     "Forgot password?" for a password that never existed. The join form
     already says whether an address is registered, so this tells nothing
     new about who is on FAM."""
@@ -832,6 +832,15 @@ class AccountStore:
             "UPDATE accounts SET last_login = ? WHERE user_id = ?", (now, row[0])
         )
         return self.listener_of(row[0])
+
+    def signed_in_by_email(self, user_id: str, at: float | None = None):
+        """The account a passwordless let-in sign-in reaches (§619): the
+        caller (`app.auth_login`) has already decided it may - let in, no
+        password, no Google or Apple. Stamps `last_login` as `log_in` does."""
+        self._conn().execute(
+            "UPDATE accounts SET last_login = ? WHERE user_id = ?",
+            (at or time.time(), user_id))
+        return self.listener_of(user_id)
 
     def change_password(self, user_id: str, current: str, new: str) -> None:
         row = self._conn().execute(

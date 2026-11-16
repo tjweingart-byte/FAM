@@ -37336,6 +37336,62 @@ font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
 
+## 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16)
+
+**Asked.** The owner: "Right now, people getting off of the waitlist have to
+go through their email to set up their password. This is clunky. We want
+people to sign up for the waitlist using only their email, then when they get
+off of the waitlist, the first thing they see in the app is to set their
+password ... they should set their password and verify it with a matching
+password. In each password box, there should be a button on the right to see
+what they are typing or not."
+
+**What was there (§606).** The join was already the email alone, and the
+device that joined already opened on "You're in. Set your password" (one
+field). Any *other* device - most often the iPhone after joining on the web -
+had to open the let-in link from the email or text, because §606 refused to
+let the email alone in.
+
+**The decision.** Asked how another device should prove it is the person (a
+6-digit code, the email alone, or keep the link), the owner chose **the email
+alone**, with the trade stated: until the password is set, anyone who knows a
+let-in address can sign in as it and set one. The window closes the moment a
+password is set; a waitlisted account, a Google/Apple account and a phone
+sign-in are unchanged.
+
+**Done.**
+* `/api/auth/login`: `NoPasswordYet` on an email sign-in for a
+  `_password_needed` account signs it in (`accounts.signed_in_by_email`,
+  stamping `last_login`), a fresh session as any log-in; the answer carries
+  `password_needed`. Whatever was typed as a password is ignored - there is
+  none to check. **Never an admin account** (`FAM_ADMIN_ACCOUNTS`, made
+  `active` at the join by §216): the email alone must not open `/admin`, so
+  it keeps §606's link or Forgot password?. `_no_password_words` now tells a waiting account it signs in
+  with the email once let in, and a let-in phone sign-in to use the email.
+* Web: `#screen-password-first` has **Password** and **Confirm password**,
+  each with its own eye (`togglePasswordShown`), both reset to hidden once
+  set; "Type your password again to confirm it." / "Those passwords don't
+  match." before any request. Log in no longer refuses an empty password
+  (sign-up still does); a sign-in that comes back `password_needed` opens the
+  screen. `#authLetInNote`: "Just off the waitlist? Leave the password empty -
+  you'll set one next." `/waitlist`'s sign-in says "(leave empty if you
+  haven't set one)" and already sends an active account to `/`.
+* iOS: `FirstPasswordFields` is two `secret(...)` boxes, each with its eye,
+  the same sentences; `AuthView.logIn` sends an empty password, `beginEntry`
+  then opens `PasswordFirstView`; the same note under Log in, and "already
+  registered" says to leave the password empty. Swift parsed with
+  tree-sitter; not compiled here.
+* The let-in email (passwordless): "Open FAM and sign in with this email
+  address; the first thing it asks is to set your password", the home
+  address, then the free-month link. The text: "FAM: you're in! Sign in with
+  your email. Free month of Plus (...)" - one segment. The SMS consent line and
+  the privacy page no longer say the link sets the password.
+
+**Tests:** `tests/test_waitlist.py` (the sign-in: waiting refused, let in
+signed in by email with `password_needed`, and refused by email alone once a
+password is set; the screen's two fields and eyes; Log in's empty password),
+`tests/test_waitlist_notify.py`, `tests/test_ios_app_contract.py`.
+
 ## 620. The security audit: sign-in, sessions and what every response says (2026-11-16)
 
 **Asked for** by the owner: a full security audit, the first dedicated one
@@ -37479,6 +37535,10 @@ H. **Made-up addresses count as invites.** Joining needs an address and
    the free month and a higher place; `WAITLIST_REFERRALS_PER_HOUR` slows
    that and does not stop it. The same missing step as A to D: an address
    somebody has shown they can read.
+I. **Already decided, recorded here so the audit is whole** (§619, the
+   owner, with the trade stated): until a let-in account sets its password,
+   its email address alone signs in as it. Never an admin's. Fix 1's count
+   does not bear on it - the first try is the one that gets in.
 G. Low: a sign-up keeps the session token the browser already had (a risk
    only if somebody could plant a cookie); an unknown address costs a
    sign-in two hashes and a known one one (sign-up already says whether an

@@ -1878,14 +1878,20 @@ def _no_password_words(user_id: str) -> str:
                 "then you can add a password in Settings.")
     account = ACCOUNTS.account(user_id) or {}
     if account.get("status") == waitlist_mod.WAITLISTED and settings.waitlist:
-        return ("You're on the waitlist, so there's no password yet. When "
-                "you're let in, we'll send you a link to set one.")
-    words = ("This account has no password yet. Open the link we sent you "
-             "when you were let in, or FAM on the device you joined from, "
-             "and set one there")
-    if mail_mod.status().get("available"):
-        words += ", or use Forgot password? to get a code by email"
-    return words + "."
+        return ("You're on the waitlist, so there's no password yet. Once "
+                "you're let in, sign in with your email alone and FAM will "
+                "ask you to set one.")
+    # Let in: a phone sign-in is sent to the email, which signs in (§619).
+    # An admin account never signs in by email alone: its let-in link, or
+    # a reset code where mail exists.
+    if _allowed_admin(ACCOUNTS.listener_of(user_id)):
+        words = ("This admin account has no password yet. Open the link we "
+                 "sent you when you were let in, and set one there")
+        if mail_mod.status().get("available"):
+            words += ", or use Forgot password? to get a code by email"
+        return words + "."
+    return ("This account has no password yet. Sign in with your email - "
+            "leave the password empty - and FAM will ask you to set one.")
 
 
 def _quota_snapshot(user: str, tier_name: str) -> dict:
@@ -3056,10 +3062,20 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
             listener = await asyncio.to_thread(ACCOUNTS.log_in_phone, req.phone,
                                                req.password)
     except accounts_mod.NoPasswordYet as exc:
-        # The account is recognised (§606): an email-only waitlist join has
-        # never had a password, so say how it gets in, not "do not match".
-        raise HTTPException(status_code=401,
-                            detail=_no_password_words(exc.user_id)) from exc
+        # Let in off the waitlist with the email alone (§619, the owner
+        # 16/11): the email is the way in, and the app's first screen sets
+        # the password - no link, no inbox. Whatever was typed as a password
+        # is ignored: there is none to check. Anyone else (still waiting,
+        # Google/Apple, a phone) is told how *that* account gets in (§606).
+        # Never an admin account (`FAM_ADMIN_ACCOUNTS`): the email alone
+        # must not open /admin; an admin gets in by its link or Forgot password?.
+        if (_one_identifier(req) == "email" and _password_needed(exc.user_id)
+                and not _allowed_admin(ACCOUNTS.listener_of(exc.user_id))):
+            listener = await asyncio.to_thread(ACCOUNTS.signed_in_by_email,
+                                               exc.user_id)
+        else:
+            raise HTTPException(status_code=401,
+                                detail=_no_password_words(exc.user_id)) from exc
     except accounts_mod.AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     _auth_passed(tried)
@@ -3071,6 +3087,7 @@ async def auth_login(req: CredentialsRequest, request: Request) -> dict:
         ACCOUNTS.end_session(old)
     request.state.set_session = token
     return {**listener.as_dict(), "admin": _allowed_admin(listener),
+            "password_needed": _password_needed(listener.user_id),
             **_maybe_token(request, token, req.want_token)}
 
 
