@@ -1,0 +1,1504 @@
+{
+ "page": "yourFAM",
+ "codeScreens": [
+  "screen-profile",
+  "screen-settings",
+  "screen-friends",
+  "screen-person",
+  "screen-saved",
+  "screen-history",
+  "screen-myvibe",
+  "screen-vibeposts",
+  "screen-identity",
+  "screen-location",
+  "screen-topic",
+  "#vibeComposer (story editor overlay)",
+  "#vpReplies (replies sheet)",
+  "#photoOverlay (move and scale)",
+  "#followerOverlay (new follower)"
+ ],
+ "summary": "yourFAM moves only through shared parts (tab, push, squeeze, sheets) and two §298 picks: Follow (animates width) and Saved's row removal (animates height). The hub's rebuild, deleted vibes, regrouped friends, late Settings rows and the editors all change in one frame.",
+ "interactions": [
+  {
+   "name": "Open the yourFAM tab",
+   "trigger": "touch, then network",
+   "frequency": "many",
+   "tells": "your page as it is now: photo, numbers, interests, vibes"
+  },
+  {
+   "name": "Switch Vibes / Mixes",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "which shelf the grid now shows"
+  },
+  {
+   "name": "Tap a friends / vibes / mixes number",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the list or shelf that number counts"
+  },
+  {
+   "name": "Tap a vibe or mix tile",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that vibe as a post, or that mix"
+  },
+  {
+   "name": "Scroll the interests line sideways",
+   "trigger": "touch (scroll)",
+   "frequency": "few",
+   "tells": "there are more interests this way"
+  },
+  {
+   "name": "Tap an interest pill",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that topic's episodes (Topic screen)"
+  },
+  {
+   "name": "Hold your own vibe tile",
+   "trigger": "touch (500 ms hold)",
+   "frequency": "rare",
+   "tells": "the hold registered; a menu to delete it"
+  },
+  {
+   "name": "Delete a vibe (grid, post menu, My Vibes X)",
+   "trigger": "touch, then network",
+   "frequency": "rare",
+   "tells": "it is gone everywhere; the count dropped"
+  },
+  {
+   "name": "Tap (+) or your photo: add to your story",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the story editor, opened from your face"
+  },
+  {
+   "name": "Post a note to your story",
+   "trigger": "touch, then network",
+   "frequency": "rare",
+   "tells": "it is on your story; your face now carries the ring"
+  },
+  {
+   "name": "Open Settings (gear)",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "every changeable thing, with its real value"
+  },
+  {
+   "name": "Turn a setting on or off",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it is on (or off) now"
+  },
+  {
+   "name": "Open / close / save Edit profile",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the editor; then what was saved, on your page"
+  },
+  {
+   "name": "Choose or add an interest (up to five)",
+   "trigger": "touch, keyboard (Enter)",
+   "frequency": "rare",
+   "tells": "chosen or not, and how many of five are left"
+  },
+  {
+   "name": "Change your photo (move and scale, Save)",
+   "trigger": "touch (drag), then network",
+   "frequency": "rare",
+   "tells": "the new photo, and that it is being checked"
+  },
+  {
+   "name": "Open Friends",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "friends, following, followers, and their counts"
+  },
+  {
+   "name": "Search people by handle",
+   "trigger": "keyboard",
+   "frequency": "few",
+   "tells": "who matches (instant: keyboard)"
+  },
+  {
+   "name": "Follow / unfollow",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "you follow them now; friends if it is mutual"
+  },
+  {
+   "name": "New follower popup, Follow back",
+   "trigger": "network, then touch",
+   "frequency": "rare",
+   "tells": "who followed you; you are friends now"
+  },
+  {
+   "name": "Invite new users +",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the share sheet, or that the invite was copied"
+  },
+  {
+   "name": "Open a friend's profile",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "their page, filling in as it loads, without jumping"
+  },
+  {
+   "name": "Open Save for Later, play a row",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "your shelf; the episode starts"
+  },
+  {
+   "name": "Unsave a row (X)",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "it left the shelf, and how to undo it"
+  },
+  {
+   "name": "Put a row in a folder; pick a folder chip",
+   "trigger": "touch, then network",
+   "frequency": "rare",
+   "tells": "where the episode went; what the chip filters"
+  },
+  {
+   "name": "Filter listening history",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "only that surface's episodes (should be instant)"
+  },
+  {
+   "name": "Vibe posts: play, scrub, like, replies",
+   "trigger": "touch, drag",
+   "frequency": "few",
+   "tells": "playing; liked and the count; the replies sheet"
+  },
+  {
+   "name": "Topic screen: filter, View more",
+   "trigger": "touch, then network",
+   "frequency": "few",
+   "tells": "other episodes on the interest"
+  },
+  {
+   "name": "Guest: Sign up / Log in door",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "an account opens this page"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "broken",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:18302",
+   "before": "Up to 7 late answers rebuild Settings; a row replaced mid-press loses the tap",
+   "after": "Update rows in place; never rebuild the list while it is on screen"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:16961",
+   "before": "Hub fetched and rebuilt on every yourFAM open; first open is an empty wash until it lands",
+   "after": "Paint the hub last seen at once; when the answer lands, move only what changed"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:18390",
+   "before": "Notifications group (~230px) inserted when /api/push lands, shoving every row below",
+   "after": "Ask at sign-in and keep it; Settings draws complete on its first frame"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:19144",
+   "before": "Friend's profile: numbers row inserted above Follow on arrival; Follow drops ~60px",
+   "after": "Reserve the row from frame one; only values, pills and tiles fade in"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:17551",
+   "before": "Deleting a vibe waits for the server, then the grid is rebuilt",
+   "after": "Remove on confirm (optimistic); put it back with a message if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:18734",
+   "before": "My Vibes X waits for the server, then redraws the list in one frame",
+   "after": "Take the row off on the tap with the same removal as Saved"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:18871",
+   "before": "Popup's Follow back shows nothing until the server answers; can be tapped twice",
+   "after": "Change on the tap like Follow elsewhere (§298), close, roll back if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:16955",
+   "before": "Slow /api/auth/me: a signed-in listener sees 'Your profile needs an account' first",
+   "after": "If wasSignedIn(), hold the hub's last-seen layout, never the guest gate"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:21783",
+   "before": "Each History filter tap blanks the list to 'Loading…' (Topic does too, 19940)",
+   "after": "Keep the old list until the new one lands; chips switch instantly"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Make it mean something",
+   "where": "static/index.html:18956",
+   "before": "Followed row jumps to another group in one frame; counts line swaps",
+   "after": "FLIP the row to its new group (320ms); roll the changed digits"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6572",
+   "before": "Motion.follow animates width 260ms (layout every frame)",
+   "after": "Fixed-size button; both labels in one grid cell, cross-faded 150ms"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6599",
+   "before": "removeRow animates height, padding and margin to 0 over 200ms",
+   "after": "Rows below FLIP up with translateY on the same 200ms"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:20025",
+   "before": "Chosen interest gains a check, widens ~18px and the whole wrap reflows",
+   "after": "Reserve the icon slot; swap + and check in place, nothing shifts"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:17560",
+   "before": "Deleted grid tile vanishes; later tiles jump a cell (rows wrap)",
+   "after": "Tile recedes (scale .92, fade 150ms); siblings FLIP into place 250ms"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:17138",
+   "before": "Photo crop drag hard-stops at the edge",
+   "after": "Rubber-band past the edge (dead zone 12px), spring back on release"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:18365",
+   "before": "Nine On/Off rows look like rows that open screens (chevron)",
+   "after": "Toggle rows carry a switch; chevrons only on rows that open something"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:20170",
+   "before": "Edit profile, Where you are, Your interests snap in/out; every other door moves",
+   "after": "Give the X-closed editors one motion (the sheets' fade and lift)"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:19171",
+   "before": "Follow is gold in two places (19177, 19209), outline here; Following looks the same",
+   "after": "Follow filled copper, Following outline, everywhere"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Fitts's law",
+   "where": "static/index.html:3003",
+   "before": "Saved row: folder and destructive X are ~25px targets side by side (My Vibes 26px)",
+   "after": "44px hit zones via ::after; 12px+ between folder and X"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:21731",
+   "before": "Unsave says 'Removed' with no Undo; the DELETE has already gone",
+   "after": "'Removed · Undo' for 5s; send the DELETE when it closes or the page hides"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Exaggeration",
+   "where": "static/index.html:20038",
+   "before": "At 5 of 5, tapping a dimmed interest does nothing, silently",
+   "after": "Shake the '5 OF 5' count once (360ms); no toast"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Peak-end",
+   "where": "static/index.html:9923",
+   "before": "Posting a note cuts back; your new ring appears later, unseen",
+   "after": "The post shrinks into your photo and the ring draws (rare, may choreograph)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:17494",
+   "before": "Smooth scrollIntoView ignores reduced motion (also 19255, 19270)",
+   "after": "behavior 'auto' under reduced motion, as line 14946 already does"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:17147",
+   "before": "Photo editor writes width/height on every drag and zoom move",
+   "after": "Size once; move and zoom with transform: translate() scale()"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:19646",
+   "before": "Vibe-post Like rebuilds the post: heart and count swap in one frame",
+   "after": "Patch the heart and count in place; roll the count's digits"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Anticipation",
+   "where": "static/index.html:751",
+   "before": "Settings, History and Friends rows (>200px wide) scale ~0.98 when pressed",
+   "after": "Wide rows take a background change instead (data-no-squeeze)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:3128",
+   "before": "Interests line clips the last pill hard at the screen edge",
+   "after": "mask-image fade on the scrolling end while there is more to scroll"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:3119",
+   "before": "Interest pills 26px, Vibes/Mixes tabs ~31px, the (+) badge 24px",
+   "after": "::after hit zones to 44px (24px floor where they would overlap)"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Occam's razor / progressive disclosure",
+   "where": "static/index.html:19002",
+   "before": "Bottom line says 'Following' after the button already does",
+   "after": "Drop it; keep the line for refusals only"
+  }
+ ],
+ "bugs": [
+  "Deleting a vibe from your grid leaves the 'N vibes' number stale: deleteMyVibe redraws only the grid, loadProfileQuietly never redraws the hub (17559-17563).",
+  "Taking down your last story (18207, 18195) leaves the ring on your yourFAM photo until the hub is reopened: only loadProfileQuietly runs.",
+  "Following from a friend's profile never redraws it: 'follows you' stays and the Message button does not appear until reopened (19001 redraws Friends only).",
+  "Friends list: the tick Motion.follow draws vanishes ~100-300ms later when loadFriends rebuilds the row without it (renderFriends 18946).",
+  "removeSaved: loadSaved rebuilds #svBody while the removed row's copy is still folding (380ms); on a fast answer the fold is cut off (21730).",
+  "newFollowers is set (18787) but drawn nowhere; .pf-hub-badge (3067) has no element since §341, so 'the badge the Friends tab clears' no longer exists.",
+  "'View Your FAM' (the 10.11 pill) is not in the code; only a comment at 17588 mentions it.",
+  "screen-myvibe is the My Vibes list (vibed episodes, folder, X), not the story editor; the editor is the #vibeComposer overlay (9387).",
+  "The replies sheet (#vpReplies, 19720) and the story editor (#vibeComposer, 9414) use hidden, not .sheet-overlay, so neither gets the owner's sheet motion.",
+  "Vibe-post Like (19639) never calls Motion.celebrate; no caller says 'LIKED' any more (rateReel is gone, likeStory 18064 has none) - a shared decision.",
+  "followPersonFriend / followHandle (19276, 19287) wait for the server with no change on the tap, unlike Follow elsewhere (§298).",
+  "The bottom line with an action lasts 3500ms (6752); an Undo needs at least 5s (shared, but Saved's Undo depends on it)."
+ ],
+ "animations": [
+  {
+   "id": "hub-arrival",
+   "title": "yourFAM drawing itself",
+   "status": "new",
+   "where": "static/index.html:17348 (renderProfile), 16949 (loadProfile)",
+   "trigger": "open the yourFAM tab; /api/profile answers",
+   "frequency": "many",
+   "now": "The tab's content nudges in (shared, 200ms), then /api/profile lands and the hub is rebuilt in one frame: an empty gold wash on first open, a silent rebuild every later time; pictures pop in.",
+   "verdict": "A many-times screen: redraws must hold still (Frequency, Tenth use). Paint what was seen last and reconcile only what changed (Doherty); an entrance only for content that truly arrives.",
+   "severity": "friction",
+   "principles": [
+    "Frequency of use",
+    "Doherty threshold",
+    "Stagger",
+    "Tenth use"
+   ],
+   "notes": "Today openProfile -> setTab('profile') (the shared tab nudge on .screen-top and .scroll) and loadProfile -> fetch /api/profile?notes=1 -> renderProfile, which replaces #pfTop and #profileBody with innerHTML every time the tab is opened (16961). There is no cache, so the first open of a session shows the gold wash and the tab bar until the answer lands, then hero, numbers, buttons, interests and grid appear in one frame. Later opens rebuild the same DOM: the background-image spans of the grid are re-created, so tiles can flash, and nothing says what changed (a friend count after a follow-back, a vibe posted from the player). The grid tiles are backgrounds (.yf-pic-img), so the shared blur-up (seed-img only) never applies.\nOption C keeps a device copy of the last /api/profile answer (localStorage, every read and write in try/catch; absent copy -> option B's path) and renders it on the tab's first frame. On the answer, diff by key: numbers (friends, vibes, mixes) roll only the digits that change (tabular-nums window, up when growing, 350ms IO), chained after any tile motion so one thing leads at a time (Staging); a name or place cross-fades 150ms; a new tile (key query+minutes or mix id) fades up 8px (260ms OUT, the owner's rail numbers); a gone tile exits 150ms IN to scale .92 and its siblings FLIP 250ms IO; interests enter/exit like changes-land. Nothing that did not change is touched, so the tenth open shows no motion at all.\nOption A is the skill's entrance recipe; it must run once per session (track drawn keys like feedTopicsShown in arriveRails, 6270) or it fails Tenth use. Option B is exactly arriveRails' language applied to #yfGrid.\nInterruptions: switching tab mid-entrance -> Motion.settle finishes it (fill none, so no state is held). The hub is live from frame one in all three; nothing waits on motion. Reduced motion: no entrance, no roll, values swap.\nShared parts not decided here: the tab nudge itself and picture blur-up (lead).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Stagger the first draw",
+     "summary": "On the first open of a session the page builds top-down: photo, numbers, buttons, interests, then tiles",
+     "spec": "300ms OUT(.32,.72,0,1) · y 8→0 · blur 2→0 · sections 80ms apart · tiles 40ms (first 6)",
+     "recipe": "Entrances: split, then stagger",
+     "principles": [
+      "Stagger",
+      "Staging",
+      "Serial position"
+     ],
+     "tradeoff": "Reads as a page assembling, but only once a session; every later open must show nothing, or it fails the tenth use.",
+     "recommended": false,
+     "reduced": "Everything appears at once.",
+     "demoNote": "Phone on yourFAM: white page, copper wash at top, tab bar with yourFAM lit. Frame 0: empty wash. t=0 hero (92px round photo, 'Maya Ortiz', 'Philadelphia · @maya') fades and rises 8px (300ms). t=80 numbers '12 friends / 5 vibes / 2 mixes'. t=160 pills 'Edit profile' (outline) + 'Saved for Later' (cream). t=240 'INTERESTS' + 4 pills. t=320 VIBES|MIXES tabs, then 6 tiles (3:4, warm photos, white titles) rise 40ms apart. Hold 1.2s. Loop shows a second open: all at once, nothing moves.",
+     "specShort": "300ms · 80/40 apart · y 8"
+    },
+    {
+     "key": "B",
+     "name": "Tiles only, rails' way",
+     "summary": "Words are simply there; only the vibe tiles that are new fade up, like dailyFAM's rails",
+     "spec": "260ms OUT · y 8→0 · opacity 0→1 · 40ms apart, first 6 · new tile keys only",
+     "recipe": "Entrances (copies of one element) - the owner's rail arrival (§292)",
+     "principles": [
+      "Similarity",
+      "Stagger",
+      "Frequency of use"
+     ],
+     "tradeoff": "Smallest change and the owner's own look; the first open still shows an empty wash until the answer lands.",
+     "recommended": false,
+     "reduced": "Tiles appear at once.",
+     "demoNote": "Phone on yourFAM. Frame 0: hero, numbers, buttons and interests already drawn; grid area empty under VIBES|MIXES. t=0 six tiles fade up 8px, 40ms apart, left to right then next row (260ms each). Hold 1.2s. Loop: second open, tiles already there, nothing moves; a new first tile (just vibed) fades up alone.",
+     "specShort": "260ms · y 8→0 · 40ms apart"
+    },
+    {
+     "key": "C",
+     "name": "Last seen, then changes",
+     "summary": "The page you saw last is there at once; when fresh data lands only what changed moves",
+     "spec": "frame 0 from device copy · new tile 260ms OUT y 8→0 · then digits roll 350ms IO",
+     "recipe": "Doherty: show last, then reconcile + Numbers (rolling digits) + FLIP",
+     "principles": [
+      "Doherty threshold",
+      "Make it mean something",
+      "Tenth use"
+     ],
+     "tradeoff": "Needs a device copy of your profile (localStorage, try/catch); a first-ever open on a new device falls back to B.",
+     "recommended": true,
+     "why": "Answers latency by starting earlier (the project's own rule) and keeps a many-times screen still; motion only marks real change.",
+     "reduced": "Last-seen page at once; changed values swap without rolling.",
+     "demoNote": "Phone, tap yourFAM. Frame 0: the full hub already drawn (photo, '12 friends / 5 vibes / 2 mixes', 6 tiles). A small grey tag 'data lands' at t=600: a new tile fades up 8px in the first cell (260ms) as the others slide one cell on (250ms IO, 30ms apart; the 3rd travels down-left to row 2); at t=860 the '5' of vibes rolls up to '6' in its digit window (350ms). Everything else still. Hold 1.2s, loop.",
+     "specShort": "cache · tile 260 · roll 350"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "shelf-switch",
+   "title": "Vibes | Mixes shelf switch",
+   "status": "new",
+   "where": "static/index.html:17467 (showProfileShelf), 19225 (showPersonShelf), .yf-tab 3458",
+   "trigger": "tap Vibes or Mixes, or the vibes/mixes number",
+   "frequency": "few",
+   "now": "The copper underline jumps tab to tab and the grid's tiles are replaced in one frame; tapping the number also smooth-scrolls the grid into view (ignores reduced motion).",
+   "verdict": "A few-times switch that changes the whole grid: show which way you moved, as the app's own tabs do (§292), and keep it short. The underline should travel as one indicator.",
+   "severity": "new",
+   "principles": [
+    "Similarity",
+    "Make it mean something",
+    "Exits",
+    "Interruptible"
+   ],
+   "notes": "showProfileShelf toggles .on on two .yf-tab buttons (border-bottom 2px copper) and sets #yfGrid.innerHTML. The friend's page (showPersonShelf) is the same layout and should get the same motion. The stats buttons call it with scroll=true -> grid.scrollIntoView({behavior:'smooth'}), which should become 'auto' under reduced motion.\nOption A reuses the owner's tab-switch numbers from Motion.screen 'tab' (6068: out 110ms, in 200ms after 90ms, 18px toward the new tab's side) on the grid only, with the old grid as an inert copy (absolute, over the new one) so the new tiles are live and tappable from frame one. dir = +1 going to Mixes (right), -1 to Vibes. The underline becomes one absolutely positioned 2px bar under the tabs moved by transform (translateX to the tab's left, scaleX for its width; the two tabs are equal, so translateX only) with a CSS transition - interruptible: a quick second tap turns it around from where it is. A second tap during the grid move finishes the first at once (the copy is removed), as Motion.settle does for screens.\nOption B keeps the indicator and replaces the slide by a fade-up of the new tiles; option C follows the skill's frequency rule for tabs (no transition) and only fades the tab color.\nHeights differ (5 vibes vs 1 mix): the scroll container simply takes the new height on frame one; nothing animates height. Empty shelf: the dashed note is one piece and moves like a tile.\nReduced motion: underline and grid change instantly (no 120ms crossfade - that rule is for screen changes).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Slide by side",
+     "summary": "The underline glides to the tab; the grid nudges out the way you moved and the new tiles slide in",
+     "spec": "bar 250ms IO translateX · out 110ms IN x→∓18 fade · in 200ms OUT x±18→0 +90ms",
+     "recipe": "Exits + entrances; interruptibility (indicator on a transition)",
+     "principles": [
+      "Similarity",
+      "Exits",
+      "Interruptible"
+     ],
+     "tradeoff": "Adds motion to every shelf switch; at 290ms it stays under the tenth-use bar but it is not free.",
+     "recommended": true,
+     "why": "The owner's own tab-switch gesture (§292) reused, so a tab inside a page behaves like a tab of the app.",
+     "reduced": "Underline and grid change instantly.",
+     "demoNote": "Grid area of yourFAM: VIBES | MIXES labels with a 2px copper bar under VIBES; 3x2 vibe tiles below. t=0 tap MIXES: the bar glides right (250ms); vibe tiles slide 18px left and fade (110ms); t=90 two mix tiles ('Commute', 'Morning run', square covers) slide in from 18px right and fade in (200ms). Hold 1.2s. Tap VIBES: mirror image, moving left. Loop.",
+     "specShort": "110 out / 200 in · x 18"
+    },
+    {
+     "key": "B",
+     "name": "Tiles cascade",
+     "summary": "The underline glides; the old tiles fade and the new ones rise one after another",
+     "spec": "bar 250ms IO · old fade 120ms IN · tiles 260ms OUT y 8→0, 30ms apart, first 6",
+     "recipe": "Entrances: split, then stagger (copies of one element)",
+     "principles": [
+      "Stagger",
+      "Exits"
+     ],
+     "tradeoff": "Softer, but a cascade on every switch reads as loading, and it says nothing about direction.",
+     "recommended": false,
+     "reduced": "Underline and grid change instantly.",
+     "demoNote": "Same grid. t=0 tap MIXES: bar glides right (250ms); vibe tiles fade out (120ms); t=120 mix tiles rise 8px and fade in, 30ms apart, left to right (260ms each). Hold 1.2s; tap VIBES: same, bar glides left. Loop.",
+     "specShort": "bar 250 · tiles 260, 30ms apart"
+    },
+    {
+     "key": "C",
+     "name": "Instant, color only",
+     "summary": "The grid changes on the next frame; only the tab label's color eases",
+     "spec": "grid 0ms · tab color 150ms ease · underline jumps",
+     "recipe": "Frequency of use (tabs: no transition)",
+     "principles": [
+      "Frequency of use",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Fastest and calmest; the switch stays as abrupt as today apart from the label color.",
+     "recommended": false,
+     "reduced": "Same, without the color ease.",
+     "demoNote": "Same grid. t=0 tap MIXES: underline jumps to MIXES, MIXES label darkens over 150ms, mix tiles are there on the next frame. Hold 1.2s; tap VIBES: same. Loop.",
+     "specShort": "0 ms · label color 150ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "follow-button",
+   "title": "Follow ⇄ Following",
+   "status": "existing",
+   "where": "static/index.html:6563 (Motion.follow), 18988 (followPerson), 19006 (unfollowPerson)",
+   "trigger": "tap Follow or Following (Friends list, a friend's profile)",
+   "frequency": "few",
+   "now": "On tap the label becomes '✓ Following' and the button animates width old→new 260ms (.2,.8,.2,1); the tick draws 220ms after 80ms. Both states look alike. Friends redraws ~200ms later, tick gone.",
+   "verdict": "Keep the change-on-tap (§298) but stop animating width (Properties): hold the size, cross-fade the labels, give Following its own look, and never redraw the tick away.",
+   "severity": "friction",
+   "principles": [
+    "Properties",
+    "Replacements",
+    "Similarity",
+    "Doherty threshold"
+   ],
+   "notes": "Motion.follow (6563) finds every button whose onclick contains followPerson('id'), swaps innerHTML and onclick, toggles .is-following (which has no CSS) and runs [{width: w0}, {width: w1}] for 260ms - a layout per frame, and in the centred .yf-acts row it drags the Message button with it. Then followPerson's success calls loadFriends -> renderFriends, which rebuilds the Friends rows with plain 'Following' (no tick), cutting both the width animation and the tick on a fast answer. On a friend's page nothing redraws, so the tick stays there - the two places disagree. Follow itself is gold at 19177 and 19209 but outline at 19167 and in personRow (18904).\nOption A (async-button recipe): render both labels inside the button at all times, stacked in one grid cell (display:inline-grid; children grid-area:1/1), the button's width set by the wider ('✓ Following'); the inactive layer aria-hidden. A state change sets data-state; CSS transitions opacity+scale on both layers at once (150ms, leaving one to .9 on IN, arriving from .9 on OUT). Fill: Follow = copper with ink text, Following = outline (background-color 150ms). The tick path keeps pathLength=1 and draws by stroke-dashoffset 1->0, 220ms IO, 60ms after the tap. renderFriends must draw the same markup (tick included) so a redraw changes nothing visible.\nOption B keeps the owner's 'takes its new width' look on transforms: the pill's paint lives on ::before, FLIP'd (scaleX from w0/w1 to 1, origin centre) while the label stays unscaled; neighbours FLIP too.\nOption C keeps §298 literally and only fixes the redraw and the look.\nInterrupt: a second tap mid-change re-targets the transitions (A, B) from where they are. Refusal: the same transition runs back, plus the server's sentence on the bottom line. Reduced motion: state changes on the frame (today Motion.follow already skips motion when !on()).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Hold size, swap labels",
+     "summary": "The button never changes size; 'Follow' fades out as '✓ Following' fades in, and the fill turns to outline",
+     "spec": "labels 150ms cross-fade, scale .9↔1 · fill 150ms · tick 1→0 220ms IO +60ms · width fixed",
+     "recipe": "Async buttons (one grid cell) + Replacements",
+     "principles": [
+      "Replacements",
+      "Properties",
+      "Similarity"
+     ],
+     "tradeoff": "'Follow' sits in a button sized for 'Following' (about 22px of spare room on each side).",
+     "recommended": true,
+     "why": "Same meaning as the owner's pick with no layout per frame; a fixed width means Message and the row's text never shift.",
+     "reduced": "Label, fill and tick change on the frame.",
+     "demoNote": "Friends row: 40px avatar, 'Jordan Lee' / '@jordan', copper pill 'Follow' at right. t=0 tap (squeeze). t=0-150 'Follow' fades and shrinks to .9 while '✓ Following' grows in from .9; pill turns from copper to cream outline (150ms). t=60-280 the tick draws left to right. Pill width unchanged (faint guide lines show both edges still). Hold 1s; tap again: reverse, no tick. Loop.",
+     "specShort": "150ms cross-fade · tick 220"
+    },
+    {
+     "key": "B",
+     "name": "Width by transform",
+     "summary": "The owner's look kept: the pill stretches to its new width, built on a scaled background",
+     "spec": "pill ::before scaleX w0/w1→1 260ms IO, origin centre · labels 150ms · tick 220ms +80ms",
+     "recipe": "FLIP + cross-fade",
+     "principles": [
+      "Properties",
+      "Solid drawing"
+     ],
+     "tradeoff": "Closest to §298; more parts (the label must not scale, neighbours must FLIP), and the row still changes size.",
+     "recommended": false,
+     "reduced": "New width, label and tick on the frame.",
+     "demoNote": "Same row. t=0 tap 'Follow': the copper pill's background stretches wider from its centre (260ms) as the label cross-fades to '✓ Following' and the fill fades to outline; the tick draws from t=80. Hold 1s; tap: it narrows back. Loop.",
+     "specShort": "scaleX 260ms io · labels 150"
+    },
+    {
+     "key": "C",
+     "name": "Keep §298, fixed",
+     "summary": "Today's motion exactly, with the two fixes: Following gets its own look and the tick is never redrawn away",
+     "spec": "width 260ms (.2,.8,.2,1) · tick 220ms +80ms · fill 150ms · rows not rebuilt mid-change",
+     "recipe": "Keep the owner's pick, tuned",
+     "principles": [
+      "Similarity"
+     ],
+     "tradeoff": "Animates width, which the skill forbids (layout every frame); on a long Friends list that is visible jank.",
+     "recommended": false,
+     "reduced": "Unchanged from today: no motion.",
+     "demoNote": "Same row. t=0 tap 'Follow': the pill widens over 260ms while the label reads '✓ Following' and the fill fades to outline; tick draws from t=80. Hold 1s; tap: narrows to 'Follow'. Loop.",
+     "specShort": "width 260ms (today) · tick 220"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "friends-regroup",
+   "title": "A followed row finds its group",
+   "status": "new",
+   "where": "static/index.html:18910 (renderFriends), 19001 (loadFriends after follow)",
+   "trigger": "follow or unfollow on Friends; the server answers",
+   "frequency": "few",
+   "now": "When the server answers, the whole list is rebuilt: the row jumps from 'Follows you' to 'Friends' (or vanishes), group headers and '2 friends · 3 following' change in one frame.",
+   "verdict": "'Where did they go?' is a real question here. Move the row to its new group (a spatial move) and roll the counts - or keep it still while you work down the list.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Staging",
+    "Interruptible",
+    "Peak-end"
+   ],
+   "notes": "renderFriends (18910) draws three groups - Friends, Following (one-way), Follows you - and nobody in two of them. A follow-back moves a person from Follows you to Friends (the group above); an unfollow of a friend moves them down to Follows you; an unfollow of a one-way row removes it from every group. Each happens when loadFriends answers (19001, 19013), by innerHTML, so the row teleports and the rows between shift by one row in the same frame. Group headers carry counts (<em>), and the top line carries three counts.\nOption A: before the redraw, record each .fr-row's top by user id (a data-user attribute is needed: today the row only has the handle inside an onclick) and the header counts; redraw; then FLIP every row whose top changed (translateY from old-new to 0, 320ms IO, all together - one gesture), rows that left exit as inert copies (150ms IN, x -8, fade), new headers fade in 150ms. Counts roll only the changed digits (350ms IO, tabular-nums). The move starts when the server answers, from where the row was, so nothing is held; the button's tick keeps drawing inside the moving row. Rows are live during the move (transform only). A second follow mid-move: settle the first (cancel, rows land) then measure again.\nOption B suits someone following back five people in a row: nothing moves under the thumb. The row's meta gains 'Friends now' (150ms fade); the regroup happens on the next open. Its cost: for a while the row sits under 'Follows you' while being a friend.\nOption C reuses the §298 removal for the old place and the expander for the new one; two motions in two places split attention (Staging).\nSearch results (searchPeople) are not regrouped: they are a flat list. Reduced motion: list and counts update instantly.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Row travels to group",
+     "summary": "When the server answers, the row glides up into Friends and the counts roll",
+     "spec": "FLIP translateY 320ms IO(.77,0,.175,1) · then counts roll 350ms IO · leavers 150ms IN x−8",
+     "recipe": "FLIP reorder + Numbers (rolling digits) + Exits",
+     "principles": [
+      "Make it mean something",
+      "Peak-end",
+      "Staging"
+     ],
+     "tradeoff": "The list moves under the thumb for 320ms; following several in a row means aiming at a moving list.",
+     "recommended": true,
+     "why": "Becoming friends is the moment this screen exists for; the row rising into Friends says it without words.",
+     "reduced": "List and counts change instantly.",
+     "demoNote": "Friends screen: top line '2 friends · 3 following · 4 followers'; FRIENDS header with Ana, Ben; FOLLOWS YOU header with Sam, Priya, Leo, each with a copper 'Follow'. t=0 tap Priya's Follow: label swaps to '✓ Following'. t=200 (server): Priya's row glides up into FRIENDS under Ben (320ms) as the FOLLOWS YOU header and Sam slide down one row; at t=520 '2 friends' rolls to '3', '3 following' to '4'. Hold 1.2s. Loop.",
+     "specShort": "FLIP 320ms io · then roll 350"
+    },
+    {
+     "key": "B",
+     "name": "Stay put",
+     "summary": "The row keeps its place and says 'Friends now'; the groups are tidied next time you open Friends",
+     "spec": "no reorder · meta 'Friends now' fade 150ms · counts roll 350ms IO",
+     "recipe": "Occam's razor + Numbers (rolling digits)",
+     "principles": [
+      "Interruptible",
+      "Fitts's law",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Nothing moves under your thumb; until you come back, a friend sits under 'Follows you'.",
+     "recommended": false,
+     "reduced": "Meta and counts change instantly.",
+     "demoNote": "Same screen. t=0 tap Priya's Follow: '✓ Following'. t=200: under '@priya' a small copper 'Friends now' fades in (150ms); '2 friends' rolls to '3'. The row stays where it is. t=900 tap Leo's Follow: same. Hold 1s. Loop.",
+     "specShort": "no move · fade 150 · roll 350"
+    },
+    {
+     "key": "C",
+     "name": "Fold out, fold in",
+     "summary": "The row slides out of its old group as a copy opens up in the new one",
+     "spec": "out x→−45% 180ms IN · gap FLIP 200ms IO · in: grid-rows 0fr→1fr 250ms IO + fade 150ms",
+     "recipe": "Exits (§298 removal) + Expanders",
+     "principles": [
+      "Similarity",
+      "Exits"
+     ],
+     "tradeoff": "Reuses the owner's removal look, but two motions in two places at once: the eye can follow only one.",
+     "recommended": false,
+     "reduced": "List changes instantly.",
+     "demoNote": "Same screen. t=200 (server): Priya's row slides left and fades (180ms) and the gap under Sam closes; at the same time a row opens under Ben in FRIENDS (250ms) and Priya fades into it. Counts roll. Hold 1.2s. Loop.",
+     "specShort": "out 180 · in 250 · roll 350"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "person-fill",
+   "title": "A friend's profile filling in",
+   "status": "new",
+   "where": "static/index.html:19093 (renderFriendProfile), 19063 (loadPersonProfile)",
+   "trigger": "open a friend's profile; /api/person answers",
+   "frequency": "few",
+   "now": "The hero draws at once; when /api/person lands a numbers row (~60px) is inserted above Follow and Message, and the interests line and tiles appear below - all in one frame.",
+   "verdict": "A layout that changes shape when the fetch lands (Doherty). Reserve the rows from frame one so nothing jumps; let only the arriving values and tiles move.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Stagger",
+    "Fitts's law"
+   ],
+   "notes": "openPersonProfile pushes the screen (shared, 320ms) and calls renderFriendProfile(person) with no published data: the stats row is skipped (19144 'if(published)'), the interests line is skipped (interestLineHTML returns '' with no pills), the grid is empty (showPersonShelf returns early, 19236). When /api/person answers - often during or just after the push - everything is rebuilt by innerHTML: ~60px of numbers is inserted above the Follow and Message buttons (the interests line, under them at 19183, appears too), a ring may appear on the photo, the place prefix appears, tiles appear. A finger on its way to Follow lands on whatever slid under it.\nOption A draws the stats row and the interests line on the first render with their final heights: numbers as an en dash in the same <b>, interests as three empty pill outlines at 40% opacity (or simply a reserved 35px line). On arrival patch in place rather than rebuild: numbers cross-fade 150ms, pills fade in 150ms, tiles fade up 8px (260ms OUT, 40ms apart, first 6 - the owner's rail arrival). If the person has no interests the reserved line closes with the expander recipe (190ms IO); it sits under the buttons, so its collapse never moves Follow.\nOption B uses the expander on the stats row - smooth but Follow still travels ~60px.\nOption C is the skill's skeleton; it flashes on a fast answer (the skill: no spinner/skeleton under 300ms; show it only after 300ms and hold 500ms).\nLate friend-of-friend data and View more (togglePersonMore) also rebuild the page; they should patch the list only. Reduced motion: values and tiles appear instantly in the reserved space.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Reserve, then fill",
+     "summary": "Numbers and interests have their place from the first frame; values fade in and tiles rise into it",
+     "spec": "rows reserved · values 150ms fade · tiles 260ms OUT y 8→0, 40ms apart, first 6",
+     "recipe": "Doherty (no default that flips) + Entrances: stagger",
+     "principles": [
+      "Doherty threshold",
+      "Fitts's law",
+      "Stagger"
+     ],
+     "tradeoff": "Dashes show for a moment on a slow answer; a person with no interests leaves a line that must close below the buttons.",
+     "recommended": true,
+     "why": "Follow stays under the thumb, and the only things that move are the ones that arrived.",
+     "reduced": "Values and tiles appear at once in the reserved space.",
+     "demoNote": "Friend page pushed in (gold wash): photo, 'Priya Shah', '@priya · follows you'; numbers row shows '– friends / – vibes / – mixes'; Follow pill below. A dotted line marks Follow's top. t=500 data lands: '48 / 12 / 3' fade in (150ms), 3 interest pills fade in, 6 tiles rise 8px, 40ms apart. Follow never crosses the dotted line. Hold 1.2s. Loop.",
+     "specShort": "reserved · 150 fade · tiles 260"
+    },
+    {
+     "key": "B",
+     "name": "Open the gap",
+     "summary": "The numbers row grows open and pushes the page down smoothly instead of jumping",
+     "spec": "stats: grid-rows 0fr→1fr 250ms IO · numbers fade 150ms after · tiles as A",
+     "recipe": "Expanders (grid-rows)",
+     "principles": [
+      "Properties",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "Smooth, but Follow still travels ~60px while you may be reaching for it.",
+     "recommended": false,
+     "reduced": "Rows appear at once.",
+     "demoNote": "Same page. Frame 0: hero then Follow directly under it. t=500: a numbers row opens between them (250ms), Follow eases down; the numbers fade in; tiles rise 40ms apart. Hold 1.2s. Loop.",
+     "specShort": "expander 250ms io · tiles 260"
+    },
+    {
+     "key": "C",
+     "name": "Skeleton placeholders",
+     "summary": "Grey shapes stand where numbers, pills and tiles will be, then cross-fade to the real thing",
+     "spec": "skeleton after 300ms, held ≥500ms · cross-fade 200ms OUT on arrival",
+     "recipe": "Doherty (skeleton the size of the content)",
+     "principles": [
+      "Doherty threshold"
+     ],
+     "tradeoff": "Honest on a slow network but louder than the content; on a fast one it must be skipped or it flashes.",
+     "recommended": false,
+     "reduced": "Skeleton shown without fades; content swaps in.",
+     "demoNote": "Same page. t=300: three grey number blocks, three grey pill shapes and six grey tiles appear. t=800 data: each cross-fades to the real numbers, pills and pictures (200ms). Hold 1.2s. Loop.",
+     "specShort": "skeleton · cross-fade 200ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "saved-remove",
+   "title": "Removing a saved row",
+   "status": "existing",
+   "where": "static/index.html:6582 (Motion.removeRow), 21716 (removeSaved), 18731 (unvibe)",
+   "trigger": "tap a row's X in Save for Later or My Vibes",
+   "frequency": "few",
+   "now": "Copy slides x 0→-45% and fades, 180ms (.4,0,1,1); then height, padding, margin →0 over 200ms. loadSaved then rebuilds the list (can cut the fold). 'Removed', no Undo. My Vibes: no motion.",
+   "verdict": "Keep the owner's slide-then-close (§298) but close the gap with transforms, let it finish, add Undo, and make My Vibes match.",
+   "severity": "friction",
+   "principles": [
+    "Properties",
+    "Errors: prevent then recover",
+    "Similarity",
+    "Exits"
+   ],
+   "notes": "removeSaved (21716) calls Motion.removeRow(row, row.remove, '#svBody .sv-row'): the real row leaves at once, an inert copy is put back in its place and slides out (180ms EASE_IN) then folds by animating height/padding/margin (200ms EASE, 180ms delay) - the forbidden properties - so every frame re-lays out the list. Then the DELETE's answer calls loadSaved -> renderSaved, which replaces #svBody.innerHTML: on a fast server (<380ms) the copy is destroyed mid-fold and the rows below jump. The bottom line says 'Removed' and nothing can undo it. My Vibes' X (18731) has none of this: it waits, reloads, redraws.\nOption A keeps the owner's look: the copy is absolute (out of flow) and slides out; the rows below are FLIP'd: they are already in their new places on frame one and are translated down by the removed row's height, then glide to 0 (200ms IO) starting at 180ms - same timing as today, transforms only. The follow-up load must patch (by item id) or wait until the motion ends. Undo: the bottom line 'Removed · Undo' for at least 5s (the shared snack now gives 3500ms - needs the lead's change); the DELETE is sent when the line closes or the page is hidden (visibilitychange), so Undo only re-inserts locally (row fades back 200ms, rows below FLIP down 200ms IO). If the episode is on the player, setSaved(false) runs at the tap as today.\nOption B adds the iOS gesture; it conflicts with the horizontal folder chips only if started on them, and with the edge back-swipe (start beyond 24px from the left edge).\nOption C is the skill's plain exit: fade with an 8px nudge while the gap closes at the same time.\nLast row removed: the empty-shelf sentence fades in (150ms) where the list was. Reduced motion: row gone, list closed instantly; the Undo line still appears (it is information, not motion).",
+   "options": [
+    {
+     "key": "A",
+     "name": "§298 on transforms",
+     "summary": "Exactly today's slide-out and close-up, built on transforms, finished properly, with Undo",
+     "spec": "x 0→−45% + fade 180ms IN(.55,0,1,.45) · rows below y h→0 200ms IO · Undo 5s",
+     "recipe": "Exits + FLIP + Errors: recover (Undo)",
+     "principles": [
+      "Properties",
+      "Errors: prevent then recover",
+      "Similarity"
+     ],
+     "tradeoff": "Undo means the delete is sent ~5s later; a reload in that window still shows the row until it is sent.",
+     "recommended": true,
+     "why": "Keeps the owner's pick as it looks, drops the forbidden height animation, and makes a mistaken X recoverable.",
+     "reduced": "Row gone and list closed instantly; Undo line still shown.",
+     "demoNote": "Save for Later list: 4 rows (38px cream play square, title, '3 MIN', folder icon, X). t=0 tap X on row 2: it slides 45% left and fades (180ms); t=180 rows 3-4 glide up one row (200ms). Bottom: short copper rule, 'Removed · Undo'. t=1400 tap Undo: row 2 fades back in place while rows 3-4 glide down (200ms). Hold 1s. Loop.",
+     "specShort": "slide 180 + close 200 · Undo"
+    },
+    {
+     "key": "B",
+     "name": "Swipe to remove",
+     "summary": "Drag a row left to remove it; it follows your finger and flies off on release; the X does the same",
+     "spec": "drag 1:1 · release spring .5s bounce 0 · off if >40% or flick >0.1px/ms · gap 200ms IO",
+     "recipe": "Interruptible (drag direct, spring on release) + rubber banding (right edge)",
+     "principles": [
+      "Jakob's law",
+      "Interruptible",
+      "Errors: prevent then recover"
+     ],
+     "tradeoff": "Familiar from iOS lists, but a sideways drag competes with the edge back-swipe and needs the X kept as the visible way.",
+     "recommended": false,
+     "reduced": "Drag still follows the finger; no spring, row removed at release.",
+     "demoNote": "Same list. t=0 finger drags row 2 left: it follows 1:1 to ~50%, a coral 'Remove' shows behind it. t=400 release: the row carries on off the left edge (spring), rows below glide up (200ms). 'Removed · Undo' line. Hold 1s. Loop.",
+     "specShort": "drag 1:1 · spring .5s · close 200"
+    },
+    {
+     "key": "C",
+     "name": "Collapse in place",
+     "summary": "The row fades with a small nudge while the rows below close the gap at the same time",
+     "spec": "copy fade + x −8px 150ms IN · rows below y h→0 200ms IO, together · Undo 5s",
+     "recipe": "Exits (fade + 8px nudge) + FLIP",
+     "principles": [
+      "Exits",
+      "Tenth use"
+     ],
+     "tradeoff": "Shorter (200ms vs 380) and quieter, but not the slide-out the owner chose in §298.",
+     "recommended": false,
+     "reduced": "Row gone, list closed instantly.",
+     "demoNote": "Same list. t=0 tap X on row 2: it fades with an 8px leftward drift (150ms) while rows 3-4 glide up (200ms) at once. 'Removed · Undo' line. Hold 1s. Loop.",
+     "specShort": "fade 150 + close 200, together"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "settings-late-rows",
+   "title": "Settings rows that arrive late",
+   "status": "new",
+   "where": "static/index.html:18297 (openSettings), 18390 (loadPushState), 18324 (renderSettings)",
+   "trigger": "open Settings; answers land after it is on screen",
+   "frequency": "few",
+   "now": "The list is rebuilt up to 7 times as answers land; the Notifications group (3 rows + note, ~230px) is inserted on the first open, shoving rows below; values pop in from blank.",
+   "verdict": "Nothing should change shape after the first frame (Doherty). Ask earlier so Settings is whole when it opens; failing that, reserve or open the space smoothly.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Fitts's law",
+    "Properties"
+   ],
+   "notes": "openSettings (18297) renders, pushes the screen, then calls renderSettings again after loadPrefChoices, loadPlan, loadAiConsent and - for an account - checkResetReady, loadBlocked and loadActivation; renderSettings itself starts loadPushState once per page (18388-18390). Each call replaces #settingsBody.innerHTML. Visible effects: 'Your interests' and 'Where you are' values change, 'Subscription' goes from a dash to the plan, 'Send my questions to AI' from blank to 'Allowed', 'Blocked people' from blank to 'None', Date of birth and Gender from blank, and on the first open the whole NOTIFICATIONS group (three rows and a note, ~230px) is inserted between Listening and 'Say Hey FAM', moving everything below it. A rebuild between finger down and up drops the tap (broken finding).\nOption C moves the fetches to sign-in / app start (all are small reads of the listener's own rows) and keeps them; Settings opens complete. Rows then update in place: a helper that sets one row's value text, cross-fading 150ms only when it differs. A server that cannot deliver push still shows its sentence, from the first frame.\nOption B reserves the group with known labels; option A animates the late insert with the expander recipe (grid-template-rows 0fr->1fr on a wrapper, 250ms IO, inner min-height:0; overflow:hidden; inert while closed).\nAll three require replacing the full innerHTML rebuild with in-place updates (stable row ids), which also fixes the lost-tap bug. Reduced motion: values change without fades; A's group appears at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Open the space",
+     "summary": "A late group grows open and pushes the rows below down smoothly; late values fade in",
+     "spec": "group grid-rows 0fr→1fr 250ms IO · rows fade 150ms after · values 150ms · in place",
+     "recipe": "Expanders (grid-rows)",
+     "principles": [
+      "Properties",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "No jump, but rows below still move ~230px while you may be reaching for one.",
+     "recommended": false,
+     "reduced": "Group and values appear instantly.",
+     "demoNote": "Settings pushed in: YOU, APPEARANCE, LISTENING groups, then 'Say “Hey FAM”' and PRIVACY. t=500: a gap opens above 'Say Hey FAM' (250ms) and NOTIFICATIONS (Daily reminder 7:30 AM, Big stories On, Final scores Off) fades into it; rows below ease down. 'Subscription –' fades to 'Free'. Hold 1.2s. Loop.",
+     "specShort": "expander 250ms io · fade 150"
+    },
+    {
+     "key": "B",
+     "name": "Reserve the group",
+     "summary": "The group is drawn from the first frame with its labels; only the values fade in",
+     "spec": "rows reserved · values 150ms fade · rows→note cross-fade 200ms if push is unavailable",
+     "recipe": "Doherty (skeleton the size of the content)",
+     "principles": [
+      "Doherty threshold",
+      "Fitts's law"
+     ],
+     "tradeoff": "Nothing moves; where push cannot be delivered, rows show briefly before turning into the server's sentence.",
+     "recommended": false,
+     "reduced": "Values and note swap instantly.",
+     "demoNote": "Settings pushed in complete, NOTIFICATIONS rows already there with empty values. t=500 '7:30 AM', 'On', 'Off' fade in (150ms); 'Subscription –' fades to 'Free'. A finger taps 'Say Hey FAM' at t=520 and hits it. Hold 1.2s. Loop.",
+     "specShort": "reserved · values fade 150ms"
+    },
+    {
+     "key": "C",
+     "name": "Ask before you look",
+     "summary": "Everything Settings shows is fetched at sign-in, so the screen opens whole and nothing moves",
+     "spec": "fetch at sign-in, keep · full list on frame 1 · later changes: value cross-fade 150ms in place",
+     "recipe": "Doherty (show last, reconcile) - start earlier",
+     "principles": [
+      "Doherty threshold",
+      "Fitts's law",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Six small reads at sign-in instead of at Settings; a value changed elsewhere since then fades once.",
+     "recommended": true,
+     "why": "The project's own rule - answer latency by starting earlier - leaves nothing to animate, nothing to jump, no tap to lose.",
+     "reduced": "Same; a later change swaps without the fade.",
+     "demoNote": "Settings pushes in already complete: YOU, APPEARANCE (Dark mode Off), LISTENING, NOTIFICATIONS (Daily reminder 7:30 AM, Big stories On, Final scores Off), PRIVACY. Nothing moves after the push. t=700 a finger taps 'Big stories' and it changes. Small caption beside: 'before: NOTIFICATIONS dropped in at 500ms'. Loop.",
+     "specShort": "0 ms · loaded at sign-in"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "vibe-delete",
+   "title": "Deleting a vibe from your grid",
+   "status": "new",
+   "where": "static/index.html:17504 (armVibeHolds), 17548 (deleteMyVibe), 19691 (post menu)",
+   "trigger": "hold your tile 500ms, then 'Remove vibe from profile'",
+   "frequency": "rare",
+   "now": "Hold: the squeeze holds, a 10ms buzz at 500ms, the sheet. After the server answers the grid is rebuilt: the tile vanishes, later tiles jump a cell; the 'N vibes' number stays stale.",
+   "verdict": "Remove on confirm, let the tile recede and the grid close over it (FLIP), roll the vibes number down. Optionally let the hold show that it is counting.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Make it mean something",
+    "Exits",
+    "Properties"
+   ],
+   "notes": "armVibeHolds (17504) arms a 500ms timer per own tile; the shared squeeze holds the tile at ~0.947 meanwhile, navigator.vibrate(10) fires, openVibeTileMenu shows the shared action sheet with one red action. deleteMyVibe (17548) sends DELETE /api/vibe and only on success splices profileVibes, re-renders #yfGrid (showProfileShelf), shows 'Vibe deleted', reloads the circle and calls loadProfileQuietly - which never redraws the hub, so the 'N vibes' number is stale (bug). Tiles after the deleted one shift a cell; at a row end the next tile jumps up and to the far left. The same delete from a post's menu (19691) re-renders all posts (renderVibePosts) and from My Vibes (18731) waits and reloads.\nOption A: on confirm, before the request, record tile rects (key query+minutes), splice, re-render, put an inert copy of the tile where it was (absolute in the grid) and run scale 1->.92 + opacity 1->0, 150ms IN; FLIP every later tile from old rect to new (translate, 250ms IO, 30ms apart, first 6, the rest with the sixth); the vibes <b> rolls down (350ms IO). The sheet's own drop (shared, 150ms) runs first; start at sheet close. Refused: restore the list, redraw, bottom line 'Could not delete that vibe'. Posts and My Vibes use the saved-remove choice (rows), not this grid motion.\nOption B adds hold progress, the hold-to-confirm case the skill times as linear: after the 90ms squeeze, the tile keeps sinking .95->.92 and a black veil rises 0->30% over the remaining 410ms, cancelled with the timer (10px move or lift). It must stay below the 'many' bar: the hold is rare.\nOption C uses the §298 slide-left for the tile; in a 3-column grid the copy slides over its left neighbour.\nThe confirm sheet stays (a deleted vibe's style and caption cannot be restored, so Undo is not offered). Reduced motion: tile gone, grid and count updated instantly; no veil.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Shrink and close up",
+     "summary": "The tile shrinks away as you confirm; the tiles after it slide back into place and the count drops",
+     "spec": "copy scale 1→.92 + fade 150ms IN · siblings FLIP 250ms IO, 30ms apart · then count roll",
+     "recipe": "Exits + FLIP + Numbers (rolling digits)",
+     "principles": [
+      "Make it mean something",
+      "Doherty threshold",
+      "Properties"
+     ],
+     "tradeoff": "Optimistic: on a refusal the tile comes back with a message, which is rare but visible.",
+     "recommended": true,
+     "why": "A finished thing recedes and the grid visibly closes over it, on the frame you confirm (Doherty).",
+     "reduced": "Tile gone, grid and number updated instantly.",
+     "demoNote": "yourFAM grid 3x2 of vibe tiles; numbers row '5 vibes'. t=0 finger holds tile 2 (it squeezes). t=500 sheet rises: 'Remove vibe from profile' in coral. t=1000 tap it: sheet drops (150ms); t=1150 tile 2 shrinks to .92 and fades (150ms) while tiles 3-5 slide back one cell (tile 4 travels up and right into row 1), 250ms, 30ms apart; as they land (t=1450) '5' rolls down to '4' (350ms). Hold 1s. Loop.",
+     "specShort": "150 out · FLIP 250 · roll 350"
+    },
+    {
+     "key": "B",
+     "name": "A hold that counts",
+     "summary": "As A, and while you hold, the tile sinks and darkens so you can see the menu coming",
+     "spec": "hold: scale .95→.92 + veil 0→.3, 410ms linear · then A",
+     "recipe": "Hold-to-confirm (linear: time itself) + A",
+     "principles": [
+      "Anticipation",
+      "Doherty threshold",
+      "Make it mean something"
+     ],
+     "tradeoff": "Tells you the hold is working; a scroll that starts as a hold shows a brief darkening before it cancels.",
+     "recommended": false,
+     "reduced": "No sinking or veil; then as A, instantly.",
+     "demoNote": "Same grid. t=0 finger down on tile 2: squeeze, then the tile keeps sinking and a dark veil rises over it steadily until t=500, when the sheet rises. t=1000 tap Remove: as A (shrink, siblings slide back, count rolls). Hold 1s. Loop.",
+     "specShort": "hold 410ms linear · then A"
+    },
+    {
+     "key": "C",
+     "name": "The owner's removal",
+     "summary": "The tile slides out to the left like a removed row, then the others close the gap",
+     "spec": "x 0→−45% + fade 180ms IN · then siblings FLIP 200ms IO · count roll 350ms",
+     "recipe": "Keep the owner's pick (§298 removal), extended to a grid",
+     "principles": [
+      "Similarity",
+      "Exits"
+     ],
+     "tradeoff": "Same language as Saved and the queue, but in a 3-column grid the sliding tile passes over its neighbour.",
+     "recommended": false,
+     "reduced": "Tile gone and grid closed instantly.",
+     "demoNote": "Same grid. t=1150 tile 2 slides left 45% over tile 1 and fades (180ms); t=1330 tiles 3-5 slide back one cell (200ms); '5' rolls to '4'. Hold 1s. Loop.",
+     "specShort": "slide 180 · FLIP 200 · roll 350"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "interest-picker",
+   "title": "Choosing your five interests",
+   "status": "new",
+   "where": "static/index.html:20017 (renderIdentityInterests), 20031 (toggle), 20044 (add typed)",
+   "trigger": "tap an interest chip in Edit profile; type one and add",
+   "frequency": "rare",
+   "now": "Each tap rebuilds the chips: a chosen chip fills copper and gains a check, growing ~18px so the wrap reflows; '3 OF 5' swaps; at five the rest dim and a tap on one does nothing.",
+   "verdict": "Did my tap register, and how many are left? Keep each chip's width, swap the icon in place, roll the count; a refused tap at five earns one small shake of the counter.",
+   "severity": "new",
+   "principles": [
+    "Replacements",
+    "Make it mean something",
+    "Exaggeration",
+    "Zeigarnik / goal gradient"
+   ],
+   "notes": "renderIdentityInterests replaces #identityIntChips.innerHTML on every toggle (20022). A chosen .yf-int prepends a 13px check (yfIcon('check')) and gets bold: the chip widens ~18px and every chip after it can wrap to another line in the same frame - the chip you tapped may even move away from your finger. #identityIntCount text swaps. At the maximum, unchosen chips get .dim and toggleIdentityInterest returns silently (20038). A typed interest is pushed to the end of the list and chosen if there is room (20044) - it appears in one frame, possibly off screen.\nOption A: give every chip a fixed 14px icon slot (unchosen: a '+' at 60% opacity; chosen: the check), font weight unchanged (a bold switch also changes width - use color only), so width never changes. Update the tapped chip in place (class + aria-pressed), not by rebuilding. The two icons are both present, stacked; the icon-swap recipe without Motion: cross-fade with scale .3<->1 and blur 3px<->0 over 300ms cubic-bezier(.25,.1,0,1). Fill is a color transition (150ms). The count is a one-digit roll (300ms IO; up when adding). At five, the others' dimming is a 150ms color fade; a tap on a dim chip shakes #identityIntCount (translateX 0,-10,10,-6,6,-3,0 over 360ms) - the skill's failed-attempt exaggeration - and nothing else. A typed chip enters at the end with scale .95->1 + fade (200ms OUT) and is scrolled into view if needed.\nOption B floods the fill from the tap point (clip-path circle on a ::before), a richer 'did it register'.\nOption C is the frequency answer (instant), still with the reserved slot (the reflow is the real problem).\nInterrupt: transitions re-target on a quick second tap. Reduced motion: icon, fill and count change instantly; no shake (the dim chips and the count already say why).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Check swaps in place",
+     "summary": "The chip keeps its size; its + turns into a check, it fills copper, and the count ticks up",
+     "spec": "icon swap 300ms (.25,.1,0,1) scale .3→1 blur 3→0 · fill 150ms · count roll 300ms IO",
+     "recipe": "Icon swaps + Numbers + Exaggeration (failed attempt)",
+     "principles": [
+      "Replacements",
+      "Zeigarnik / goal gradient",
+      "Exaggeration"
+     ],
+     "tradeoff": "Unchosen chips gain a faint '+', a small change to the design.",
+     "recommended": true,
+     "why": "Nothing reflows under the finger, the count shows five filling up, and the one refusal explains itself without a toast.",
+     "reduced": "Icon, fill and count change instantly; no shake.",
+     "demoNote": "Edit profile: 'YOUR INTERESTS' and '3 OF 5' at right; wrapped pills: '✓ Tech' '✓ NFL' '✓ Jazz' (copper), '+ Surfing' '+ AI' '+ Film' (outline). t=0 tap Surfing: '+' shrinks and blurs out while '✓' grows in (300ms), pill fills copper (150ms), '3' rolls up to '4'. t=900 tap AI: '5 OF 5', Film dims (150ms). t=1700 tap Film: '5 OF 5' shakes (360ms). Hold 1s. Loop.",
+     "specShort": "icon swap 300 · roll 300 · shake"
+    },
+    {
+     "key": "B",
+     "name": "Fill from the tap",
+     "summary": "Copper floods the chip from where you tapped and the check draws itself; unchoosing drains it",
+     "spec": "clip-path circle 0→cover 250ms OUT · check draw 200ms +80ms · drain 180ms IN · count roll",
+     "recipe": "Masks and reveals (iris from the tap) + stroke draw",
+     "principles": [
+      "Make it mean something",
+      "Origin"
+     ],
+     "tradeoff": "More expressive; still needs the reserved icon slot, and the flood is extra code per chip.",
+     "recommended": false,
+     "reduced": "Fill and check appear instantly.",
+     "demoNote": "Same chips. t=0 tap the right half of 'Surfing': a copper circle spreads from the tap point to fill the pill (250ms); t=80 the check draws (200ms); count rolls '3'→'4'. t=900 tap Tech: the copper drains back to a point (180ms), check fades. Hold 1s. Loop.",
+     "specShort": "iris 250 · check 200 · drain 180"
+    },
+    {
+     "key": "C",
+     "name": "Instant, count rolls",
+     "summary": "The chip changes on the next frame (no reflow); only the count rolls",
+     "spec": "chip color 150ms · icon slot reserved · count roll 300ms IO",
+     "recipe": "Frequency of use + Numbers",
+     "principles": [
+      "Frequency of use",
+      "Replacements"
+     ],
+     "tradeoff": "Calmest; the tap's confirmation is just a color change, and a refused tap at five stays silent.",
+     "recommended": false,
+     "reduced": "Count changes without rolling.",
+     "demoNote": "Same chips. t=0 tap Surfing: it turns copper with a check (150ms color), nothing moves; '3' rolls to '4'. t=900 tap AI: '5 OF 5', others dim. Hold 1s. Loop.",
+     "specShort": "color 150 · roll 300"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "edit-profile-open",
+   "title": "Opening Edit profile",
+   "status": "new",
+   "where": "static/index.html:20170 (openIdentity), 20346 (closeIdentity), 18590 (location), 18641 (intro)",
+   "trigger": "tap Edit profile, or a Settings editor row; X or Save",
+   "frequency": "rare",
+   "now": "Edit profile, Where you are and Your interests (from Settings) are shown with showScreen and no 'how': they appear and leave in one frame, while every other door here pushes in (320/260ms).",
+   "verdict": "Rare, so it may move. These editors close with an X, so they should behave like the app's sheets (fade and lift), one motion for all three.",
+   "severity": "new",
+   "principles": [
+    "Similarity",
+    "Jakob's law",
+    "Exits",
+    "Frequency of use"
+   ],
+   "notes": "openIdentity('edit') ends in showScreen('identity') with no kind (20170); closeIdentity and the edit Save return with showScreen(identityReturn) (20273, 20347). The same is true of the location editor (18590, 18595) and the interests editor opened from Settings (18641). They are not on the navigation stack (the intro-not-on-stack rule), and they show an X in the top-left (.sheet-close), not the back chevron - so they read as modal pages. Motion.screen returns early with no 'how' (6022), hence the snap. In first-run mode identity and intro are sign-up steps and keep the shared 'step' motion; this entry is only for their editor mode.\nOption A adds a Motion.screen kind 'sheet': the arriving editor animates opacity 0->1 and translateY 14px->0 over 200ms OUT (the owner's sheet numbers, mo-in/mo-lift at 2116), the page beneath stays still; closing, the editor is kept as .leaving on-top (inert, as screens already are) and drops 8px while fading (150ms IN), the page beneath already active. The fixed parts (tab bar, mini player) of the page beneath never move. Kind passed by openIdentity/openLocationFromSettings/openInterestsFromSettings and their closers.\nOption B is the iOS full-height page sheet: bigger travel, the page beneath scales to .97 and dims; out 220ms.\nOption C changes the X into a back chevron and puts the editors on the push/pop motion (navigate/goBack) - which would touch the not-on-stack rule; 'return by name' can still be kept with the push motion passed explicitly.\nSave: the editor leaves the same way as X; what changed on the hub is the changes-land entry. Reduced motion: the app's rule for a screen change (120ms crossfade) applies to all three.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Lift like a sheet",
+     "summary": "The editor fades in and lifts a little over your page; X or Save drops it back down and away",
+     "spec": "in 200ms OUT y 14→0 + fade · out 150ms IN y 0→8 + fade (inert copy)",
+     "recipe": "Modal/sheet (the owner's fade-and-lift, §292) as a Motion.screen kind",
+     "principles": [
+      "Similarity",
+      "Jakob's law",
+      "Exits"
+     ],
+     "tradeoff": "Quiet and quick; it does not say 'new page' as strongly as a slide would.",
+     "recommended": true,
+     "why": "An X means 'this closes back to where I was'; giving the editors the sheets' own numbers makes them one family.",
+     "reduced": "120ms crossfade (the app's screen rule).",
+     "demoNote": "yourFAM hub. t=0 tap 'Edit profile': the editor (title 'Edit profile', 78px photo circle 'Tap to change', Name and Username fields, YOUR INTERESTS pills, copper 'Save' bar docked at bottom) fades in and rises 14px over the hub (200ms). t=1500 tap the X: the editor sinks 8px and fades (150ms), the hub is there beneath. Hold 0.8s. Loop.",
+     "specShort": "200 in / 150 out · y 14 / 8"
+    },
+    {
+     "key": "B",
+     "name": "Page sheet rises",
+     "summary": "The editor slides up from the bottom edge over a slightly receding page, and slides back down",
+     "spec": "y 100%→0 300ms OUT · beneath scale .97 + dim 10% · out 220ms IN y 0→100%",
+     "recipe": "Drawer and sheet (full height)",
+     "principles": [
+      "Jakob's law",
+      "Exits"
+     ],
+     "tradeoff": "iOS's modal page; a full-height move is larger and slower than every other sheet in FAM.",
+     "recommended": false,
+     "reduced": "120ms crossfade.",
+     "demoNote": "yourFAM hub. t=0 tap 'Edit profile': the editor slides up from the bottom (300ms) as the hub behind shrinks to .97 and dims. t=1500 tap X: the editor slides down off the bottom (220ms), the hub returns to full size. Loop.",
+     "specShort": "y 100% · 300 in / 220 out"
+    },
+    {
+     "key": "C",
+     "name": "Push like the rest",
+     "summary": "The editors slide in from the right like every other screen, with a back arrow instead of the X",
+     "spec": "push 320ms · back 260ms (the shared screen motion) · X becomes a back chevron",
+     "recipe": "Page transition (the owner's push, §292)",
+     "principles": [
+      "Similarity",
+      "Serial position"
+     ],
+     "tradeoff": "One motion for every door, but the X's 'discard' meaning becomes Back, and the editors stay off the stack.",
+     "recommended": false,
+     "reduced": "120ms crossfade.",
+     "demoNote": "yourFAM hub. t=0 tap 'Edit profile': the editor (with a back chevron top-left) pushes in from the right (320ms) as the hub drifts left and dims. t=1500 tap back: reverse (260ms). Loop.",
+     "specShort": "push 320 / back 260"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "changes-land",
+   "title": "Your changes landing on yourFAM",
+   "status": "new",
+   "where": "static/index.html:20272 (save → loadProfile), 17259 (saveAvatar), 20176 (drawIdentityPicture)",
+   "trigger": "Save in Edit profile or in the photo editor",
+   "frequency": "rare",
+   "now": "After Save the hub is fetched and rebuilt: the new photo, name and pills appear in one frame. A new photo waits for the server's image check (can take seconds) with the old one showing, then pops.",
+   "verdict": "What changed? Answer it on the page: the photo cross-fades, new pills arrive, removed ones recede. Show the new photo at once and say it is being checked.",
+   "severity": "new",
+   "principles": [
+    "Replacements",
+    "Doherty threshold",
+    "Make it mean something"
+   ],
+   "notes": "Edit profile Save (20216) writes the name, then the interests, then showScreen(identityReturn) + loadProfile -> renderProfile rebuilds the hub when the answer lands. The photo path: savePhotoCrop closes the editor (shared modal fade) and saveAvatar POSTs /api/me with the data URL; the server checks the photo with its image check (§224) before answering, then loadProfile (on the hub) or drawIdentityPicture (on Edit profile) swaps it in and 'Picture saved' shows. Until then the old photo stays, with nothing saying anything is happening.\nOption A: keep the old hub nodes until the answer, then patch in place. Photo: put the new <img> over the old one in one isolated wrapper (isolation:isolate; both mix-blend-mode:plus-lighter), opacities 1->0 and 0->1 over 300ms cubic-bezier(.25,.1,0,1), so the midpoint is never washed out (cross-fades recipe). For the avatar, show the local crop immediately (optimistic, only on this device) with 'Checking photo…' (Geist Mono 9px, under the photo); on success the line fades (150ms); on refusal the photo cross-fades back and the server's sentence is the bottom line. Name/place: text cross-fade 150ms. Interests (by id): new pills scale .95->1 + fade 200ms OUT, 40ms apart; removed pills fade 150ms IN; the line's other pills FLIP 200ms IO.\nOption B reuses the §298 blur-up (Motion.picture's frames: blur 8->0, scale 1.06->1, fade, 320ms) for the new photo - but blur-up means 'arrived from the network'.\nOption C is instant with the status line.\nSame for Edit profile's own 78px circle (drawIdentityPicture). Reduced motion: everything swaps; the 'Checking photo…' line still shows (information).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Cross-fade what changed",
+     "summary": "Your new photo fades over the old one at once, new interests pop in, removed ones fade away",
+     "spec": "photo 300ms (.25,.1,0,1) plus-lighter · name 150ms · pills in 200ms OUT, out 150ms IN · FLIP 200ms",
+     "recipe": "Cross-fades and groups (plus-lighter) + Replacements + entrances/exits",
+     "principles": [
+      "Replacements",
+      "Doherty threshold",
+      "Make it mean something"
+     ],
+     "tradeoff": "Shows your own photo before the check passes (only to you); a refusal visibly puts the old one back.",
+     "recommended": true,
+     "why": "Both images change together with no washed-out middle, and only what you edited moves - the answer to 'did it save?'.",
+     "reduced": "Everything swaps instantly; 'Checking photo…' still shown.",
+     "demoNote": "Hub top: 92px photo (initials 'MO' on sand), 'Maya Ortiz', pills 'Tech · NFL · Jazz'. t=0 (back from Edit profile) a sunny portrait cross-fades over the initials (300ms); 'Checking photo…' appears small under it. t=0 'Jazz' fades (150ms); 'Surfing' and 'AI' pop in (200ms, 40ms apart); 'NFL' slides to close the gap. t=1500 'Checking photo…' fades. Hold 1s. Loop.",
+     "specShort": "300ms plus-lighter · pills 200"
+    },
+    {
+     "key": "B",
+     "name": "Develop like a picture",
+     "summary": "The new photo comes into focus the way pictures arrive in FAM; interests as A",
+     "spec": "photo blur 8→0 + scale 1.06→1 + fade 320ms · pills as A",
+     "recipe": "Picture blur-up (the owner's §298 pick) + entrances",
+     "principles": [
+      "Similarity",
+      "Replacements"
+     ],
+     "tradeoff": "A look the owner already chose, but blur-up says 'arrived from the network', not 'you replaced it'.",
+     "recommended": false,
+     "reduced": "Photo and pills swap instantly.",
+     "demoNote": "Same hub. t=0 the old photo is gone and the new portrait starts soft and slightly large, sharpening into place (320ms); pills change as in A. Hold 1s. Loop.",
+     "specShort": "blur 8→0 · 320ms · pills 200"
+    },
+    {
+     "key": "C",
+     "name": "Instant, with a status",
+     "summary": "The page simply shows the new state; the photo carries 'Checking photo…' until it passes",
+     "spec": "0ms swaps · 'Checking photo…' line until the server answers",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Nothing to build but the status line; you have to spot the differences yourself.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoNote": "Same hub. t=0 the new photo, pills and name are simply there; 'Checking photo…' under the photo; t=1500 it disappears. Loop.",
+     "specShort": "0 ms · status line"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "folder-file",
+   "title": "Putting a row in a folder",
+   "status": "new",
+   "where": "static/index.html:21684 (fileInFolder), 21695 (chooseFolderFor), 21608 (folderChipsHtml)",
+   "trigger": "folder icon on a row → pick a folder in the sheet",
+   "frequency": "rare",
+   "now": "The sheet closes, the server answers, the shelf is rebuilt: the row's meta gains '· Commute' and the chip count goes 2→3 in one frame. With a folder chosen, a row moved away just vanishes.",
+   "verdict": "'Where did it go?' The app already answers that for the queue: the picture arcs to where it went and the count bumps (§292). Reuse it for folders.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Arcs",
+    "Similarity",
+    "Staging"
+   ],
+   "notes": "chooseFolderFor (21695) opens the shared action sheet listing the kind's folders; fileInFolder posts and, on success, toasts 'Moved to …' and reloadShelf -> loadSaved/loadMyVibe -> full rebuild. Folder chips (21608) are a sideways-scrolling row at the top: All, each folder with its count in a <span>, '+ New folder'. With a folder picked, the list is filtered (shelfFilter), so moving a row elsewhere removes it from view.\nOption A, drawn over a change already made: on the sheet item, update locally first (row.folder_id, the chip counts, the meta) and re-render in place; then fly a 38x38 copy of the row's play square (.sv-art) from its rect to the chip's centre on an arc (the techniques' arc(): x linear, y lifted by sin(pi t) x 15% of the distance), 380ms IO, scale 1->1.15 at the top->.4 at the end, fade over the last 30%, with a soft shadow on ::after that fades in at the top (the 'lift' recipe). On landing, the chip's count digit rolls (300ms IO) and the chip bumps 1->1.1->1 (220ms) - the queue's language (toQueue, 6288: arc 450ms + badge bump 260ms). If the chip is outside the chips row's scroll view, scroll it in first (scrollIntoView inline:'nearest', smooth unless reduced) and fly after 200ms. A row leaving a filtered view: the row's copy slides toward the chip row (up 8px + fade, 150ms IN) and the rows below FLIP up 200ms IO. Refused: re-render, bottom line. 'New folder' from the sheet: the new chip scales .95->1 + fades (200ms OUT) before the flight lands in it.\nOption B stays where you look: the meta label wipes in like the writer's title (§298, clip-path inset, 320ms).\nOption C is today plus optimism. Picking a folder chip (filter) stays instant: it is a filter, used like tabs. Reduced motion: meta and counts update instantly.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Fly to the chip",
+     "summary": "The episode's square lifts off and arcs into the folder's chip, which counts it",
+     "spec": "arc 380ms IO, peak 15% · scale 1→1.15→.4 · chip count roll + bump 1→1.1→1 220ms",
+     "recipe": "Arcs (with depth) + Numbers + Staging (fly, then count)",
+     "principles": [
+      "Similarity",
+      "Arcs",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "The chip may be scrolled out of view and must scroll in first (200ms more); more parts than B.",
+     "recommended": true,
+     "why": "The owner's queue gesture (§292) reused: you see the episode go into the folder, then the folder count it.",
+     "reduced": "Meta label and count update instantly.",
+     "demoNote": "Save for Later: chips row 'All · Commute 2 · Weekend 1 · + New folder'; 4 rows. t=0 tap row 3's folder icon: shared sheet 'Put this episode in a folder' - Commute, Weekend, + New folder. t=600 tap Commute: sheet drops; row 3's cream play square lifts, arcs up to the Commute chip (380ms) shrinking; t=980 '2' rolls to '3' and the chip bumps; row 3's meta reads '3 MIN · COMMUTE'. Hold 1s. Loop.",
+     "specShort": "arc 380ms io · bump 220"
+    },
+    {
+     "key": "B",
+     "name": "Label wipes in",
+     "summary": "No flight: the folder's name writes itself onto the row and the chip's count rolls",
+     "spec": "meta clip-path inset(0 100% 0 0)→inset(0) 320ms IO · chip count roll 300ms IO",
+     "recipe": "Masks and reveals (the writer's title wipe, §298) + Numbers",
+     "principles": [
+      "Similarity",
+      "Make it mean something"
+     ],
+     "tradeoff": "Calm and stays where you are looking, but does not show the folder as a place things go.",
+     "recommended": false,
+     "reduced": "Label and count change instantly.",
+     "demoNote": "Same shelf. t=600 tap Commute: sheet drops; on row 3 '· COMMUTE' wipes in left to right after '3 MIN' (320ms); the Commute chip's '2' rolls to '3'. Hold 1s. Loop.",
+     "specShort": "wipe 320ms io · roll 300"
+    },
+    {
+     "key": "C",
+     "name": "Instant, with the line",
+     "summary": "Today's behaviour, made optimistic: everything updates on the tap and the bottom line says where",
+     "spec": "0ms · bottom line 'Moved to Commute'",
+     "recipe": "Frequency of use + Doherty (optimistic)",
+     "principles": [
+      "Frequency of use",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Least work; the words carry the whole answer.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoNote": "Same shelf. t=600 tap Commute: sheet drops; row 3's meta and the chip's count are already updated; bottom line 'Moved to Commute' under a copper rule. Loop.",
+     "specShort": "0 ms · bottom line"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "settings-switches",
+   "title": "Turning a setting on or off",
+   "status": "new",
+   "where": "static/index.html:18315 (settingsRow), 18365, 18377, 18398, 18407, 18419, 18450, 18453",
+   "trigger": "tap an On/Off row",
+   "frequency": "rare",
+   "now": "Nine toggles are rows with a chevron, like rows that open screens; a tap rebuilds the whole list and 'Off' becomes 'On' in one frame; most add a bottom line.",
+   "verdict": "A toggle should look like one (Jakob, Similarity), and its thumb should travel on a transition - updated in place, so it can turn around - not by rebuilding the list.",
+   "severity": "new",
+   "principles": [
+    "Jakob's law",
+    "Similarity",
+    "Interruptible",
+    "Slow in and slow out"
+   ],
+   "notes": "settingsRow (18315) draws every row the same: label, value text, chevron. The toggles are Dark mode, Keep the voice's pitch, Big stories, Your teams' final scores, Say 'Hey FAM', Send my questions to AI (asks first), Count me in FAM's totals, Private search, Show my name. Each handler ends in renderSettings/refreshSettingsIfOpen, a full innerHTML rebuild, so no transition can run, and a tap during a late rebuild can be lost.\nOption A: a settingsSwitch(label, on, action) row: no chevron; on the right the existing .mix-switch markup (44x24 track, 18px thumb, 20px travel - it lives at 1802 for the mix's private switch), with role='switch' and aria-checked on the row (the whole row stays the target). The handler flips the row's class and aria in place (optimistic) and calls the server; a refusal flips it back with the server's sentence. Thumb: transform translateX 0<->20px, transition 200ms IO; track background-color 150ms ease. Because it is a transition, a second tap mid-way turns it around from where it is. Note .mix-switch today uses bare 'ease' at 160ms on a moving thumb - the same tokens should serve both. Dark mode: the control is this switch; the page's own color change is the theme-switch item (lead: transitions off for the frame the theme changes, so the thumb should move after it, or simply land). 'Send my questions to AI' opens a confirm first: the switch moves only on the answer.\nOption B keeps the words and rolls them in a 1-line window (the numbers recipe applied to a two-state word).\nOption C: no motion, but still in place (no rebuild).\nReduced motion: thumb and color jump.",
+   "options": [
+    {
+     "key": "A",
+     "name": "A real switch",
+     "summary": "Toggle rows lose the arrow and get a switch; its knob slides across and the track turns copper",
+     "spec": "thumb translateX 0↔20px 200ms IO(.77,0,.175,1) · track color 150ms · in place, interruptible",
+     "recipe": "Interruptibility (transition, not keyframes) + Similarity",
+     "principles": [
+      "Jakob's law",
+      "Similarity",
+      "Interruptible"
+     ],
+     "tradeoff": "Changes the look of nine rows; their value words ('On'/'Off') go, so the switch must be labelled for screen readers.",
+     "recommended": true,
+     "why": "Doors keep their arrows, switches switch: things that work differently look different, and a transition turns around mid-way.",
+     "reduced": "Thumb and color jump.",
+     "demoNote": "Settings, LISTENING group: 'Default speed 1x ›', 'Keep the voice's pitch' with a copper switch (dark knob right), 'Voice for your searches Ian ›'. t=0 tap the pitch row: knob slides left 20px (200ms), track fades to grey (150ms); bottom line 'Speed changes will shift the voice's pitch'. t=1200 tap, and tap again at t=1300: the knob turns around mid-way and goes back. Hold 1s. Loop.",
+     "specShort": "thumb 200ms io · color 150"
+    },
+    {
+     "key": "B",
+     "name": "Words that roll",
+     "summary": "Keep 'On' and 'Off', drop the arrow; the word rolls up to On and down to Off",
+     "spec": "word translateY ±100% 200ms IO in a 1-line window · no chevron on toggle rows",
+     "recipe": "Numbers (rolling) applied to a two-state word",
+     "principles": [
+      "Make it mean something",
+      "Similarity"
+     ],
+     "tradeoff": "Keeps today's look; still reads as text you might tap to open, not as a control.",
+     "recommended": false,
+     "reduced": "Word swaps instantly.",
+     "demoNote": "Same group, 'Keep the voice's pitch ON' (no arrow). t=0 tap: 'ON' rolls down out of its window as 'OFF' rolls down in (200ms). t=1200 tap: 'OFF' rolls up, 'ON' rolls up in. Loop.",
+     "specShort": "word roll 200ms io"
+    },
+    {
+     "key": "C",
+     "name": "Instant, in place",
+     "summary": "No motion: the value changes on the next frame, without rebuilding the list",
+     "spec": "0ms · in-place update · bottom line unchanged",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Fixes the rebuild and the lost tap; the toggle still looks like a door.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoNote": "Same group. t=0 tap: 'On' becomes 'Off' on the next frame; bottom line appears. Loop.",
+     "specShort": "0 ms · in place"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "story-editor",
+   "title": "Adding to your story",
+   "status": "new",
+   "where": "static/index.html:9400 (openNoteComposer), 9429 (closeVibeComposer), 9905 (postNoteStory)",
+   "trigger": "tap (+) on your photo; X; Post",
+   "frequency": "rare",
+   "now": "The dark editor appears in one frame over yourFAM; tool panels pop in and out; Post closes it in one frame, the line says 'Added to your story', and the ring appears on your photo unseen.",
+   "verdict": "Rare, and this page's peak: it may be choreographed (each move ≤450ms). Grow it out of the (+) as stories grow out of faces (§298), and show the post going into your ring.",
+   "severity": "new",
+   "principles": [
+    "Origin",
+    "Peak-end",
+    "Make it mean something",
+    "Similarity"
+   ],
+   "notes": "The (+) badge on your hero photo (17378, 24px) and your photo itself when no story is up call openNoteComposer (9400), which sets #vibeComposer.hidden=false (9414): a full-screen dark editor (canvas with a sunset background, Text/Stickers/Background/Speak down the right, caption box, 'Your story' and the copper arrow). Tool panels (#vcsPanel) toggle hidden (9537). X: hidden=true. Post (postNoteStory, 9905): on success closeVibeComposer, snack 'Added to your story · View', then loadProfileQuietly -> renderProfile, which draws the copper ring (.yf-photo-btn.ring) around your photo - unseen, a fetch later. The same editor serves VIBE! from the player (openVibeComposer); the open/close choice here should apply there too (origin: the VIBE! button).\nOpening (A and B): Motion.growStory's approach (6445): clip-path circle(r at the (+)'s centre) -> circle(cover), 300ms OUT; closing: an inert copy shrinks back into the (+) (240ms IN) - the owner's story pick (§298). Tool panels: drawer recipe from the bottom (translateY 100%->0, 280ms OUT; out 200ms IN), kept mounted and inert while closed.\nB's post storyboard (rare: the skill allows choreography), drawn over the change already made: on the server's OK, set your story locally (myStoryPerson) and render the ring at once; then 0ms: an inert copy of the canvas shrinks to your photo's rect (translate + scale, border-radius 18px->50%, 380ms IO) and fades over its last 20%; 380ms: an SVG circle laid on the ring draws (stroke-dashoffset 1->0 with pathLength 1, rotated -90deg so it starts at 12 o'clock, 400ms IO), removed at the end so the real ring remains; 780ms: the bottom line. If the editor was opened from dailyFAM's row, the target is #yfMyRing; if no face is on screen, the copy just fades (150ms).\nC is the sheet recipe for the whole editor. Reduced motion: shown/hidden instantly; the ring is simply there; the line shows.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Out of the (+)",
+     "summary": "The editor grows out of the (+) as a circle and closes back into it; tool panels slide up",
+     "spec": "iris circle(12px)→cover 300ms OUT · close 240ms IN · panels y 100%→0 280ms / 200ms",
+     "recipe": "Masks and reveals (iris) + Drawer and sheet",
+     "principles": [
+      "Origin",
+      "Similarity"
+     ],
+     "tradeoff": "A clear origin; posting still ends in a cut, and the new ring is never seen arriving.",
+     "recommended": false,
+     "reduced": "Editor and panels show and hide instantly.",
+     "demoNote": "yourFAM hub: 92px photo with a small black (+) at its lower right. t=0 tap (+): a dark circle grows from the (+) to fill the phone (300ms), revealing the editor: sunset gradient, 'Big night for jazz' in white, tools down the right, 'Your story' and a copper arrow at the bottom. t=900 tap Stickers: a panel slides up (280ms). t=1600 tap X: the editor shrinks back into the (+) (240ms). Loop.",
+     "specShort": "iris 300 / 240 · panel 280"
+    },
+    {
+     "key": "B",
+     "name": "Into your ring",
+     "summary": "Opens as A; when you post, your story shrinks into your photo and a copper ring draws around it",
+     "spec": "open as A · post: copy→photo 380ms IO · ring draw 400ms IO at 380ms · line at 780ms",
+     "recipe": "Storyboard (3 stages) + iris + stroke draw",
+     "principles": [
+      "Peak-end",
+      "Make it mean something",
+      "Origin"
+     ],
+     "tradeoff": "The longest motion on the page (780ms in two moves); allowed because it is rare and runs after the post exists.",
+     "recommended": true,
+     "why": "Posting is this page's peak; the post visibly becomes the ring your friends will see, and nothing waits on it.",
+     "reduced": "Editor shows and hides instantly; the ring is there; the line shows.",
+     "demoNote": "Same hub. t=0 tap (+): circle grows out to the editor (300ms). t=1300 tap the copper arrow: the canvas shrinks and rounds into the photo circle at the top (380ms); t=1680 a copper ring draws around the photo clockwise from 12 o'clock (400ms); t=2080 bottom line 'Added to your story · View'. Hold 1s. Loop.",
+     "specShort": "380 to photo · ring 400"
+    },
+    {
+     "key": "C",
+     "name": "Rise as a sheet",
+     "summary": "The editor slides up from the bottom and back down, for opening, closing and posting alike",
+     "spec": "y 100%→0 280ms OUT · out 200ms IN y 0→100% · panels same",
+     "recipe": "Drawer and sheet",
+     "principles": [
+      "Jakob's law",
+      "Exits"
+     ],
+     "tradeoff": "Simple and familiar; says nothing about where the editor came from or where the post went.",
+     "recommended": false,
+     "reduced": "Instant.",
+     "demoNote": "Same hub. t=0 tap (+): the editor slides up from the bottom (280ms). t=1300 tap the arrow: it slides back down (200ms); the ring is already round the photo; bottom line. Loop.",
+     "specShort": "y 100% · 280 in / 200 out"
+    }
+   ],
+   "picked": "B"
+  }
+ ],
+ "existing": [
+  {
+   "where": "static/index.html:6563",
+   "what": "Follow / Following (Motion.follow)",
+   "numbers": "width w0→w1 260ms (.2,.8,.2,1) fill none; tick strokeDashoffset 1→0 220ms +80ms; off under reduced",
+   "shared": false
+  },
+  {
+   "where": "static/index.html:6582 via 21722",
+   "what": "Unsave a row (Motion.removeRow)",
+   "numbers": "copy x 0→-45% + opacity 1→0 180ms (.4,0,1,1); height/padding/margin→0 200ms (.2,.8,.2,1) +180ms; off under reduced",
+   "shared": false
+  },
+  {
+   "where": "static/index.html:6068",
+   "what": "Tab switch into yourFAM",
+   "numbers": "out 110ms (.4,0,1,1) x∓18 fade; in 200ms (.2,.8,.2,1) +90ms x±18→0",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:6061",
+   "what": "Push/pop: Settings, Friends, Saved, History, My Vibes, a friend, Vibes posts, Topic",
+   "numbers": "push 320ms (.2,.8,.2,1) from 100%, old to -28% dim .55; pop 260ms (.4,0,.2,1); reduced 120ms crossfade",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:6147",
+   "what": "Press squeeze on every row and button",
+   "numbers": "down 90ms ease-out to max(.9, 1-8/longest side); back 220ms ease-out, overshoot 1+(1-s)*.3 at 60%",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:2116",
+   "what": "Sheets and modals: vibe tile menu, folder chooser, photo menu, time zone, new folder, photo editor, follower popup",
+   "numbers": "in 200ms (.2,.8,.2,1) fade + lift 14px; out 150ms (.4,0,1,1) fade + drop 8px",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:2399",
+   "what": "Bottom line (Removed, Following, Vibe deleted, Moved to...)",
+   "numbers": "opacity .2s ease, transform .22s (.2,.8,.2,1); action version stays 3500ms",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:6445 via 17755",
+   "what": "Your story grows out of your photo; closes back into it",
+   "numbers": "clip-path circle 300ms (.2,.8,.2,1); close 240ms (.4,0,.2,1)",
+   "shared": false
+  },
+  {
+   "where": "static/index.html:6500 via 17688",
+   "what": "Messages unread badge on the hub's tab bar",
+   "numbers": "pop 300ms ease-out scale 0→1.25→1; bump 220ms to 1.3; clear copy 160ms to scale 0",
+   "shared": true
+  },
+  {
+   "where": "static/index.html:17494, 19255, 19270",
+   "what": "Number taps scroll the grid / friends list into view",
+   "numbers": "browser smooth scroll; not reduced-motion aware",
+   "shared": false
+  },
+  {
+   "where": "static/index.html:17513",
+   "what": "Vibe tile hold",
+   "numbers": "500ms timer; navigator.vibrate(10); squeeze held meanwhile",
+   "shared": false
+  }
+ ]
+}
