@@ -7086,6 +7086,52 @@ def client_version(app):
 app.add_middleware(client_version)
 
 
+#: What every response says about how a browser may treat it (§619). The
+#: server sent none of these: any site could draw FAM - `/admin` included -
+#: inside a frame of its own, a response could be read as a type it was not
+#: sent as, and nothing told a browser to come back over https.
+SECURITY_HEADERS = {
+    # Never guess a type: a picture is a picture, never a page.
+    "X-Content-Type-Options": "nosniff",
+    # Only FAM's own pages may frame FAM (the demo page frames the app).
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'",
+    # A share or invite link's own address is not sent on to other sites.
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+#: Sent only on a request that came over https (`_over_https`'s rule): told
+#: once, a browser never tries this host over plain http again, which is the
+#: one moment a cookie could be read off the air.
+HSTS = "max-age=31536000"
+
+
+def security_headers(app):
+    """Add `SECURITY_HEADERS` to every response, and `HSTS` to one that was
+    asked for over https. Plain ASGI, as the others are (§241); a header a
+    handler set itself is left as it is. Added last, so it wraps every other
+    middleware and covers what they answer themselves."""
+    async def asgi(scope, receive, send):
+        if scope["type"] != "http":
+            await app(scope, receive, send)
+            return
+        https = scope.get("scheme") == "https" or (
+            Headers(scope=scope).get("x-forwarded-proto", "")
+            .split(",")[0].strip().lower() == "https")
+
+        def add(headers):
+            for name, value in SECURITY_HEADERS.items():
+                if name not in headers:
+                    headers[name] = value
+            if https and "Strict-Transport-Security" not in headers:
+                headers["Strict-Transport-Security"] = HSTS
+
+        await app(scope, receive, _on_response_start(send, add))
+    return asgi
+
+
+app.add_middleware(security_headers)
+
+
 @app.get("/api/client-status")
 async def client_status(request: Request) -> dict:
     """What the server makes of the calling client: supported, deprecated
@@ -10997,7 +11043,10 @@ async def delete_note(note_id: int, request: Request) -> dict:
     """Take one of your own notes off your story. A note is only a story, so
     taking it down deletes it."""
     _read_limit(request)
-    return {"ok": SOCIAL.remove_note(note_id, _listener(request))}
+    # `remove_note` reads an empty id as a moderator taking it down for
+    # everybody (§619): a request whose session could not be minted has an
+    # empty id, so it is refused here rather than handed that meaning.
+    return {"ok": SOCIAL.remove_note(note_id, _require_listener(request))}
 
 
 class CloseFriendRequest(BaseModel):

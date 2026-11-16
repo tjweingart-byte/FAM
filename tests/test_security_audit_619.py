@@ -20,6 +20,10 @@ was the reproduction - and passes against the fix.
    an address is never verified. The server now says so out loud.
 5. **Changing an account's email told nobody.** It asks for no password, and
    the next reset code goes to the new address; the old one is now told.
+6. **No response said how a browser may treat it**: nothing against framing,
+   type sniffing or a return over plain http.
+7. **A note could be deleted by a request with no session.** The store reads
+   an empty listener id as a moderator.
 """
 from __future__ import annotations
 
@@ -273,3 +277,55 @@ def test_nothing_is_sent_when_the_email_did_not_change(server, outbox):
     assert client.post("/api/account", json={"display_name": "Ian"}).status_code == 200
     assert client.post("/api/account", json={"email": EMAIL}).status_code == 200
     assert outbox == []
+
+
+# --- 6. what every response says ----------------------------------------------
+
+
+@pytest.mark.parametrize("path", ["/api/auth/me", "/", "/waitlist", "/terms",
+                                  "/s/no-such-share", "/api/health", "/no/such/page"])
+def test_every_response_refuses_framing_and_sniffing(server, path):
+    answer = _stranger(server).get(path, follow_redirects=False)
+    assert answer.headers["x-content-type-options"] == "nosniff"
+    assert answer.headers["x-frame-options"] == "SAMEORIGIN"
+    assert "frame-ancestors 'self'" in answer.headers["content-security-policy"]
+    assert answer.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+
+
+def test_https_is_remembered_only_when_the_request_was_https(server):
+    plain = _stranger(server).get("/api/auth/me")
+    assert "strict-transport-security" not in plain.headers
+    routed = _stranger(server).get("/api/auth/me",
+                                   headers={"X-Forwarded-Proto": "https"})
+    assert routed.headers["strict-transport-security"] == appmod.HSTS
+
+
+def test_a_refusal_carries_the_headers_too(server, monkeypatch):
+    """The gate and the pace answer before any handler runs."""
+    for n in range(appmod.AUTH_FREE_FAILURES + 1):
+        refused = _login(_stranger(server), f"wrong-guess-{n}")
+    assert refused.status_code == 429
+    assert refused.headers["x-frame-options"] == "SAMEORIGIN"
+
+
+# --- 7. a note and a request with no session ----------------------------------
+
+
+def test_a_request_with_no_session_cannot_delete_somebodys_note(server, monkeypatch, tmp_path):
+    import social as social_mod
+
+    store = social_mod.SocialStore(str(tmp_path / "social.db"))
+    monkeypatch.setattr(appmod, "SOCIAL", store)
+    note = store.add_note("u1", "my own words")
+    note_id = note.get("id") or note.get("note", {}).get("id")
+    assert note_id, note
+
+    # The accounts store cannot write, so no session is minted and the
+    # request has no listener - which `remove_note` reads as a moderator.
+    def broken(*args, **kwargs):
+        raise RuntimeError("the accounts store is not answering")
+
+    monkeypatch.setattr(appmod.ACCOUNTS, "new_session", broken)
+    answer = _stranger(server).delete(f"/api/story/note/{note_id}")
+    assert answer.status_code == 503
+    assert store.note_row(int(note_id)), "a stranger with no session deleted a note"

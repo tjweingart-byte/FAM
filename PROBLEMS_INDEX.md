@@ -610,3 +610,4 @@ and `limit` = Lines.
 | 37163 | 110 | 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14) |
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
+| 37339 | 137 | 619. The security audit: sign-in, sessions and what every response says (2026-11-16) |
