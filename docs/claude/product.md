@@ -857,6 +857,7 @@ good one, and those have fixes in different files. Read the EI block first.
 twenty-prompt milestone.
 
 <!-- rule:examples-lever -->
+> **Current (PROBLEMS.md §619, §620):** thirteen examples - a three-minute one added (`3-virus-and-bacteria`, the first comparison) - and **six before-and-after pairs** in `examples/pairs/`, real Haiku drafts beside a rewrite from the same packet. The owner adopted all of them on reading; whether they move the writing is unmeasured.
 > **Current (PROBLEMS.md §286, §287):** twelve examples - one each at 1, 4 and 5 minutes and nine at 2 minutes across the facets, three of them from the owner's own listening - each shown with its minutes beside its words, so the writer sees what a length holds and a range of subjects.
 **`examples/` is the strongest lever on the writing, and it now holds one.**
 Briefings dropped in there are shown to the model as the house voice. Rules

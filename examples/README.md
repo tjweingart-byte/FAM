@@ -76,7 +76,7 @@ and the second-last defender at the moment a teammate plays it forward...
 Two or three good ones shift the output a lot. Past about five, returns drop
 off for *voice* - but since the writer moved to Haiku (PROBLEMS.md §286-287)
 the folder also teaches *length* and *range*: one example at each length (1,
-2, 4 and 5 minutes) and a two-minute one per facet (sport, money, health,
+2, 3, 4 and 5 minutes; the three-minute one is also the one comparison, §619) and a two-minute one per facet (sport, money, health,
 tech, culture, world, science). All of them are in the writer's cached
 instructions, so each one costs a few hundred cached tokens a call; prefer
 replacing a weak one to adding another. `2-singapore-sprint` is the one
@@ -98,9 +98,6 @@ empty folder simply means no examples, and the prompt is unchanged.
   sentence number. `python tools/editor_teaching.py --check` checks them;
   `--draft <example>` (with the key) drafts one for a new example. Read a
   draft before committing it.
-- **Candidates written for the owner to read** are in `candidates/`
-  (§619): a three-minute example and six before-and-after pairs. Nothing
-  there is loaded; `candidates/README.md` says how to adopt one.
 - **New candidates** come from what listeners heard through:
   `python tools/example_candidates.py --write` puts them in
   `~/.fam/example_candidates/`, never here. Move the ones worth keeping in

@@ -720,6 +720,8 @@ def test_no_examples_leaves_the_prompt_untouched(monkeypatch):
     import script_generator as sg
 
     monkeypatch.setattr(sg, "STYLE_EXAMPLES", [])
+    # Before-and-after pairs are examples too, and six are committed (§620).
+    monkeypatch.setattr(sg, "TEACHING_PAIRS", [])
     assert sg.system_prompt() == sg.SYSTEM_PROMPT
 
 

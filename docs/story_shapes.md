@@ -158,7 +158,7 @@ nothing stored changes; two keys are new.
   *because* why the difference exists.
 - **Lands on:** the concrete fact that separates them.
 - **Never:** which one the listener should choose (the advice rule, §425).
-- **Example:** none - a gap.
+- **Example:** `3-virus-and-bacteria` (§619).
 
 ### No shape - `general`
 Kept as today: when nothing fits, the house voice carries it.

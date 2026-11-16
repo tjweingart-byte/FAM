@@ -37422,3 +37422,51 @@ Tests: `tests/test_example_candidates_619.py` (there are candidates; none
 reaches the writer's instructions; the example is about its length; each
 pair parses, has fewer flaws by the code than its draft, is no longer than
 it, and carries a reason line).
+
+## 620. The owner adopted every candidate, and a project skill for how to work here (2026-11-16)
+
+The owner, on §619's table: "Adopt all of them and start on build 1."
+
+**Adopted.** `3-virus-and-bacteria.txt` is in `examples/` (facet `health`
+in `facets.json`) with a worked plan, `examples/plans/3-virus-and-bacteria.json`,
+written by hand in the session in place of `tools/editor_teaching.py
+--draft` and passing its `--check`. The six pairs are in `examples/pairs/`.
+`examples/candidates/` is gone. **The writer's cached instructions changed:
+32,899 characters to 52,252** (examples block about 4,960 words, pairs block
+about 2,860), read from the cache on every writer call after the first
+([writer-savings]); the first call after a deploy writes the larger block.
+`docs/story_shapes.md` names the example for the comparison shape, and
+[examples-lever] has a Current note.
+
+**Not measured.** Whether thirteen examples and six pairs change what the
+writer produces. §527 is the method: `tools/editor_eval.py` on the frozen
+questions with `TEACHING_PAIRS=0` and `=1`. The pairs' facts are a day old
+already and are not kept current; the writer is told never to borrow them.
+
+**One test assumed the folder was empty.**
+`test_no_examples_leaves_the_prompt_untouched` emptied the examples and
+expected the bare prompt; it now empties the pairs too, which is what it
+was about.
+
+**Build 1: `.claude/skills/fam-method/SKILL.md`.** The list's first item
+was a file in which the stronger model writes down how it works, for a
+weaker one to follow later. Here that is a project skill, loaded by any
+later session: how to find a rule's full text and its history before
+changing what it covers, how to find the tool that already exists, the
+order in which to suspect a weak episode's causes, the procedure that made
+§619's pairs, what to verify and how to say what was not, how to spend the
+owner's key, and what the ship loop's rules leave out. **It restates no
+rule**: it cites rule IDs, and says a rule always wins. Its examples are
+what happened in this session, including the two mistakes caught (a wrong
+date claim in the draft example, and details the grader called
+unsupported in three first rewrites).
+
+Tests: `tests/test_examples_adopted_620.py` (every committed pair is shown
+and no more than six; each is one the code prefers, no longer than its
+draft, with a reason line; no rewrite says what it does not have; an
+example at every whole minute, the three-minute one filed under health)
+replaces §619's candidates test. `tests/test_skill_fam_method_620.py`
+(the skill's frontmatter; every rule ID it cites exists in `docs/claude/`;
+every file and tool it names exists; it defers to the rules and stays
+short). **Not verified here:** that a later session on another model
+follows the skill, beyond the one trial noted with this change.
