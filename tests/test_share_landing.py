@@ -389,3 +389,66 @@ def test_the_wide_card_is_public_behind_the_waitlist():
 
     source = (pathlib.Path(__file__).resolve().parent.parent / "app.py").read_text()
     assert '"/preview.jpg", "/wide.jpg", "/sticker.png"' in source
+
+
+# --- §622: the episode as a photo for a native post -------------------------
+
+def test_the_post_photo_is_a_4_by_5_jpeg_and_saves_as_a_file(client, shared):
+    """Facebook holds back a post that links out; a photo is not. The photo
+    is public like the link, and `?download=1` saves it."""
+    import io
+
+    from PIL import Image
+
+    got = client.get(f"/api/share/{shared}/post.jpg")
+    assert got.status_code == 200 and got.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(got.content)).size == (1080, 1350)
+    assert "content-disposition" not in got.headers
+    saved = client.get(f"/api/share/{shared}/post.jpg?download=1")
+    assert saved.headers["content-disposition"].startswith("attachment; filename=\"fam-")
+    assert client.get("/api/share/nope/post.jpg").status_code == 404
+
+
+def test_a_share_names_its_post_photo(client):
+    made = client.post("/api/share", json={
+        "query": "why is the sky blue", "minutes": 2, "title": "Sky"}).json()
+    assert made["post"].endswith(f"/api/share/{made['share']['id']}/post.jpg")
+
+
+def test_the_post_photo_draws_the_picture_the_title_and_the_hook():
+    """The picture is the top; the hook changes only the words under it; a
+    long title and a long hook are cut, never run into the foot."""
+    import io
+
+    from PIL import Image, ImageChops
+
+    import link_preview
+
+    src = io.BytesIO()
+    Image.new("RGB", (1600, 900), (200, 30, 30)).save(src, format="PNG")
+    plain = Image.open(io.BytesIO(link_preview.post(src.getvalue(), "Title", "", 2)))
+    hooked = Image.open(io.BytesIO(link_preview.post(
+        src.getvalue(), "Title", "A chip the size of a coin reads speech.", 2)))
+    r, g, b = plain.convert("RGB").getpixel((540, 300))
+    assert r > 150 and g < 80 and b < 80
+    box = ImageChops.difference(plain.convert("L"), hooked.convert("L")).point(
+        lambda v: 255 if v > 40 else 0).getbbox()
+    assert box and box[1] > link_preview.POST_PICTURE
+    w, h = link_preview.POST
+    long = Image.open(io.BytesIO(link_preview.post(
+        src.getvalue(), "why the bank held rates again " * 12, "and what was said " * 40, 3)))
+    foot = ImageChops.difference(plain.convert("L"), long.convert("L")).point(
+        lambda v: 255 if v > 40 else 0).crop((0, h - 190, w, h)).getbbox()
+    assert foot is None
+    assert link_preview.post(None, "Title", "A hook.", 1.5)
+    assert link_preview.post(b"not a picture", "Title", "", 1.5)
+
+
+def test_the_outreach_card_offers_the_photo_and_says_why():
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    page = (root / "admin_ui" / "groups.html").read_text()
+    assert "Photo for a post" in page and "post.jpg?download=1" in page
+    assert "link to put in the first comment" in page
+    assert '"/story.jpg", "/post.jpg"' in (root / "app.py").read_text()

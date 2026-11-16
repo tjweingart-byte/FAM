@@ -117,6 +117,12 @@ the picture on the left and, beside it, the logo, the length, the title
 borrowing: an episode with no picture of its own draws the title cover on
 every share picture, rather than its branch's or its facet's.
 
+**A photo to post, for where links are held back (§622).** Facebook shows
+a post that links out to few people. `/api/share/<id>/post.jpg` is the
+episode as a 1080x1350 photo - picture, title, its one line, and where to
+listen - for a person to post themselves with the link in the first
+comment. `/admin/groups` offers it on a card; FAM posts nothing.
+
 **Sent from the app, not only pasted (§601).** The tile appears when a link
 is *pasted* into Messages; a link the app types in through `sms:&body=` or
 `mailto:` arrives as plain text and Messages and Mail send it bare. So on

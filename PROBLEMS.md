@@ -37745,3 +37745,33 @@ Facebook's Sharing Debugger and press "Scrape Again" - Facebook keeps the
 old picture for a link it has already read until that is done.
 
 Tests: the last block of `tests/test_share_landing.py`.
+
+## 622. The episode as a photo to post, the link in the first comment (2026-11-17)
+
+§621 said what a better link card cannot do: Facebook holds back a post
+that links out, so the 168 the group admin's post reached is not a matter
+of how the link looks. The owner asked for option 4 of the five put to
+them: a photo posted natively, the link in the first comment.
+
+**Built.** `link_preview.post`: 1080x1350 JPEG - the episode's picture
+across the top 720px, then "1.5 MIN EPISODE", the title (three lines, cut
+with an ellipsis), the episode's one line (the cached summary, three lines
+at most and only as many as clear the foot), and a foot with the play
+button, "LISTEN TO THE FULL EPISODE", the host and the wordmark. With no
+picture of its own ([link-picture]) the words are set larger on FAM's
+ground. `GET /api/share/<id>/post.jpg`, `?download=1` for a file, public
+behind the waitlist; `/api/share` names it as `post`. `/admin/groups`: a
+card whose episode has been heard has "Photo for a post" beside "Copy the
+link", with a line saying to send the admin the photo and the link for the
+first comment.
+
+**Not built.** The app's share sheet does not offer the photo. No clip
+(option 3). No per-group tagging of links (option 5), so opens still cannot
+be told apart by group.
+
+**Not known.** Whether it works. Nothing here can post to Facebook; the
+test is the same admin posting the same episode as a photo and reporting
+reach. Egan's first message still pitches a link, not a photo - a person
+says the rest.
+
+Tests: the last block of `tests/test_share_landing.py`.

@@ -1749,6 +1749,26 @@
   `thumbnails.pick_for_player` means borrowed, and a borrowed picture is
   replaced by the title cover. The owner was asked whether a no-picture
   episode should borrow again and did not say; it does not.
+<!-- rule:post-photo -->
+- **An episode can be had as a photo to post natively, and a person posts
+  it** (§622, the owner's third pick from §621's five options).
+  Facebook holds back a post that links out, whatever the link looks like -
+  the group admin's link post reached 168 people where his posts reach
+  thousands - so the better card of [link-picture] can raise clicks but not
+  reach. `link_preview.post` is the episode as a photo, 1080x1350: the
+  picture on top (its own or none, [link-picture]), then the length, the
+  title (cut at three lines), the episode's one line (the cached summary a
+  card draws, `app._share_hook`; never generated, omitted when there is
+  none) and "Listen to the full episode / <host>", because the photo
+  carries no link. `GET /api/share/<id>/post.jpg` (public behind the
+  waitlist; `?download=1` saves it), named as `post` by `/api/share`. On
+  `/admin/groups` a card with a link heard has **Photo for a post** and
+  says why: send the admin the photo to post and the link for the first
+  comment. **FAM still posts nothing** ([no-social-posting]): it is a
+  file. Not built: the in-app share sheet does not offer it, and there is
+  no clip (§621's option 3) or per-group link tagging (option 5).
+  Whether a photo post actually restores reach is **unmeasured** - it is
+  the test this was built to run.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the

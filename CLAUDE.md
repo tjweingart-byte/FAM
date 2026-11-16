@@ -440,7 +440,7 @@ Accounts, tiers, sharing
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
   counted by the page; its join note always goes to `/waitlist` (§319) -
   other doors need `APP_STORE_URL`; no `user_id`; host from the request;
-  story cards PNGs; picture own or cover, Facebook's wide (§621). [share-link] [link-picture]
+  story PNGs; picture own or cover, Facebook's wide (§621); post photo (§622). [share-link] [link-picture] [post-photo]
 - FAM never posts, holds no posting token; /admin/groups. [no-social-posting] [community-outreach]
 - **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
   a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]

@@ -4895,6 +4895,9 @@ async def share_create(req: ShareRequest, request: Request) -> dict:
         # tile a pasted link makes, which a link typed into `sms:` or
         # `mailto:` does not (§601).
         "preview": _share_image_url(share["id"], "preview.jpg", request),
+        # The episode as a photo to post natively, the link going in the
+        # first comment (§622): Facebook holds back a post that links out.
+        "post": _share_image_url(share["id"], "post.jpg", request),
         "targets": _with_handoffs(rendered),
     }
 
@@ -5047,15 +5050,28 @@ def _preview_picture(record: dict) -> tuple[str, Optional[bytes]]:
         return "", None
 
 
+async def _share_hook(record: dict) -> str:
+    """The shared episode's one line - the summary a card draws - read from
+    the cache, or "". Never generates, never raises."""
+    try:
+        _title, summary = await _episode_blurb(
+            _make_pipeline(), record.get("query") or "",
+            max(1, as_minutes(record.get("minutes"), 1)))
+        return " ".join(str(summary or "").split())
+    except Exception:  # noqa: BLE001 - the photo is drawn without it
+        return ""
+
+
 async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
     """One of a share's drawn pictures (`link_preview`): "preview" (the
     square JPEG), "wide" (the 1200x630 card with the title on it, for
     Facebook), "sticker" (the player card, PNG) or "story" (the card on
-    9:16, JPEG), kept briefly in `_PREVIEWS`. 404 for no such share."""
+    9:16, JPEG) or "post" (the 4:5 photo for a native post, §622), kept
+    briefly in `_PREVIEWS`. 404 for no such share."""
     record = await _share_titled(SHARES.get(share_id))
     if not record:
         raise HTTPException(status_code=404, detail="No such share.")
-    host = _share_host(request) if kind in ("sticker", "story") else ""
+    host = _share_host(request) if kind in ("sticker", "story", "post") else ""
     key = (share_id, record.get("title") or "", kind, host)
     now = time.time()
     kept = _PREVIEWS.get(key)
@@ -5073,6 +5089,10 @@ async def _share_drawing(share_id: str, kind: str, request: Request) -> bytes:
         data = await asyncio.to_thread(link_preview.story, picture, title, minutes, host)
     elif kind == "wide":
         data = await asyncio.to_thread(link_preview.wide, picture, title, minutes)
+    elif kind == "post":
+        hook = await _share_hook(record)
+        data = await asyncio.to_thread(link_preview.post, picture, title, hook,
+                                       minutes, host)
     else:
         data = await asyncio.to_thread(link_preview.draw, picture, title, minutes)
     if data is None:
@@ -5110,6 +5130,23 @@ async def share_wide(share_id: str, request: Request) -> Response:
     data = await _share_drawing(share_id, "wide", request)
     return Response(content=data, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/api/share/{share_id}/post.jpg")
+async def share_post(share_id: str, request: Request, download: int = 0) -> Response:
+    """The episode as a photo somebody posts themselves (§622): 1080x1350,
+    the picture, the title, the episode's one line and where to listen.
+    Facebook holds back a post that links out; a photo with the link in the
+    first comment is not held back. `?download=1` saves it as a file. FAM
+    posts nothing ([no-social-posting]): a person downloads and uploads it.
+    Public, like the link."""
+    _read_limit(request)
+    data = await _share_drawing(share_id, "post", request)
+    headers = {"Cache-Control": "public, max-age=300"}
+    if download:
+        headers["Content-Disposition"] = (
+            f'attachment; filename="fam-{re.sub(r"[^A-Za-z0-9_-]", "", share_id)}.jpg"')
+    return Response(content=data, media_type="image/jpeg", headers=headers)
 
 
 @app.get("/api/share/{share_id}/sticker.png")
@@ -7000,7 +7037,7 @@ def _shared_episode_request(request: Request) -> bool:
             path == "/api/share/card"
             or (path.startswith("/api/share/")
                 and path.endswith(("/preview.jpg", "/wide.jpg", "/sticker.png",
-                                   "/story.jpg")))):
+                                   "/story.jpg", "/post.jpg")))):
         return True
     if path != "/api/audio":
         return False

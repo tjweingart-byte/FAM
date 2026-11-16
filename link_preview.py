@@ -379,6 +379,100 @@ def wide(picture: Optional[bytes], title: str, minutes: float) -> Optional[bytes
         return None
 
 
+# --- The photo for a native post (§622) -------------------------------------
+#
+# Facebook holds back a post that links out, whatever the link looks like:
+# the group admin's post of a FAM link reached 168 people where his posts
+# reach thousands. What is not held back is a photo. So this is the episode
+# as a photo somebody posts themselves - 1080x1350, the tallest a feed
+# shows whole - with the link put in the first comment by the person
+# posting. The picture on top; under it the length, the title, the
+# episode's one line (its hook, as a card draws it) and where to listen,
+# because the photo itself carries no link. FAM posts nothing: this is a
+# file a person downloads.
+
+POST = (1080, 1350)
+POST_PICTURE = 720
+POST_MARGIN = 64
+POST_TITLE_SIZES = (72, 64, 56)
+POST_TITLE_ROOM = 250
+POST_TITLE_LINES = 3
+POST_HOOK_LINES = 3
+
+
+def _post(picture: Optional[bytes], title: str, hook: str, minutes: float,
+          host: str):
+    """The photo as an image."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+    w, h = POST
+    m = POST_MARGIN
+    title = title or "A FAM episode"
+    im = Image.new("RGB", POST, GROUND)
+    top = 0
+    if picture:
+        try:
+            src = ImageOps.exif_transpose(Image.open(io.BytesIO(picture))).convert("RGB")
+            im.paste(ImageOps.fit(src, (w, POST_PICTURE), Image.LANCZOS), (0, 0))
+            top = POST_PICTURE
+        except Exception:  # noqa: BLE001 - an unreadable picture
+            log.warning("link preview: the episode's picture would not "
+                        "open; drawing the post without it")
+    if not top:
+        ImageDraw.Draw(im).ellipse((-500, -600, 900, 700), fill=(84, 66, 52))
+        im = im.filter(ImageFilter.GaussianBlur(170))
+        _wordmark(im, m, 110, 70)
+    d = ImageDraw.Draw(im)
+    width = w - 2 * m
+    # With a picture the words start under it; without one they are set
+    # larger and lower, as the cover's are.
+    sizes = POST_TITLE_SIZES if top else (96, 84, 72)
+    room = POST_TITLE_ROOM if top else 420
+    most = POST_TITLE_LINES if top else 4
+    font, lines, step = _clipped(d, title, sizes, width, room, most)
+    y = top + 62 if top else 330
+    d.text((m, y), _length(minutes), font=_font("GeistMono-Bold.ttf", 28), fill=COPPER)
+    y += 56
+    for line in lines:
+        d.text((m, y), line, font=font, fill=PAPER)
+        y += step
+    hook = " ".join((hook or "").split())
+    if hook:
+        hook_font = _font("Geist-Regular.ttf", 36)
+        y += 18
+        # As many whole lines as there is room for above the foot.
+        fits = min(POST_HOOK_LINES, (h - 190 - y) // 48)
+        for line in (_wrap(d, hook, hook_font, width, fits) if fits > 0 else ()):
+            d.text((m, y), line, font=hook_font, fill=MUTED)
+            y += 48
+    # The foot: the play button, and where to listen - the photo has no link.
+    cy = h - 108
+    _play(d, cx=m + 56, cy=cy, r=52)
+    x = m + 56 + 52 + 30
+    d.text((x, cy - 46), "LISTEN TO THE FULL EPISODE",
+           font=_font("GeistMono-Bold.ttf", 24), fill=COPPER)
+    d.text((x, cy - 8), host or "familiarize.net",
+           font=_font("Geist-SemiBold.ttf", 36), fill=PAPER)
+    if top:
+        _wordmark(im, w - m - wordmark_width(40), cy - 20, 40)
+    return im
+
+
+def post(picture: Optional[bytes], title: str, hook: str, minutes: float,
+         host: str = "") -> Optional[bytes]:
+    """The photo for a native post as JPEG bytes; `None` only if Pillow
+    fails. Not held to `MAX_BYTES`: it is uploaded by a person, not fetched
+    by a previewer."""
+    try:
+        out = io.BytesIO()
+        _post(picture, title, hook, minutes, host).save(
+            out, format="JPEG", quality=90, optimize=True)
+        return out.getvalue()
+    except Exception:  # noqa: BLE001 - never worth a 500
+        log.exception("link preview: could not draw the post photo")
+        return None
+
+
 # --- The player card, for Instagram and Snapchat stories (11.12 notes) ------
 #
 # The owner: a story should carry the card a FAM link makes in Messages - the

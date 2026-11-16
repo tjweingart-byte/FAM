@@ -613,3 +613,4 @@ and `limit` = Lines.
 | 37339 | 56 | 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16) |
 | 37395 | 302 | 620. The security audit: sign-in, sessions and what every response says (2026-11-16) |
 | 37697 | 52 | 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16) |
+| 37749 | 30 | 622. The episode as a photo to post, the link in the first comment (2026-11-17) |
