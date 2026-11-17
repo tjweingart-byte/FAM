@@ -38513,7 +38513,17 @@ Four tests assumed a stranger could read vibes or interests (§547's posts,
 §174's pinned row, §345's tiles); each now follows first and keeps its own
 point. Rule: `private-mode` in `docs/claude/open-problems.md`.
 
-Not done: the iOS app has no Settings row yet and draws a locked profile
-as "Nothing vibed yet" - the server enforces both, so the app shows less,
-never more. Not verified by hand in a browser beyond the preview build.
+**The iPhone** (the owner, the same day: "add the private mode row to the
+iOS app too"): the same row first in Settings with the web's note word for
+word (a test compares them), `MyPreferences.privateMode`, and a locked
+profile drawn as "Follow to see their vibes and interests." with the
+private account's foot note. **Found on the way, on both clients:** a
+follow from somebody's page did not ask `/api/person` again, so the page
+would have stayed locked until reopened. Web `refreshPersonIfOpen` (after
+follow, unfollow and follow-by-handle, keeping the shelf drawn) and iOS
+`PersonView.follow` / `unfollow` now reload it.
+
+Not verified: the Swift was not compiled - this container has no Swift
+toolchain - so the iOS change needs an Xcode build before it ships. Not
+tried by hand in a browser beyond the preview build.
 

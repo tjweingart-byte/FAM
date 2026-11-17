@@ -37,6 +37,10 @@ struct SettingsView: View {
             YouBackRow(title: "Settings") { back() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    // Private mode leads the page, as the web's (§637).
+                    if model.listener?.authenticated == true {
+                        privateModeRow
+                    }
                     youGroup
                     appearanceGroup
                     listeningGroup
@@ -167,6 +171,29 @@ struct SettingsView: View {
         let on = !player.keepsPitch
         player.setKeepsPitch(on)
         model.nowPlaying.say(on ? "Speed changes keep the voice's pitch" : "Speed changes will shift the voice's pitch")
+    }
+
+    // MARK: - Private mode
+
+    /// `private_mode` (§637): what this listener plays and searches is shown
+    /// to nobody; their vibes still reach the people who follow them. The
+    /// web's row and note, word for word.
+    private var privateModeRow: some View {
+        let on = you.prefs?.privateMode ?? false
+        return VStack(alignment: .leading, spacing: 0) {
+            SetRow(label: "Private mode", value: on ? "On" : "Off") { setPrivateMode(!on) }
+            SetNote(text: "While it\u{2019}s on, nobody sees what you listen to or search \u{2014} not on friends\u{2019} cards, the friends rail or the player. People who follow you still see what you vibe.")
+        }
+    }
+
+    private func setPrivateMode(_ on: Bool) {
+        Task {
+            if await you.savePreference(["private_mode": on]) {
+                model.nowPlaying.say(on ? "Private mode is on" : "Private mode is off")
+            } else {
+                model.nowPlaying.say("Could not save that")
+            }
+        }
     }
 
     // MARK: - Account settings

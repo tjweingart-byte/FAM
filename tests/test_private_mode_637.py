@@ -189,3 +189,40 @@ def test_private_mode_is_the_first_row_in_settings():
     body = _fn("renderSettings")
     assert body.index('settingsRow("Private mode"') < body.index('set-group">You<')
     assert body.index('settingsRow("Private mode"') < body.index('settingsRow("Name and handle"')
+
+
+# --- the iPhone ------------------------------------------------------------
+
+SWIFT = ROOT / "ios" / "FAM" / "FAM"
+
+
+def test_the_iphone_has_the_row_first_in_settings():
+    settings = (SWIFT / "Views" / "SettingsView.swift").read_text()
+    body = settings.split("var body: some View {", 1)[1]
+    assert body.index("privateModeRow") < body.index("youGroup")
+    assert 'SetRow(label: "Private mode"' in settings
+    assert 'savePreference(["private_mode": on])' in settings
+    # The web's note, word for word.
+    web = _fn("renderSettings").split('settingsRow("Private mode"', 1)[1]
+    note = web.split('<div class="set-note">', 1)[1].split("</div>", 1)[0]
+    swift_note = settings.split('SetRow(label: "Private mode"', 1)[1].split(
+        'SetNote(text: "', 1)[1].split('")', 1)[0]
+    # The same words; only the escapes differ (`\u2019` / `\u{2019}`).
+    assert note == swift_note.replace("\\u{", "\\u").replace("}", "")
+    assert "let privateMode: Bool?" in (SWIFT / "API.swift").read_text()
+
+
+def test_the_iphone_draws_a_locked_profile_and_reloads_on_follow():
+    api = (SWIFT / "API.swift").read_text()
+    assert "let locked: Bool?" in api and "let `private`: Bool?" in api
+    person = (SWIFT / "Views" / "PersonView.swift").read_text()
+    assert "Follow to see their vibes and interests." in person
+    follow = person.split("private func follow() {", 1)[1].split("\n    }\n", 1)[0]
+    assert "await load()" in follow
+
+
+def test_the_web_asks_the_page_again_after_a_follow():
+    assert "refreshPersonIfOpen();" in _fn("followPerson")
+    assert "refreshPersonIfOpen();" in _fn("unfollowPerson")
+    assert "refreshPersonIfOpen();" in _fn("followHandle")
+    assert "if(!keep)" in _fn("loadPersonProfile")

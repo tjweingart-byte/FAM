@@ -19036,6 +19036,7 @@
     }).then(function(){
       document.getElementById("friendSearch").value = "";
       loadFriends();
+      refreshPersonIfOpen();
       toast("Following");
     }).catch(function(err){ Motion.follow(userId, false); toast(err.message); });
   }
@@ -19048,6 +19049,7 @@
         if(!r.ok) throw new Error();
         document.getElementById("friendSearch").value = "";
         loadFriends();
+        refreshPersonIfOpen();
         toast("Unfollowed");
       })
       .catch(function(){ Motion.follow(userId, true); toast("Could not unfollow"); });
@@ -19097,11 +19099,23 @@
   var personInterests = [];
   var personShowAll = { friends: false };
 
-  function loadPersonProfile(person){
+  // After a follow or unfollow from somebody's page (§637): their vibes and
+  // interests open, or close, with the follow, so the page is asked again -
+  // keeping the shelf and what is drawn until the answer lands.
+  function refreshPersonIfOpen(){
+    var screen = document.getElementById("screen-person");
+    if(viewingProfile && screen && screen.classList.contains("active")){
+      loadPersonProfile(viewingProfile, true);
+    }
+  }
+
+  function loadPersonProfile(person, keep){
     var handle = person.handle || "";
-    personPublished = null;
-    personShowAll = { friends: false };
-    personShelf = "vibes";
+    if(!keep){
+      personPublished = null;
+      personShowAll = { friends: false };
+      personShelf = "vibes";
+    }
     var query = handle ? "handle=" + encodeURIComponent(handle)
                        : "user_id=" + encodeURIComponent(person.user_id || "");
     fetch("/api/person?" + query)
@@ -19350,6 +19364,7 @@
       if(!document.getElementById("screen-person").classList.contains("active")) return;
       var found = (d.following || []).filter(function(p){ return p.handle === handle; })[0];
       if(found){ viewingProfile = found; renderFriendProfile(viewingProfile, personPublished); }
+      refreshPersonIfOpen();
     }).catch(function(err){ toast(err.message); });
   }
 

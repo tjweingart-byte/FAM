@@ -70,7 +70,9 @@ struct PersonView: View {
                         tabs.id("tabs")
                         grid
                         theirFriends.id("friends")
-                        SocialNote(text: "Only what they chose to share. What someone listens to stays private.")
+                        SocialNote(text: page?.`private` == true
+                                   ? "Private account. Only what they vibe is shared, with the people who follow them."
+                                   : "Only what they chose to share. What someone listens to stays private.")
                             .padding(.top, 2)
                     }
                     .padding(.horizontal, 18)
@@ -359,7 +361,10 @@ struct PersonView: View {
         if let page {
             if tab == 0 {
                 let vibes = page.vibes ?? []
-                if vibes.isEmpty {
+                if page.locked == true {
+                    // §637: vibes and interests are for the people who follow them.
+                    SocialNote(text: "Follow to see their vibes and interests.")
+                } else if vibes.isEmpty {
                     SocialNote(text: "Nothing vibed yet.")
                 } else {
                     LazyVGrid(columns: columns, spacing: 3) {
@@ -537,6 +542,8 @@ struct PersonView: View {
         if !id.isEmpty { flipped = true }
         Task {
             await social.follow(userID: id, handle: id.isEmpty ? h : "")
+            // Their vibes and interests open with the follow (§637).
+            await load()
             flipped = false
             working = false
         }
@@ -550,6 +557,7 @@ struct PersonView: View {
         unflipped = true
         Task {
             await social.unfollow(id)
+            await load()
             unflipped = false
             working = false
         }
