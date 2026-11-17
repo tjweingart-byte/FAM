@@ -396,6 +396,7 @@
   qualifies takes its place; nothing tops the section up.
 
 <!-- rule:no-not-interested -->
+> **Current (PROBLEMS.md §641, the owner's motion pick remove-tile: B):** the tile still leaves the page at once (it folds away and the rest close in), but the line under it offers **Undo for five seconds** and `not_interested` is recorded only when that line goes without it - its time is up, another line replaces it, or the page is hidden. A tile waiting on its Undo is kept off redraws (`notInterestedPending`). Pick up's X works the same way: the dismiss is sent when its Undo line goes, and the section is not asked for again after it.
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question, and a crowd rail's `ep-…` tile by its recorded id - off every rail, beside "no repeats" in `build_feed` and `build_section`; off Trending and its View more (the same personal exception as a heard story, §136 - nothing else of the listener reaches Trending's order); and off the post-episode grid (`rank_next_up`, its last-resort fill included), which starts its first tile by itself. The client also drops it from `railTiles`, so "See all" does not draw it again. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
@@ -877,6 +878,15 @@ the door. `private` tells the page to say the account is private.
    written row in for it - it used to wait for the POST and then re-fetch the
    whole conversation, which is where "a few seconds of latency when I send"
    came from.
+   > **Current (PROBLEMS.md §644):** a send that fails now **stays in the
+   > chat**, faded and marked "Not sent · Tap to retry", and the box stays
+   > clear - it used to be taken back off the screen with the words put
+   > back in the box. The inbox is read when the app opens, beside the
+   > notifications' first call, and each chat opened is kept in memory for
+   > the session (never storage; emptied on log-out), so both draw on their
+   > first frame and the poll tops a chat up from its cursor. A chat is
+   > marked read on the tap. Delete chat and Leave group wait five seconds
+   > for an Undo before they are sent.
    None of this generates anything, which is the point of the section:
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,

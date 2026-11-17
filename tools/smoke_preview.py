@@ -1751,6 +1751,30 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def story_face():
+            """The selector of a face on DailyFAM's row with stories up.
+
+            The row's VIBE badge went in §297 (the ring says it now), and the
+            story checks gated on it skipped without a word until §646. The
+            fixture has Beth's two; the live build's database has nobody
+            else's, so two are drawn into the row there. Never a skip: with
+            no face the check fails."""
+            find = "() => yfCircle.findIndex(function(p){ return hasStories(p); })"
+            i = page.evaluate(find)
+            if i < 0:
+                page.evaluate("""() => { var now = Date.now() / 1000;
+                    yfCircle = [{ user_id: "u_smoke_story", name: "Sam Story", handle: "samstory", avatar: "",
+                      stories: [{ at: now - 600, title: "Why the tides turn", query: "why the tides turn", minutes: 1.5 },
+                                { at: now - 300, title: "How bees vote", query: "how bees vote", minutes: 1.5 }] }]
+                      .concat(yfCircle);
+                    paintMyFamCircle(); }""")
+                page.wait_for_timeout(200)
+                i = page.evaluate(find)
+            assert i >= 0, "no face on DailyFAM's row has stories to open"
+            sel = f'#myfamCircle .yf-friend[data-i="{i}"]'
+            assert page.query_selector(sel), f"the face with stories is not drawn: {sel}"
+            return sel
+
         def ensure_account():
             """Sign up unless this browser already has an account.
 
@@ -1891,6 +1915,7 @@ def main() -> int:
                 assert page.eval_on_selector_all("#identityIntChips .yf-int.dim",
                                                  "e => e.length") >= 1, \
                     "a full set did not dim the rest"
+            page.wait_for_timeout(400)  # the count's digit rolls (§645)
             assert page.text_content("#identityIntCount").strip() == f"{on} OF 5"
             # Room for a typed one: take one off, then add it.
             page.eval_on_selector_all("#identityIntChips .yf-int.on",
@@ -2369,6 +2394,888 @@ def main() -> int:
             assert left == 0, f"{left} motion copies were left on the page"
             page.evaluate("closeSheet(); QUEUE = []; drawMixSkip(false)")
 
+        def round_three_motion_holds_nothing():
+            """§640: the shared round-three picks. Curves and times are the
+            named tokens, read alike by CSS and script; a tab change leaves
+            nothing of the old tab on its first frame; a sheet closes as a
+            transition, inert while it goes, and is gone after; a drag from
+            the left edge goes back and a drag from the middle does not;
+            the mini player's line is scaled, never sized; a line with Undo
+            stays five seconds; and nothing drawn for any of it is left."""
+            tokens = page.evaluate("""() => {
+                var css = getComputedStyle(document.documentElement);
+                return {out: css.getPropertyValue('--ease-out').trim(),
+                        js: Motion.EASE.OUT, page: Motion.DUR.page, sheet: Motion.DUR.sheetIn};
+            }""")
+            assert tokens["out"].replace(" ", "") == "cubic-bezier(.32,.72,0,1)", tokens
+            assert tokens["js"] == tokens["out"], f"Motion does not read the CSS's curve: {tokens}"
+            assert tokens["page"] == 340 and tokens["sheet"] == 280, tokens
+            page.evaluate("stopSpeech(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(400)
+            page.evaluate("setTab('myfam')")
+            leaving = page.evaluate("document.querySelectorAll('.screen.leaving').length")
+            assert leaving == 0, "the old tab was still drawn on the new tab's first frame"
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-myfam"
+            page.wait_for_timeout(400)
+            # A sheet: open, then closed half way - it turns round, inert.
+            page.evaluate("openLengthMenu()")
+            page.wait_for_timeout(120)
+            page.evaluate("closeSheet()")
+            state = page.evaluate("""() => { var o = document.getElementById('sheetOverlay');
+                return {closing: o.classList.contains('closing'), inert: o.inert,
+                        active: o.classList.contains('active')}; }""")
+            assert state["closing"] and state["inert"] and not state["active"], \
+                f"a closing sheet was not held, inert, on its way out: {state}"
+            page.wait_for_timeout(400)
+            state = page.evaluate("""() => { var o = document.getElementById('sheetOverlay');
+                return {closing: o.classList.contains('closing'), inert: o.inert,
+                        shown: getComputedStyle(o).display}; }""")
+            assert not state["closing"] and not state["inert"] and state["shown"] == "none", \
+                f"the sheet was left behind: {state}"
+            # Back by a drag from the left edge, under the finger.
+            page.evaluate("setTab('profile'); openSettings()")
+            page.wait_for_timeout(500)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-settings"
+            frame = page.eval_on_selector(".screen.active", "e => { var r = e.getBoundingClientRect();"
+                                          " return {x: r.left, y: r.top + 24, w: r.width}; }")
+            # From the middle: a sideways drag is not a back.
+            page.mouse.move(frame["x"] + frame["w"] / 2, frame["y"])
+            page.mouse.down()
+            page.mouse.move(frame["x"] + frame["w"] / 2 + 150, frame["y"], steps=6)
+            page.mouse.up()
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-settings", \
+                "a drag from the middle of the page went back"
+            page.mouse.move(frame["x"] + 6, frame["y"])
+            page.mouse.down()
+            page.mouse.move(frame["x"] + 60, frame["y"], steps=4)
+            moved = page.eval_on_selector("#screen-settings", "e => e.style.transform")
+            assert "translateX" in moved, f"the page did not follow the finger: {moved!r}"
+            page.mouse.move(frame["x"] + frame["w"] * 0.7, frame["y"], steps=4)
+            page.mouse.up()
+            page.wait_for_timeout(50)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-profile", \
+                "a drag from the left edge past half way did not go back"
+            page.wait_for_timeout(600)
+            left = page.evaluate("""() => ({
+                leaving: document.querySelectorAll('.screen.leaving, .screen.arriving').length,
+                styled: document.getElementById('screen-settings').style.transform})""")
+            assert left["leaving"] == 0 and not left["styled"], f"the drag left the page moved: {left}"
+            # The mini player's line is scaled from its left edge, never sized.
+            fill = page.eval_on_selector("#nowFill", "e => getComputedStyle(e).transformOrigin")
+            assert fill.startswith("0px"), f"the mini player's line is not drawn from its left: {fill}"
+            assert page.evaluate("SNACK_ACTION_MS") >= 5000, "an Undo line stays under five seconds"
+            page.evaluate("setTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark')")
+            assert page.evaluate("document.documentElement.classList.contains('theme-switching')"), \
+                "a theme change did not turn transitions off while it happened"
+            page.wait_for_timeout(300)
+            left = page.evaluate("""() => document.documentElement.classList.contains('theme-switching')
+                + document.querySelectorAll('.motion-ghost, .motion-icon, .motion-copy, .motion-lab,'
+                + ' .motion-title, .motion-row, .motion-roll-old').length""")
+            assert left == 0, f"{left} motion copies (or the theme switch) were left behind"
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+
+        def dailyfam_motion_holds_nothing():
+            """§641: dailyFAM's round-three picks. A tapped tile's picture
+            grows into the loader and the loader's picture flies on into the
+            player - never a second copy of the tile while the loader is up;
+            View more opens on the rail's own tiles; Refresh does not flash
+            its spinner; a save lights on the tap; Not interested and Pick
+            up's X leave at once, offer Undo, and send nothing until the line
+            goes; a story pulled down closes and one pulled sideways turns
+            back; a reply's words rise out of the box - and nothing drawn for
+            any of it is left behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); document.querySelectorAll('.modal-overlay.active,"
+                          " .sheet-overlay.active').forEach(function(e){ e.classList.remove('active'); })")
+            page.evaluate("stopSpeech(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_selector("#myfamFeed .feed-rail > .seed-card[data-topic]", timeout=10000)
+            page.wait_for_timeout(500)
+            # The fixture's tiles carry no pictures: the first one is given one.
+            page.evaluate("""() => {
+                var card = document.querySelector('#myfamFeed .feed-rail > .seed-card[data-topic]');
+                var t = myFamTopics[card.getAttribute('data-topic')];
+                t.thumb = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"'
+                    + ' width="40" height="30"><rect width="40" height="30" fill="#b85"/></svg>');
+                var th = card.querySelector('.seed-thumb');
+                if (!th.querySelector('.seed-img')) {
+                    var img = document.createElement('img');
+                    img.className = 'seed-img'; img.src = t.thumb;
+                    th.insertBefore(img, th.firstChild);
+                }
+                window.__pictured = card.getAttribute('data-topic');
+            }""")
+            page.wait_for_timeout(200)
+            assert page.evaluate("Motion.DUR.loaderOut") == 340 and page.evaluate("Motion.DUR.arrive") == 350
+            # One picture: a tile's own copy never flies over the loader.
+            page.evaluate("""() => {
+                var seen = window.__hand = { twice: false, into: false, out: false };
+                var ld = document.getElementById("famLoading");
+                if (window.__handWatch) window.__handWatch.disconnect();
+                window.__handWatch = new MutationObserver(function () {
+                    var up = ld.classList.contains("active");
+                    if (up && document.querySelector(".frame > .motion-ghost")) seen.twice = true;
+                    if (document.querySelector(".motion-loader-pic")) seen.into = true;
+                    if (document.querySelector(".motion-loader-out")) seen.out = true;
+                });
+                window.__handWatch.observe(document.querySelector(".frame"), { childList: true });
+            }""")
+            # Clear of the card's own controls (save, the dots, friends' faces).
+            page.click("#myfamFeed .seed-card[data-topic]:has(.seed-img) .seed-thumb",
+                       position={"x": 12, "y": 34})
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_timeout(900)
+            seen = page.evaluate("() => { window.__handWatch.disconnect(); return window.__hand; }")
+            assert not seen["twice"], "a copy of the tile flew while the loader was up"
+            assert seen["into"], "the tile's picture did not grow into the loader"
+            assert seen["out"], "the loader did not hand over to the player"
+            page.evaluate("stopSpeech(); clearGenOverlay(); goBack()")
+            page.wait_for_timeout(500)
+            # View more opens on the rail's tiles, before any answer.
+            drawn = page.evaluate("""() => { openSection('from_history');
+                return [document.querySelectorAll('#sectionGrid .seed-card[data-topic]').length,
+                        (railTiles.from_history || []).length]; }""")
+            assert drawn[0] and drawn[0] == drawn[1], f"View more opened on {drawn[0]} of the rail's {drawn[1]}"
+            page.wait_for_timeout(800)
+            if page.is_visible("#sectionRefresh"):
+                spun = page.evaluate("() => { refreshSection(); return document.getElementById('sectionRefresh')"
+                                     ".classList.contains('spinning'); }")
+                assert not spun, "Refresh's spinner showed on the press, before 300 ms"
+                page.wait_for_timeout(900)
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            # A save lights on the tap, before the server has answered.
+            lit = page.evaluate("""() => { var b = document.querySelector('#myfamFeed .seed-card[data-topic] .tile-save:not(.saved-on)');
+                if (!b) return true; b.click(); return b.classList.contains('saved-on'); }""")
+            assert lit, "a tile's save did not light on the tap"
+            page.wait_for_timeout(1200)
+            # Not interested: gone at once, Undo, and nothing sent until the line goes.
+            page.evaluate("""() => { window.__notint = [];
+                window.__realRecord = window.__realRecord || recordFamEvent;
+                window.recordFamEvent = function (kind) { if (kind === 'not_interested') window.__notint.push(arguments[1]);
+                    return window.__realRecord.apply(this, arguments); }; }""")
+            tid = page.evaluate("() => document.querySelector('#myfamFeed .feed-rail > [data-topic]').getAttribute('data-topic')")
+            page.evaluate("id => tileNotInterested(id)", tid)
+            gone = page.evaluate("id => !document.querySelector('#myfamFeed [data-topic=\"' + id + '\"]')", tid)
+            assert gone, "a tile waved off was still on the page"
+            assert page.is_visible("#snackAct") and page.text_content("#snackAct") == "Undo", "no Undo on the line"
+            assert page.evaluate("window.__notint.length") == 0, "not interested was sent before its Undo was over"
+            page.click("#snackAct")
+            page.wait_for_timeout(500)
+            back = page.evaluate("id => !!document.querySelector('#myfamFeed .feed-rail > [data-topic=\"' + id + '\"]')", tid)
+            assert back, "Undo did not put the tile back"
+            assert page.evaluate("window.__notint.length") == 0, "an undone not interested was sent"
+            page.evaluate("id => { tileNotInterested(id); hideSnack(); }", tid)
+            assert page.evaluate("window.__notint.length") == 1, "not interested was not sent when its line went"
+            page.evaluate("window.recordFamEvent = window.__realRecord")
+            # Pick up's X: a 44 px target, gone at once, Undo puts it back.
+            page.evaluate("Tour.on() && Tour.skip()")
+            page.wait_for_timeout(500)
+            if page.query_selector("#goDeeperBlock .gd-card"):
+                hit = page.evaluate("""() => { var c = document.querySelector('#goDeeperBlock .gd-card');
+                    c.scrollIntoView({ block: 'center' }); var r = c.getBoundingClientRect();
+                    var at = document.elementFromPoint(r.right - 34, r.top + 34);
+                    return !!(at && at.closest('.gd-x')); }""")
+                assert hit, "Pick up's X is not 44 px to press"
+                first = page.evaluate("goDeeperCardCache[0].title")
+                page.evaluate("dismissGoDeeper(0)")
+                assert first not in page.evaluate("goDeeperCardCache.map(c => c.title)")
+                page.click("#snackAct")
+                page.wait_for_timeout(500)
+                assert first in page.evaluate("goDeeperCardCache.map(c => c.title)"), "Undo did not bring the card back"
+            # A story: pulled down it closes, pulled sideways it comes back.
+            face = story_face()
+            if face:
+                def open_story():
+                    page.click(face)
+                    page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
+                    page.wait_for_timeout(400)
+                    return page.eval_on_selector("#storyOverlay", "e => { var r = e.getBoundingClientRect();"
+                                                 " return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width}; }")
+                at = open_story()
+                fill = page.eval_on_selector("#storyBars .story-bar.on i", "e => getComputedStyle(e).transform")
+                assert fill.startswith("matrix"), f"the story's bar is not drawn by scale: {fill}"
+                page.mouse.move(at["x"] + 40, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 20, at["y"], steps=4)
+                moved = page.eval_on_selector("#storyOverlay", "e => e.style.transform")
+                assert moved, "a sideways drag did not move the story under the finger"
+                page.wait_for_timeout(150)
+                page.mouse.up()
+                page.wait_for_timeout(700)
+                left = page.evaluate("""() => ({ t: document.getElementById('storyOverlay').style.transform,
+                    n: document.querySelectorAll('.motion-story-back, .motion-shade').length,
+                    open: !document.getElementById('storyOverlay').hidden })""")
+                assert left["open"] and not left["t"] and not left["n"], f"a short sideways drag was left: {left}"
+                # The reply's words rise out of the box.
+                if page.is_visible("#storyReplyInput"):
+                    page.fill("#storyReplyInput", "Nice")
+                    page.press("#storyReplyInput", "Enter")
+                    assert page.evaluate("document.querySelectorAll('.motion-words').length") == 1, \
+                        "the sent words did not rise out of the box"
+                    assert page.input_value("#storyReplyInput") == "", "the reply box was not emptied at once"
+                    page.wait_for_timeout(500)
+                page.mouse.move(at["x"], at["y"] - 100)
+                page.mouse.down()
+                page.mouse.move(at["x"], at["y"] + 60, steps=6)
+                pulled = page.eval_on_selector("#storyOverlay", "e => e.style.transform")
+                assert "translateY" in pulled and "scale" in pulled, f"a drag down did not follow the finger: {pulled!r}"
+                page.mouse.up()
+                page.wait_for_timeout(100)
+                assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), "a story pulled down did not close"
+                page.wait_for_timeout(600)
+                # §646: a mouse turned to the next friend's and let go off the
+                # story (over the turning copy, which takes no pointer) still
+                # ends the turn - it was left half-turned, paused, for good.
+                page.evaluate("""() => { var now = Date.now() / 1000, i = yfCircle.findIndex(hasStories);
+                    yfCircle.splice(i + 1, 0, { user_id: "u_smoke_next", name: "Nia Next", handle: "nianext", avatar: "",
+                      stories: [{ at: now - 120, title: "Why ice floats", query: "why ice floats", minutes: 1.5 }] });
+                    paintMyFamCircle(); }""")
+                at = open_story()
+                page.mouse.move(at["x"] + 120, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 40, at["y"], steps=5)
+                assert page.evaluate("document.querySelectorAll('.motion-story-back').length") == 1, \
+                    "a sideways drag toward the next friend did not turn the cube"
+                page.mouse.move(at["x"] - 150, at["y"] + 300, steps=5)
+                page.mouse.up()
+                page.wait_for_timeout(800)
+                turned = page.evaluate("""() => ({ t: document.getElementById('storyOverlay').style.transform,
+                    n: document.querySelectorAll('.motion-story-back, .motion-shade').length,
+                    held: storyHeld, open: !document.getElementById('storyOverlay').hidden })""")
+                assert not turned["t"] and not turned["n"] and not (turned["open"] and turned["held"]), \
+                    f"a mouse let go off the story left the turn stuck: {turned}"
+                # Closed mid-turn: nothing of the cube outlives the viewer.
+                if not page.eval_on_selector("#storyOverlay", "e => e.hidden"):
+                    page.evaluate("closeStory()")
+                    page.wait_for_timeout(500)
+                at = open_story()
+                page.mouse.move(at["x"] + 40, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 30, at["y"], steps=4)
+                page.evaluate("closeStory()")
+                page.mouse.up()
+                page.wait_for_timeout(600)
+                assert page.evaluate("document.querySelectorAll('.motion-story-back, .motion-shade, .story[aria-hidden=true]').length") == 0, \
+                    "a story closed mid-turn left its cube on screen"
+                page.evaluate("yfCircle = yfCircle.filter(function(p){ return p.user_id !== 'u_smoke_next'; }); paintMyFamCircle()")
+            left = page.evaluate("""() => document.querySelectorAll('.motion-loader-pic, .motion-loader-out,'
+                + ' .motion-leave, .motion-words, .motion-shade, .motion-gold-was, .motion-dg, .motion-story-back,'
+                + ' .motion-ghost, .motion-lab').length""")
+            assert left == 0, f"{left} of dailyFAM's motion copies were left behind"
+            page.evaluate("hideSnack(); setTab('home')")
+            page.wait_for_timeout(300)
+
+        def myfam_motion_holds_nothing():
+            """§642: myFAM's round-three picks. The tabs' underline slides and
+            the old list leaves as a copy; a category chip keeps its element
+            and the X comes at once; a mix's switch changes on the tap and
+            slides the knob that was there; Add topics' (+) flips its row on
+            the tap; a refused reorder goes back; Back from a mix and from Add
+            topics is a pop; the glide's pill and lit card are drawn by
+            transform; a finished mix files its cards - and nothing drawn for
+            any of it is left behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); })")
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#mixList .mix-a[data-mix]", timeout=10000)
+            page.wait_for_timeout(600)
+            assert page.evaluate("Motion.DUR.glide") == 300 and page.evaluate("Motion.DUR.knob") == 220
+            # Tabs: one underline, slid; the old list leaves as a copy.
+            page.click("#pfTabCats")
+            moved = page.evaluate("""() => ({ cats: document.querySelector('#screen-playfam .pf-tabs').classList.contains('cats'),
+                copy: document.querySelectorAll('.motion-panel').length,
+                row: getComputedStyle(document.getElementById('newMixRow')).visibility,
+                h: document.getElementById('newMixRow').offsetHeight })""")
+            assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
+            assert moved["row"] == "hidden", f"the Create row was taken out of the page: {moved}"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
+            # A chip: the X comes at once, the chip is the same element.
+            if page.query_selector("#catChips .catchip[data-cat]"):
+                page.evaluate("document.querySelector('#catChips .catchip[data-cat]').click()")
+                assert page.query_selector("#catChips [data-chip=x]"), "the X did not come on the tap"
+                assert "Loading" not in (page.text_content("#catPanel") or ""), "the loading line flashed on the tap"
+                page.wait_for_timeout(900)
+                page.click("#catChips [data-chip=x]")
+                page.wait_for_timeout(500)
+            page.click("#pfTabMixes")
+            page.wait_for_timeout(500)
+            # Cards not seen are dealt; a card whose stack changed reshuffles.
+            dealt = page.evaluate("""() => { mixCardsSeen = {}; document.getElementById('mixList')._drawn = null;
+                renderMixList(); return Array.prototype.filter.call(document.querySelectorAll('#mixList .mix-a[data-mix]'),
+                  function(c){ return c.getAnimations().length; }).length; }""")
+            assert dealt >= 1, "no mix card was dealt on first sight"
+            page.wait_for_timeout(700)
+            again = page.evaluate("""() => { renderMixList(); document.getElementById('mixList')._drawn = null; renderMixList();
+                return document.querySelectorAll('#mixList .mix-a[data-mix]')[0].getAnimations().length; }""")
+            assert again == 0, "a card seen before was dealt again"
+            shuffled = page.evaluate("""() => { var m = mixes.filter(function(x){ return (x.cover_tiles || []).length > 1; })[0];
+                if(!m) return -1; m.cover_tiles = m.cover_tiles.slice(1).concat(m.cover_tiles.slice(0, 1));
+                renderMixList(); var card = document.querySelector('#mixList [data-mix="' + m.id + '"]');
+                return Array.prototype.reduce.call(card.querySelectorAll('.mix-a-tile'),
+                  function(n, t){ return n + t.getAnimations().length; }, 0); }""")
+            assert shuffled != 0, "a card whose lead changed did not reshuffle"
+            page.wait_for_timeout(700)
+            # Inside a mix: the switch changes on the tap, in place.
+            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.wait_for_timeout(500)
+            if page.query_selector("#mixBody .mix-vis"):
+                lit = page.evaluate("""() => { var sw = document.querySelector('#mixBody .mix-switch');
+                    window.__knob = sw; var was = sw.classList.contains('on');
+                    document.querySelector('#mixBody .mix-vis').click();
+                    return [was, sw.classList.contains('on')]; }""")
+                assert lit[0] != lit[1], "the switch waited for the server"
+                page.wait_for_timeout(900)
+                assert page.evaluate("window.__knob.isConnected"), "the page was redrawn under the switch"
+                page.evaluate("document.querySelector('#mixBody .mix-vis').click()")
+                page.wait_for_timeout(700)
+            # A refused reorder goes back where the server has it.
+            if page.evaluate("document.querySelectorAll('#mixOrder > .mix-topic').length") >= 2:
+                order = page.evaluate("""() => { window.__realFetch = window.__realFetch || window.fetch;
+                    window.fetch = function(u, o){ if(o && o.method === 'PATCH')
+                        return Promise.resolve(new Response(JSON.stringify({error: 'No'}), {status: 400}));
+                      return window.__realFetch.apply(this, arguments); };
+                    var keys = Array.prototype.map.call(document.querySelectorAll('#mixOrder > .mix-topic'),
+                                                        function(r){ return r.getAttribute('data-key'); });
+                    moveMixTopic(0, 1); return keys; }""")
+                page.wait_for_timeout(900)
+                back = page.evaluate("""() => { window.fetch = window.__realFetch;
+                    return Array.prototype.map.call(document.querySelectorAll('#mixOrder > .mix-topic'),
+                                                    function(r){ return r.getAttribute('data-key'); }); }""")
+                assert back == order, f"a refused reorder stayed drawn: {order} -> {back}"
+            # Add topics: the (+) flips on the tap; Back is a pop.
+            depth = page.evaluate("stack.length")
+            page.evaluate("openAddTopics()")
+            page.wait_for_selector("#screen-addtopics.active", timeout=5000)
+            page.wait_for_timeout(600)
+            if page.query_selector("#addTopicsBody .mix-topic-act[data-id]"):
+                flipped = page.evaluate("""() => { var b = document.querySelector('#addTopicsBody .mix-topic-act[data-id]');
+                    var row = b.closest('.mix-topic'), was = row.classList.contains('chosen');
+                    b.click(); return [was, row.classList.contains('chosen')]; }""")
+                assert flipped[0] != flipped[1], "Add topics' (+) waited for the server"
+                page.wait_for_timeout(700)
+            page.evaluate("closeAddTopics()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("stack.length") == depth and page.evaluate(
+                "document.getElementById('screen-mixdetail').classList.contains('active')"), \
+                "Back from Add topics pushed a second mix page"
+            page.evaluate("closeMixPage()")
+            assert page.evaluate("document.getElementById('screen-mixdetail').classList.contains('leaving')"), \
+                "Back from a mix was not a pop"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.getElementById('screen-playfam').classList.contains('active')")
+            # The glide: its pill and lit card by transform, never width.
+            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.wait_for_timeout(400)
+            if page.evaluate("(mixById(currentMixId).items || []).length") > 1:
+                page.evaluate("""() => { window.__glide = null; var real = Motion.glide;
+                    Motion.glide = function(el){ real.apply(this, arguments);
+                      var c = el.querySelector('.fam-glide-card.on'), p = el.querySelector('.fam-glide-pill');
+                      var moving = c ? c.getAnimations().length : 0;
+                      if(c) c.getAnimations().forEach(function(a){ a.finish(); });
+                      window.__glide = { t: c ? getComputedStyle(c).transform : '', pill: !!p,
+                                         w: p ? p.offsetWidth : 0, moving: moving };
+                      Motion.glide = real; };
+                    playMix(); }""")
+                page.wait_for_function("() => window.__glide", timeout=5000)
+                pose = page.evaluate("window.__glide")
+                assert pose["moving"], f"the lit card did not lift: {pose}"
+                assert pose["t"].startswith("matrix(1.05"), f"the lit card is not lifted by scale: {pose}"
+                assert pose["pill"] and pose["w"] == 18, f"the dot's pill is not drawn: {pose}"
+                page.evaluate("stopSpeech(); clearGenOverlay(); endMixQueue()")
+                page.wait_for_timeout(400)
+            # Create: the mix's page takes the naming screen's place, the
+            # folder flying to its cover; Back goes to the grid.
+            page.evaluate("stopSpeech(); clearGenOverlay(); stack = ['playfam']; showScreen('playfam')")
+            page.evaluate("openNewMix()")
+            page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            page.wait_for_timeout(500)
+            page.fill("#nmInput", "Smoke run club")
+            page.evaluate("""() => { window.__cover = false; var o = new MutationObserver(function(){
+                if (document.querySelector('.motion-cover')) window.__cover = true; });
+                o.observe(document.querySelector('.frame'), { childList: true }); window.__coverWatch = o; }""")
+            page.click("#nmCreate")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            made = page.evaluate("() => { window.__coverWatch.disconnect(); return [stack.slice(), window.__cover]; }")
+            assert "newmix" not in made[0], f"the naming screen stayed under the new mix: {made[0]}"
+            assert made[1], "the folder did not fly to the new mix's cover"
+            page.wait_for_timeout(700)
+            # A mix played through files its cards and draws the check.
+            page.evaluate("""() => { mixPlay = { name: 'Morning', id: '', pos: 1, key: '', played: {0: true, 1: true},
+                order: [{ title: 'A' }, { title: 'B' }] }; finishMix(); }""")
+            filed = page.evaluate("document.querySelectorAll('#mixDoneDeck .mixdone-c').length")
+            assert filed == 2, f"the finished mix filed {filed} cards"
+            page.wait_for_timeout(1300)
+            page.evaluate("closeMixDone(false)")
+            page.evaluate("stack = ['playfam']; setTab('home')")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-panel, .motion-star, .motion-cover,'
+                + ' .motion-name, .motion-copy, .motion-leave, .motion-line-was, .motion-loader-out').length""")
+            assert left == 0, f"{left} of myFAM's motion copies were left behind"
+
+        def search_motion_holds_nothing():
+            """§643: search's round-three picks. Go takes the mic's slot; a
+            changed length turns the stopwatch's hand; the loader opens on the
+            press, over a FAM that glides into it, and a cancel leaves it as a
+            copy and puts the question back, sending nothing; a step checks
+            off with a ring on the chevrons' beat that stops with the loader;
+            the loader opens onto the player through a hole; trending arrives
+            once; Go Deeper's chip sends the line under the finger; the lock
+            swaps; "type your own" swaps in one cell - and nothing drawn for
+            any of it is left behind."""
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay(); stack = ['home']; setTab('home');"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); })")
+            page.wait_for_timeout(400)
+            assert page.evaluate("Motion.DUR.iris") == 340 and page.evaluate("Motion.DUR.beat") == 2400
+            # Go takes the mic's slot, which never moves.
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            clip = page.evaluate("document.getElementById('attachBtn').getBoundingClientRect().left")
+            page.type("#searchInput", "t")
+            assert page.evaluate("document.getElementById('barSlot').classList.contains('typing')"), "go did not take the slot"
+            assert page.is_visible("#searchGoBtn"), "go is not shown in the mic's slot"
+            assert abs(page.evaluate("document.getElementById('attachBtn').getBoundingClientRect().left") - clip) < 1, \
+                "the clip moved when go came"
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            # A changed length: the stopwatch's hand turns, the word is not printed.
+            page.evaluate("selectedLengthMinutes = 1.5; openLengthMenu()")
+            page.wait_for_timeout(350)
+            page.evaluate("""() => { var it = Array.prototype.filter.call(document.querySelectorAll('#sheetCard .sheet-item'),
+                function(e){ return e.textContent.indexOf('3 min') === 0; })[0]; it.click(); }""")
+            turning = page.evaluate("document.querySelector('#lengthBubble .ack-hand').getAnimations().length")
+            assert turning == 1, "the stopwatch's hand did not turn for a changed length"
+            assert "3" not in page.text_content("#lengthBubble"), "the bubble printed the length"
+            page.wait_for_timeout(800)
+            page.evaluate("selectedLengthMinutes = 1.5; paintLengthControls()")
+            # The loader opens on the press, while the speller is still out.
+            page.evaluate("""() => { window.__gen = 0; window.__generate = generate; generate = function(){ window.__gen++; };
+                window.__ac = acCorrectQuestion; AI_CONSENT = AI_CONSENT || {}; AI_CONSENT.given = true;
+                acCorrectQuestion = function(t){ return new Promise(function(done){
+                  setTimeout(function(){ done({ query: t, title: t }); }, 400); }); }; }""")
+            page.fill("#searchInput", "how do tides work")
+            opened = page.evaluate("""() => { runSearch(); var l = famLoadingEl();
+                return { up: l.classList.contains('active') && l.classList.contains('stepped'),
+                         mark: document.querySelectorAll('.motion-mark').length,
+                         rows: l.querySelector('.fam-steps li').getAnimations().length }; }""")
+            assert opened["up"], f"the loader waited for the speller: {opened}"
+            assert opened["rows"] > 0, f"the five rows did not rise in: {opened}"
+            # Cancel under it: a copy leaves, nothing is sent, the words stay.
+            left = page.evaluate("""() => { document.getElementById('famLoadingCancel').click();
+                return { up: famLoadingEl().classList.contains('active'),
+                         copy: document.querySelectorAll('.motion-loader-out').length }; }""")
+            assert not left["up"] and left["copy"] == 1, f"the loader did not leave as a copy: {left}"
+            page.wait_for_timeout(700)
+            assert page.evaluate("window.__gen") == 0, "a search cancelled under the loader was sent"
+            assert page.input_value("#searchInput") == "how do tides work", "cancelling lost the question"
+            page.evaluate("() => { generate = window.__generate; acCorrectQuestion = window.__ac; }")
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            # A step checks off; the next ring beats; it all stops with the loader.
+            rings = page.evaluate("""() => { openGenOverlayNow(); paintGenSteps(1);
+                var lis = document.querySelectorAll('#famLoading .fam-steps li');
+                return { done: lis[0].classList.contains('done'),
+                         ring: lis[1].querySelector('.fam-step-ring').getAnimations().length }; }""")
+            assert rings["done"] and rings["ring"] == 1, f"a step did not check off with its ring: {rings}"
+            page.wait_for_timeout(500)
+            # It opens onto the player through a hole from the chevrons.
+            hole = page.evaluate("""() => { handOffGenOverlay(); var c = document.querySelector('.motion-loader-out');
+                return { up: famLoadingEl().classList.contains('active'), clip: c ? getComputedStyle(c).clipPath : '',
+                         beats: Array.prototype.reduce.call(document.querySelectorAll('#famLoading .fam-step-ring'),
+                           function(n, r){ return n + r.getAnimations().length; }, 0) }; }""")
+            assert not hole["up"] and hole["clip"].startswith("path("), f"the loader did not open as an iris: {hole}"
+            assert hole["beats"] == 0, "a step's ring kept beating after the loader went"
+            page.wait_for_timeout(500)
+            # Trending: a search not shown before arrives; a redraw moves nothing.
+            arrived = page.evaluate("""() => { TREND_SEARCHES = [{ query: 'q-' + Date.now(), title: 'A new one' }];
+                paintTrendSearches(); var c = document.querySelector('#trendList .trend-chip');
+                var first = c ? c.getAnimations().length : -1; paintTrendSearches();
+                return [first, document.querySelector('#trendList .trend-chip').getAnimations().length]; }""")
+            assert arrived[0] > 0, f"a new trending search did not arrive: {arrived}"
+            page.wait_for_timeout(400)
+            assert page.evaluate("document.querySelector('#trendList .trend-chip').getAnimations().length") == 0
+            # Go Deeper: the line under the finger is the line sent.
+            sent = page.evaluate("""() => { window.__fu = startFollowUp; var got = null;
+                startFollowUp = function(v){ got = v; };
+                TOPICS['__gd'] = { title: 'Tides' }; currentPlayingTopicKey = '__gd'; episodeThread = '';
+                goDeeperBaseOverride = null; goDeeperThreadOverride = ''; showGoDeeperModal(1.5);
+                var chip = document.getElementById('goDeeperSuggestion'), seen = chip.querySelector('.chip-line').textContent;
+                chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                episodeThread = 'Something else entirely'; showThreadSuggestion();
+                var under = chip.querySelector('.chip-line').textContent;
+                window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+                chip.click(); startFollowUp = window.__fu; episodeThread = '';
+                return { seen: seen, under: under, got: got }; }""")
+            assert sent["under"] == sent["seen"], f"the line swapped under the finger: {sent}"
+            assert sent["got"] == sent["seen"], f"Go Deeper sent a line nobody read: {sent}"
+            page.evaluate("closeGoDeeper(); delete TOPICS['__gd']; currentPlayingTopicKey = null;")
+            page.wait_for_timeout(400)
+            # The lock swaps on the icon spring, on the tap.
+            was = page.evaluate("privateSearch")
+            swapped = page.evaluate("""() => { document.getElementById('privateBubble').click();
+                return document.querySelectorAll('.motion-icon').length; }""")
+            assert swapped >= 1, "the lock did not swap its icon"
+            page.wait_for_timeout(500)
+            page.evaluate("document.getElementById('privateBubble').click()")
+            assert page.evaluate("privateSearch") == was
+            page.wait_for_timeout(500)
+            # "Type your own" becomes the field in the pill's own cell.
+            own = page.evaluate("""() => { TOPICS['__r'] = { title: 'United', prompt: 'how did united do' };
+                askReading('__r', null, ['Manchester United', 'DC United']); openReadingOwn();
+                var cell = document.querySelector('.reading-own-cell');
+                return { copy: cell.querySelectorAll('.motion-own').length,
+                         focus: document.activeElement && document.activeElement.id }; }""")
+            assert own["copy"] == 1 and own["focus"] == "readingOwnInput", f"the pill did not swap in place: {own}"
+            page.evaluate("answerReading(''); delete TOPICS['__r'];")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-mark, .motion-loader-out, .motion-left,'
+                + ' .motion-own, .vs-ripple, .motion-icon').length""")
+            assert left == 0, f"{left} of search's motion copies were left behind"
+            page.evaluate("setTab('home')")
+
+        def messages_motion_holds_nothing():
+            """§644: Messages' round-three picks. The tab's count rolls with
+            the new number in it from the first frame; a chat keeps the
+            reader's place on a redraw and only follows when they were at the
+            bottom, the column rising with no scale; their message grows out
+            of the dots; a slow send says "Sending…" only past a second; a
+            failed one stays, marked "Not sent · Tap to retry", and goes
+            again; the chips' room is kept; a banner for another chat
+            replaces it in place; a chat is read on the tap; Delete goes with
+            Undo, sending nothing until the line goes; a reorder glides; the
+            share sheet's bottom row turns into Share in its own cell; New
+            message's faces gather - and nothing drawn for any of it is left
+            behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); }); hideSnack();")
+            assert page.evaluate("Motion.DUR.column") == 220 and page.evaluate("Motion.DUR.reorder") == 280
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(700)
+            # The count: the new number is the badge's from the first frame,
+            # and a rise rolls under a clipped copy of the old.
+            page.evaluate("paintMessageBadges(1)")
+            page.wait_for_timeout(400)
+            rolled = page.evaluate("""() => { paintMessageBadges(3);
+                var b = document.querySelector('#screen-messages [data-msg-badge]');
+                return { text: b.textContent, copy: document.querySelectorAll('.motion-badge').length }; }""")
+            assert rolled == {"text": "3", "copy": 1}, f"the count did not roll with 3 in it at once: {rolled}"
+            page.wait_for_timeout(450)
+            page.evaluate("paintMessageBadges(0)")
+            assert page.evaluate("document.querySelector('#screen-messages [data-msg-badge]').hidden")
+            page.wait_for_timeout(300)
+            # A chat: the reader's place is kept, and the column follows only
+            # from the bottom.
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(300)
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.wait_for_timeout(900)
+            room = page.evaluate("getComputedStyle(document.getElementById('threadChipsRoom')).gridTemplateRows")
+            assert room in ("34px", "0px"), room
+            page.evaluate("""() => { stopThreadPolling(); var now = Date.now() / 1000;
+                for(var k = 0; k < 30; k++) threadMessages.push({ id: 900000 + k, mine: k % 2 === 0, kind: 'text',
+                  text: 'filler ' + k, at: now }); renderThreadBody(); }""")
+            page.wait_for_timeout(400)
+            kept = page.evaluate("""() => { var b = document.getElementById('thread-body'); b.scrollTop = 0;
+                renderThreadBody(); return b.scrollTop; }""")
+            assert kept == 0, f"a redraw yanked the chat to the bottom: {kept}"
+            rose = page.evaluate("""() => { var b = document.getElementById('thread-body'); b.scrollTop = b.scrollHeight;
+                appendThreadMessages([{ id: 900100, mine: false, kind: 'text', text: 'rising', at: Date.now() / 1000 }]);
+                var rows = b.querySelectorAll('.msg-row'), last = rows[rows.length - 1];
+                var frames = last.getAnimations().map(function(a){ return JSON.stringify(a.effect.getKeyframes()); }).join();
+                return { bottom: threadHeight(b) - b.scrollTop - b.clientHeight < 2, moving: !!frames.length,
+                         scaled: frames.indexOf('scale') >= 0 }; }""")
+            assert rose["bottom"] and rose["moving"] and not rose["scaled"], f"the column did not rise: {rose}"
+            page.wait_for_timeout(400)
+            # Their message grows out of the dots.
+            grown = page.evaluate("""() => { threadTyping = true; paintTyping();
+                var up = !!document.getElementById('threadTypingRow');
+                threadTyping = false;
+                appendThreadMessages([{ id: 900101, mine: false, kind: 'text', text: 'grown from the dots', at: Date.now() / 1000 }]);
+                var rows = document.querySelectorAll('#thread-body .msg-row.in'), bub = rows[rows.length - 1].firstChild;
+                var clip = bub.getAnimations().some(function(a){
+                  return JSON.stringify(a.effect.getKeyframes()).indexOf('inset') >= 0; });
+                return { up: up, gone: !document.getElementById('threadTypingRow'), clip: clip }; }""")
+            assert grown == {"up": True, "gone": True, "clip": True}, f"the message did not grow from the dots: {grown}"
+            page.wait_for_timeout(400)
+            # A slow send: nothing for a second, then "Sending…".
+            page.evaluate("""() => { window.__msgFetch = window.__msgFetch || window.fetch;
+                window.fetch = function(u, o){ if(String(u) === '/api/messages' && o && o.method === 'POST'){
+                    return new Promise(function(res){ setTimeout(function(){
+                      res(new Response(JSON.stringify({ message: null }), { status: 200 })); }, 1600); }); }
+                  return window.__msgFetch.apply(this, arguments); }; }""")
+            page.fill("#threadInput", "slow one")
+            page.evaluate("sendThreadMessage()")
+            page.wait_for_timeout(500)
+            assert not page.query_selector("#threadSending"), "Sending… came before a second"
+            page.wait_for_timeout(800)
+            assert page.query_selector("#threadSending"), "a slow send never said Sending…"
+            page.wait_for_timeout(900)
+            assert not page.query_selector("#threadSending"), "Sending… stayed after the answer"
+            # A failed send stays, marked, and the box stays clear.
+            page.evaluate("""() => { window.fetch = function(u, o){ if(String(u) === '/api/messages' && o && o.method === 'POST')
+                    return Promise.resolve(new Response(JSON.stringify({ detail: 'No' }), { status: 400 }));
+                  return window.__msgFetch.apply(this, arguments); }; }""")
+            page.fill("#threadInput", "this one fails")
+            page.evaluate("sendThreadMessage()")
+            page.wait_for_timeout(400)
+            failed = page.evaluate("""() => ({ row: document.querySelectorAll('#thread-body .msg-row.failed').length,
+                line: (document.querySelector('#thread-body .msg-failed') || {}).textContent,
+                box: document.getElementById('threadInput').value }) """)
+            assert failed == {"row": 1, "line": "Not sent · Tap to retry", "box": ""}, f"a failed send: {failed}"
+            page.evaluate("window.fetch = window.__msgFetch; document.querySelector('#thread-body .msg-failed').click()")
+            page.wait_for_timeout(900)
+            assert not page.query_selector("#thread-body .msg-row.failed"), "a retried message stayed Not sent"
+            # A chat kept in memory reopens at its newest message.
+            page.evaluate("stopThreadPolling(); goBack()")
+            page.wait_for_timeout(500)
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_timeout(500)
+            assert page.evaluate("""() => { var b = document.getElementById('thread-body');
+                return threadHeight(b) - b.scrollTop - b.clientHeight < 2; }"""), \
+                "a chat reopened from memory was not at its newest message"
+            # A banner for another chat replaces this one in place.
+            depth = page.evaluate("stack.filter(function(s){ return s === 'thread'; }).length")
+            page.evaluate("openThreadWith({user_id:'u_nadia', name:'Nadia Okoro', handle:'nadia'})")
+            page.wait_for_timeout(500)
+            assert page.evaluate("stack.filter(function(s){ return s === 'thread'; }).length") == depth == 1, \
+                "a second chat was pushed over the first"
+            page.evaluate("stopThreadPolling(); goBack()")
+            page.wait_for_timeout(600)
+            # Read on the tap; Delete with Undo, nothing sent before the line goes.
+            if page.evaluate("inboxThreads.length") >= 1:
+                read = page.evaluate("""() => { inboxThreads[0].unread = 2; paintMessageBadges(2); openThread(0);
+                    return [inboxThreads[0].unread, unreadTotal]; }""")
+                assert read == [0, 0], f"the chat was not read on the tap: {read}"
+                page.wait_for_timeout(700)
+                page.evaluate("""() => { stopThreadPolling(); window.__deletes = 0;
+                    window.fetch = function(u, o){ if(o && o.method === 'DELETE') window.__deletes++;
+                      return window.__msgFetch.apply(this, arguments); }; }""")
+                gone = page.evaluate("""() => { var id = currentThread.user_id; confirmDeleteChat();
+                    return { id: id, screen: document.querySelector('.screen.active').id,
+                             listed: inboxThreads.some(function(t){ return t['with'] === id; }),
+                             leaving: document.querySelectorAll('#threadList .thread-row.leaving').length,
+                             undo: document.getElementById('snackAct').textContent }; }""")
+                assert gone["screen"] == "screen-messages" and not gone["listed"] and gone["undo"] == "Undo", \
+                    f"Delete did not go back with an Undo: {gone}"
+                assert gone["leaving"] == 1, f"the deleted chat was not drawn leaving: {gone}"
+                page.wait_for_timeout(900)
+                assert page.evaluate("document.querySelectorAll('#threadList .thread-row.leaving').length") == 0
+                page.click("#snackAct")
+                page.wait_for_timeout(400)
+                back = page.evaluate("""(id) => ({ listed: inboxThreads.some(function(t){ return t['with'] === id; }),
+                    drawn: !!document.querySelector('#threadList .thread-row[data-thread="' + id + '"]'),
+                    deletes: window.__deletes }) """, gone["id"])
+                assert back == {"listed": True, "drawn": True, "deletes": 0}, f"Undo did not put it back: {back}"
+                page.evaluate("window.fetch = window.__msgFetch; 0")
+            # A reorder off the network glides; the search box's does not.
+            if page.evaluate("inboxThreads.length") >= 2:
+                moved = page.evaluate("""() => { inboxThreads.unshift(inboxThreads.pop()); renderThreadRows({ fetched: true });
+                    return Array.prototype.some.call(document.querySelectorAll('#threadList .thread-row'),
+                      function(r){ return r.getAnimations().length; }); }""")
+                assert moved, "a chat moving to the top jumped"
+                page.wait_for_timeout(400)
+                still = page.evaluate("""() => { inboxThreads.push(inboxThreads.shift()); renderThreadRows();
+                    return Array.prototype.some.call(document.querySelectorAll('#threadList .thread-row'),
+                      function(r){ return r.getAnimations().length; }); }""")
+                assert not still, "a redraw from the keys moved the rows"
+            # The share sheet: the bottom row becomes Share in its own cell.
+            if "live" not in target.name:
+                page.evaluate("showScreen('player'); nowBarState = {query: 'why bonds move', title: 'Bonds', minutes: 3};"
+                              " openShareModal()")
+                page.wait_for_selector("#shareContacts .share-contact", timeout=8000)
+                page.wait_for_timeout(400)
+                share = page.evaluate("""() => { var cell = document.getElementById('shareBottom'), h = cell.offsetHeight,
+                    top = cell.getBoundingClientRect().top;
+                    document.querySelector('#shareContacts .share-contact').click();
+                    return { idle: document.getElementById('shareIdle').hidden,
+                             confirm: !document.getElementById('shareConfirm').hidden,
+                             same: Math.abs(cell.offsetHeight - h) < 1 && Math.abs(cell.getBoundingClientRect().top - top) < 1,
+                             copy: cell.querySelectorAll('.motion-xfade').length }; }""")
+                assert share == {"idle": True, "confirm": True, "same": True, "copy": 1}, \
+                    f"the share sheet's bottom row did not turn into Share in place: {share}"
+                page.wait_for_timeout(300)
+                page.evaluate("cancelShareContact(); closeShareModal(); hideNowBar(); openMessages()")
+                page.wait_for_timeout(500)
+            # New message: the face is toggled, not redrawn, and gathers.
+            page.evaluate("openNewChatModal()")
+            page.wait_for_timeout(900)
+            if page.evaluate("document.querySelectorAll('#newChatContacts .share-contact').length") >= 2:
+                picked = page.evaluate("""() => { var f = document.querySelectorAll('#newChatContacts .share-contact');
+                    window.__face = f[0]; f[0].click();
+                    var one = { same: window.__face.isConnected, on: f[0].classList.contains('on'),
+                                stack: document.querySelectorAll('#newChatStack .av').length,
+                                flying: document.querySelectorAll('.motion-face').length };
+                    f[1].click();
+                    one.group = document.getElementById('newChatGo').classList.contains('group');
+                    one.name = document.getElementById('newChatNameRoom').classList.contains('open');
+                    return one; }""")
+                assert picked == {"same": True, "on": True, "stack": 1, "flying": 1, "group": True, "name": True}, \
+                    f"New message's faces did not gather: {picked}"
+                page.wait_for_timeout(500)
+                page.evaluate("document.querySelectorAll('#newChatContacts .share-contact')[1].click()")
+                page.wait_for_timeout(400)
+            page.evaluate("closeNewChatModal()")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-msg, .motion-badge, .motion-face,'
+                + ' .motion-xfade, .motion-row, #threadList .thread-row.leaving').length""")
+            assert left == 0, f"{left} of Messages' motion copies were left behind"
+            page.evaluate("hideSnack(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
+        def yourfam_motion_holds_nothing():
+            """§645: yourFAM's round-three picks. The hub is reconciled, not
+            rebuilt; Vibes | Mixes slides its underline; Follow changes width
+            by transform with no width animation; Settings' rows keep their
+            elements and its switches flip on the tap; Edit profile rises as a
+            page sheet; an interest floods in place; a saved row goes with
+            Undo and nothing is deleted before the line goes; the story
+            editor's panel slides; a post shrinks into the ring - and
+            nothing drawn for any of it is left behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); }); hideSnack();")
+            assert page.evaluate("Motion.DUR.follow") == 260 and page.evaluate("Motion.DUR.regroup") == 320
+            page.evaluate("openProfile()")
+            page.wait_for_selector('#profileBody [data-part="hero"]', timeout=8000)
+            page.wait_for_timeout(700)
+            # The hub: a second answer reconciles the same elements.
+            same = page.evaluate("""() => { window.__hero = document.querySelector('#profileBody [data-part="hero"]');
+                window.__stats = document.querySelector('#profileBody [data-part="stats"]');
+                renderProfile(profileNow);
+                return window.__hero === document.querySelector('#profileBody [data-part="hero"]')
+                  && window.__stats === document.querySelector('#profileBody [data-part="stats"]'); }""")
+            assert same, "the hub was rebuilt by an identical answer"
+            rolled = page.evaluate("""() => { var p = Object.assign({}, profileNow);
+                p.echo_count = (p.echo_count || 0) + 1; renderProfile(p);
+                return { same: window.__stats === document.querySelector('#profileBody [data-part="stats"]'),
+                         roll: document.querySelectorAll('#profileBody .motion-roll').length > 0 }; }""")
+            assert rolled == {"same": True, "roll": True}, f"a changed count did not roll in place: {rolled}"
+            page.wait_for_timeout(500)
+            # Vibes | Mixes: one underline, the grid nudged as a copy.
+            shelf = page.evaluate("""() => { showProfileShelf('mixes');
+                return { bar: document.querySelector('#screen-profile .yf-tabs').classList.contains('mixes'),
+                         copy: document.querySelectorAll('.motion-panel').length }; }""")
+            assert shelf == {"bar": True, "copy": 1}, f"the shelf did not slide: {shelf}"
+            page.wait_for_timeout(400)
+            page.evaluate("showProfileShelf('vibes')")
+            page.wait_for_timeout(400)
+            # Follow: a transform, never a width; the tick in its markup.
+            follow = page.evaluate("""() => { var row = document.createElement('div');
+                row.className = 'yf-acts yf-acts-centre'; row.id = 'smokeFollow';
+                row.innerHTML = '<button class="yf-btn gold">Message</button><button class="yf-btn follow-btn">Follow</button>';
+                document.getElementById('profileBody').appendChild(row);
+                var b = row.lastChild; Motion.followButton(b, true, '');
+                var frames = [];
+                row.querySelectorAll('*').forEach(function(e){ e.getAnimations().forEach(function(a){
+                  frames.push(JSON.stringify(a.effect.getKeyframes())); }); });
+                frames = frames.join();
+                return { width: frames.indexOf('"width"') >= 0, scaled: frames.indexOf('scaleX') >= 0,
+                         tick: !!b.querySelector('.motion-tick'), following: b.classList.contains('is-following') }; }""")
+            assert follow == {"width": False, "scaled": True, "tick": True, "following": True}, \
+                f"Follow was not built on transforms: {follow}"
+            page.wait_for_timeout(450)
+            assert page.evaluate("""() => { var r = document.getElementById('smokeFollow');
+                var left = r.querySelectorAll('.motion-follow-paint').length; r.remove(); return left; }""") == 0
+            # Settings: whole on its first frame, rows kept, switches flipped on the tap.
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=8000)
+            page.wait_for_timeout(900)
+            kept = page.evaluate("""() => { var r = document.querySelector('#settingsBody [data-set="default-speed"]');
+                renderSettings(); return r === document.querySelector('#settingsBody [data-set="default-speed"]'); }""")
+            assert kept, "Settings rebuilt a row that had not changed"
+            flipped = page.evaluate("""() => { var r = document.querySelector('#settingsBody [data-set="keep-the-voice-s-pitch"]');
+                var was = r.getAttribute('aria-checked'); r.click();
+                return { role: r.getAttribute('role'), arrow: !!r.querySelector('.set-go'),
+                         flipped: r.getAttribute('aria-checked') !== was,
+                         same: r === document.querySelector('#settingsBody [data-set="keep-the-voice-s-pitch"]'),
+                         knob: r.querySelector('.mix-switch').classList.contains('on') === (r.getAttribute('aria-checked') === 'true') }; }""")
+            assert flipped == {"role": "switch", "arrow": False, "flipped": True, "same": True, "knob": True}, \
+                f"a setting did not switch in place: {flipped}"
+            page.evaluate("document.querySelector('#settingsBody [data-set=\"keep-the-voice-s-pitch\"]').click()")
+            page.wait_for_timeout(300)
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            # Edit profile rises as a page sheet; an interest floods in place.
+            sheet = page.evaluate("""() => { editIdentity();
+                var s = document.getElementById('screen-identity');
+                return s.getAnimations().some(function(a){ return JSON.stringify(a.effect.getKeyframes()).indexOf('translateY(100%)') >= 0; }); }""")
+            assert sheet, "Edit profile did not rise as a page sheet"
+            page.wait_for_timeout(500)
+            chip = page.evaluate("""() => { var c = document.querySelector('#identityIntChips .yf-int:not(.dim)');
+                if(!c) return null; var w = c.offsetWidth, was = c.classList.contains('on');
+                c.click();
+                return { same: c.isConnected, on: c.classList.contains('on') !== was, width: Math.abs(c.offsetWidth - w) < 1,
+                         flood: c.querySelector('.yf-int-fill').getAnimations().length > 0 }; }""")
+            if chip is not None:
+                assert chip == {"same": True, "on": True, "width": True, "flood": True}, f"an interest did not flood in place: {chip}"
+                page.wait_for_timeout(400)
+            page.evaluate("closeIdentity()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.querySelector('.screen.active').id") == "screen-profile"
+            # Save for Later: off on the tap with Undo, nothing deleted before the line goes.
+            page.evaluate("""() => { window.__yfFetch = window.__yfFetch || window.fetch; window.__deletes = 0;
+                window.fetch = function(u, o){ if(o && o.method === 'DELETE') window.__deletes++;
+                  return window.__yfFetch.apply(this, arguments); }; }""")
+            page.evaluate("openSaved()")
+            page.wait_for_timeout(900)
+            if page.evaluate("(savedCache.items || []).length") >= 1:
+                gone_n = page.evaluate("document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length")
+                gone = page.evaluate("""() => { var n = document.querySelectorAll('#svBody .sv-row').length;
+                    removeSaved(savedCache.items[0].id);
+                    return { fewer: document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length === n - 1,
+                             undo: document.getElementById('snackAct').textContent, deletes: window.__deletes }; }""")
+                assert gone == {"fewer": True, "undo": "Undo", "deletes": 0}, f"a saved row did not go with Undo: {gone}"
+                page.wait_for_timeout(500)
+                page.click("#snackAct")
+                page.wait_for_timeout(400)
+                # The row is back (§647: a count of DELETEs alone passed
+                # whether or not Undo did anything), and nothing is deleted
+                # once the line has gone either.
+                back = page.evaluate("""() => { var id = savedCache.items[0] && savedCache.items[0].id;
+                    hideSnack();
+                    return { rows: document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length,
+                             row: document.querySelectorAll('#svBody .sv-row[data-key="s:' + id + '"]:not(.motion-row)').length,
+                             deletes: window.__deletes }; }""")
+                assert back == {"rows": gone_n, "row": 1, "deletes": 0}, \
+                    f"Undo did not put the saved row back, or still deleted it: {back}"
+            page.evaluate("window.fetch = window.__yfFetch; hideSnack(); goBack()")
+            page.wait_for_timeout(500)
+            # The story editor: a tool's panel slides; a post goes into the ring.
+            page.evaluate("openNoteComposer()")
+            page.wait_for_timeout(400)
+            drawer = page.evaluate("""() => { vcsTool('bg'); var p = document.getElementById('vcsPanel');
+                return !p.hidden && p.getAnimations().length > 0; }""")
+            assert drawer, "the editor's panel did not slide up"
+            page.wait_for_timeout(350)
+            ring = page.evaluate("""() => { window.__ringDone = 0; markMyStoryUp();
+                var face = myStoryFace();
+                Motion.intoRing(document.getElementById('vcsCanvas'), face, function(){ window.__ringDone = 1; });
+                closeVibeComposer(true);
+                return { face: !!face, ring: document.querySelectorAll('.motion-story-ring').length,
+                         shut: document.getElementById('vibeComposer').hidden, done: window.__ringDone }; }""")
+            assert ring["shut"] and ring["done"] == 0 and (not ring["face"] or ring["ring"] == 1), \
+                f"the post did not go into the ring: {ring}"
+            page.wait_for_timeout(1000)
+            assert page.evaluate("window.__ringDone") == 1, "the line never came after the ring"
+            page.evaluate("refreshHub()")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-copy, .motion-leave, .motion-row, .motion-panel,'
+                + ' .motion-face, .motion-msg, .motion-story-ring, .motion-drawer, .motion-follow-paint').length""")
+            assert left == 0, f"{left} of yourFAM's motion copies were left behind"
+            page.evaluate("hideSnack(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -2614,14 +3521,17 @@ def main() -> int:
             assert page.is_visible("#voiceSearch"), "the voice screen did not open"
             assert page.evaluate("VOICE.listening"), "it is not listening"
             assert not page.is_visible("#vsSend"), "send shows before anything was said"
-            assert page.evaluate(
-                "!document.getElementById('voiceSearch').classList.contains('speaking')"), \
-                "the lines move while nobody is talking"
+            # A ring out of the mark for each word heard, and none while
+            # nobody is talking (voice-waves: B, §643).
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 0, \
+                "the mark moves while nobody is talking"
             page.evaluate("__say('who won the', false)")
-            page.wait_for_timeout(120)
-            assert page.evaluate(
-                "document.getElementById('voiceSearch').classList.contains('speaking')"), \
-                "the lines do not move while somebody is talking"
+            page.wait_for_timeout(60)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 1, \
+                "no ring went out when a word was heard"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 0, \
+                "a word's ring was left behind"
             words = page.text_content("#vsWords")
             assert "who won the" in words, f"the heard words are not shown: {words!r}"
             page.evaluate("__say('who won the ryder cup', true)")
@@ -2661,8 +3571,14 @@ def main() -> int:
             assert page.evaluate("window.__searched") == 0, "it searched before the count ran out"
             # The X stops the count: nothing searches by itself, and the
             # button is still there to press.
-            page.click("#vsGoCancel")
-            page.wait_for_timeout(150)
+            # Stopped, the fill drains back and the X leaves as a copy
+            # (search-now: B, §643).
+            stopped = page.evaluate("""() => { document.getElementById('vsGoCancel').click();
+                return { drain: document.getElementById('vsGoFill').getAnimations().length,
+                         copy: document.querySelectorAll('#voiceSearch .motion-left').length }; }""")
+            assert stopped["drain"] == 1 and stopped["copy"] == 1, f"stopping did not drain: {stopped}"
+            page.wait_for_timeout(350)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .motion-left').length") == 0
             assert page.evaluate("!VOICE.countdown"), "the X did not stop the countdown"
             assert not page.is_visible("#vsGoCancel"), "the X stayed after cancelling"
             assert page.is_visible("#vsSend"), "cancelling took Search now away"
@@ -3575,16 +4491,18 @@ def main() -> int:
             page.wait_for_timeout(400)
             page.evaluate("document.querySelectorAll('#mixList .mix-a')[0].click()")
             page.wait_for_timeout(500)
-            switch = page.query_selector(".mix-switch")
+            switch = page.query_selector(".mix-vis .mix-switch")
             assert switch, "no public/private switch inside a mix"
 
             def state():
-                lit = "on" in (page.query_selector(".mix-switch")
+                lit = "on" in (page.query_selector(".mix-vis .mix-switch")
                                .get_attribute("class") or "")
-                word = page.text_content(".mix-vis-t").strip()
-                note = page.text_content(".mix-vis-s").strip()
+                word = page.text_content(".mix-vis-w.on .mix-vis-t").strip()
+                note = page.text_content(".mix-vis-w.on .mix-vis-s").strip()
+                # One lock rides the knob (§642): its shackle is lifted and
+                # turned open while public, at rest - shut - while private.
                 shackle = page.eval_on_selector(
-                    ".mix-switch span svg path", "e => e.getAttribute('d')")
+                    ".mix-vis .mix-switch .lock-shackle", "e => getComputedStyle(e).transform")
                 return lit, word, note, shackle
 
             lit, word, note, shackle = state()
@@ -3594,8 +4512,8 @@ def main() -> int:
             if lit:
                 assert "displayed on your profile" in note.lower(), \
                     f"the public note is missing: {note!r}"
-            # A closed padlock closes: its shackle path ends back at the body.
-            assert shackle.rstrip().endswith("v3.1") != lit, \
+            # A closed padlock closes: its shackle sits on the body.
+            assert (shackle != "none") == lit, \
                 f"the lock is {'open' if not lit else 'closed'} in the wrong position"
 
             page.click(".mix-vis")
@@ -4235,18 +5153,18 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_selector("#screen-myfam.active", timeout=10000)
             page.wait_for_timeout(1200)
-            # The live build's database has one listener in it, so nobody's
-            # vibes are there to play; the fixture build has Beth's two.
-            if not page.query_selector("#myfamCircle .yf-friend .yf-vibe"):
-                assert page.evaluate("typeof openStory") == "function", \
-                    "the story viewer is missing"
-                return
-            page.click("#myfamCircle .yf-friend:has(.yf-vibe)")
+            # The fixture build has Beth's two; the live build's database has
+            # nobody's, so story_face draws two (§646: this returned early,
+            # unseen, from §297 on).
+            face = story_face()
+            page.click(face)
             page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
             bars = page.eval_on_selector_all("#storyBars .story-bar", "e => e.length")
             assert bars == 2, f"{bars} story bars for two vibes"
             first = page.text_content("#storyTitle").strip()
-            page.click("#storyOverlay .story-tap.right")
+            # The tap zone itself: a story drawn without a layout (the live
+            # build's, §646) lays its title over the zone's middle.
+            page.evaluate("document.querySelector('#storyOverlay .story-tap.right').click()")
             page.wait_for_timeout(200)
             second = page.text_content("#storyTitle").strip()
             assert first and second and first != second, "tapping right did not advance"
@@ -4274,7 +5192,7 @@ def main() -> int:
             assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \
                 "the X did not close the stories"
             assert page.eval_on_selector(
-                "#myfamCircle .yf-friend:has(.yf-vibe) .yf-ring",
+                face + " .yf-ring",
                 "e => e.classList.contains('seen')"), "a watched ring did not go grey"
 
         def offline_fades_what_is_not_on_the_device():
@@ -4562,6 +5480,148 @@ def main() -> int:
         check("The player's menu and the queue", the_player_menu_and_the_queue)
         check("Round-two motion holds nothing and leaves nothing behind",
               round_two_motion_holds_nothing)
+        check("Round-three motion holds nothing and leaves nothing behind",
+              round_three_motion_holds_nothing)
+        check("dailyFAM's round-three motion holds nothing and leaves nothing behind",
+              dailyfam_motion_holds_nothing)
+        check("myFAM's round-three motion holds nothing and leaves nothing behind",
+              myfam_motion_holds_nothing)
+        check("search's round-three motion holds nothing and leaves nothing behind",
+              search_motion_holds_nothing)
+        check("Messages' round-three motion holds nothing and leaves nothing behind",
+              messages_motion_holds_nothing)
+        check("yourFAM's round-three motion holds nothing and leaves nothing behind",
+              yourfam_motion_holds_nothing)
+
+        def a_sent_undo_does_nothing():
+            """§646, the first audit's stale Undo: a commit sent early (the
+            page hidden) takes its line and its Undo with it; a shelf read
+            again while a removal's Undo is up does not draw the row back,
+            and Undo then puts back one row, not a second."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); setTab('home')")
+            r = page.evaluate("""() => { var log = [];
+                snack('Removed', { label: 'Undo', run: function(){ log.push('run'); },
+                                   done: function(){ log.push('done'); } });
+                Object.defineProperty(document, 'hidden', { configurable: true, get: function(){ return true; } });
+                document.dispatchEvent(new Event('visibilitychange'));
+                delete document.hidden;
+                var bar = document.getElementById('snack'), b = document.getElementById('snackAct');
+                var up = bar.classList.contains('show') && !b.hidden;
+                b.click();
+                return { log: log, up: up }; }""")
+            assert r == {"log": ["done"], "up": False}, f"an Undo outlived its sent request: {r}"
+            # Saved for Later, reopened inside the five seconds.
+            page.evaluate("openSaved()")
+            page.wait_for_timeout(900)
+            if not page.evaluate("(savedCache.items || []).length"):
+                page.evaluate("""() => fetch('/api/saved', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ query: 'why the sky is blue', minutes: 3, title: 'Why the sky is blue' }) })""")
+                page.evaluate("openSaved()")
+                page.wait_for_timeout(900)
+            sid = page.evaluate("savedCache.items[0].id")
+            page.evaluate("id => removeSaved(id)", sid)
+            page.wait_for_timeout(500)
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            page.evaluate("openSaved()")
+            page.wait_for_timeout(900)
+            rows = "id => document.querySelectorAll('#svBody .sv-row[data-key=\"s:' + id + '\"]:not(.motion-row)').length"
+            assert page.evaluate(rows, sid) == 0, "a removed row came back when the shelf was read again"
+            assert page.evaluate("document.getElementById('snack').classList.contains('show')"), "the Undo line went"
+            page.click("#snackAct")
+            page.wait_for_timeout(500)
+            assert page.evaluate(rows, sid) == 1, "Undo after a reread drew the row twice, or not at all"
+            page.evaluate("hideSnack(); goBack()")
+            page.wait_for_timeout(300)
+
+        def second_audit_holds():
+            """§647, the second audit, driven rather than read: the source
+            pins passed while a refused switch stayed on. A Settings switch
+            the server refuses flips back; under reduced motion the bottom
+            line and its dot do not move at all; a tile's save lit on the tap
+            survives a shelf read that started before it."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay(); hideSnack();")
+            # A refused switch goes back to what the server has.
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=8000)
+            page.wait_for_timeout(900)
+            row = '#settingsBody [data-set="private-mode"]'
+            assert page.query_selector(row), "Settings has no Private mode switch"
+            was = page.get_attribute(row, "aria-checked")
+            page.evaluate("""() => { window.__a2Fetch = window.fetch;
+                window.fetch = function(u, o){
+                  if(String(u).indexOf('/api/preferences') === 0 && o && o.method === 'POST')
+                    return Promise.resolve(new Response('no', { status: 500 }));
+                  return window.__a2Fetch.apply(this, arguments); }; }""")
+            try:
+                # Read on the tap's own frame: the refusal answers before a
+                # second round trip from here would.
+                flipped = page.evaluate("""(sel) => { var r = document.querySelector(sel); r.click();
+                    return r.getAttribute('aria-checked'); }""", row)
+                page.wait_for_timeout(800)
+                after = page.evaluate("""(sel) => { var r = document.querySelector(sel);
+                    return { checked: r.getAttribute('aria-checked'),
+                             knob: r.querySelector('.mix-switch').classList.contains('on') }; }""", row)
+            finally:
+                page.evaluate("window.fetch = window.__a2Fetch; hideSnack();")
+            assert flipped != was, "the switch did not flip on the tap"
+            assert after == {"checked": was, "knob": was == "true"}, \
+                f"a refused Private mode stayed as tapped: was {was}, now {after}"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            # Reduced motion: the line and its dot arrive with no transition.
+            page.emulate_media(reduced_motion="reduce")
+            try:
+                moved = page.evaluate("""() => { var out = {};
+                    toast('Reduced');
+                    var t = document.getElementById('toast');
+                    out.toast = getComputedStyle(t).transitionDuration;
+                    out.toastDot = getComputedStyle(t, '::before').transitionDuration;
+                    snack('Reduced', { label: 'Undo', run: function(){} });
+                    var s = document.getElementById('snack');
+                    out.snack = getComputedStyle(s).transitionDuration;
+                    out.snackDot = getComputedStyle(s, '::before').transitionDuration;
+                    out.running = s.getAnimations().length + t.getAnimations().length;
+                    snackCommit = null; hideSnack();
+                    return out; }""")
+            finally:
+                page.emulate_media(reduced_motion="no-preference")
+            assert all(moved[k].split(",")[0].strip() == "0s" for k in ("toast", "toastDot", "snack", "snackDot")) \
+                and moved["running"] == 0, f"the bottom line moved under reduced motion: {moved}"
+            # A tile's save survives an older shelf read.
+            page.evaluate("loadMyFamFeed(); setTab('myfam')")
+            page.wait_for_timeout(2500)
+            r = page.evaluate("""async () => {
+                var real = window.fetch;
+                window.fetch = function(u, o){
+                  var pr = real.apply(this, arguments);
+                  if(String(u).indexOf('/api/saved') === 0 && !(o && o.method))
+                    return new Promise(function(res){ setTimeout(function(){ res(pr); }, 600); });
+                  return pr; };
+                try {
+                  var btn = document.querySelector('#myfamFeed [data-tile-save]');
+                  if(!btn) return null;
+                  var id = btn.getAttribute('data-tile-save'), sel = '[data-tile-save="' + id + '"]';
+                  var was = btn.classList.contains('saved-on');
+                  loadTileSaves();
+                  await new Promise(function(res){ setTimeout(res, 50); });
+                  btn.click();
+                  var lit = document.querySelector(sel).classList.contains('saved-on');
+                  await new Promise(function(res){ setTimeout(res, 1200); });
+                  var after = document.querySelector(sel).classList.contains('saved-on');
+                  if(after !== was){ document.querySelector(sel).click();
+                    await new Promise(function(res){ setTimeout(res, 600); }); }
+                  return { flipped: lit !== was, kept: after === lit };
+                } finally { window.fetch = real; hideSnack(); }
+            }""")
+            assert r is not None, "dailyFAM drew no tile with a save"
+            assert r == {"flipped": True, "kept": True}, f"an older shelf read undid a tile's save: {r}"
+
+        check("An Undo whose request has gone does nothing", a_sent_undo_does_nothing)
+        check("A refused switch flips back; reduced motion moves no line; a tile's save holds",
+              second_audit_holds)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

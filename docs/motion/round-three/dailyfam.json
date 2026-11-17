@@ -1,0 +1,1561 @@
+{
+ "page": "dailyFAM",
+ "codeScreens": [
+  "screen-myfam",
+  "screen-section",
+  "screen-explorenew",
+  "storyOverlay (story viewer)",
+  "famLoading (the daily loader)"
+ ],
+ "summary": "Rails arrive tile by tile, View more's grid rises in, the loader develops the picture or gathers friends, and stories grow, turn and shrink. The biggest gap is the tap: the loader's picture and a flying copy of the tile are two pictures of one episode.",
+ "interactions": [
+  {
+   "name": "Open dailyFAM",
+   "trigger": "touch (tab) / app start",
+   "frequency": "many",
+   "tells": "the rails, and what is new or changed since the last visit"
+  },
+  {
+   "name": "Late rows land (Pick up, faces)",
+   "trigger": "network",
+   "frequency": "many",
+   "tells": "what sits above the rails, without moving the rails under the thumb"
+  },
+  {
+   "name": "Scroll the page",
+   "trigger": "scroll",
+   "frequency": "many",
+   "tells": "more rails below; the header stays put"
+  },
+  {
+   "name": "Scroll a rail sideways",
+   "trigger": "touch / scroll",
+   "frequency": "many",
+   "tells": "more tiles; at the end the chevron becomes View more"
+  },
+  {
+   "name": "Tap a tile",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "this episode is starting now, and which one"
+  },
+  {
+   "name": "The loader hands over to the player",
+   "trigger": "network (audio arrives)",
+   "frequency": "many",
+   "tells": "the episode is playing; the picture watched is the player's picture"
+  },
+  {
+   "name": "Tap PLAY ALL",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the rail plays in order; the rest are queued behind it"
+  },
+  {
+   "name": "Tap View more",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the whole rail, ready episodes first, starting with the tiles just seen"
+  },
+  {
+   "name": "Refresh on View more",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "16 different episodes replaced the old ones, or you have seen them all"
+  },
+  {
+   "name": "Save a tile",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "it is on Saved for Later (or off it), on the tap"
+  },
+  {
+   "name": "Open a tile's ⋯",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "what can be done with this episode (shared sheet)"
+  },
+  {
+   "name": "Not interested",
+   "trigger": "touch (in ⋯)",
+   "frequency": "rare",
+   "tells": "this tile is gone, where the others moved, and that it can be undone"
+  },
+  {
+   "name": "Tap friends' faces on a card",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "which friends listened (shared popup)"
+  },
+  {
+   "name": "Tap a Pick up card",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "it resumes where it was left (search's five-step wait)"
+  },
+  {
+   "name": "Dismiss a Pick up card (X)",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it is gone for good on every device, and can still be undone for a moment"
+  },
+  {
+   "name": "Progress or a score moved",
+   "trigger": "network (redraw)",
+   "frequency": "few",
+   "tells": "how much more was heard; that the game's score changed"
+  },
+  {
+   "name": "Tap a friend's face (story)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "their vibes, opened out of their face"
+  },
+  {
+   "name": "Tap / hold / swipe in a story",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "next vibe; paused; next friend"
+  },
+  {
+   "name": "Reply, heart, VIBE! in a story",
+   "trigger": "touch / keyboard",
+   "frequency": "few",
+   "tells": "the reply or like went to them"
+  },
+  {
+   "name": "Close a story",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "back into the face, and that friend now reads as watched"
+  },
+  {
+   "name": "Find new friends / Invite",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "where people are found (pushed screen, shared)"
+  },
+  {
+   "name": "Claim / close the free month",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the month is yours; the card can go"
+  },
+  {
+   "name": "dailyFAM tab while scrolled",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "back to the top (smooth scroll; instant under reduced motion)"
+  },
+  {
+   "name": "Go offline",
+   "trigger": "network",
+   "frequency": "rare",
+   "tells": "which tiles still play from this device"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "broken",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:6030",
+   "before": "Loader's picture sits still while a copy of the tile flies over it (both z-index 60)",
+   "after": "The loader's own picture flies into the player; no second copy from the tile"
+  },
+  {
+   "severity": "broken",
+   "question": 3,
+   "principle": "Timing",
+   "where": "static/index.html:2304",
+   "before": "Friends Gather: face 3 starts at 440ms, names at 700ms; a ready tile's loader goes at 450",
+   "after": "Faces and the names line land by ~340ms, inside the 450ms floor"
+  },
+  {
+   "severity": "broken",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:16273",
+   "before": "Pick up X removes a card for good on every device, from a 20px target, with no Undo",
+   "after": "Card leaves at once; bottom line offers Undo for 5s; dismiss sent when it closes"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:16344",
+   "before": "Pick up block (up to ~260px) lands after the rails and shoves them down in one frame",
+   "after": "Paint last-seen Pick up and faces rows from the device; reconcile; move only changes"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:15507",
+   "before": "Tile save lights only after the server answers",
+   "after": "Lights on the tap; rolled back with the bottom line if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:15729",
+   "before": "Refresh spinner starts on the tap and flashes on a fast answer",
+   "after": "Spinner only after 300ms, held at least 500ms once shown"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:15694",
+   "before": "View more opens on 'Loading...' though the rail's own tiles are on the device",
+   "after": "Draw the rail's tiles in the grid at once; append the fetched rest"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:15150",
+   "before": "Friends' faces fade in from initials on every redraw (a new img each time)",
+   "after": "Skip identical redraws; no fade for an avatar already loaded"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Stagger",
+   "where": "static/index.html:15857",
+   "before": "View more's stagger runs inside the push when the answer lands under 320ms",
+   "after": "No stagger while the screen is .arriving; after it, first 6 only"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:11258",
+   "before": "Not interested: tile and gap vanish under the sheet's 150ms fade",
+   "after": "Sheet leaves first; then the tile's copy recedes and the gap closes"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:17912",
+   "before": "Swipe to the next friend is read on release; the story never follows the finger",
+   "after": "Cube rotation tracks the finger 1:1; release springs on or back"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:15856",
+   "before": "Refresh swaps 16 cards in one frame and jumps the scroll to the top",
+   "after": "Old grid fades 150ms as one group; new first 6 rise 30ms apart"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:2350",
+   "before": "Reduced motion stops the status dot too: nothing on the loader says it is alive",
+   "after": "Keep the status dot's pulse under reduced motion (it is a progress indicator)"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:1877",
+   "before": "Pick up X is a 20x20 target, under the 24px floor, beside the card's play target",
+   "after": "44x44 zone via ::after (corner of the card, no neighbour to overlap)"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Peak-end",
+   "where": "static/index.html:2294",
+   "before": "Develop runs 2.4s; a ready tile's loader leaves at 450ms, still ~6px blurred and greyish",
+   "after": "A ready tile develops in ~420ms and leaves sharp"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:10328",
+   "before": "Not interested is recorded at once; the bottom line has no Undo",
+   "after": "Undo for 5s on the line; the event is sent when it closes"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:535",
+   "before": "Skeleton: three 118px cards in one rail; real tiles are ~200px, in five rails",
+   "after": "Skeleton the size of a rail's tiles (or paint the remembered page)"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:16641",
+   "before": "'Claiming...' replaces the free-month button label on the tap",
+   "after": "Pending label only after 300ms, held 500ms once shown"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Stagger",
+   "where": "static/index.html:6270",
+   "before": "One 40ms chain for headings and tiles page-wide, capped at 8, off-screen rails too",
+   "after": "Per rail: heading, then its tiles 40ms apart; 6 at most; off-screen just appears"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:17963",
+   "before": "A ring turns grey in the same frame the story shrinks into it",
+   "after": "Ring fades gold to grey 200ms after the shrink lands"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:3208",
+   "before": "Story progress bar fills by animating width",
+   "after": "scaleX 0 to 1 from the left edge, linear"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2304",
+   "before": "Faces overshoot on cubic-bezier(.2,1.3,.4,1) over 600ms, past the 450ms limit",
+   "after": "300ms ease-out (.32,.72,0,1), no overshoot"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Arcs",
+   "where": "static/index.html:2305",
+   "before": "Faces travel up to 230px diagonally in straight lines",
+   "after": "A short rise, or an arc (peak 15%) from the card's own faces"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2297",
+   "before": "Sheen uses the bare ease-in-out keyword; title and names rise on bare ease",
+   "after": "Sheen linear (it is time); rises on (.32,.72,0,1)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Timing",
+   "where": "static/index.html:2298",
+   "before": "Develop also scales .94 to 1 over 2.4s: a movement far past 450ms",
+   "after": "Drop the scale; blur and colour carry the develop"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:3235",
+   "before": "Hold-to-pause fades the story's chrome over 200ms even with reduced motion",
+   "after": "Cut at once under reduced motion"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:3235",
+   "before": "Held: chrome hides in 200ms but comes back in 0ms (the exit is the longer one)",
+   "after": "Hide 150ms ease-in, return 200ms ease-out; or both instant"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:6435",
+   "before": "Story grows from the face button's centre (ring plus name), ~10px below the face",
+   "after": "Grow from the centre of the .yf-ring box"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Solid drawing",
+   "where": "static/index.html:6476",
+   "before": "Cube turn has perspective but no light: both faces stay fully lit at 90 degrees",
+   "after": "Darken the turning face up to 30% black at 90 degrees"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:15416",
+   "before": "A live score's digits change in one frame when the feed redraws",
+   "after": "Roll only the digits that changed, upward as it grows, in tabular-nums"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:18058",
+   "before": "A sent story reply just clears the box",
+   "after": "The sent words rise out of the box as it clears"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:603",
+   "before": "Rail end card swaps chevron and 'View more' with display:none",
+   "after": "Both in one grid cell, 150ms cross-fade (or left instant: it is scroll-driven)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:497",
+   "before": "Going offline greys the unreachable tiles in one frame",
+   "after": "200ms opacity cross-fade (rare, so it may move)"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:580",
+   "before": "Saved tile is shown by chip colour only; the icon stays an outline",
+   "after": "A filled bookmark when saved, as well as the colour"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:18064",
+   "before": "Story heart turns red in one frame; the app's like bursts and says LIKED",
+   "after": "Same burst-and-label as the other likes (shared item; lead's deck)"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:573",
+   "before": "Tile save and ⋯ are 24px targets 5px apart",
+   "after": "Zones about 29x44 each via ::after, without overlapping"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:3214",
+   "before": "Story X and ⋯ are 32px targets",
+   "after": "44x44 zones"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Jakob's law",
+   "where": "static/index.html:17899",
+   "before": "A story cannot be dragged down to close, as in every story app",
+   "after": "Drag down 1:1; past 80px or a flick it closes into the face"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Zeigarnik / goal gradient",
+   "where": "static/index.html:16260",
+   "before": "Pick up bar is drawn with width and jumps to each new value",
+   "after": "scaleX from its last value, ease-in-out, never backward"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Peak-end",
+   "where": "static/index.html:16645",
+   "before": "Claiming the free month swaps the card's words in one frame",
+   "after": "A quiet confirmation: words cross-fade, a tick draws in (once per account)"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Occam's razor / progressive disclosure",
+   "where": "static/index.html:24175",
+   "before": "Explore New has no caller in the app; only tools/shots.py and the smoke run open it",
+   "after": "Leave it out of the motion work, or relink it first"
+  }
+ ],
+ "bugs": [
+  "Trending's View more (by continent) returns before Motion.arrive and paintTileSaves: no arrive; save buttons lack aria-pressed/title (index.html:15847).",
+  "Every dailyFAM open rewrites #myfamFeed and #myfamCircle: each rail's and the faces row's sideways scroll snaps back to the start (index.html:15612, 17651).",
+  "dismissGoDeeper redraws locally, then loadGoDeeper redraws again on the server's OK: a second one-frame change whenever the list differs (index.html:16285).",
+  "An episode that takes over 8s to start opens the player with a push, not the grow: the tapped picture expires at 8000ms (index.html:5978).",
+  "Friends Gather's avatars start at opacity 0 and wait for an inline onload, so even a cached face shows its initials first (index.html:2308)."
+ ],
+ "animations": [
+  {
+   "id": "tile-to-player",
+   "title": "A tile's picture becomes the player's",
+   "status": "existing",
+   "where": "static/index.html:6030 (Motion.screen player-open) + 7348 (finishGenOverlay)",
+   "trigger": "tap a tile; its audio arrives",
+   "frequency": "many",
+   "now": "Loader appears in one frame. When audio lands, a copy of the tile's picture flies 380ms over the loader (both z-index 60) to the player; the loader vanishes in one frame at 450ms or later.",
+   "verdict": "Broken hand-off: two pictures of one episode on screen, and the one people watched develop never moves. One element must travel the whole way (Replacements).",
+   "severity": "broken",
+   "principles": [
+    "Replacements",
+    "Staging",
+    "Frequency of use",
+    "Make it mean something"
+   ],
+   "notes": "What happens today. pointerdown records the tapped picture (Motion's `tapped`, index.html:5955-5966: the tile's .seed-img, its box and radius) and keeps it 8s. generate() shows #famLoading in one frame (8397) and paintLoadingVariant('daily') draws the tile's thumb in .fam-dev-pic (7569). When audio starts, onGenerationStarted (7660) calls finishGenOverlay - which clears at once if the loader has been up 450ms (GEN_MIN_VISIBLE_MS, 7313), else on a timer - and then navigate('player'). Motion.screen('player-open') (6030) makes a .motion-ghost of the TILE's picture at the tile's box and flies it 380ms to #playerBg. The ghost is appended to .frame after #famLoading, both z-index 60, so it paints over the loader.\nReady tile (the common case: editions are written and voiced ahead, §359/§610): audio at ~150-400ms, the ghost flies out of the rail position across the loader while the loader's own picture sits in the middle half-developed; at 450ms the loader cuts out mid-flight. Unwritten tile: the loader cuts out in the same frame the player opens, the rails flash back under a 240ms fade, and the small tile picture grows. Over 8s, it is a push slide instead (bug list).\nFix (B): in Motion.screen, when #famLoading is .active.alt and holds a seen .fam-dev-pic, use that element as the source (its box, its picture, 16px radius), hide it, fly it 340ms to #playerBg, fade the loader's kicker/title/status 150ms ease-in and its background 200ms, and remove .active when the flight lands. finishGenOverlay's 450ms floor still decides WHEN the hand-off starts, so it never shows less than today. Audio is already playing; the player screen is active from its first frame underneath - nothing is held. A tile with no picture (drawing only) keeps the push, with the loader fading 150ms.\nInterrupt: a second tap or the X calls clearGenOverlay; settle() finishes any flight at once (Motion.screen already does this). The player-open flight itself is the lead's shared item; this changes only its source when the DailyFAM loader is up, so coordinate with the lead's deck.\nReduced motion: loader goes at once; the player's 120ms crossfade stays (today's rule).",
+   "options": [
+    {
+     "key": "A",
+     "name": "One picture, both ways",
+     "summary": "The tile's picture grows into the loader's frame, develops there, then flies on into the player.",
+     "spec": "in 300ms (.32,.72,0,1) tile→frame · bg fade 150ms · out 340ms (.77,0,.175,1) frame→player",
+     "recipe": "shared-element move (in and out) + exit fade",
+     "principles": [
+      "Replacements",
+      "Origin",
+      "Make it mean something"
+     ],
+     "tradeoff": "Most continuous, but it adds a 300ms flight to the most-used tap, which the frequency rule says should not move on the way in.",
+     "recommended": false,
+     "reduced": "Loader shows and hides at once; player crossfades 120ms (today).",
+     "demoText": "dailyFAM: wordmark; rail 'Trending' with 3 tiles (60x88, sepia picture on top) at y=120. 0ms finger taps tile 1. 0-150 cream loader bg fades in; 0-300 tile 1's picture grows from its spot to a 150x112 frame centred at y=110; 'DAILYFAM · TRENDING' above and the title under it fade in. 300-450 picture sharpens. 450-790 it flies up and widens into the player picture slot (200x150 at y=36); loader text fades in 150ms, cream bg in 200ms, showing the player (title, copper play). Hold 1s; loop.",
+     "specShort": "300 in · 340 out · io"
+    },
+    {
+     "key": "B",
+     "name": "Out of the loader",
+     "summary": "The loader still appears at once; when audio is ready, the picture people watched flies into the player.",
+     "spec": "out 340ms (.77,0,.175,1) frame→player · text fade 150ms (.55,0,1,.45) · bg fade 200ms",
+     "recipe": "shared-element move + exits",
+     "principles": [
+      "Replacements",
+      "Frequency of use",
+      "Staging",
+      "Exits"
+     ],
+     "tradeoff": "The tap itself stays a one-frame cut; the eye still lands on the loader's picture because it is the only image there.",
+     "recommended": true,
+     "why": "Fixes the double picture with no new motion on the tap itself, and keeps the owner's 'grows into the player' - from the picture people were watching.",
+     "reduced": "Loader leaves at once; player crossfades 120ms (today).",
+     "demoText": "dailyFAM: rail 'Trending', 3 tiles (60x88, sepia picture on top) at y=120. 0ms finger taps tile 1. Next frame: cream loader with FAM mark, 'DAILYFAM · TRENDING', the tile's picture in a 150x112 frame at y=110, title, 'Getting your episode ready'. 0-420 picture sharpens from grey blur. 450ms it flies up and widens into the player's picture slot (200x150 at y=36) over 340ms; text fades in 150ms; cream fades in 200ms to the player behind (title, copper play). Only one picture ever. Hold 1s; loop.",
+     "specShort": "340ms io · text 150 · bg 200"
+    },
+    {
+     "key": "C",
+     "name": "Cut, no flight",
+     "summary": "Loader appears and leaves in one frame; when it was up, the player fades in instead of growing from the tile.",
+     "spec": "loader in/out 0ms · player opacity 0→1 120ms · no ghost while the loader is up",
+     "recipe": "make it instant (Frequency of use)",
+     "principles": [
+      "Frequency of use",
+      "Occam's razor / progressive disclosure",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Cleanest and quickest, but drops the owner's §292 pick (the player grows out of the picture) for every DailyFAM tap.",
+     "recommended": false,
+     "reduced": "Same as with motion: cuts, and the 120ms crossfade.",
+     "demoText": "dailyFAM: rail 'Trending', 3 tiles at y=120. 0ms finger taps tile 1. Next frame the loader is simply there (FAM mark, 150x112 picture at y=110, title, status dot). 0-420 picture sharpens. 450ms the player fades in over 120ms in the loader's place (picture 200x150 at top, title, copper play). Nothing travels. Hold 1.2s; loop.",
+     "specShort": "0ms cuts · 120ms crossfade"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "picture-develop",
+   "title": "Picture Develop (DailyFAM's wait)",
+   "status": "existing",
+   "where": "static/index.html:2294 (.fam-dev.develop, famDevelop, famDevSheen)",
+   "trigger": "tap a tile no friends have heard",
+   "frequency": "many",
+   "now": "Picture goes blur(16px) grey to sharp over 2.4s (.2,.7,.2,1) while scaling .94 to 1; a sheen sweeps every 1.6s on bare ease-in-out. Ready tiles leave at 450ms, still mid-blur.",
+   "verdict": "The owner's pick (§592), kept. On the common ready tile it ends half-developed (Peak-end); the scale is a 2.4s move; the sheen's curve is a keyword; reduced motion freezes every indicator.",
+   "severity": "friction",
+   "principles": [
+    "Peak-end",
+    "Timing",
+    "Slow in and slow out",
+    "Reduced motion"
+   ],
+   "notes": "Code: .fam-dev.develop .fam-dev-pic runs famDevelop 2.4s cubic-bezier(.2,.7,.2,1) both: from blur(16px) grayscale(1) brightness(1.4) scale(.94) to none (2294-2299). Its ::after sheen is a white band, translateX(-120%) to 120%, 1.6s, 0.4s delay, ease-in-out, infinite (2295-2300). Title rises with famLdUp .3s ease (2277). The status dot pulses (famLdPulse 1.2s, 2281).\nThe loader is shown at least 450ms (GEN_MIN_VISIBLE_MS) and goes when audio arrives. Most DailyFAM taps are ready (written and voiced ahead), so audio lands in a few hundred ms and the screen goes at 450ms: on (.2,.7,.2,1) at 0.19 of 2.4s the picture is about 6px blurred, 40% grey and washed out. The last frame people see of the owner's pick is a soft, greyish picture - the end they remember (Peak-end).\nOption B keys the speed on the tile's own `cached` flag (myFamTopics[t.loaderTopic].cached, already on every tile and used for the READY badge): ready = 420ms ease-out, so it is sharp a beat before the 450ms floor and the hand-off (tile-to-player B) carries a finished picture; unwritten = today's 2.4s, then the sheen keeps saying 'working'. A 'ready' tile whose audio is slow just sits sharp with the sheen running - still honest. Option C reads the four marks pollGenSteps already fetches for the daily loader (7455: contextualized, retrieved, verified, written) and steps the blur down per mark; it shows no list and holds nothing, but it is §148's progress in another form, which §509 reserved for search and Go Deeper - an owner call.\nDrop the scale in every option: it is a 2.4s movement, over the 450ms limit, and blur alone reads as focus. Blur stays at 16px (under the skill's 20px). Sheen on linear: it represents time passing, like a spinner.\nReduced motion today turns off develop, sheen, title rise AND the status dot (2346-2356), so nothing on the screen says it is alive. The skill keeps indicators moving: keep the dot's pulse in all options, picture sharp, sheen off.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Keep, tuned",
+     "summary": "The same slow develop and light sweep, without the size change; the dot keeps pulsing under reduced motion.",
+     "spec": "blur 16→0 + grey→colour 2400ms (.2,.7,.2,1) · no scale · sheen 1400ms linear, loop",
+     "recipe": "loader keyframes; curves (linear for time)",
+     "principles": [
+      "Timing",
+      "Slow in and slow out",
+      "Reduced motion"
+     ],
+     "tradeoff": "Truest to the owner's pick, but a ready tile still leaves at 450ms on a soft, greyish picture.",
+     "recommended": false,
+     "reduced": "Picture sharp, no sheen; the status dot keeps pulsing.",
+     "demoText": "Cream loader: FAM mark, 'DAILYFAM · MADE FOR YOU', 150x112 picture frame at y=110, title, pulsing copper status dot. Run 1 (unwritten): 0-2400 picture grey and blurred to sharp colour, no size change; from 400ms a soft light band crosses it every 1400ms at steady speed. Run 2 (ready): same start, and at 450ms it cuts to the player while the picture is still soft and greyish. Label under the phone: 'writing' then 'ready'.",
+     "specShort": "2400ms blur 16→0 · sheen 1400 lin"
+    },
+    {
+     "key": "B",
+     "name": "Develops in the wait",
+     "summary": "A ready tile's picture is sharp before the loader leaves; an unwritten one keeps the slow develop.",
+     "spec": "ready: 420ms (.32,.72,0,1) blur 16→0 · unwritten: 2400ms (.2,.7,.2,1) + sheen 1400ms linear",
+     "recipe": "loader keyframes, duration from the tile's READY state",
+     "principles": [
+      "Peak-end",
+      "Make it mean something",
+      "Timing"
+     ],
+     "tradeoff": "Two speeds for one loader; on a ready tile it reads as 'arriving' more than 'developing'.",
+     "recommended": true,
+     "why": "Most taps are ready tiles and today their last frame is soft and greyish. Ending sharp fixes the end people remember; the slow wait keeps the owner's look.",
+     "reduced": "Picture sharp, no sheen; the status dot keeps pulsing.",
+     "demoText": "Run 1: dailyFAM tile with a copper READY tag; tap. Cream loader with 150x112 picture at y=110: 0-420 grey blur to sharp colour; 450ms hands over to the player with a sharp picture. Run 2: a tile without READY; tap. Same loader: 0-2400 slow develop, light band crossing every 1400ms after it, status dot pulsing; audio at 3200ms, hand-off. Loop.",
+     "specShort": "ready 420ms out · else 2400"
+    },
+    {
+     "key": "C",
+     "name": "Focus follows the server",
+     "summary": "The picture sharpens a step each time the server finishes a stage, and is fully sharp when the audio starts.",
+     "spec": "blur steps 16→12→8→4→2px at each mark, 0 at audio · 300ms (.77,0,.175,1) each · sheen between",
+     "recipe": "progress indicator driven by real marks (Zeigarnik / goal gradient)",
+     "principles": [
+      "Zeigarnik / goal gradient",
+      "Doherty threshold",
+      "Make it mean something"
+     ],
+     "tradeoff": "Honest progress from marks already polled, but it puts §148's steps on DailyFAM in another form, which §509 kept for search (owner's call).",
+     "recommended": false,
+     "reduced": "Blur changes at each mark without a transition; dot pulses.",
+     "demoText": "Cream loader, 150x112 picture blurred 16px and grey. Light band crosses every 1400ms. 600ms first mark: blur eases to 12px (300ms). 1500ms: 8px. 2300ms: 4px. 3000ms: 2px. 3600ms audio: sharp (300ms), then the hand-off to the player. No steps or ticks are drawn: only the focus moves. Loop.",
+     "specShort": "−4px per mark · 300ms io"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "friends-gather",
+   "title": "Friends Gather (DailyFAM's wait)",
+   "status": "existing",
+   "where": "static/index.html:2302 (.fam-dev-faces, famFaceIn) + 2310 (.fam-dev-names)",
+   "trigger": "tap a tile friends have heard",
+   "frequency": "few",
+   "now": "Up to 3 faces fly in from up to 230px away in straight lines, scale .4 to 1, 600ms with overshoot (.2,1.3,.4,1), 160ms apart; the names line rises at 700ms. Ready tiles leave at 450ms.",
+   "verdict": "The owner's pick (§592), but on a ready tile (gone at 450ms) the third face has not started and the line naming them never shows. Also over 450ms, overshooting, straight-line travel.",
+   "severity": "broken",
+   "principles": [
+    "Timing",
+    "Slow in and slow out",
+    "Arcs",
+    "Stagger"
+   ],
+   "notes": "Code: .fam-dev-faces .src-mark (44px, 3px page-colour border) famFaceIn .6s cubic-bezier(.2,1.3,.4,1) both, from translate(--fx,--fy) scale(.4) opacity 0; offsets (-130,-170), (40,-230), (190,-130) with delays .12/.28/.44s (2302-2309). The names line (friendsListenedLine: 'Maya, Jordan and 4 others listened') is famLdUp .3s .7s both (2310). The picture is sharp; no sheen, so the only 'working' sign is the status dot.\nReady case: the loader leaves at 450ms (GEN_MIN_VISIBLE_MS). On the overshoot curve face 1 is just past its spot and face 2 about 90% there, but face 3 starts at 440ms and the names line at 700ms: the line that says WHO listened - the screen's point - never shows. Unwritten case: it plays fully, but 600ms with a 30% overshoot is past the project's 450ms ceiling and the skill's no-bounce rule, the 160ms stagger is 3-4x the skill's 30-50ms for copies, and two-axis travel over 40px should arc.\nA (recommended): faces appear where they will sit, rising 12px from scale .9, 260ms ease-out, 40ms apart (done at 340ms); names line fades in with the first face (+60ms). Readable before any hand-off. B: each face starts where it sat on the tapped card's dark faces pill (.seed-friends .friend-face, 22px, bottom right of the tile's picture; the boxes can be read on pointerdown like Motion's `tapped`), and arcs (peak 15% of distance, the skill's arc() technique: x on one curve, y lifted by sin) to the loader's corner, 22px growing to 44px (scale .5 to 1), 360ms ease-in-out, 40ms apart: last lands at 440ms - right at the edge of a ready tile's 450ms. C keeps today's flight for unwritten tiles only, and draws a ready tile's faces already landed.\nWith tile-to-player B, the faces stay on the picture as it flies (children of .fam-dev). Avatars: the cached-image flash (bug list) applies here too - draw img opacity 1 when complete.\nReduced motion: faces and names drawn in place at once; the status dot keeps pulsing.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Land inside the floor",
+     "summary": "The faces settle onto the picture's corner almost at once, one after another, and the line naming them comes with them.",
+     "spec": "faces y 12→0, scale .9→1, fade 260ms (.32,.72,0,1) · 40ms apart · names fade +60ms · done 340ms",
+     "recipe": "entrances: copies staggered 40ms",
+     "principles": [
+      "Timing",
+      "Stagger",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "Loses the 'arriving from elsewhere' feel of the owner's flight; the faces now just appear in place.",
+     "recommended": true,
+     "why": "The screen exists to say who listened; this says it before the 450ms a ready tile allows, with no overshoot and within the skill's stagger.",
+     "reduced": "Faces and names drawn in place at once; dot pulses.",
+     "demoText": "Cream loader: FAM mark, kicker, sharp 150x112 picture at y=110. 0ms three 26px faces (peach MA, lilac JO, blue PS) rise 12px into the picture's bottom-left corner, overlapping, each fading in over 260ms, 40ms apart; at 60ms 'Maya, Jordan and 4 others listened' fades in under the picture. Everything still by 340ms. 450ms hand-off to the player. Loop.",
+     "specShort": "260ms out · 40ms apart · y 12→0"
+    },
+    {
+     "key": "B",
+     "name": "From the card's faces",
+     "summary": "Each face lifts off the tile that was tapped and curves over to the loader's picture, growing as it lands.",
+     "spec": "arc peak 15% · 360ms (.77,0,.175,1) · scale .5→1 · 40ms apart · names fade 200ms at +200ms",
+     "recipe": "Arcs + shared-element move",
+     "principles": [
+      "Arcs",
+      "Origin",
+      "Make it mean something"
+     ],
+     "tradeoff": "Answers 'where did they come from?', but the last face lands at 440ms, the very edge of a ready tile's 450ms.",
+     "recommended": false,
+     "reduced": "Faces and names drawn in place at once; dot pulses.",
+     "demoText": "dailyFAM: tile 1 shows its dark faces pill (three 12px faces) at the bottom right of its picture. 0ms tap. Cream loader with sharp 150x112 picture at y=110; 0-360 each face leaves the tile's pill (now under the loader) and travels on a path bulging upward to the picture's bottom-left, growing 12 to 26px, 40ms apart; 200ms the names line fades in. 450ms hand-off. Loop.",
+     "specShort": "360ms io arcs · scale .5→1"
+    },
+    {
+     "key": "C",
+     "name": "Keep, ready ones still",
+     "summary": "Today's flight where there is time for it; a ready tile shows the faces and names already in place.",
+     "spec": "unwritten: as today, 600ms (.2,1.3,.4,1), 160ms apart, names at 700ms · ready: at rest, 0ms",
+     "recipe": "keep the owner's pick; instant where it cannot finish",
+     "principles": [
+      "Frequency of use",
+      "Peak-end"
+     ],
+     "tradeoff": "Keeps the owner's flight, with the overshoot and over-450ms moves the rules forbid, on the slower taps.",
+     "recommended": false,
+     "reduced": "Faces and names drawn in place at once; dot pulses.",
+     "demoText": "Run 1, ready tile: tap; the loader opens with three faces and 'Maya, Jordan and 4 others listened' already on the picture; nothing moves; 450ms hand-off. Run 2, unwritten tile: faces fly in from far above-left, above and above-right, overshooting, 600ms each, 160ms apart; names rise at 700ms; audio and hand-off at 2000ms. Loop.",
+     "specShort": "ready 0ms · else 600 overshoot"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "late-sections",
+   "title": "Pick up and faces rows land late",
+   "status": "new",
+   "where": "static/index.html:16344 (loadGoDeeper after renderMyFamFeed) + 17660 (paintMyFamCircle)",
+   "trigger": "open dailyFAM; the answers land",
+   "frequency": "many",
+   "now": "Rails draw first; /api/godeeper then inserts 'Pick up where you left off' (up to ~260px) above them in one frame, and /api/circle can insert the faces row (~100px): the rails jump down.",
+   "verdict": "A layout jump on the page's main open, often during the rails' arrive. Reads should show what was there last time, then reconcile (Doherty); only a real change should move.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Frequency of use",
+    "Make it mean something"
+   ],
+   "notes": "Order today (loadMyFamFeed, 16318): skeleton in #myfamFeed (first open only); loadMyFamCircle() fires /api/circle; /api/myfam lands and renderMyFamFeed draws the rails (Motion.arriveRails); only then loadGoDeeper() fires /api/godeeper (16344), whose renderGoDeeper (16230) fills #goDeeperBlock - ABOVE #myfamFeed - with the heading and up to 4 cards (2 rows of 80-104px). The rails drop by the block's height in one frame. /api/circle usually answers first, but when it does not, paintMyFamCircle (17646) un-hides a ~100px row above everything. On later opens (every tab tap, openMyFamTab 14937) both blocks are re-rendered from scratch: same height, no jump, unless something changed - which is exactly when the listener has just stopped an episode half-way and a new Pick up card appears.\nA thumb aiming at a rail tile can land on a different tile when the rails drop 260px under it (Fitts). The project rule 'nothing on the page-load path awaits' rules out holding the rails for the block.\nB (recommended): keep the last Pick up answer and circle per account on the device (famLastFeed already does this for the rails, 10497; same per-device rule, emptied on log-out) and paint them on the first frame with the rails; when the answers land, diff by query/user id: an added card fades up 8px (260ms ease-out), a gone one recedes (fade + scale .95, 150ms ease-in) and the rest FLIP to their new cells (200ms ease-in-out). Identical answers change nothing. A: grid-template-rows expander on #goDeeperBlock (0fr to 1fr 250ms ease-in-out, the only layout animation the skill allows), cards fading in 200ms after; the rails glide rather than jump, but still move on most first opens. C: keep the block's last height as a min-height (a reserved, empty space), fill it when the answer lands, collapse with the expander if it ends empty.\nInterrupt: a second open mid-animation re-renders; Motion's settle() pattern (finish at once) applies.\nReduced motion: cached paint, changes at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Open the gap",
+     "summary": "The Pick up block opens like a drawer above the rails, pushing them down smoothly, and its cards fade in.",
+     "spec": "grid-template-rows 0fr→1fr 250ms (.77,0,.175,1) · cards opacity 0→1 200ms at +100ms",
+     "recipe": "expanders (grid-rows) + entrance fade",
+     "principles": [
+      "Make it mean something",
+      "Properties"
+     ],
+     "tradeoff": "Smooth, but the page still moves on most first opens, sliding rails away from a thumb about to tap them.",
+     "recommended": false,
+     "reduced": "Block appears at once; the rails jump as today.",
+     "demoText": "dailyFAM: wordmark; rail 'Made for you' with 3 tiles at y=60. 300ms a 'PICK UP WHERE YOU LEFT OFF' block opens above: height 0 to 110px over 250ms, rails glide down 110px; from 400ms its 2x2 cards (titles, copper progress bars) fade in over 200ms. Hold 1.2s; reset.",
+     "specShort": "rows 0fr→1fr 250ms io"
+    },
+    {
+     "key": "B",
+     "name": "Draw what was there",
+     "summary": "The page opens with last visit's Pick up cards and faces already in place; only a card that is new fades in.",
+     "spec": "cached paint 0ms · new card y 8→0 + fade 260ms (.32,.72,0,1) · gone card fade, scale .95, 150ms",
+     "recipe": "Doherty: show last-seen state, then reconcile; entrances and exits",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use",
+      "Make it mean something"
+     ],
+     "tradeoff": "Needs the last answer kept per account on the device; a card already dismissed elsewhere can show for a moment until the answer lands.",
+     "recommended": true,
+     "why": "Nothing jumps on the common open, and the one motion left is the answer to 'what is new since I was here?'",
+     "reduced": "Cached paint; added or removed cards change at once.",
+     "demoText": "dailyFAM at 0ms already shows: faces row, 'PICK UP' block with 3 cards in a 2x2 grid, rail below. 700ms the answer lands: a fourth card (copper bar at 40%) fades up 8px into the empty cell over 260ms; nothing else on the page moves. Hold 1.4s; reset.",
+     "specShort": "cached 0ms · new card 260 out"
+    },
+    {
+     "key": "C",
+     "name": "Hold the space",
+     "summary": "The block's usual space is kept empty until its cards arrive, so nothing below moves; an empty answer closes it.",
+     "spec": "min-height = last height · fill 0ms · if empty: grid-rows 1fr→0fr 190ms (.77,0,.175,1)",
+     "recipe": "skeleton the size of the content + expander (closing)",
+     "principles": [
+      "Doherty threshold",
+      "Properties"
+     ],
+     "tradeoff": "No jump when the block comes back the same size, but an empty gap sits over the rails until the answer lands.",
+     "recommended": false,
+     "reduced": "Space held; closes at once if empty.",
+     "demoText": "dailyFAM: wordmark, an empty 110px space with a faint dashed outline, rail below. 300ms the 2x2 Pick up cards appear in the space; nothing below moves. Second run: the answer is empty and the space closes over 190ms; the rail glides up 110px. Loop.",
+     "specShort": "space held · 0ms fill"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "rails-arrive",
+   "title": "New rails arrive tile by tile",
+   "status": "existing",
+   "where": "static/index.html:6270 (Motion.arriveRails), called at 15615",
+   "trigger": "the feed lands (first open, new tiles)",
+   "frequency": "few",
+   "now": "One chain for the page: headings (first draw) and each rail's first 3 tiles, 40ms apart capped at 8 (320ms), 260ms (.2,.8,.2,1), y 8 to 0 plus fade, off-screen rails included.",
+   "verdict": "The owner's pick (§292), kept. Tune to the skill: 6 at most, each heading 80-100ms ahead of its tiles, nothing below the fold, never on top of a moving tab change.",
+   "severity": "polish",
+   "principles": [
+    "Stagger",
+    "Staging",
+    "Frequency of use"
+   ],
+   "notes": "Code: arriveRails (6270) walks every .feed-section; on the first draw it pushes the .feed-title, then the first three .feed-rail > [data-topic] not in `before` (feedTopicsShown, by topic id). arrive (6257) runs runAdd translateY(8px) to none plus opacity, 260ms, EASE (.2,.8,.2,1), delay min(i,8)*40, fill backwards. With five rails the list is h1,t,t,t,h2,t,t,t,h3... so headings and tiles share one 40ms clock and everything from index 8 lands at 320ms, including rails three screens down. Redraws (every tab open) animate only tiles that are new, which is right and stays.\nIssues against the skill: copies 30-50ms apart and only the first 6 (here 8); distinct pieces (heading, then its tiles) 80-100ms apart (here 40, mixed); content that arrives inside a moving container should not stagger (a tab change slides the content 18px over 200ms with a 90ms delay - if /api/myfam lands within ~290ms of the tap, new tiles stagger on a sliding page). The Play all pill is not in the chain, so it appears before its heading rises.\nA (recommended): per rail in view (getBoundingClientRect top < frame height): heading and its Play all at 0, its tiles from +90ms, 40ms apart; a page-wide cap of 6 tiles; skip when the screen is .arriving or a tab change is running (Motion.onActive already tests .arriving). 260ms on the skill's ease-out (.32,.72,0,1). B: the skill's softest entrance - 8px rise plus a 2px blur that clears, 350ms, tiles 30ms apart. C: the skeleton (fixed to the tile's size, see findings) cross-fades into the first rail's tiles in place with plus-lighter, nothing rises.\nHolds nothing: tiles are tappable during their delay (fill backwards only paints them at opacity 0 - in A the longest wait is 90+5*40 = 290ms, under today's 320).\nReduced motion: tiles appear at once (today too).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Owner's pick, tuned",
+     "summary": "Each rail's heading appears, then its tiles rise in one after another; only what is on screen moves.",
+     "spec": "heading 0 · its tiles +90ms, 40ms apart · ≤6 tiles · 260ms (.32,.72,0,1) · y 8→0 + fade",
+     "recipe": "entrances: split, then stagger",
+     "principles": [
+      "Stagger",
+      "Staging",
+      "Frequency of use"
+     ],
+     "tradeoff": "Barely different from today to the eye; the gain is that it never runs where nobody looks or on a moving page.",
+     "recommended": true,
+     "why": "Keeps what the owner picked and fixes only what the skill flags: at most 6, heading before tiles, and no motion off screen or on a moving page.",
+     "reduced": "Tiles appear at once.",
+     "demoText": "dailyFAM first open: wordmark, three grey skeleton cards. 0ms the feed lands: 'Made for you, Monday afternoon' and its PLAY ALL fade up 8px (260ms); from 90ms its three tiles rise 8px, 40ms apart. 'Trending' heading at 220ms, its tiles from 310ms (stops after 6 tiles in all). A third rail below the fold just appears. Hold 1.5s; reset.",
+     "specShort": "260 out · head +90 · 40ms · ≤6"
+    },
+    {
+     "key": "B",
+     "name": "Soft rise with blur",
+     "summary": "Tiles drift up out of a slight blur, a little softer and slower than today.",
+     "spec": "350ms (.32,.72,0,1) · y 8→0 · blur 2→0px · fade · headings 90ms ahead · tiles 30ms apart · ≤6",
+     "recipe": "entrances: the softest entrance (rise + 2px blur)",
+     "principles": [
+      "Stagger",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "Gentler, but 90ms longer per tile, and blurring six pictures costs more on older phones.",
+     "recommended": false,
+     "reduced": "Tiles appear at once.",
+     "demoText": "dailyFAM first open: skeleton cards. 0ms feed lands: heading fades up; from 90ms tiles rise 8px out of a 2px blur that clears, 30ms apart, 350ms each; second rail's heading at 200ms, its tiles from 290ms. Hold 1.5s; reset.",
+     "specShort": "350 out · y8 + blur 2 · 30ms"
+    },
+    {
+     "key": "C",
+     "name": "Skeleton becomes tiles",
+     "summary": "The grey placeholder cards dissolve into the real tiles in the same spots; nothing slides.",
+     "spec": "skeleton→tile cross-fade 200ms (.25,.1,0,1), plus-lighter · other rails appear · no movement",
+     "recipe": "Replacements; cross-fades and groups",
+     "principles": [
+      "Replacements",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Calmest, and ties the wait to its result, but loses the 'arriving' the owner picked and only helps the first rail.",
+     "recommended": false,
+     "reduced": "Tiles replace skeletons at once.",
+     "demoText": "dailyFAM first open: wordmark and three grey cards the size of real tiles. 0ms feed lands: each grey card dissolves into its real tile in the same place over 200ms (pictures and titles fading up through the grey); the heading and the next rail are simply there. Hold 1.5s; reset.",
+     "specShort": "200ms cross-fade, no move"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "story-progress-hold",
+   "title": "Story bars, and holding to pause",
+   "status": "existing",
+   "where": "static/index.html:3206 (.story-bar.on i, storyFill) + 3235 (.story.held)",
+   "trigger": "a story plays; press and hold",
+   "frequency": "many",
+   "now": "Each bar fills by animating width over 6000ms linear. A hold (220ms) fades head, bars and reply row out over 200ms (ease); on release they snap back. The fade runs under reduced motion.",
+   "verdict": "Linear is right (it is time); width is not (Properties). The hold is inverted - hiding takes longer than coming back - and reduced motion should not fade.",
+   "severity": "polish",
+   "principles": [
+    "Properties",
+    "Exits",
+    "Reduced motion",
+    "Frequency of use"
+   ],
+   "notes": "Code: .story-bar i {width:0}; .story-bar.on i {animation: storyFill var(--story-ms, 6000ms) linear forwards}; storyFill from width 0 to 100% (3203-3208); paused with animation-play-state (3207). showStory rebuilds the bars and restarts the fill on a fresh node (17792-17799). pauseStory/resumeStory (17813-17825) keep the 6s timer in step; a hold is STORY_HOLD_MS 220 (17892) and adds .held, whose rule carries `transition: opacity .2s` (3235) - so hiding fades 200ms on the default ease, and removing .held drops the transition with it, so the chrome returns in one frame.\nWidth forces layout on every frame for 6s, on a screen that also runs the cube turn and grow; scaleX on the <i> with transform-origin left is compositor-only and pauses the same way. .story-bar has overflow hidden and a 2px radius: scaleX squashes the <i>'s own corners, invisible at 2.5px tall.\nHolding is a many-times gesture in a story; the skill's frequency rule allows no transition, and its exit rule wants exits shorter than entrances. A: hide 150ms ease-in, return 200ms ease-out. B: keep the bars visible while held (they are what says 'paused') and thicken the active one; head and reply row hide. C: both instant.\nUnder reduced motion the fill keeps running in all options (a progress indicator - the skill's one exception) and the chrome cuts at once.\nInterrupt: release mid-fade turns around (transitions on both states, not keyframes). Tapping forward mid-fill completes that bar (.done) at once - leave as is: it is many-times.",
+   "options": [
+    {
+     "key": "A",
+     "name": "scaleX, quick fade",
+     "summary": "The bar fills smoothly the same way; holding hides the chrome quickly and lets it come back gently.",
+     "spec": "fill scaleX 0→1 6000ms linear, origin left · hide 150ms (.55,0,1,.45) · show 200ms (.32,.72,0,1)",
+     "recipe": "progress fill (goal gradient) + exits",
+     "principles": [
+      "Properties",
+      "Exits",
+      "Reduced motion"
+     ],
+     "tradeoff": "Looks almost the same as today; the gains are smoothness on busy phones and correct exit timing.",
+     "recommended": true,
+     "why": "Fixes the Properties fault and the inverted exit with no new behaviour to learn; reduced motion gets a cut and keeps the progress bar.",
+     "reduced": "Bar still fills; chrome hides and shows at once.",
+     "demoText": "Dark story: three thin bars at top (first full, second filling), avatar and 'Maya', title in the middle, reply box, heart and arrows at the bottom. Bar 2 fills left to right at a steady rate (2000ms at demo speed). 1000ms a finger presses and holds: head, bars and reply row fade out in 150ms; the fill stops. 2200ms finger lifts: chrome fades back in 200ms; the fill continues. Loop.",
+     "specShort": "scaleX lin · hide 150 / show 200"
+    },
+    {
+     "key": "B",
+     "name": "Hold shows the pause",
+     "summary": "While held, the head and reply row fade away but the bars stay, and the active one thickens to say 'paused'.",
+     "spec": "A's fill · held: head and reply fade 150ms; bars stay; active bar scaleY 1→1.6 150ms (.32,.72,0,1)",
+     "recipe": "progress fill + state change on the indicator",
+     "principles": [
+      "Make it mean something",
+      "Exits"
+     ],
+     "tradeoff": "Clearer 'paused', but it changes the owner's held look (everything but the story hidden) by keeping the bars.",
+     "recommended": false,
+     "reduced": "Bar fills; chrome and bar thickness change at once.",
+     "demoText": "Same story. Bar 2 filling. 1000ms finger holds: head and reply row fade out 150ms; the bars stay and bar 2 thickens from 2.5 to 4px, frozen at its fill. 2200ms finger lifts: bar 2 thins back, chrome fades in 200ms, fill continues. Loop.",
+     "specShort": "bars stay · thicken 150 out"
+    },
+    {
+     "key": "C",
+     "name": "Instant hold",
+     "summary": "The bar fills smoothly; holding makes the chrome disappear and reappear in a single frame.",
+     "spec": "fill scaleX 0→1 6000ms linear, origin left · held: chrome 0ms both ways",
+     "recipe": "make it instant (Frequency of use)",
+     "principles": [
+      "Frequency of use",
+      "Properties"
+     ],
+     "tradeoff": "Fastest for a gesture repeated many times, but the chrome blinks out under the finger.",
+     "recommended": false,
+     "reduced": "Same as with motion, plus the bar still fills.",
+     "demoText": "Same story. Bar 2 filling. 1000ms finger holds: chrome gone in one frame, fill stops. 2200ms lift: chrome back in one frame, fill continues. Loop.",
+     "specShort": "scaleX lin · chrome 0ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "view-more-grid",
+   "title": "View more fills its grid",
+   "status": "existing",
+   "where": "static/index.html:15857 (Motion.arrive in renderSection) + 15694 (openSection)",
+   "trigger": "tap View more at a rail's end",
+   "frequency": "few",
+   "now": "Push in on 'Loading...' and an empty grid; when the answer lands, 16 cards drop in and the first 8 rise 8px 40ms apart (260ms) - inside the push if it lands within 320ms.",
+   "verdict": "The rail's own tiles are already on the device, yet the screen opens empty (Doherty). The stagger can run inside a moving screen, and 8 copies exceed the 6 cap.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Stagger",
+    "Make it mean something"
+   ],
+   "notes": "Code: openSection (15694) empties #sectionGrid, sets 'Loading...', hides Refresh, navigate('section') - the shared push, 320ms - then loadSectionPage fetches /api/myfam/section. renderSection (15779) writes the 16 cards and calls Motion.arrive(first 8) (15857). The Trending branch (grouped by continent) returns before arrive (15847-15855), so one View more never arrives (bug list).\nrailTiles[key] holds exactly the tiles the rail drew (15549), and for Made for you the section is already made to open on them (§286, sectionState.head). The section uses one ranker with the rail (the screen's own comment), so the rail's tiles are its first cards on the other rails too.\nA (recommended): render railTiles[key] into the grid before navigate(), so they ride in with the push in one piece (Stagger: content riding in on a moving container arrives with it); when the answer lands, reconcile by id and let only the cards that were not there arrive, 30ms apart, first 6, 260ms ease-out - and skip the stagger while #screen-section is .arriving. B: no head start; the 16 land and fade in as one group through the grid wrapper (the skill's group fade), 200ms. C: instant: the push already says where the screen came from.\nThe 'View more' end card (15594) swaps its chevron for the words with display:none as the rail reaches its end (603) - a scroll-driven swap; a 150ms cross-fade in one cell or nothing (findings).\nReduced motion: cards appear at once; the push is the 120ms crossfade.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rail first, rest arrive",
+     "summary": "View more opens already showing the four tiles just seen; the rest of the rail rises in below them.",
+     "spec": "rail tiles 0ms (ride in with the push) · rest y 8→0 + fade 260ms (.32,.72,0,1), 30ms apart, ≤6",
+     "recipe": "Doherty (show what is on the device) + entrances (no stagger inside a moving container)",
+     "principles": [
+      "Doherty threshold",
+      "Stagger",
+      "Make it mean something"
+     ],
+     "tradeoff": "Exact only while the rail's order is the section's (true for Made for you by §286; the others share one ranker).",
+     "recommended": true,
+     "why": "Turns an empty 'Loading...' into the tiles just seen, and moves only what is new - both the Doherty threshold and the Stagger rule satisfied.",
+     "reduced": "Rail tiles and the rest appear at once.",
+     "demoText": "dailyFAM rail 'Most played' with 4 tiles and a VIEW MORE end card. 0ms tap VIEW MORE: the section screen pushes in from the right (320ms) already holding those 4 tiles in a 2x2 grid. 600ms the answer lands: 6 more cards rise 8px and fade in below, 30ms apart, 260ms each; the rest appear. Hold; loop.",
+     "specShort": "rail 0ms · rest 260 out · 30ms"
+    },
+    {
+     "key": "B",
+     "name": "Group fade",
+     "summary": "The screen opens on 'Loading...'; when the answer lands, the whole grid fades in together, nothing rising.",
+     "spec": "grid wrapper opacity 0→1 200ms (.32,.72,0,1) · no rise · no stagger",
+     "recipe": "cross-fades and groups (fade a group through its wrapper)",
+     "principles": [
+      "Stagger",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Quiet and safe inside the push, but the wait on an empty screen stays.",
+     "recommended": false,
+     "reduced": "Grid appears at once.",
+     "demoText": "Tap VIEW MORE: section screen pushes in on 'Loading...' and an empty grid. 500ms the 16 cards fade in together over 200ms as one grid; no card moves. Hold; loop.",
+     "specShort": "grid fade 200ms out"
+    },
+    {
+     "key": "C",
+     "name": "Instant on landing",
+     "summary": "The cards are simply there when the answer lands; only the screen's own push moves.",
+     "spec": "cards 0ms on landing · push unchanged",
+     "recipe": "make it instant (Frequency of use)",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "Least motion, but nothing says which cards are the rail's and the wait on an empty screen stays.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "demoText": "Tap VIEW MORE: section screen pushes in on 'Loading...'. 500ms all 16 cards are there in one frame. Hold; loop.",
+     "specShort": "0ms on landing"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "section-refresh",
+   "title": "Refresh deals 16 more",
+   "status": "existing",
+   "where": "static/index.html:15729 (.spinning) + 15856 (grid swap) + 15753 (scrollTop 0)",
+   "trigger": "tap Refresh on View more",
+   "frequency": "few",
+   "now": "The arrow spins on the tap (600ms linear loop), even for a 100ms answer; then 16 cards swap in one frame, the first 8 rise 40ms apart and the scroll jumps to the top.",
+   "verdict": "The spinner flashes on fast answers (Doherty), and the swap has no 'out', so nothing says the old 16 left. Async-button timing plus a leave-then-arrive.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Replacements",
+    "Stagger"
+   ],
+   "notes": "Code: refreshSection (15767) guards on sectionState.busy; loadSectionPage adds .spinning to #sectionRefresh at once (15729), whose svg runs sec-spin .6s linear infinite (558), and removes it when the answer settles. renderSection replaces the grid (15856) and calls Motion.arrive(first 8); loadSectionPage then sets #sectionScroll.scrollTop = 0 (15753). The caught-up state ('You're all caught up' plus 'Start again from the top', 15790) also replaces the grid in one frame.\nAsync button recipe: disable on press (busy already does), spinner only after 300ms and at least 500ms once shown, label and spinner in one grid cell so the pill keeps its width. The sec-refresh pill holds an icon and 'Refresh': the icon itself is the spinner, so the cell rule is already met.\nOrder with motion: the old cards must leave before (or as) the new arrive - Replacements says animate both at once in the same place; for a 16-card grid that means the old grid fades as one group (150ms ease-in) while the new grid's first 6 rise. Scroll: the header holds Refresh, so the person may be scrolled down; jumping to the top at the moment the old grid has faded is invisible, so do it then. B ('deal'): the code's own word for it is 'deals the next page' (15677): old out to the left, new in from the right, direction meaning 'next'; the icon makes one full turn per press.\nInterrupt: busy blocks a second press; restartSection uses the same path.\nReduced motion: swap at once; the spinner still spins when shown (an indicator).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Old out, new in",
+     "summary": "No spinner on a quick answer; the old cards fade away together and the new ones rise in at the top.",
+     "spec": "spinner >300ms, ≥500ms · old fade 150ms (.55,0,1,.45) · new y 8→0 260ms (.32,.72,0,1), 30ms, ≤6",
+     "recipe": "async buttons + exits + entrances",
+     "principles": [
+      "Doherty threshold",
+      "Replacements",
+      "Stagger"
+     ],
+     "tradeoff": "Two short phases per refresh; a person refreshing several times in a row sees the fade each time.",
+     "recommended": true,
+     "why": "Fixes the flashing spinner and shows that the old set left and a new one came, in about 450ms all told.",
+     "reduced": "Swap at once; spinner still spins when shown.",
+     "demoText": "View more: header 'Trending' with a 'Refresh' pill, a 2x3 grid of cards. Run 1 (fast answer): tap Refresh at 0ms; no spinner; 150ms the old grid fades out (150ms) and the new cards rise 8px, 30ms apart. Run 2 (slow): tap; at 300ms the arrow starts spinning; 900ms answer: old fades, new rise; the arrow stops. Loop.",
+     "specShort": "spin>300 · fade 150 · rise 260"
+    },
+    {
+     "key": "B",
+     "name": "Deal the next page",
+     "summary": "The old cards slip off to the left and new ones slide in from the right, like dealing the next hand.",
+     "spec": "out x −24 + fade 160ms (.55,0,1,.45), 20ms · in x 24→0 260ms (.32,.72,0,1), 30ms · icon 360° 400ms",
+     "recipe": "entrances and exits with direction + an icon turn",
+     "principles": [
+      "Make it mean something",
+      "Stagger"
+     ],
+     "tradeoff": "Says 'next' best, but doubles the motion on a button people may press several times in a row.",
+     "recommended": false,
+     "reduced": "Swap at once; spinner still spins when shown.",
+     "demoText": "View more, 2x3 grid. Tap Refresh: the arrow makes one full turn (400ms). Old cards slide 24px left and fade, 20ms apart; from 120ms new cards slide in from 24px right, 30ms apart, 260ms each. Hold; loop.",
+     "specShort": "x −24 out 160 · x 24 in 260"
+    },
+    {
+     "key": "C",
+     "name": "Spinner fix only",
+     "summary": "The grid still swaps in one frame; only the spinner waits until the answer is actually slow.",
+     "spec": "spinner after 300ms, held ≥500ms · grid swap 0ms · scroll to top 0ms",
+     "recipe": "async buttons; make it instant",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "Least work and least motion, but nothing says the 16 changed except the titles.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "demoText": "View more, 2x3 grid. Run 1: tap Refresh; 150ms the grid is new in one frame, no spinner. Run 2: tap; at 300ms the arrow spins; 900ms the grid is new in one frame, arrow stops. Loop.",
+     "specShort": "spinner>300 · swap 0ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "tile-save",
+   "title": "Saving a tile",
+   "status": "new",
+   "where": "static/index.html:15491 (saveTile) + 580 (.seed-act.saved-on)",
+   "trigger": "tap a tile's bookmark",
+   "frequency": "few",
+   "now": "Nothing on the tap; when the server answers, the 24px chip turns sage in one frame. The icon stays an outline bookmark either way; the player's save bursts and says SAVED.",
+   "verdict": "Not optimistic (Doherty), colour-only state (fails without colour), and unlike every other save (Similarity). Change it on the tap, and show it in the icon.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Similarity",
+    "Replacements"
+   ],
+   "notes": "Code: saveTile (15491) POSTs or DELETEs /api/saved and only on r.ok updates savedTileQueries and paintTileSaves (15468), which toggles .saved-on (background sage, 580) plus aria-pressed and title. The svg is the same outline bookmark in both states. Then the bottom line: 'Saved for Later · Open' or 'Removed from Saved for Later'. A failure: 'Could not save that'.\nDoherty: save almost never fails, so it updates optimistically - flip on the pointer's click, send, and roll back with the line's message on refusal. Similarity: the player's save (saveForLater, 22068) bursts and says SAVED - the owner's §292 pick for save/like/vibe 'only when the listener turns one on'; the tile is the one save in the app that does not. The burst itself is the lead's shared item: option B only calls it (Motion.celebrate('[data-tile-save=\"id\"]', 'SAVED')), which already skips anything not on the active screen and places the label right of the icon when there is no room on the left.\nIcon swap (A and B): render the outline and filled bookmark both, stacked in the chip; cross-fade with the recipe's no-Motion form - scale .3 to 1, opacity, 3px blur - 300ms cubic-bezier(.25,.1,0,1). Both directions animate and the chip never changes size. The chip's background moves 150ms on ease (a colour). Turning off is quiet in every option (no burst), as the owner asked of the other saves.\nInterrupt: a second tap mid-swap reverses the transition from where it is (CSS transitions, not keyframes). Guests still get the account gate first.\nReduced motion: the icon and chip change at once, on the tap.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Optimistic icon swap",
+     "summary": "On the tap the outline bookmark turns into a filled one and the chip goes green; undone if the save fails.",
+     "spec": "icon scale .3→1, blur 3→0, fade 300ms (.25,.1,0,1) · chip bg 150ms ease · rollback the same",
+     "recipe": "icon swaps + optimistic update",
+     "principles": [
+      "Doherty threshold",
+      "Replacements"
+     ],
+     "tradeoff": "Clear and quiet, but a saved tile then looks different from a saved episode on the player, which bursts.",
+     "recommended": false,
+     "reduced": "Icon and chip change at once, on the tap.",
+     "demoText": "Two tiles; at the top right of tile 1 a dark 12px bookmark chip and a ⋯ chip. 0ms tap the bookmark: chip turns sage over 150ms; the outline icon shrinks and fades as a filled bookmark grows from 0.3 with a 3px blur clearing (300ms). 600ms bottom line 'Saved for Later · Open' rises. 2000ms tap again: filled swaps back to outline, chip dark, quietly. Loop.",
+     "specShort": "icon .3→1 · 300ms · blur 3"
+    },
+    {
+     "key": "B",
+     "name": "The player's save",
+     "summary": "The same as A, plus the burst every other save in the app makes: a copper ring, sparks and the word SAVED.",
+     "spec": "A's swap + shared celebrate(tile chip, 'SAVED'): ring 450ms, label ~1.1s · off: swap only",
+     "recipe": "icon swaps + the app's burst-and-label (shared)",
+     "principles": [
+      "Similarity",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Louder on a busy rail; the label needs room beside a 24px chip near the card's edge (the burst already flips it to the right).",
+     "recommended": true,
+     "why": "One action, one look: the owner picked burst-and-say for saving (§292), and the tile is the only save in the app that does not do it.",
+     "reduced": "Icon and chip change at once; no burst.",
+     "demoText": "Two tiles. 0ms tap tile 1's bookmark: chip turns sage, outline swaps to filled (300ms); at the same time a copper ring expands from the chip and six sparks fly out (450ms) and a copper 'SAVED' pill fades in beside it, holds about 1s, fades. 2000ms tap again: icon swaps back, no burst. Loop.",
+     "specShort": "icon swap + burst 450 · SAVED"
+    },
+    {
+     "key": "C",
+     "name": "Optimistic, still",
+     "summary": "The chip and a filled icon change on the tap's own frame; nothing animates.",
+     "spec": "state on the tap's frame, 0ms · filled icon · rollback on refusal",
+     "recipe": "optimistic update; make it instant",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "Fastest, but an icon that swaps in one frame reads as a glitch more than a change.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "demoText": "Two tiles. 0ms tap tile 1's bookmark: chip is sage with a filled bookmark on the same frame; 'Saved for Later · Open' line. 2000ms tap again: outline and dark on the same frame. Loop.",
+     "specShort": "0ms on the tap"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "changed-since",
+   "title": "Scores and progress that moved",
+   "status": "new",
+   "where": "static/index.html:15416 (seedLiveHtml) + 16260 (.gd-bar width)",
+   "trigger": "return to dailyFAM; the page redraws",
+   "frequency": "few",
+   "now": "A live game's line ('PHI 21-17 · Q3') and a Pick up card's bar and 'TIME LEFT' are redrawn at their new values in one frame; nothing says what moved.",
+   "verdict": "A changing number rolls only its changed digits (Make it mean something); progress grows from its last value with scaleX, never width, and never backward (goal gradient).",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Zeigarnik / goal gradient",
+    "Properties"
+   ],
+   "notes": "Code: seedLiveHtml (15416) draws topic.live_line plus its age; the line only changes when the whole feed is redrawn (loadMyFamFeed on every tab open and back, 14949 and 23194). renderGoDeeper (16230) draws each resume card's '2:41 LEFT' and a .gd-bar span with an inline width (16260; CSS 1898-1900). Both are innerHTML rewrites, so the old value is gone before anything could animate.\nNeeded for any option: remember the last value per id - live_line by topic id (feedTopicsShown already exists for arriveRails; make it id to line), and progress by query - and compare after the redraw. Only changed ones move; a first draw moves nothing (the skill: what is at rest on first paint plays no entrance).\nRolling digits (Numbers recipe): split the text into characters; each digit that differs gets a one-digit-tall window (overflow hidden) with a column that moves by translateY on the ease-in-out curve, 320ms; up when the value grows, down when it shrinks; 9 to 0 keeps rolling the same way. tabular-nums on .seed-live and .gd-card-meta (Geist Mono already is). The real text is set at once and the columns are aria-hidden, so screen readers and taps see the new value on the first frame.\nProgress: switch .gd-bar span to width 100% with transform scaleX(p), origin left; animate from the last p to the new one, 300ms ease-in-out; never animate backward (a re-started episode just draws).\nB adds a single copper tint on the changed line (Von Restorff) - fine for one, but two games moving at once make two 'different' items. C cross-fades the whole line and draws the bar at once.\nReduced motion: new values at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Roll and grow",
+     "summary": "Only the digits that changed roll to their new value, and the Pick up bar grows from where it was.",
+     "spec": "digits translateY 320ms (.77,0,.175,1), up if larger · bar scaleX old→new 300ms, same curve, left",
+     "recipe": "numbers (rolling digits) + progress from its last value",
+     "principles": [
+      "Make it mean something",
+      "Zeigarnik / goal gradient",
+      "Properties"
+     ],
+     "tradeoff": "Needs the previous values kept per tile and per episode, and digit splitting for a free-text line.",
+     "recommended": true,
+     "why": "Answers 'what changed while I was away?' with the change itself, moving only the digits and bars that changed.",
+     "reduced": "New values shown at once.",
+     "demoText": "dailyFAM: Pick up card 'The Agents Are Coming' with a copper bar at 30% and '4:41 LEFT'; below, a sports tile with 'PHI 21-17 · Q3'. 0ms the page redraws: the bar grows from 30% to 55%, left-anchored (300ms); '4:41' rolls down to '3:12'; in the score only '21' rolls up to '24' (320ms); 'Q3' stays. Hold 1.5s; loop.",
+     "specShort": "digits 320 io · bar scaleX 300"
+    },
+    {
+     "key": "B",
+     "name": "Roll and mark",
+     "summary": "As A, and the line or bar that changed warms to copper for a moment so it is found on a long page.",
+     "spec": "A + changed text colour → copper → back over 600ms ease",
+     "recipe": "numbers + Von Restorff highlight",
+     "principles": [
+      "Von Restorff",
+      "Make it mean something"
+     ],
+     "tradeoff": "Easier to find, but two live games changing at once make two highlights, breaking one-per-view.",
+     "recommended": false,
+     "reduced": "New values at once; no tint.",
+     "demoText": "Same scene. 0ms redraw: digits roll and the bar grows as in A; the score line's text and the bar's fill warm to copper and fade back over 600ms. Hold; loop.",
+     "specShort": "roll + copper tint 600ms"
+    },
+    {
+     "key": "C",
+     "name": "Cross-fade the line",
+     "summary": "The old score fades out upward as the new one fades in; the bar is simply at its new length.",
+     "spec": "old y 0→−4 + fade 120ms (.55,0,1,.45) · new fade 200ms (.32,.72,0,1) · bar 0ms (scaleX)",
+     "recipe": "replacements (cross-fade in one cell)",
+     "principles": [
+      "Replacements",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Simplest, but says 'something changed' rather than which digit or which way.",
+     "recommended": false,
+     "reduced": "New values at once.",
+     "demoText": "Same scene. 0ms redraw: the score line drifts up 4px and fades (120ms) while the new line fades in (200ms); '4:41 LEFT' swaps the same way; the bar is at 55% at once. Hold; loop.",
+     "specShort": "fade 120 out / 200 in"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "story-open-close",
+   "title": "A friend's story opens and closes",
+   "status": "existing",
+   "where": "static/index.html:6445 (growStory) / 6453 (shrinkStory) / 17963 (rings)",
+   "trigger": "tap a face on the row; X or the end",
+   "frequency": "few",
+   "now": "Grows as a circle clip from the face button's centre (ring plus name, ~10px low), 300ms (.2,.8,.2,1); closes into it in 240ms (.4,0,.2,1); the ring turns grey in the same frame.",
+   "verdict": "The owner's pick (§298), kept. Grow from the ring's own centre, and let the ring turn grey after the story has closed into it (Staging: chain, never overlap).",
+   "severity": "polish",
+   "principles": [
+    "Origin",
+    "Staging",
+    "Make it mean something",
+    "Jakob's law"
+   ],
+   "notes": "Code: openCircleProfile (18230) opens the story when the person has vibes up; openStoryAt (17743) un-hides #storyOverlay, draws it and calls Motion.growStory, which reads pressedCircle (6433): the last pressed element's closest button - on the faces row that is the whole .yf-friend button, ring 72px plus a 6px gap plus the name, so the circle's centre is about 10px below the face's. It clips circle(r at centre) to circle(diagonal) over 300ms, EASE. closeStory (17954) calls shrinkStory first: an inert copy shrinks back to that circle in 240ms EASE_IO, fading out over its last 15%; the real overlay is hidden on the same frame, and then the rings are recomputed - fresh (gold gradient) to seen (grey, thinner) - in one frame, under the shrinking copy.\nA (recommended): measure the .yf-ring inside the pressed button (or the .yf-friend's first child) for the centre and radius; grow on the skill's ease-out, shrink on its in-out (a shared-element move back, not an exit); then chain the ring: draw the seen ring as a second layer under the gold one and fade the gold out 200ms when the shrink lands (+240ms). The ring's padding and border width change between states (3169-3173), so put both looks on stacked layers rather than transitioning padding.\nB adds Instagram's drag-down to close (Jakob's law): pointermove after a vertical start (dy > dx) moves the overlay 1:1 and scales it by mapRange(dy, 0-300px, 1-.85); release past 80px or faster than 0.1px/ms closes with shrinkStory from the dragged position; else it springs back (400ms, bounce 0 - a CSS linear() spring, inside the 450ms limit). It must not fight the hold (220ms, cancelled by movement) or the sideways swipe (|dx| > |dy| x 1.2).\nReduced motion: story shows and hides at once, ring changes at once (today too).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Owner's pick, tuned",
+     "summary": "The story opens out of the face itself and closes back into it; then that friend's gold ring fades to grey.",
+     "spec": "grow 300ms (.32,.72,0,1) · shrink 240ms (.77,0,.175,1) · ring gold→grey fade 200ms at +240ms",
+     "recipe": "masks and reveals (circle clip) + storyboard chaining",
+     "principles": [
+      "Origin",
+      "Staging",
+      "Make it mean something"
+     ],
+     "tradeoff": "Small visible change from today; the ring fade is the only new motion.",
+     "recommended": true,
+     "why": "Keeps the owner's pick, fixes where it grows from, and shows 'watched' as the result of closing rather than a cut underneath it.",
+     "reduced": "Story shows and hides at once; ring changes at once.",
+     "demoText": "dailyFAM faces row: 'Your story' and four friends (Maya and Jordan with gold rings). 0ms tap Maya: the dark story grows as a circle from the centre of her face to full screen (300ms). 1500ms tap X: it closes back into her face as a shrinking circle (240ms); then her ring fades from gold to thin grey over 200ms. Loop.",
+     "specShort": "grow 300 out · shrink 240 io"
+    },
+    {
+     "key": "B",
+     "name": "Drag down to close",
+     "summary": "As A, and the story can also be pulled down: it follows the finger, shrinking, and closes into the face when let go.",
+     "spec": "drag y 1:1 · scale 1→.85 over 0-300px · close past 80px or 0.1px/ms · spring back 400ms bounce 0",
+     "recipe": "drawer/sheet drag + spring + masks",
+     "principles": [
+      "Jakob's law",
+      "Interruptible",
+      "Origin"
+     ],
+     "tradeoff": "The gesture people expect, but one more to build and test against hold-to-pause and the sideways swipe.",
+     "recommended": false,
+     "reduced": "Drag follows the finger; the close and the spring-back cut at once.",
+     "demoText": "Story open from Maya. 600ms a finger drags down: the story follows exactly, shrinking toward 0.9 by 120px; 1100ms release: it closes into Maya's face as a circle (240ms), ring greys. Second run: drag 40px and let go: it springs back up to full (400ms). Loop.",
+     "specShort": "drag 1:1 · close 240 · back 400"
+    },
+    {
+     "key": "C",
+     "name": "Keep as picked",
+     "summary": "Today's grow and shrink, unchanged.",
+     "spec": "grow 300ms (.2,.8,.2,1) from the button centre · shrink 240ms (.4,0,.2,1) · ring 0ms",
+     "recipe": "keep the owner's pick",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "No work; the circle stays slightly below the face, and the ring changes under the closing story.",
+     "recommended": false,
+     "reduced": "Story shows and hides at once; ring changes at once.",
+     "demoText": "Faces row. 0ms tap Maya: circle grows from a point just below her face (the face plus name) over 300ms. 1500ms tap X: shrinks back there in 240ms; her ring is grey on the same frame. Loop.",
+     "specShort": "300 fam / 240 famIo · ring 0"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "story-next-friend",
+   "title": "Turning to the next friend's story",
+   "status": "existing",
+   "where": "static/index.html:6464 (Motion.turnStory) + 17912 (swipe on pointerup)",
+   "trigger": "swipe sideways, or a friend's vibes run out",
+   "frequency": "few",
+   "now": "A swipe is read only on release (50px or more); then a 340ms cube turn (perspective 900px, (.4,0,.2,1)) plays. Both faces stay fully lit; the story never moves under the finger.",
+   "verdict": "The owner's pick (§298). The skill wants a drag to be direct (Interruptible) and a turn to be lit (Solid drawing): follow the finger, darken the face turning away.",
+   "severity": "friction",
+   "principles": [
+    "Interruptible",
+    "Solid drawing",
+    "Slow in and slow out"
+   ],
+   "notes": "Code: the overlay's pointerdown/up (17899-17929) records the start and, on pointerup, treats |dx| >= 50 and |dx| > |dy| x 1.2 as a swipe: storyFriend(dir) then turnToFriend, which calls Motion.turnStory (6464): a black .motion-story-back, an inert copy of the old story rotating away (origin at its outer edge, rotateY to -90, translateX -100%) and the real overlay rotating in from 90, both 340ms EASE_IO, backface hidden, perspective(900px). Running out of vibes (storyStep) uses the same turn on its own clock.\nInterruptible: 'drags are direct: the element stays 1:1 under the finger with no easing, and a spring takes over on release, carrying the release velocity.' Today the finger moves 50-150px with nothing following it, then the turn plays as a canned 340ms. B (recommended): on the first sideways pointermove past 12px (which already cancels the hold), draw the next friend's story into the real overlay and keep the copy (as turnStory does), then map dx to progress p = clamp(|dx| / width) and set both transforms per frame (straight-ahead: driven by input). Release: p > 1/3 or velocity > 0.1px/ms completes; else it turns back and restores the copy as the story. Use a spring-shaped CSS linear() curve over 400ms (inside the 450ms limit) or WAAPI with currentTime. At the first or last friend, rubber-band: dead zone 12px, resistance 150, ceiling 64px.\nSolid drawing (A and B): a black overlay on each face, opacity 0 to .3 on the face turning away and .3 to 0 on the face arriving, mapped to the same progress.\nThe story timer: pause on drag start (pauseStory), resume on cancel; a completed turn shows the next story and its bars start.\nReduced motion: the next friend's story appears at once (today too); a drag moves nothing until release.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Lit cube",
+     "summary": "The same turn after the swipe, on a firmer curve, with the face turning away darkening as it goes.",
+     "spec": "340ms (.77,0,.175,1) · perspective 900px · shade 0→.3 on the leaving face, .3→0 on the arriving",
+     "recipe": "Solid drawing (3D flip, lit)",
+     "principles": [
+      "Solid drawing",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "Looks deeper, but the story still ignores the finger until it lifts.",
+     "recommended": false,
+     "reduced": "Next friend's story appears at once.",
+     "demoText": "Maya's story (dark, title 'Undersea cables'). 0ms a finger swipes left 80px and lifts at 200ms; the cube turns over 340ms: Maya's face rotates away around its left edge, darkening to 30% black at 90 degrees, while Jordan's turns in from the right, lightening from 30% to none. Hold; loop.",
+     "specShort": "340ms io · shade ≤30%"
+    },
+    {
+     "key": "B",
+     "name": "Turns under the finger",
+     "summary": "The cube turns with the finger as it moves; let go past a third, or flick, and it finishes; otherwise it turns back.",
+     "spec": "rotateY mapped 1:1 to dx · release spring 400ms bounce 0 · shade ≤.3 · ends rubber-band",
+     "recipe": "carousel drag + spring + rubber banding + Solid drawing",
+     "principles": [
+      "Interruptible",
+      "Solid drawing",
+      "Jakob's law"
+     ],
+     "tradeoff": "Most work: pointer tracking, turning back, and the overlay's hold and tap guards all need retesting.",
+     "recommended": true,
+     "why": "It is the gesture people already know from story apps; following the finger makes it interruptible and keeps the owner's cube.",
+     "reduced": "No turn: the next friend's story appears at once on release.",
+     "demoText": "Maya's story. 0-400ms a finger drags left slowly: the cube follows exactly - Maya's face rotating away and darkening, Jordan's coming in - and at 400ms the finger, a third of the way across, lifts: the cube finishes on a spring (~300ms). Second run: drag a quarter and lift: the cube turns back to Maya. Loop.",
+     "specShort": "1:1 drag · 400ms spring"
+    },
+    {
+     "key": "C",
+     "name": "Keep as picked",
+     "summary": "Today's cube turn after the swipe, unchanged.",
+     "spec": "340ms (.4,0,.2,1) · perspective 900px · no shading · on release only",
+     "recipe": "keep the owner's pick",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "No work; the swipe still feels detached and the faces stay flat-lit.",
+     "recommended": false,
+     "reduced": "Next friend's story appears at once.",
+     "demoText": "Maya's story. 0ms a finger swipes left; 200ms it lifts; then the cube turn plays over 340ms with no shading. Hold; loop.",
+     "specShort": "340ms famIo · no shade"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "story-reply-send",
+   "title": "A reply sent from a story",
+   "status": "new",
+   "where": "static/index.html:18053 (sendStoryReply) + 18064 (likeStory)",
+   "trigger": "type in the reply box and send",
+   "frequency": "few",
+   "now": "The box clears and loses focus in one frame; 'Sent to Maya' shows on the bottom line. The heart turns red in one frame (the app's likes burst elsewhere).",
+   "verdict": "A sent message rises (Make it mean something): show the words leaving toward the friend instead of vanishing. The heart's burst belongs to the shared like (lead's deck).",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Exits",
+    "Arcs"
+   ],
+   "notes": "Code: sendStoryReply (18053) reads the input, empties it, blurs it (which resumes the story via storyReplyBlur after 60ms) and posts /api/messages; success is toast('Sent to ' + name), failure the server's sentence. likeStory (18064) flips aria-pressed (CSS turns the icon #FF4D5E and filled, 3406) and sends a heart message once per story.\nThe words vanish: the person sees an empty box and, a moment later, a line at the bottom of the screen. 'An item leaves toward where it went: a sent message rises.' A: before clearing, copy the input's text into an inert span at the input's box (Motion's inertCopy pattern), clear the real input on the same frame, and move the copy up 24px while it fades, 220ms ease-in (an exit); the bottom line confirms as today. B: the destination is the friend - their avatar sits at the top left of the story (#storyAv): a small copper bubble with the first words arcs there (the skill's arc: x on ease-out, y lifted by a sine, peak 15%), scaling to .4, 360ms; the avatar bumps 1.15 (220ms) on arrival - two chained motions (Staging). It crosses the story's own content, and the story resumes underneath it. C: as today.\nA failed send: the bottom line names the failure; the words are not put back today (keep everything the person entered - Errors: recover): restore the text into the box on failure in every option.\nHeart: list-only - it should use the same burst-and-label the rest of the app's likes use (shared item), so it is not an option here.\nReduced motion: box clears at once; bottom line confirms.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Words rise and go",
+     "summary": "The words lift out of the reply box and fade as it empties; the line at the bottom confirms who it went to.",
+     "spec": "copy y 0→−24 + fade 220ms (.55,0,1,.45) · box empty on the same frame · line as today",
+     "recipe": "exits (toward where it goes) + inert copy",
+     "principles": [
+      "Make it mean something",
+      "Exits"
+     ],
+     "tradeoff": "Says 'sent' but not 'to whom' - the bottom line still has to.",
+     "recommended": true,
+     "why": "Says 'sent' where the eye already is, with one short exit and no new element to aim at; the line still names the friend.",
+     "reduced": "Box clears at once; bottom line confirms.",
+     "demoText": "Jordan's story: reply box at the bottom with 'ha, the Red Sea bit' typed, a paper plane, heart and arrows. 0ms tap the plane: the box is empty on that frame; a copy of the words rises 24px from it and fades over 220ms. 250ms the bottom line 'Sent to Jordan' appears. Hold; loop.",
+     "specShort": "y −24 · fade 220ms in"
+    },
+    {
+     "key": "B",
+     "name": "Flies to their face",
+     "summary": "The words become a small copper bubble that curves up to the friend's picture at the top, which nods as it lands.",
+     "spec": "bubble arc 360ms (.77,0,.175,1), peak 15%, scale 1→.4 · avatar 1→1.15→1 220ms at +360ms",
+     "recipe": "Arcs + make it mean something + storyboard chain",
+     "principles": [
+      "Arcs",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Says 'to them' literally, but crosses the story's own content while it plays.",
+     "recommended": false,
+     "reduced": "Box clears at once; bottom line confirms.",
+     "demoText": "Same story. 0ms tap the plane: the words shrink into a copper bubble that travels on a curve, bulging outward, from the box up to Jordan's avatar at the top left (360ms); the avatar bumps to 1.15 and back (220ms). 'Sent to Jordan' line. Hold; loop.",
+     "specShort": "arc 360ms io · bump 220"
+    },
+    {
+     "key": "C",
+     "name": "Instant clear",
+     "summary": "As today: the box empties in one frame and the bottom line says it was sent.",
+     "spec": "box clear 0ms · bottom line as today",
+     "recipe": "make it instant",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "Nothing to build; the words still vanish rather than go anywhere.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "demoText": "Same story. 0ms tap the plane: the box is empty in one frame; 'Sent to Jordan' appears on the bottom line. Hold; loop.",
+     "specShort": "0ms clear"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "remove-tile",
+   "title": "Taking a tile away",
+   "status": "new",
+   "where": "static/index.html:10325 (tileNotInterested) + 16273 (dismissGoDeeper)",
+   "trigger": "Not interested in a tile's ⋯; the X on a Pick up card",
+   "frequency": "rare",
+   "now": "Not interested: tile and gap vanish in the frame the sheet starts fading; no Undo. Pick up X (20px): card gone, grid reflows in one frame, then redrawn again by the server's answer.",
+   "verdict": "Both are permanent and both lose where the thing went. One removal for the page (Similarity): a copy leaves, the rest close the gap, Undo for 5s (Errors: recover).",
+   "severity": "broken",
+   "principles": [
+    "Errors: prevent then recover",
+    "Make it mean something",
+    "Similarity",
+    "Staging"
+   ],
+   "notes": "Code: openTileMenu (10303) is the shared sheet; showActionSheet runs closeSheet() then the action (11258), so the sheet fades 150ms while tileNotInterested (10325) records not_interested at once, drops the tile from railTiles and removes every [data-topic=id] (rails and View more), then shows 'Got it - you'll see less like this' with no action. dismissGoDeeper (16273) redraws the block without the card, POSTs /api/godeeper/dismiss, and on OK calls loadGoDeeper, which redraws again (a second one-frame change if the server's list differs). Both are permanent: not_interested is read over the whole history (§499); a dismissed card 'never offered again' on every device. The X is 20x20 (1877), under the 24px floor, in the corner of a card whose own tap plays it.\nOne motion for both (Similarity), with the owner's §298 removed-row timings (out 180ms, gap 200ms) so a removal looks the same in Queue, Saved, the rails and Pick up. A (recommended): the data changes at once (the owner's 'leaves at once'); an inert copy put back where the tile was fades and nudges 12px down - exits move a little, never their full size - then the neighbours FLIP into the gap (measure before, remove, translate from the old x/y to 0). Not interested waits for the sheet's 150ms exit before the copy moves (Staging). If Pick up empties, the block closes with the grid-rows expander (190ms) so the rails rise instead of jumping.\nUndo: the bottom line's action ('Undo'; the snack supports one, but holds actions 3.5s today, §299 - the skill wants 5s) for 5s; the event or dismiss is sent when the line closes or the page hides, so Undo only redraws. Undo reverses: the gap opens (200ms) and the tile fades up 8px (260ms). The X gets a 44x44 zone (::after; the corner has no neighbour).\nB: the copy tips back (rotateX to 20deg, perspective 700px) and shrinks to .9 as it fades; the last neighbour settles 30ms after the rest (follow through). C: today's instant removal, plus Undo and the 44px zone.\nReduced motion: removal and gap at once; Undo the same.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Recede, close, Undo",
+     "summary": "The tile fades and dips away, the others slide over to fill its place, and Undo stays on screen for five seconds.",
+     "spec": "copy y 0→12 + fade 180ms (.55,0,1,.45) · gap FLIP 200ms (.77,0,.175,1) at +180ms · Undo 5s",
+     "recipe": "exits + FLIP gap close (§298 timings) + toast with Undo",
+     "principles": [
+      "Errors: prevent then recover",
+      "Similarity",
+      "Staging",
+      "Make it mean something"
+     ],
+     "tradeoff": "Needs the request deferred until the Undo line closes, so a page closed in those 5s must still send it (on pagehide).",
+     "recommended": true,
+     "why": "The owner's own removed-row timings (§298), so removal reads the same across the app, and Undo makes two permanent actions safe.",
+     "reduced": "Tile and gap change at once; Undo the same.",
+     "demoText": "Rail 'Made for you': tiles 1-3 and part of 4. 0ms tap tile 2's ⋯; sheet rises. 600ms tap 'Not interested'; sheet fades (150ms). 750ms tile 2's copy dips 12px and fades (180ms); 930ms tiles 3-4 slide left into the gap (200ms). Bottom line 'Got it - you'll see less like this · Undo'. 2500ms tap Undo: the gap opens (200ms) and tile 2 fades up back in (260ms). Loop.",
+     "specShort": "out 180 in · gap 200 io · Undo"
+    },
+    {
+     "key": "B",
+     "name": "Fold away",
+     "summary": "The tile tips back and shrinks as it fades, like being put away; the others close in, the last settling a beat later.",
+     "spec": "rotateX 0→20°, perspective 700px · scale 1→.9 · fade 220ms (.55,0,1,.45) · gap 240ms, last +30ms",
+     "recipe": "Solid drawing + follow through + exits",
+     "principles": [
+      "Solid drawing",
+      "Follow through",
+      "Make it mean something"
+     ],
+     "tradeoff": "The most physical, but 3D on a dense rail is louder than a rare action warrants, and unlike the queue's removal.",
+     "recommended": false,
+     "reduced": "Tile and gap change at once; Undo the same.",
+     "demoText": "Same rail. 600ms tap 'Not interested'; sheet fades. 750ms tile 2 tips back (top edge away, 20 degrees) and shrinks to 0.9 while fading (220ms); tiles 3-4 close the gap (240ms), tile 4 settling 30ms after tile 3. Undo line; Undo reverses it. Loop.",
+     "specShort": "rotateX 20° 220 · gap 240"
+    },
+    {
+     "key": "C",
+     "name": "Instant, with Undo",
+     "summary": "As today the tile is gone at once and the gap closed, but the bottom line offers Undo, and the X is easier to hit.",
+     "spec": "removal 0ms · Undo 5s · request sent when the line closes · X zone 44x44",
+     "recipe": "Errors: prevent then recover; make it instant",
+     "principles": [
+      "Errors: prevent then recover",
+      "Hit area",
+      "Frequency of use"
+     ],
+     "tradeoff": "Matches 'leaves at once' literally, but people still cannot see which tile went or where the others came from.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "demoText": "Same rail. 600ms tap 'Not interested': on that frame tile 2 is gone and tiles 3-4 sit in its place; the Undo line appears. 2500ms tap Undo: tile 2 is back in one frame. Loop.",
+     "specShort": "0ms · Undo 5s"
+    }
+   ],
+   "picked": "B"
+  }
+ ],
+ "existingInventory": [
+  {
+   "where": "static/index.html:6270",
+   "what": "Motion.arriveRails: headings (first draw) + first 3 new tiles per rail; y 8→0 + fade 260ms (.2,.8,.2,1), 40ms apart, delay capped 320ms; off if reduced"
+  },
+  {
+   "where": "static/index.html:15857",
+   "what": "Motion.arrive on View more: first 8 cards, same 260ms rise, 40ms apart; skipped on Trending's grouped grid"
+  },
+  {
+   "where": "static/index.html:558",
+   "what": "sec-spin: Refresh arrow rotate 360° every 600ms linear, from the tap until the answer; runs under reduced motion"
+  },
+  {
+   "where": "static/index.html:2294",
+   "what": "famDevelop: blur(16px) grayscale(1) brightness(1.4) scale(.94) → none, 2400ms (.2,.7,.2,1), once; off if reduced"
+  },
+  {
+   "where": "static/index.html:2295",
+   "what": "famDevSheen: white band translateX −120%→120%, 1600ms, 400ms delay, ease-in-out keyword, infinite; hidden if reduced"
+  },
+  {
+   "where": "static/index.html:2304",
+   "what": "famFaceIn: 44px faces from translate(--fx,--fy) scale(.4) opacity 0, 600ms (.2,1.3,.4,1), delays 120/280/440ms; off if reduced"
+  },
+  {
+   "where": "static/index.html:2310",
+   "what": ".fam-dev-names: famLdUp y 8→0 + fade, 300ms ease keyword, 700ms delay; off if reduced"
+  },
+  {
+   "where": "static/index.html:2277",
+   "what": ".fam-ld-title: famLdUp 300ms ease keyword, no delay; off if reduced"
+  },
+  {
+   "where": "static/index.html:2281",
+   "what": ".fam-ld-status dot: famLdPulse opacity .3↔1, 1200ms ease-in-out, infinite; off if reduced (the only live indicator)"
+  },
+  {
+   "where": "static/index.html:6445",
+   "what": "growStory: clip-path circle from the face button's centre to the diagonal, 300ms (.2,.8,.2,1), fill none"
+  },
+  {
+   "where": "static/index.html:6453",
+   "what": "shrinkStory: inert copy clips back to the face, 240ms (.4,0,.2,1), opacity 1→0 over the last 15%"
+  },
+  {
+   "where": "static/index.html:6464",
+   "what": "turnStory: cube, copy rotateY 0→∓90° + x ∓100%, story ±90°→0, 340ms (.4,0,.2,1), perspective(900px), backface hidden"
+  },
+  {
+   "where": "static/index.html:3206",
+   "what": "storyFill: .story-bar.on i width 0→100%, 6000ms linear, paused via animation-play-state; runs under reduced motion"
+  },
+  {
+   "where": "static/index.html:3235",
+   "what": ".story.held: head, bars, reply row opacity →0, transition .2s (ease) on hold; back in 0ms; not reduced"
+  },
+  {
+   "where": "static/index.html:1470",
+   "what": "friends' avatars (.src-mark img): opacity 0→1, 160ms ease on load, on every redraw; not reduced"
+  },
+  {
+   "where": "static/index.html:14946",
+   "what": "openMyFamTab: smooth scroll to top when already scrolled; 'auto' under reduced motion"
+  },
+  {
+   "where": "shared, as used here",
+   "what": "push into View more / Friends (320/260ms); tab nudge 18px (110 out, 200 in +90); player grows from tile picture 380ms; press squeeze (tile ≈.96)"
+  },
+  {
+   "where": "shared, as used here",
+   "what": "tile picture blur-up 320ms if it lands ≥100ms after draw; ⋯ sheet fade-and-lift 200/150ms; queue fly from ⋯ only if the mini player shows; bottom line"
+  }
+ ]
+}

@@ -1,0 +1,1540 @@
+{
+ "page": "myFAM",
+ "codeScreens": [
+  "screen-playfam",
+  "screen-mixdetail",
+  "screen-newmix",
+  "screen-addtopics",
+  "screen-publicmix",
+  "famLoading (the glide)",
+  "mixDoneOverlay"
+ ],
+ "summary": "myFAM barely moves on its own: the owner's mix glide (which lands after a cached episode's 450 ms screen has gone, and widens a dot by width), a 140 ms reorder nudge, and a switch transition that never runs. Biggest gap: every edit waits for the server, then redraws in one frame.",
+ "interactions": [
+  {
+   "name": "Open the myFAM tab",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "your mixes, each deck's lead story today, what is new"
+  },
+  {
+   "name": "Switch Mixes | Categories",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "which list you are on now"
+  },
+  {
+   "name": "Pick a category, a sub-chip or the X",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "the page is filtered to that category and what it holds today"
+  },
+  {
+   "name": "Find a category (More)",
+   "trigger": "keyboard",
+   "frequency": "rare",
+   "tells": "matching categories as you type"
+  },
+  {
+   "name": "Play all, or tap a category episode",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "which episode starts; the rest are queued"
+  },
+  {
+   "name": "Follow a category",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it is now one of your categories (the star)"
+  },
+  {
+   "name": "Mixes land from the server",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "today's order, what is READY, a new or removed mix"
+  },
+  {
+   "name": "Tap a mix card",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that mix's page opens"
+  },
+  {
+   "name": "Create new mix: cover, name, Create",
+   "trigger": "keyboard",
+   "frequency": "rare",
+   "tells": "the mix exists and you are on it"
+  },
+  {
+   "name": "Search mixes, topics or people",
+   "trigger": "keyboard",
+   "frequency": "few",
+   "tells": "public mixes; typing narrows them; Cancel brings yours back"
+  },
+  {
+   "name": "Open someone's public mix",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "whose mix it is and what is in it"
+  },
+  {
+   "name": "Add to myFAM (+) on a public mix",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "a copy is now in your myFAM"
+  },
+  {
+   "name": "Play / Start with what changed / a row's play",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the mix starts, best stories first"
+  },
+  {
+   "name": "The mix moves to its next episode",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "which episode is next, n of N, what was played or skipped"
+  },
+  {
+   "name": "Drag a topic's handle",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the mix's own order, saved"
+  },
+  {
+   "name": "Add topics: (+) or the tick",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "added to or taken out of this mix"
+  },
+  {
+   "name": "Type a topic and press Return",
+   "trigger": "keyboard",
+   "frequency": "rare",
+   "tells": "added under a short name"
+  },
+  {
+   "name": "Recommended (+)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that topic joined the mix"
+  },
+  {
+   "name": "Shuffle recommendations",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "five different suggestions"
+  },
+  {
+   "name": "Public / Private switch",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "who can see this mix"
+  },
+  {
+   "name": "Rename or change the cover",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the new name or picture"
+  },
+  {
+   "name": "Daily reminder time",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "when the one daily reminder comes"
+  },
+  {
+   "name": "The ⋯ menu: share, invite, leave, delete",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "what happened to the mix"
+  },
+  {
+   "name": "Morning dot on the myFAM tab",
+   "trigger": "network",
+   "frequency": "rare",
+   "tells": "this morning's mix is ready"
+  },
+  {
+   "name": "A mix plays through",
+   "trigger": "network",
+   "frequency": "rare",
+   "tells": "you are done for today; fresh episodes tomorrow"
+  }
+ ],
+ "existing": [
+  {
+   "where": "static/index.html:2318",
+   "what": "famGlide, the glide's track",
+   "numbers": "translateX(--from → --to), 450ms, delay 100ms, cubic-bezier(.3,1.1,.4,1), fill both; --from = --to + 138px (+80px on the first episode), set at 7651-7655"
+  },
+  {
+   "where": "static/index.html:2332",
+   "what": "famGlidePick, the lit card",
+   "numbers": "scale 1 → 1.08, 400ms, delay 250ms, cubic-bezier(.2,1.3,.4,1) (≈3% overshoot); opacity .4 → 1 and copper border in one frame"
+  },
+  {
+   "where": "static/index.html:2341",
+   "what": "famGlideDot, the copper dot",
+   "numbers": "width 6px → 18px (layout), 400ms, delay 250ms, default ease"
+  },
+  {
+   "where": "static/index.html:2277",
+   "what": "famLdUp on the glide's title",
+   "numbers": "opacity 0 → 1, translateY 8px → 0, 300ms ease, fill both"
+  },
+  {
+   "where": "static/index.html:2281",
+   "what": "famLdPulse, the status dot",
+   "numbers": "opacity .3 ↔ 1, 1.2s ease-in-out, infinite"
+  },
+  {
+   "where": "static/index.html:8399",
+   "what": "#famLoading overlay in and out",
+   "numbers": "display none → flex and back in one frame (2175, 7326); kept up at least GEN_MIN_VISIBLE_MS = 450ms (7313) after audio starts"
+  },
+  {
+   "where": "static/index.html:2346",
+   "what": "Reduced motion for the glide",
+   "numbers": "track, lit card and dot animations off; track at --to, dot 18px; lit card left at scale 1; status pulse off"
+  },
+  {
+   "where": "static/index.html:982",
+   "what": "Reorder: neighbours step aside",
+   "numbers": "transition transform 140ms ease on .mix-list.sorting rows, translateY(±pitch) (13230); no reduced-motion override"
+  },
+  {
+   "where": "static/index.html:980",
+   "what": "Reorder: the dragged row",
+   "numbers": "copper border + 0 8px 22px shadow, z-index 2, in one frame; translateY = finger dy, 1:1, unclamped (13223); release clears all at once (13240)"
+  },
+  {
+   "where": "static/index.html:1802",
+   "what": ".mix-switch, Public / Private",
+   "numbers": "track background 160ms ease; knob transform translateX(20px) + background 160ms ease; off under reduced (1822). Never runs: the page is redrawn"
+  },
+  {
+   "where": "static/index.html:1110",
+   "what": "Joint-mix faces",
+   "numbers": "img opacity 0 → 1, .2s ease on load; no reduced-motion override"
+  },
+  {
+   "where": "static/index.html:6699",
+   "what": "Shared: tab slide (setTab)",
+   "numbers": "out 110ms −18px ease-in, in 200ms +18px → 0 after 90ms; also runs on Back from a mix and the New mix X (bug)"
+  },
+  {
+   "where": "static/index.html:6704",
+   "what": "Shared: push / pop",
+   "numbers": "push 320ms, pop 260ms for mixdetail, newmix, addtopics, publicmix"
+  },
+  {
+   "where": "static/index.html:6147",
+   "what": "Shared: the press squeeze",
+   "numbers": "mix cards, chips, rows, buttons: scale 1 − 8/longest side, 90ms down, 220ms back"
+  },
+  {
+   "where": "static/index.html:2116",
+   "what": "Shared: sheets and modals",
+   "numbers": "⋯ menu, rename, joint-mix people, the mix-finished card: 200ms fade + 14px lift in, 150ms out"
+  },
+  {
+   "where": "static/index.html:472",
+   "what": "Press states with no transition",
+   "numbers": ".pf-tab:active opacity .7; .cath-row, .new-mix-pill, .mix-act, .rec-shuffle :active background; .dm-search input:focus copper border (1043)"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "broken",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:13258",
+   "before": "A refused reorder stays drawn in the new order; only a bottom line says so",
+   "after": "Optimistic with rollback: rows FLIP back to the saved order, with the message"
+  },
+  {
+   "severity": "broken",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:14804",
+   "before": "A typed topic can never be removed: Add topics' tick is the only remove, lists none",
+   "after": "A remove on the mix page itself (row menu), with Undo on the bottom line"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:14886",
+   "before": "Add topics' (+)/tick waits for the server, then redraws the whole list",
+   "after": "Flip the row on the tap, update it in place, roll back if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:14178",
+   "before": "Public/Private waits for the PATCH, then re-runs openMix to redraw the page",
+   "after": "Toggle in place on the tap; slide back with the message if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:13484",
+   "before": "A recommended (+) changes nothing until the server answers",
+   "after": "Add on the tap; move the row into the list at once"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:12811",
+   "before": "Follow on a category waits for a save and a re-read (two round trips)",
+   "after": "Change on the tap, as Follow on a person does (§298); revert if refused"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:12838",
+   "before": "'Loading today's episodes…' replaces the list on every chip tap and flashes",
+   "after": "Keep the old list; show loading only after 300 ms, then hold it 500 ms"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:14753",
+   "before": "Create disables with no pending sign; a slow save looks dead",
+   "after": "Async button: spinner after 300 ms, held at least 500 ms"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:14436",
+   "before": "Add to myFAM dims and waits; then the whole page or list is redrawn",
+   "after": "Flip on the tap and roll back if refused (or the async-button states)"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:12525",
+   "before": "Create new mix pill appears when /api/mixes lands; the page jumps down 42 px",
+   "after": "Decide it from AUTH at first paint, or hold the row's height until known"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:2342",
+   "before": "famGlideDot animates width 6→18 px on the main thread, just as audio starts",
+   "after": "A pill grown by scaleX(.33→1): compositor only, as §288 did for the chevrons"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Timing",
+   "where": "static/index.html:2318",
+   "before": "Glide lands at 550-650 ms; a cached episode's screen goes at 450 ms",
+   "after": "Start at 0 ms and land by about 420 ms, inside GEN_MIN_VISIBLE_MS"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:7326",
+   "before": "Overlay pops in and out in one frame; on a fast hit the player push runs under it",
+   "after": "Fade in 120 ms, out 150 ms ease-in once audio plays (nothing is held)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:13240",
+   "before": "On release every transform clears and the list redraws: the row jumps to its slot",
+   "after": "FLIP the row from the finger to its slot on a 260 ms spring"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:1808",
+   "before": "The switch's 160 ms transition never runs: the page is redrawn under it",
+   "after": "Toggle the live element so the knob slides (220 ms ease-in-out)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:4675",
+   "before": "Back on a mix page runs setTab's nudge from the right, so it reads as forward",
+   "after": "Back pops to the right (goBack), the owner's pick for leaving a screen"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:14802",
+   "before": "Back on Add topics pushes a second mix page in from the right",
+   "after": "goBack(): the mix page returns from the left and the stack shrinks"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:982",
+   "before": "Reorder neighbours step aside on a bare 140 ms ease",
+   "after": "200 ms cubic-bezier(.77,0,.175,1), a reorder in the timing table"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:982",
+   "before": "Reorder neighbours still glide with reduced motion on",
+   "after": "transition:none under prefers-reduced-motion"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:976",
+   "before": "Drag handle 22×34 px; row play and (+) 30×30; Change pill 22 px tall",
+   "after": "Keep the visuals; give each a 44×44 px zone with ::after"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:14196",
+   "before": "Delete mix deletes at once from the ⋯ menu: no confirmation, no Undo",
+   "after": "The card leaves at once; Undo on the bottom line 5 s; DELETE after it closes"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Stagger",
+   "where": "static/index.html:12611",
+   "before": "The mix grid pops in at once when the fetch lands, often during the tab slide",
+   "after": "New cards rise 8 px, 40 ms apart, after the slide, as rails do (new ids only)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2332",
+   "before": "Glide card and track overshoot: cubic-bezier(.2,1.3,.4,1) and (.3,1.1,.4,1)",
+   "after": "No bounce in product UI: (.32,.72,0,1) and (.77,0,.175,1)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2277",
+   "before": "Glide title rises on a bare 300 ms ease (famLdUp)",
+   "after": "240 ms cubic-bezier(.32,.72,0,1)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:2352",
+   "before": "Reduced motion leaves the lit card at 1 (moving: 1.08) and stops the status pulse",
+   "after": "Same end pose either way; keep the status dot pulsing (it says work goes on)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:1111",
+   "before": "Joint-mix faces fade in over 200 ms even with reduced motion on",
+   "after": "No fade under reduced motion"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:1133",
+   "before": "Dead picker CSS still animates left (.focus-all .sw::after)",
+   "after": "Delete the unused picker rules (check with tools/check_css.py)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:14693",
+   "before": "A new cover photo appears in one frame after the save",
+   "after": "Blur it up as pictures do (the owner's §298 pick)"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:24886",
+   "before": "The morning dot snaps on and off; the unread count beside it pops (§298)",
+   "after": "Draw the dot with Motion.badge too"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:12958",
+   "before": "A category episode (a replay) shows search's five-step screen for 450 ms or more",
+   "after": "Give category plays myFAM's own wait (the glide), or nothing past 450 ms"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:14261",
+   "before": "Search mixes shows 'Searching…' at once on focus; results redraw per keystroke",
+   "after": "Keep typed results instant (keyboard); 'Searching…' only after 300 ms"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Occam's razor / progressive disclosure",
+   "where": "static/index.html:12691",
+   "before": "The Categories tab lists every category twice: as chips and as rows",
+   "after": "Show the chip row only once a category is picked"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Zeigarnik / goal gradient",
+   "where": "static/index.html:13131",
+   "before": "The mix page never marks the topic playing, nor a dormant mix becoming ready",
+   "after": "Mark the playing row; refresh rows when the opened mix's episodes are written"
+  }
+ ],
+ "bugs": [
+  "Back on a mix page, the X on New mix, Leave and Delete call openPlayFAM -> setTab, so each 'back' plays the tab nudge from the right instead of the pop.",
+  "Back on Add topics calls openMix -> navigate('mixdetail'): a second mix page is pushed from the right and the stack grows by one each time.",
+  "Rename, Public/Private, Make public and share, Make it yours alone re-run openMix: page pushed onto itself, /open re-sent, recs refetched, Shuffle reset.",
+  "A typed topic (id q:...) cannot be removed from a mix on the web: Add topics' tick is the only remove, and it lists catalogue topics only.",
+  "moveMixTopic draws the new order before saving and saveMix gets no failed callback, so a refused reorder stays on screen.",
+  "The CSS comment above .mix-switch says the switch means private; renderMixBody's comment and code say on = Public.",
+  "Delete mix in the ⋯ menu deletes with one tap: no confirmation and no Undo.",
+  "Opening a dormant mix writes its episodes (§359) but the open page never refreshes: rows keep topic names and the card has no READY until the next visit.",
+  "A typed topic added on Add topics appears nowhere on that screen; only the bottom line says it went in.",
+  "Mix cards are role=button divs that open on Enter but not on Space.",
+  "Dead CSS nothing in index.html draws: .focus-all, .fol-wrap, .focus-panel, .focus-bar, .pk-chip, .mix-sig-*, .mix-pill, .mix-chev, .mix-new."
+ ],
+ "animations": [
+  {
+   "id": "mix-glide",
+   "title": "The mix glide between episodes",
+   "status": "existing",
+   "where": "static/index.html:2314 (.fam-glide, famGlide/Pick/Dot) + 7605 (paintLoadingVariant)",
+   "trigger": "Play on a mix, or the mix moving on to its next episode",
+   "frequency": "few",
+   "now": "Overlay pops in; track slides 450ms after 100ms, (.3,1.1,.4,1); lit card 1→1.08 and dot width 6→18px, 400ms at 250ms; a cached episode cuts it at 450ms; overlay pops out.",
+   "verdict": "Keep the owner's glide, but land it inside the 450 ms a cached episode is shown, move the dot by transform, drop the overshoot, and fade the overlay in and out.",
+   "severity": "friction",
+   "principles": [
+    "Timing",
+    "Properties",
+    "Slow in and slow out",
+    "Exits",
+    "Tenth use",
+    "Reduced motion"
+   ],
+   "notes": "The owner's pick (§509, option 3 'Rail Glide'; cards are the episodes' pictures over the topic names since §591). paintLoadingVariant('glide') draws it into #famLoadingAlt; generate() shows #famLoading in one frame (8399) and clearGenOverlay removes it in one frame (7326). It holds nothing: genStepsGate starts audio at once (free), and finishGenOverlay keeps the screen up GEN_MIN_VISIBLE_MS = 450 ms after audio starts. Mix episodes are written at 05:00 and voiced ahead (§610), so often it is a cache hit and about 450 ms on screen. Today's timeline overruns that: track 100 ms delay + 450 ms = 550 ms; lit card and dot 250 + 400 = 650 ms, cut about half way - the pose the owner chose is never seen landing. famGlideDot animates width (layout, main thread) at the busiest moment in the app, the failure §288 fixed for the chevrons. Overshoot: famGlidePick peaks ~3% past, famGlide ~0.2% - bounce in product UI. Title: famLdUp, bare 300 ms ease. First episode: the overlay covers the mix page and, on a fast cache hit, the player push (320 ms) runs mostly beneath it, so the listener sees overlay, cut, player; a 150 ms exit fade bridges that and holds nothing (audio is already playing). Keyframes are acceptable here (a one-shot loader nothing toggles), but every option must look right if cut at any frame (skip, X, a cache hit). Staging: one lead at a time - track first, then the lit card; the title arrives with the overlay in one piece. Reduced motion today: track at --to and dot at 18 px, but the lit card stays at 1 (end state differs) and the status dot stops, though it is the one 'still working' sign; the skill keeps work indicators moving. All options: overlay instant and status dot pulsing under reduced motion. Keep LOADING_GLIDE_STEP 138, card 128 px, --from = --to + 138 (+80 on the first). The 'n of N' kicker and Played/Skipped stamps are unchanged. Origins: the lit card and the dot pill scale from their centres.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Tuned glide",
+     "summary": "The owner's glide, quicker: the row slides one card and the next card lifts, all landed before a cached episode starts.",
+     "spec": "in 120ms · track 300ms (.77,0,.175,1) · card 1→1.05 + dot scaleX .33→1 200ms@220 · out 150ms",
+     "recipe": "Storyboard (techniques) + entrances; exits for the overlay",
+     "principles": [
+      "Timing",
+      "Properties",
+      "Slow in and slow out",
+      "Staging"
+     ],
+     "tradeoff": "Keeps the owner's look and order of moves; still moves a whole row every episode, so a heavy listener sees it often.",
+     "recommended": true,
+     "why": "It keeps the owner's pick, lands inside the 450 ms a written-ahead episode is shown, and stops animating width at the busiest moment.",
+     "reduced": "Rest pose at once; overlay instant; status dot keeps pulsing.",
+     "demoText": "Cream phone: mix page 'Morning', copper 'Play today's 3 episodes'. 0: tap Play. 0-120 overlay (cream, copper FAM mark) fades in; row of 3 picture cards (Nvidia, AI, The Fed) slides 80px left into place 0-300; Nvidia lifts to 1.05 with a copper border 220-420; first dot grows into a pill 220-420; title 'Nvidia' rises 8px 0-240; 'Getting your episode ready', pulsing dot. 1300-1450 overlay fades out to the player. 2000: overlay fades in over the player; track slides one card 2000-2300, Nvidia dims '1 · Played', AI lifts 2220-2420. Loop 3400.",
+     "specShort": "track 300 io · lift 200 @220"
+    },
+    {
+     "key": "B",
+     "name": "Light hand-off",
+     "summary": "The light passes on: the card just heard steps down and says Played as the next lifts; the copper pill moves one dot.",
+     "spec": "track 300ms (.77,0,.175,1) · old 1.05→1, .45 200ms ease-in · new lifts 200ms@160 · pill x+12px",
+     "recipe": "Replacements (both at once) + storyboard",
+     "principles": [
+      "Make it mean something",
+      "Replacements",
+      "Zeigarnik / goal gradient",
+      "Staging"
+     ],
+     "tradeoff": "Clearest sense of moving through the mix; more parts to build; the first episode has nothing to hand off and enters as A.",
+     "recommended": false,
+     "reduced": "Rest pose: last card dim with 'Played', this one lit; no movement.",
+     "demoText": "Player behind. 0: previous episode ends. 0-120 overlay fades in on the row centred on card 1 (Nvidia, lit, copper border), copper pill on dot 1. 0-200 Nvidia steps down to scale 1, opacity .45, grey border; 0-300 track slides one card left; 160-360 AI lifts to 1.05 with a copper border; 180-330 '· Played' fades onto Nvidia's number; 0-300 the pill slides from dot 1 to dot 2 and dot 1 turns grey. Title cross-fades to 'Artificial Intelligence'. 1200-1350 overlay fades out. Loop 2600.",
+     "specShort": "hand-off 300 io · lift @160"
+    },
+    {
+     "key": "C",
+     "name": "Still pose",
+     "summary": "No glide: the row is drawn already centred on this episode, lit; only the overlay fades in and out.",
+     "spec": "in 120ms (.32,.72,0,1) · out 150ms (.55,0,1,.45) · row static · status dot pulses 1.2s",
+     "recipe": "Frequency of use (make it instant)",
+     "principles": [
+      "Frequency of use",
+      "Tenth use",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Calmest the tenth time; drops the owner's motion, so the row no longer shows the mix moving on.",
+     "recommended": false,
+     "reduced": "Overlay instant; the same still pose.",
+     "demoText": "Mix page 'Morning'. 0: tap Play. 0-120 overlay fades in already showing the row centred on Nvidia (lit, copper border), first dot a pill, title 'Nvidia', 'Getting your episode ready' with a pulsing dot. Nothing else moves. 1300-1450 overlay fades out to the player. 2000: overlay fades in over the player, now centred on AI with Nvidia marked '1 · Played'. 3000-3150 fades out. Loop 3600.",
+     "specShort": "fade 120 in / 150 out"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "mix-cards-arrive",
+   "title": "Mix cards arriving in the grid",
+   "status": "new",
+   "where": "static/index.html:12589 (renderMixList) via 12396 (loadMixes)",
+   "trigger": "/api/mixes lands: first visit, a new mix, a removed one",
+   "frequency": "few",
+   "now": "The whole grid appears in one frame when the mixes land, often during the tab slide; a mix just made is simply there on return, a deleted one simply gone.",
+   "verdict": "Content arriving on its own: give it the owner's rail entrance, only for mixes not shown before so a revisit never replays; a deleted card leaves like a removed row.",
+   "severity": "new",
+   "principles": [
+    "Stagger",
+    "Similarity",
+    "Exits",
+    "Frequency of use",
+    "Make it mean something"
+   ],
+   "notes": "openPlayFAM runs setTab('playfam') (content out 110 ms, in 200 ms after 90 ms) and loadMixes() in the same tick; renderMixList replaces #mixList.innerHTML when /api/mixes and the topic bank answer, typically 100-500 ms later - so on a first visit the cards pop in mid-slide or just after. On later visits the last render shows first and is replaced (same or changed). saveMix also re-renders after every edit, off screen. Rails solved this (§292): Motion.arriveRails animates only ids not drawn before (feedTopicsShown). Do the same keyed on mix id - but key on 'seen', not 'rendered': a mix made on New mix is rendered while the listener is on its page and first seen on return. Start only once the screen is no longer .arriving (Stagger: never inside a moving container); if the slide is still running, wait for it. Copies of one element: 30-50 ms apart, first 6 - the rail pick uses 40 ms and the first three per rail; here the first four (two rows). Deleted, left or un-added mixes: today the card is just gone. The owner's §298 'removing from a list' (slide out 180 ms, gap closes 200 ms) adapted to a two-column grid: an inert copy fades with an 8 px nudge, then later cards FLIP into place (straight moves). With Undo on delete (findings) the card leaves at once and comes back the same way. Guests: the locked note and the sample card (loadSampleMix) arrive likewise. Interrupt: a second render mid-entrance must not restart it (keyed). Reduced motion: everything at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rails entrance",
+     "summary": "New cards fade up 8 px one by one, as rails do; seen cards never replay; a deleted card fades and the rest close up.",
+     "spec": "260ms (.32,.72,0,1) · y 8→0 · fade · 40ms apart, first 4 · delete 160ms ease-in, gap FLIP 220ms",
+     "recipe": "Entrances: split then stagger; exits + FLIP gap",
+     "principles": [
+      "Stagger",
+      "Similarity",
+      "Exits"
+     ],
+     "tradeoff": "The app's two browse grids move one way; needs a seen-ids set and a wait for the tab slide to end.",
+     "recommended": true,
+     "why": "It is the owner's rail pick applied to the other browse grid (Similarity), and only what is new to the listener moves.",
+     "reduced": "Cards appear at once; a deleted card is simply gone.",
+     "demoText": "myFAM Mixes tab: header, Mixes|Categories, 'Create new mix' pill, search bar, empty grid. 200: mixes land - four cards (Morning purple, At the gym green, Wind down coral, Commute blue) each rise 8px and fade in over 260ms, at 200/240/280/320. Hold. 1600: a fifth card 'Run club' (orange, folder, 'New today') rises alone 1600-1860. 2400: 'At the gym' fades with an 8px nudge left 2400-2560; the cards after it slide into the gap 2560-2780. Loop 3400.",
+     "specShort": "260 out · y 8 · 40 apart"
+    },
+    {
+     "key": "B",
+     "name": "Deck deals",
+     "summary": "Each new card rises, then its three pictures fan out from a squared stack, as if dealt.",
+     "spec": "card 260ms (.32,.72,0,1), 40ms apart · tiles rotate 0→±7° 240ms ease-out, 40ms after each card",
+     "recipe": "Entrances + follow through",
+     "principles": [
+      "Follow through",
+      "Make it mean something",
+      "Stagger"
+     ],
+     "tradeoff": "Says 'a deck' on a first visit; twice the motion, so first draw per session only, and never inside the tab slide.",
+     "recommended": false,
+     "reduced": "Cards and fans appear at rest.",
+     "demoText": "Same scene. 200-460 the Morning card rises; its three pictures sit squared, then fan out to ±7° 300-540; At the gym, Wind down and Commute follow 40ms apart, each fanning 40ms after it lands. Hold to 1800. Loop 2600.",
+     "specShort": "260 · 40 apart · fan 240"
+    },
+    {
+     "key": "C",
+     "name": "Instant",
+     "summary": "As today: the grid is simply there when the mixes land.",
+     "spec": "no motion · innerHTML swap",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Tenth use"
+     ],
+     "tradeoff": "Nothing to build; the first view pops in mid-slide, and a new or deleted mix gives no sign of what changed.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same scene. 200: all four cards appear in one frame. 1600: 'Run club' appears in slot 5 in one frame. 2400: 'At the gym' vanishes and the rest jump into place. Loop 3200.",
+     "specShort": "0 ms · instant"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "playfam-tabs",
+   "title": "Mixes | Categories switch",
+   "status": "new",
+   "where": "static/index.html:466 (.pf-tabs) + 12706 (showPlayfamTab)",
+   "trigger": "tap Mixes or Categories",
+   "frequency": "few",
+   "now": "Each tab draws its own underline, so it jumps in one frame; the Create pill row hides (page jumps 42 px); panels swap and scroll resets - all at once.",
+   "verdict": "Tabs are frequent: swap the panels at once, but let one underline slide to the chosen side so the eye follows it; label colours over 150 ms.",
+   "severity": "new",
+   "principles": [
+    "Frequency of use",
+    "Jakob's law",
+    "Slow in and slow out",
+    "Interruptible",
+    "Properties"
+   ],
+   "notes": "showPlayfamTab toggles .on on #pfTabMixes / #pfTabCats (border-bottom-color copper on each), hides #newMixRow (32 px pill + 10 px margin), shows #catChips, swaps #mixesPane for #catHome (or #catPanel), and sets the shared scroller to the top. openPlayFAM calls showPlayfamTab('mixes') on every arrival - that call must not animate (nothing at rest plays an entrance). Build: one indicator (.pf-tabs::after: 50% wide, 2.5 px, copper, bottom -1 px) moved by transform translateX(0%) / translateX(100%) on a CSS transition, so a quick second tap turns it round from where it is (Interruptible); remove the per-tab border. Labels: colour 150 ms ease (the colour rule). The tablist has no arrow-key handling; add it, and keep keyboard switches instant. Panels: frequency says no transition (A, C). B shows the owner's app-tab nudge (§292) at page scale for comparison; it needs the Create row to keep its height (visibility hidden) or the nudge rides a 42 px jump. In A the jump is masked because the whole panel changes at once. Tenth use: 240 ms on a thin bar never delays anything - the panel is already there. Reduced motion: the underline moves in one frame.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Sliding underline",
+     "summary": "One copper underline slides to the tab you tapped; the list below changes at once.",
+     "spec": "underline translateX 0↔100% 240ms (.77,0,.175,1) · labels colour 150ms ease · panels instant",
+     "recipe": "Moving in place (Timing table) on an interruptible transition",
+     "principles": [
+      "Jakob's law",
+      "Frequency of use",
+      "Interruptible"
+     ],
+     "tradeoff": "Small build; the content swap stays abrupt by design.",
+     "recommended": true,
+     "why": "The eye gets the direction from the underline while a frequent tap still answers on the next frame.",
+     "reduced": "Underline jumps; labels change colour at once.",
+     "demoText": "myFAM header; tabs 'Mixes | Categories', copper underline under Mixes; below it the 'Create new mix' pill and two mix cards. 300: tap Categories - underline slides right 300-540, 'Categories' darkens and 'Mixes' greys 300-450; at 300 the content is category rows (Your categories: NFL; All: Sports, Money, Tech) at once. 1500: tap Mixes - underline slides back 1500-1740, cards return at once. Loop 2600.",
+     "specShort": "underline 240 io · panels 0"
+    },
+    {
+     "key": "B",
+     "name": "Underline and nudge",
+     "summary": "The underline slides and the list nudges 18 px toward the side you chose, like the app's own tabs.",
+     "spec": "underline 240ms (.77,0,.175,1) · out 110ms ease-in −18px · in 200ms (.32,.72,0,1) @90ms",
+     "recipe": "The owner's tab slide (§292) at page scale",
+     "principles": [
+      "Similarity",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Matches the tab bar; adds 290 ms of movement to a frequent tap, and the Create row must keep its height.",
+     "recommended": false,
+     "reduced": "Instant swap; underline jumps.",
+     "demoText": "Same scene. 300: tap Categories - underline slides right 300-540; the mix cards slide 18px left and fade 300-410; category rows slide in from 18px right and fade in 390-590. 1500: tap Mixes - the mirror: rows out to the right, cards in from the left 1590-1790. Loop 2600.",
+     "specShort": "240 io · nudge 110/200"
+    },
+    {
+     "key": "C",
+     "name": "Instant",
+     "summary": "Today's swap, with only the label colours easing over 150 ms.",
+     "spec": "underline jumps · labels colour 150ms ease · panels instant",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Tenth use"
+     ],
+     "tradeoff": "Nothing moves on a frequent tap; the jumping underline gives no direction.",
+     "recommended": false,
+     "reduced": "Same; colours change at once.",
+     "demoText": "Same scene. 300: tap Categories - the underline jumps under Categories in one frame, labels change colour over 150ms, rows replace the cards at once. 1500: tap Mixes - jumps back. Loop 2600.",
+     "specShort": "0 ms · colour 150"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "category-chips",
+   "title": "Category chips filtering in place",
+   "status": "new",
+   "where": "static/index.html:12675 (renderCategoryChips) + 12771 (pickCategory) + 12838",
+   "trigger": "tap a category row or chip, a sub-chip, or the X",
+   "frequency": "many",
+   "now": "The chip row is rewritten at once (X, the category, its subs); the list becomes 'Loading today's episodes…' then the episodes, each in one frame - the line flashes on a fast answer.",
+   "verdict": "A many-times tap: keep it instant, but stop the flash - hold the old list until the new one lands, and say 'Loading' only past 300 ms.",
+   "severity": "friction",
+   "principles": [
+    "Frequency of use",
+    "Doherty threshold",
+    "Replacements",
+    "Tenth use"
+   ],
+   "notes": "pickCategory resets catPage, shows #catPanel in place of #catHome, rewrites the chip row (renderCategoryChips: one innerHTML), scrolls to the top and calls loadCategoryEpisodes, which writes 'Loading today’s episodes…' into #catPanel at once and the hero plus rows when /api/categories/episodes answers. pickCategorySub and the X do the same. On a quick server the loading line is up 50-200 ms: a spinner that flashes (Doherty: nothing under 300 ms, then held 500 ms). Chips are the filter of a browse page - many taps a session - so content motion is off; colour may ease (100-150 ms). A: leave the previous content in place (aria-busy), dim it to .5 only if the answer is still out at 300 ms, swap at once when it lands; the loading line only after 300 ms, held 500 ms. B, for comparison: the tapped chip is the same element before and after (FLIP from its old x to its new one), answering 'where did my chip go' when the row becomes X + category + subs. C keeps the row instant and cross-fades the panel, reusing the owner's blur-up (Motion.picture works on any background-image) for the hero. Interrupt: a second chip before the first answers already wins (catReq). Also see findings: the Categories home shows every category twice (chips and rows); category plays flash search's five steps. Reduced motion: all instant; the dim applies at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Instant, no flash",
+     "summary": "The chip fills and the list changes at once; a slow answer dims the old list, and 'Loading' never flashes.",
+     "spec": "chip colour 120ms ease · old list to .5 at 300ms (150ms) · loading line after 300ms, ≥500ms",
+     "recipe": "Async buttons' 300/500 ms rule + Frequency of use",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use",
+      "Tenth use"
+     ],
+     "tradeoff": "Nothing to admire; fast answers look instant and slow ones look honest.",
+     "recommended": true,
+     "why": "It is a many-times tap: the skill says no transition, and the one visible fault today is the loading line flashing.",
+     "reduced": "Same; the dim applies at once.",
+     "demoText": "Categories tab: chips 'NFL  Sports  Money  Tech  More', category rows below. 300: tap Money - the chip fills dark 300-420; the row becomes '×  Money  Markets  Crypto' at once; the rows stay and, the answer still out, dim to .5 600-750; 900: the Money hero picture and list appear at once. 1800: tap Crypto - chip fills; answer at 1950 (under 300ms): list swaps at once, no dim, no loading line. Loop 2800.",
+     "specShort": "colour 120 · dim at 300 ms"
+    },
+    {
+     "key": "B",
+     "name": "Chip moves to front",
+     "summary": "The chip you tap slides to the front of the row; the others fade away and the narrower chips fade in beside it.",
+     "spec": "chip FLIP 260ms (.77,0,.175,1) · others out 120ms ease-in · subs in 160ms ease-out, 30ms apart",
+     "recipe": "Replacements (one element moves) + staggered entrance",
+     "principles": [
+      "Make it mean something",
+      "Replacements",
+      "Stagger"
+     ],
+     "tradeoff": "Answers 'where did my chip go'; about 400 ms of motion on a many-times tap, the tenth time too.",
+     "recommended": false,
+     "reduced": "Row rewritten at once.",
+     "demoText": "Same scene. 300: tap Money (third chip) - the other chips fade out 300-420; Money slides left to the second slot 300-560; the X fades in at the first slot 300-460; 'Markets' and 'Crypto' fade in 560-720 and 590-750; the list swaps at 900. 1800: tap the X - Money slides back to its place as the others fade in. Loop 2800.",
+     "specShort": "chip FLIP 260 io · subs 160"
+    },
+    {
+     "key": "C",
+     "name": "Panel cross-fade",
+     "summary": "The row changes at once; the list cross-fades and the top picture blurs up as it lands.",
+     "spec": "old out 100ms ease-in · new in 160ms (.32,.72,0,1) · hero blur-up 320ms (§298)",
+     "recipe": "Cross-fades + the owner's picture blur-up",
+     "principles": [
+      "Replacements",
+      "Similarity"
+     ],
+     "tradeoff": "A softer landing for the episodes; still a fade on a many-times tap.",
+     "recommended": false,
+     "reduced": "Instant; the picture appears sharp.",
+     "demoText": "Same scene. 300: tap Money - chip fills, row rewritten at once; category rows fade out 300-400; 700: the answer lands - the hero picture appears soft and 1.06x, sharpening 700-1020, the list fades in 700-860. Loop 2600.",
+     "specShort": "fade 100/160 · blur-up 320"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "topic-toggle",
+   "title": "Adding a topic: + becomes a tick",
+   "status": "new",
+   "where": "static/index.html:14804 (addTopicsRow) + 14877 (toggleTopicInMix)",
+   "trigger": "tap (+) or the tick on Add topics to mix",
+   "frequency": "many",
+   "now": "Nothing changes until the server answers; then the whole list is redrawn and the row's copper border, fill and + → tick flip in one frame, with a bottom line.",
+   "verdict": "Optimistic: flip on the tap and roll back if refused. A state toggle gets the icon swap; border and fill are colour, 150 ms.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Replacements",
+    "Interruptible",
+    "Errors: prevent then recover"
+   ],
+   "notes": "toggleTopicInMix sends {add:[id]} or {remove:[id]} through saveMix and only then calls renderAddTopics() (all of #addTopicsBody) and restores the scroll; there is no pending state, so on a slow network nothing but the shared squeeze answers 'did my tap register?'. Adding to your own mix almost never fails, so optimistic (Doherty): update m.items locally, flip the one row, send, and on refusal flip it back with the server's words. Don't redraw the list on success - it would kill the swap mid-flight; update the row. The glyphs are text '+' and a tick today: A stacks both in one grid cell (the icon-swap recipe without Motion: both present, classes swap, ~300 ms cubic-bezier(.25,.1,0,1), so a second tap reverses from where it is). B uses an SVG tick drawn by stroke-dashoffset - the owner's Follow tick (§298). C is the frequency answer for several adds in a row. The bottom line ('Added Soccer to Morning') is shared and stays. Typed topics (addTypedTopicToMix) clear the box and redraw the suggestions; the topic added appears nowhere on the screen (bug list). Removing works only here, for catalogue topics (bug list). Reduced motion: instant flip, colours at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Icon swap",
+     "summary": "On the tap the + shrinks away as a tick grows in, the button fills copper and the row's edge turns copper.",
+     "spec": "+ 1→.3, tick .3→1, blur 3px, 300ms (.25,.1,0,1) · fill + border 150ms ease · rollback reverses",
+     "recipe": "Icon swaps (without Motion)",
+     "principles": [
+      "Replacements",
+      "Doherty threshold",
+      "Interruptible"
+     ],
+     "tradeoff": "Answers every tap at once; needs optimistic state and a rollback path in toggleTopicInMix.",
+     "recommended": true,
+     "why": "It is the skill's recipe for exactly this, a state toggle, and moving the change to the tap fixes the real problem: the wait.",
+     "reduced": "Flips at once.",
+     "demoText": "Add topics to mix: field 'Search topics, or type anything', 'TOPICS TO FOLLOW', rows Soccer (+), Stocks & Economy (+), Politics (+). 300: tap Soccer's + - the + shrinks and blurs out as a tick grows in 300-600; the button fills copper 300-450; the row border turns copper 300-450. 1100: tap Politics' + - the same. 1900: tap Soccer's tick - reverses 1900-2200. Loop 2800.",
+     "specShort": "icon swap 300 · .3 · blur 3"
+    },
+    {
+     "key": "B",
+     "name": "Tick draws",
+     "summary": "The + turns and fades as a tick draws itself in, as Follow does.",
+     "spec": "+ rotate 45° + fade 120ms ease-in · tick dashoffset 1→0 220ms (.32,.72,0,1) @80ms · fill 150ms",
+     "recipe": "The owner's Follow tick (§298), stroke-dashoffset",
+     "principles": [
+      "Similarity",
+      "Make it mean something"
+     ],
+     "tradeoff": "Matches Follow; a drawn tick reads slower than a swap the fifth time in a row.",
+     "recommended": false,
+     "reduced": "Tick shown at once.",
+     "demoText": "Same screen. 300: tap Soccer's + - the + turns 45° and fades 300-420; copper fill 300-450; a dark tick draws left to right 380-600. 1100: Politics the same. 1900: tap Soccer - the tick fades 1900-2020 and the + fades back 2020-2180. Loop 2800.",
+     "specShort": "tick draw 220 @80"
+    },
+    {
+     "key": "C",
+     "name": "Instant, optimistic",
+     "summary": "The row flips to a tick the moment it is tapped, with no animation, and flips back only if refused.",
+     "spec": "no motion · optimistic · rollback + message",
+     "recipe": "Frequency of use + Doherty (optimistic)",
+     "principles": [
+      "Frequency of use",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Fastest for several adds in a row; the change is easy to miss with nothing but the press moving.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same screen. 300: tap Soccer's + - the row is ticked and copper in one frame. 900: Stocks; 1500: Politics, each instant. 2100: tap Soccer's tick - back to + at once. Loop 2800.",
+     "specShort": "0 ms · optimistic"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "deck-reshuffle",
+   "title": "The deck changes when today does",
+   "status": "new",
+   "where": "static/index.html:12565 (mixCardAHTML, cover_tiles) + 833 (.mix-a-ready)",
+   "trigger": "mixes land and a card's order, READY tag or headline changed",
+   "frequency": "few",
+   "now": "The old cards stay until /api/mixes lands, then the stack, READY tag and headline change in one frame; the story just heard simply vanishes from the top.",
+   "verdict": "The reorder is the deck's point (§616): let the heard card go to the back and the new lead rise, as real cards would. A few times a day, so a short choreography is allowed.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Staging",
+    "Replacements",
+    "Pose to pose"
+   ],
+   "notes": "Today's order (§616, mix_today.py) puts heard-today last and re-scores trending, results in and taste, so after listening to a mix and coming back to the grid its lead story has changed: cover_tiles[0] is the new best and the heard one drops back or out. #mixList still holds the last render while loadMixes fetches; renderMixList replaces it in one frame. The READY tag (top tile, ready) appears once today's episode is written (the 05:00 edition, or a dormant mix opened, §359), and the headline line changes. To animate, tiles must be keyed (topic id or picture), not by position t0/t1/t2: render, read each key's old and new slot, and FLIP. Physical rule: a card never fades while in view and never passes through another, so in B the heard card dips and shrinks (moving 'behind'), its z-index swaps at the low point (scrub it so the swap lands unseen) and it settles into the back slot; the new lead rises straight into the top slot. A card leaving the three slides down behind the stack, clipped by the cover's overflow. The headline is text: cross-fade 150 ms, never moved. Staging: after the tab slide ends; several changed cards go 60 ms apart. Interrupt: a newer render re-FLIPs from the current transform. A photo cover shows the stack small in its corner: the same moves at that size. Tiles turn about their centres, as drawn today. Reduced motion: the new state at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Tag pops, picture swaps",
+     "summary": "Nothing moves: the top picture cross-fades to the new lead and READY pops onto it.",
+     "spec": "picture cross-fade 240ms (plus-lighter) · READY .97→1 + fade 160ms (.32,.72,0,1) · headline 150ms",
+     "recipe": "Cross-fades (plus-lighter) + a popover-size pop",
+     "principles": [
+      "Replacements",
+      "Frequency of use"
+     ],
+     "tradeoff": "Quiet and cheap; a picture fading inside a deck breaks the physical-card idea and hides that the order changed.",
+     "recommended": false,
+     "reduced": "Instant.",
+     "demoText": "One large mix card 'Morning' (purple) with three fanned pictures: top Nvidia with READY, behind AI and The Fed; headline 'Nvidia · Why chip stocks had their worst day'. 400: the top picture cross-fades to the AI lab 400-640; READY pops 640-800; the headline cross-fades to 'AI · OpenAI ships a smaller model' 640-790. Loop 2400.",
+     "specShort": "fade 240 · READY 160"
+    },
+    {
+     "key": "B",
+     "name": "Heard card goes back",
+     "summary": "The story you heard dips behind the stack and the next one rises to the top; then READY pops onto it.",
+     "spec": "old top y+10%, .96 160ms ease-in · back slot 220ms (.77,0,.175,1) · new top 300ms @60 · READY @360",
+     "recipe": "Storyboard + FLIP; the physical-object rule",
+     "principles": [
+      "Make it mean something",
+      "Staging",
+      "Pose to pose"
+     ],
+     "tradeoff": "Shows today's order changing, the deck's whole point; needs keyed tiles and a FLIP pass; about 520 ms per changed card.",
+     "recommended": true,
+     "why": "It makes the owner's 'a new order every day' visible, and a heard card going to the back is the skill's 'finished things recede'.",
+     "reduced": "New order drawn at once.",
+     "demoText": "Same card. 400: the Nvidia card dips 10% and shrinks to .96 400-560, slips behind (z swap at 560) and settles into the back-left slot at −7° 560-780; AI rises straight into the top slot 460-760; READY pops onto AI 760-920; the headline cross-fades to 'AI · OpenAI ships a smaller model' 760-910. Hold. Loop 2600.",
+     "specShort": "dip 160 · back 220 · rise 300"
+    },
+    {
+     "key": "C",
+     "name": "Instant",
+     "summary": "As today: the new stack, tag and headline are simply there.",
+     "spec": "no motion",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Tenth use"
+     ],
+     "tradeoff": "Nothing to build; the change the owner asked for (§616) happens unseen.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same card. 400: the top picture, READY and the headline change to AI in one frame. Loop 2000.",
+     "specShort": "0 ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "rec-joins",
+   "title": "A recommended topic joins the mix",
+   "status": "new",
+   "where": "static/index.html:13481 (addRecTopic) + 13427 (recommendedHTML) + 13462 (shuffleRecs)",
+   "trigger": "tap (+) on a recommended topic; tap Shuffle",
+   "frequency": "few",
+   "now": "After the server answers the page is redrawn: the row is gone from the suggestions, a new row sits at the end of the list, and everything below jumps a row - in one frame.",
+   "verdict": "An item leaves toward where it went: add on the tap and move that one row up into the mix; Shuffle swaps the five rows with a quick staggered fade.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Replacements",
+    "Doherty threshold",
+    "Staging"
+   ],
+   "notes": "addRecTopic: saveMix PATCH {add:[id]}, then recState.shown drops the id and rerenderMixKeepScroll redraws #mixBody. The topic lands at the end of .mix-list (#mixOrder), right above the 'Recommended topics' heading - usually one or two rows above the row tapped, so the trip is short and vertical (one axis: straight, no arc). Optimistic: adding to your own mix almost never fails - draw the new state on the tap, send, and on refusal move it back with the message. B keeps one element for the whole trip (Replacements: never swap mid-move): FLIP the suggestion from its box to the new list row's box, already styled as a list row; its + becomes the play button only after landing (icon swap). Everything between - the heading, Shuffle, the other suggestions - moves by FLIP on the same 300 ms. If the end of the list is off screen (a long mix scrolled down), fall back to A. A uses the owner's §298 removal shape (exit, then the gap closes) plus the grid-rows expander for the new row. Shuffle, in every option: the five rows fade out 120 ms ease-in and the new ones fade up 6 px over 200 ms ease-out, 30 ms apart; instant under reduced motion. Note: an edit elsewhere (rename, visibility) re-runs openMix, which refetches the order and resets a shuffled set (bug list). Reduced motion: the new state at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Leave up, list grows",
+     "summary": "The row lifts away, the heading slides down into its place, and the new row opens at the end of the mix, edged copper.",
+     "spec": "exit 160ms ease-in y−12 · both slots grid-rows 250ms (.77,0,.175,1) · edge 450ms ease",
+     "recipe": "Exits + FLIP gap + expanders (grid-rows)",
+     "principles": [
+      "Exits",
+      "Staging",
+      "Make it mean something"
+     ],
+     "tradeoff": "Builds on the owner's row-removal pick; the row looks replaced rather than moved.",
+     "recommended": false,
+     "reduced": "Rows change at once.",
+     "demoText": "Mix page, lower half: list rows Nvidia, AI, The Fed, each with a play button; heading 'Recommended topics' + Shuffle; suggestions Cryptocurrency (+), Personal Finance (+), Real Estate (+). 700: tap Crypto's + - the Crypto row fades and lifts 12px 700-860; its slot closes while a new row 'Cryptocurrency' opens under The Fed 860-1110, so the heading slides down into the gap and the other suggestions stay put; the copper edge fades 1110-1560 and a new suggestion rises at the bottom. Loop 3000.",
+     "specShort": "exit 160 · rows 250 io · 450"
+    },
+    {
+     "key": "B",
+     "name": "Travels into the mix",
+     "summary": "The row you added slides up into its place at the end of the mix; the rest makes room; its + turns into play.",
+     "spec": "row FLIP up 340ms (.77,0,.175,1), shadow on · others FLIP 300ms · + → play swap 300ms @360",
+     "recipe": "FLIP shared element + icon swap (Replacements)",
+     "principles": [
+      "Make it mean something",
+      "Replacements",
+      "Staging"
+     ],
+     "tradeoff": "Clearest 'where did it go'; needs a FLIP pass over the page and a fallback when the list end is off screen.",
+     "recommended": true,
+     "why": "One element makes the trip, so the listener sees the suggestion become part of the mix: 'an item leaves toward where it went'.",
+     "reduced": "Rows change at once.",
+     "demoText": "Same scene. 700: tap Crypto's + - the Crypto row lifts (a shadow) and slides up 700-1040 to just under The Fed; the heading and Shuffle slide down to make room 700-1000 (the other suggestions stay put); 1060-1360 its + swaps to a play button; a new suggestion rises 8px at the bottom. Loop 3000.",
+     "specShort": "FLIP 340 io · swap 300"
+    },
+    {
+     "key": "C",
+     "name": "Instant, marked",
+     "summary": "Changes on the tap with nothing moving; the new row in the mix shows a copper edge that fades out.",
+     "spec": "optimistic · new row border copper → normal 450ms ease · rows instant",
+     "recipe": "Von Restorff (one marked change) + Doherty",
+     "principles": [
+      "Von Restorff effect",
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "Cheap and calm; the eye has to find the new row by colour alone.",
+     "recommended": false,
+     "reduced": "No fade; normal border at once.",
+     "demoText": "Same scene. 300: tap Crypto's + - in one frame Crypto leaves the suggestions and is the last list row, with a copper border that fades to normal 300-750. Loop 2200.",
+     "specShort": "0 ms · edge 450"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "drag-reorder",
+   "title": "Dragging topics into a new order",
+   "status": "existing",
+   "where": "static/index.html:980 (.mix-topic.dragging, .mix-list.sorting) + 13200 (startMixDrag)",
+   "trigger": "hold a topic's handle and drag",
+   "frequency": "rare",
+   "now": "Row follows the finger 1:1 with a shadow (one frame); others step aside on 140ms ease; on release every transform clears and the list redraws - the row jumps to its slot.",
+   "verdict": "The 1:1 drag is right. Add a lift on pick-up, 200 ms ease-in-out for neighbours, a settle from the finger on drop, a rubber band at the ends, and roll back a refused save.",
+   "severity": "friction",
+   "principles": [
+    "Interruptible",
+    "Slow in and slow out",
+    "Make it mean something",
+    "Hit area",
+    "Reduced motion"
+   ],
+   "notes": "startMixDrag adds .dragging (copper border, 0 8px 22px shadow, z 2, transition none) and .sorting in one frame; moveMixDrag sets the row's translateY to the finger's dy - unclamped, so the row can be carried far above or below the list - and moves each passed row ±pitch on a 140 ms ease transition (982). endMixDrag clears every transform and the class at once, then moveMixTopic redraws #mixBody in the new order: the row jumps from under the finger to its slot, and rows mid-transition snap. Skill: drags are direct (1:1, no easing) - kept; on release a spring takes over with the release velocity; at a bound, rubber-band after a dead zone (12 px; resistance 150; ceiling 64), never a free fly. Settle: after the redraw read the row's new top, set translateY(fingerTop - newTop), transition to 0 (FLIP). Lift: scale 1.02, and the shadow on a ::after whose opacity fades (never animate box-shadow). Neighbours are 'a reorder' in the timing table: 200-300 ms ease-in-out. Errors: the new order is drawn before saving and saveMix has no failed callback, so a refused save leaves the wrong order (bug) - FLIP back to the saved order with the message. Hit area: the handle is 22×34; give it 44×44. Keyboard: no way to reorder without a pointer (a Move up / Move down in a row menu). The owner chose this drag (10.5 packet #3); C keeps it closest. Reduced motion: .sorting transitions today (no override); every option makes neighbours jump and the drop instant.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Lift, glide, settle",
+     "summary": "The row lifts when picked up, the others glide aside, it stretches past the ends and settles into place on release.",
+     "spec": "lift 1.02 + shadow 150ms · others 200ms (.77,0,.175,1) · rubber band 12/150/64 · drop 260ms spring",
+     "recipe": "Interruptibility + rubber banding + FLIP; spring as CSS linear()",
+     "principles": [
+      "Interruptible",
+      "Slow in and slow out",
+      "Make it mean something"
+     ],
+     "tradeoff": "The full recipe: the most code (a FLIP after the redraw, a velocity-aware settle) for a rare action.",
+     "recommended": true,
+     "why": "Each part answers what today's drag drops: what I am holding, where it will land, and that it landed.",
+     "reduced": "No lift or glide; rows jump into place; drop instant.",
+     "demoText": "Mix list: four rows Nvidia, AI, The Fed, Soccer, each with a dotted handle. 300: a finger dot presses Nvidia's handle - the row lifts (1.02, shadow) 700-850. 800-1250 the finger drags down three rows, the row 1:1; AI, The Fed and Soccer glide up 200ms each as it passes; the finger pulls 30px past the last slot and the row stretches only about 7px. 1310: release - the row settles into slot 4 over 260ms; lift and shadow drop. Loop 2800.",
+     "specShort": "lift 150 · 200 io · spring 260"
+    },
+    {
+     "key": "B",
+     "name": "Tilt as you carry",
+     "summary": "As A, and the carried row tilts with your speed while the rest of the list dims, then lies flat as it lands.",
+     "spec": "A + rotate mapRange(v ±.5px/ms → ±2°) on a spring · list .6 opacity 150ms · flat on drop",
+     "recipe": "mapRange + spring; Staging (the rest recedes)",
+     "principles": [
+      "Staging",
+      "Follow through",
+      "Make it mean something"
+     ],
+     "tradeoff": "Feels like moving a real card; a tilt on a text row can read as wobble, and the dim hides what you sort against.",
+     "recommended": false,
+     "reduced": "As A's: no tilt or dim.",
+     "demoText": "Same list. 700: press Nvidia - it lifts, the other rows dim to .6 700-850. 800-1250 drag down: the row tilts about 1.3° with the speed and straightens as it slows past the end; neighbours glide aside. 1310: release - the row lies flat and settles over 260ms, the list undims. Loop 2800.",
+     "specShort": "A + tilt ±2° · dim .6"
+    },
+    {
+     "key": "C",
+     "name": "Today, tuned",
+     "summary": "Today's drag with two fixes: neighbours move on the skill's curve, and the drop glides instead of jumping.",
+     "spec": "others 200ms (.77,0,.175,1) · drop FLIP 220ms (.32,.72,0,1) · no lift, no rubber band",
+     "recipe": "Slow in and slow out + FLIP",
+     "principles": [
+      "Slow in and slow out",
+      "Interruptible"
+     ],
+     "tradeoff": "Smallest change; the row can still be carried off the list and nothing marks the pick-up.",
+     "recommended": false,
+     "reduced": "Neighbours jump; drop instant.",
+     "demoText": "Same list. 700: press Nvidia - shadow and copper border appear in one frame. 800-1250 drag down three rows and 30px past the end (no rubber band); neighbours glide up 200ms each. 1310: release - the row glides back into slot 4 over 220ms. Loop 2800.",
+     "specShort": "200 io · drop 220"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "visibility-switch",
+   "title": "The Public / Private switch",
+   "status": "existing",
+   "where": "static/index.html:1802 (.mix-switch) + 13179 (renderMixBody) + 14175 (toggleMixVisibility)",
+   "trigger": "tap the Public / Private row",
+   "frequency": "rare",
+   "now": "Nothing moves until the server answers; then openMix redraws the page, so the knob's 160 ms ease never runs: knob, lock and words snap.",
+   "verdict": "Toggle on the tap and slide the knob that is already there (a transition, so a second tap turns it round); swap the lock with the icon-swap recipe; roll back if refused.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Interruptible",
+    "Slow in and slow out",
+    "Replacements",
+    "Make it mean something"
+   ],
+   "notes": "The CSS is there - track background 160 ms ease, knob transform translateX(20px) 160 ms ease, off under reduced motion - but toggleMixVisibility waits for saveMix, then calls openMix, which pushes the mix page onto itself and replaces #mixBody: the transition's element is new, so nothing ever animates. (openMix also re-posts /open, refetches recommendations and resets Shuffle - bug list.) The brief's note that it animates left is out of date: it moves by transform (good). Also stale: the CSS comment says the switch means private; the code means public (on = Public, open lock). A switch is a toggle: an interruptible transition, 'moving in place' 200-300 ms, ease-in-out. The lock changes with state, so the icon-swap recipe: both icons in the knob, cross-fading through scale .3 and a 3 px blur. 'Public'/'Private' and the sub-line sit in one grid cell and cross-fade (no width change). Optimistic: visibility almost never fails; on refusal slide back and say why. The hero line '· public' updates in place. The whole row is the target (good). B's shackle turns about its right foot (transform-origin 100% 100%). Reduced motion: the knob jumps; icons and words swap at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Slide and swap",
+     "summary": "On the tap the knob slides across, the track changes colour, the lock swaps and the words cross-fade.",
+     "spec": "knob x 0↔20px 220ms (.77,0,.175,1) · track 150ms ease · lock .3→1, 3px blur 300ms (.25,.1,0,1)",
+     "recipe": "Toggle on an interruptible transition + icon swaps",
+     "principles": [
+      "Interruptible",
+      "Replacements",
+      "Doherty threshold"
+     ],
+     "tradeoff": "The toggle must update in place instead of re-running openMix; otherwise small.",
+     "recommended": true,
+     "why": "The motion already written finally runs, on the tap, and a switch that answers at once is what every phone has taught (Jakob's law).",
+     "reduced": "Knob jumps; lock and words swap at once.",
+     "demoText": "Lower mix page: a 'Daily reminder' row, then the row 'Public / Public will be displayed on your profile' with a copper switch, knob on the right holding an open lock. 300: tap - the knob slides left 300-520; the track turns grey 300-450; the open lock shrinks and blurs out as a closed lock grows in 300-600; the words cross-fade to 'Private / Only you can see this mix' 300-450. 1500: tap - all reverse. Loop 2700.",
+     "specShort": "knob 220 io · lock 300"
+    },
+    {
+     "key": "B",
+     "name": "Lock clicks shut",
+     "summary": "As A, but one lock rides the knob and its shackle opens or snaps shut just after the knob lands.",
+     "spec": "knob 220ms (.77,0,.175,1) · shackle y−3px, rotate −20° 180ms (.32,.72,0,1) @220ms",
+     "recipe": "Storyboard (chained); Make it mean something",
+     "principles": [
+      "Make it mean something",
+      "Staging",
+      "Secondary action"
+     ],
+     "tradeoff": "Says 'locked' literally; needs a two-part lock drawing; one more beat on a rare tap.",
+     "recommended": false,
+     "reduced": "Lock drawn open or shut at once.",
+     "demoText": "Same row. 300: tap - the knob slides left 300-520 carrying an open lock; 520-700 its shackle drops shut; the track greys 300-450; the words cross-fade. 1500: tap - the knob slides right 1500-1720; the shackle lifts open 1720-1900. Loop 2700.",
+     "specShort": "knob 220 · shackle 180"
+    },
+    {
+     "key": "C",
+     "name": "Server's answer, animated",
+     "summary": "Still waits for the server, but then the knob slides in place instead of the page being redrawn.",
+     "spec": "on PATCH success: knob 200ms (.77,0,.175,1) · track 150ms ease · not optimistic",
+     "recipe": "Interruptibility (a transition on the live element)",
+     "principles": [
+      "Slow in and slow out",
+      "Interruptible"
+     ],
+     "tradeoff": "Smallest change and never wrong; a slow network still leaves the tap unanswered for a round trip.",
+     "recommended": false,
+     "reduced": "Knob jumps when the answer lands.",
+     "demoText": "Same row. 300: tap - nothing moves; 600 (server answers): the knob slides left 600-800, the track greys, the words change. 1800: tap; 2100 it slides back. Loop 2900.",
+     "specShort": "wait · knob 200 io"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "create-mix",
+   "title": "Create: the folder becomes your mix",
+   "status": "new",
+   "where": "static/index.html:14746 (confirmNewMix) + 1021 (.nm-folder) + 13081 (.mix-hero)",
+   "trigger": "tap Create (or Return) on New mix",
+   "frequency": "rare",
+   "now": "Create disables and waits with no sign of work; then the mix page pushes in from the right (320 ms) over the naming screen; the folder you named is left behind.",
+   "verdict": "A first success: the folder you just named should become the mix's cover in place, as the player grows from its picture; Create gets the async-button pending state.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Peak-end rule",
+    "Doherty threshold",
+    "Staging",
+    "Origin"
+   ],
+   "notes": "confirmNewMix disables #nmCreate, POSTs /api/mixes, then openMix → navigate('mixdetail') → the owner's push (320 ms). Nothing shows during the POST (async-button recipe: spinner only after 300 ms, held 500 ms). Making a mix is a rare first success (Peak-end; the 'rarely' branch allows up to 500 ms a move). The naming screen's folder (.nm-folder, 128×128, paper, the folder icon or the chosen cover, the typed name inside) and the new page's hero art (.mix-hero-art, 84×84, top left of #mixBody) are one object to the listener. Precedent: the owner's player-open replaces the push with a grow from the tapped picture plus a 240 ms fade of the screen (§292); A does the same here, so it extends the push rule rather than breaking it - but it is the owner's call, which is why C keeps the push. Build with transforms only: an inert copy of .nm-folder, translate + scale(.66), transform-origin 0 0 - not Motion.ghost's left/top/width/height. Hide the real hero art until the copy lands, then hand over with a 120 ms fade, as the player does. The move is mostly horizontal (~110 px) with a small vertical change; if both axes pass 40 px on some phone, add a 10% arc. Interrupt: the new page is active from frame 1; Back finishes the flight at once (Motion.settle). Failure: a duplicate name is caught before the POST; a refusal re-enables Create and keeps the typed name. Reduced motion: the page swaps (today's 120 ms crossfade, or instant per the skill).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Folder flies into place",
+     "summary": "The mix page fades in while the folder you named shrinks and flies to the cover spot at its top.",
+     "spec": "page fade 240ms (.32,.72,0,1) · folder translate+scale .66 360ms (.77,0,.175,1) · hand-over 120ms",
+     "recipe": "Shared-element move (FLIP), as the owner's player-open; async button",
+     "principles": [
+      "Make it mean something",
+      "Peak-end rule",
+      "Origin"
+     ],
+     "tradeoff": "Replaces the push for this one step, as player-open does; a rare moment, so the cost is small.",
+     "recommended": true,
+     "why": "The folder is the thing just made; seeing it become the mix's cover is the confirmation the flow should end on.",
+     "reduced": "Page appears at once with the cover in place.",
+     "demoText": "New mix screen: X, 'NEW MIX', a big paper folder (128px) with 'Run club' inside and a copper camera badge, 'Name your mix', field 'Run club', copper 'Create'. 300: tap Create - the button dims. 600 (saved): the mix page fades in 600-840 (title 'Run club', empty cover spot, 'Add topics to mix' pill, 'Nothing in this mix yet'); the folder shrinks and flies from the centre to the top-left cover spot 600-960, its name fading 600-720; hands over 960-1080. Loop 2400.",
+     "specShort": "fade 240 · fly 360 io · 120"
+    },
+    {
+     "key": "B",
+     "name": "Folder and name travel",
+     "summary": "As A, and the name you typed travels to the title; then 'Add topics to mix' rises as the next step.",
+     "spec": "A · name copy to title 360ms @40ms · 'Add topics' y 8→0 + fade 240ms @420 · empty line @510",
+     "recipe": "Storyboard: split then stagger (a rare moment)",
+     "principles": [
+      "Staging",
+      "Stagger",
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "Points straight at the next step; three moving pieces and a text copy to keep aligned.",
+     "recommended": false,
+     "reduced": "Page appears at once.",
+     "demoText": "Same scene. 600: the page fades in 600-840 without its title and button; the folder flies to the cover 600-960; the name 'Run club' slides from the folder to the title spot 640-1000; 'Add topics to mix' rises 8px and fades in 1020-1260; 'Nothing in this mix yet' fades in 1110-1350. Loop 2600.",
+     "specShort": "A + name 360 · rise 240"
+    },
+    {
+     "key": "C",
+     "name": "Push, with pending",
+     "summary": "Today's push from the right, plus a spinner on Create if saving takes longer than 300 ms.",
+     "spec": "push 320ms (owner's) · spinner after 300ms, held ≥500ms · 150ms cross-fade",
+     "recipe": "Async buttons",
+     "principles": [
+      "Doherty threshold",
+      "Similarity"
+     ],
+     "tradeoff": "Keeps the owner's push untouched; the folder the listener made is left behind on the old screen.",
+     "recommended": false,
+     "reduced": "Page swaps (today's 120 ms crossfade); spinner still turns.",
+     "demoText": "Same scene. 700: tap Create - the button dims (a save over 300 ms would show a spinner). 900 (saved): the mix page pushes in from the right 900-1220 as the naming screen drifts left and dims. Loop 3000.",
+     "specShort": "push 320 (owner's)"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "public-mix-add",
+   "title": "(+) adds someone's mix to yours",
+   "status": "new",
+   "where": "static/index.html:14424 (addMixFrom) + 14350 (renderPublicMix) + 1058 (.pub-add-btn)",
+   "trigger": "tap Add to myFAM on a public mix, or (+) on a search result",
+   "frequency": "rare",
+   "now": "The button dims (disabled) until the server answers; then the page or list is redrawn: copper fill, tick and 'In your myFAM' at once, with a bottom line and Open.",
+   "verdict": "Adding a mix to yours is a 'keep this' act like Save: change on the tap, roll back if refused, and say it with the owner's burst.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Similarity",
+    "Secondary action",
+    "Replacements"
+   ],
+   "notes": "addMixFrom disables every [data-add-mix] button for the id, POSTs /api/mixes/{id}/add, then markMixAdded re-renders the search results, the public mix page and a profile's list, and snack() shows 'Added to your myFAM as …' with Open (the shared bottom line). Guests get an action sheet first, so for an account the add almost never fails: optimistic (Doherty). Similarity: the owner's burst-and-say (§292: the icon pops, a copper ring and six sparks, a label) is for turning on Save / Like / VIBE! - 'keep this for me'; adding a mix to your myFAM is the same act and rare enough for a secondary action. It must fire only from the tap, never from markMixAdded repainting state, and taking it back (confirmRemoveMix) stays quiet, as the burst rule says. The round (+) in search results gets the icon swap only (the list is dense). Update the button in place: a re-render kills a running swap. A is the async-button recipe for when optimism is not wanted. Reduced motion: state flips at once, no burst.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Async button",
+     "summary": "The button shows a spinner if saving takes over 300 ms, then cross-fades to a tick and 'In your myFAM'.",
+     "spec": "spinner after 300ms, ≥500ms · label/spinner/tick 150ms, .9↔1 · fill 150ms ease",
+     "recipe": "Async buttons",
+     "principles": [
+      "Doherty threshold",
+      "Replacements"
+     ],
+     "tradeoff": "Never shows a state the server has not confirmed; fast saves look like a plain swap, slow ones like work.",
+     "recommended": false,
+     "reduced": "States swap at once; the spinner still turns.",
+     "demoText": "Public mix page: back, 'Gym bangers', paper folder, 'by Sam · @sam', outlined copper '+ Add to myFAM', copper 'Play today's 4 episodes', rows. 300: tap - the button disables; 600: its label cross-fades to a spinner; 1100: the spinner cross-fades to a tick and 'In your myFAM' as the fill turns copper 1100-1250; the bottom line 'Added to your myFAM as Gym bangers · Open' rises. Loop 2800.",
+     "specShort": "spinner @300 · swap 150"
+    },
+    {
+     "key": "B",
+     "name": "Burst and say ADDED",
+     "summary": "On the tap it reads 'In your myFAM': the + becomes a tick that pops with the ring and sparks, and 'ADDED' shows.",
+     "spec": "+ → tick 300ms (.25,.1,0,1) · owner's burst: pop 380ms, ring .4→1.7 + 6 sparks 450ms · label 1.1s",
+     "recipe": "Icon swap + the owner's burst-and-say (secondary action)",
+     "principles": [
+      "Similarity",
+      "Secondary action",
+      "Doherty threshold"
+     ],
+     "tradeoff": "One 'kept' gesture app-wide; on the copper fill the ring and sparks must be cream to show; never fire it on a repaint.",
+     "recommended": true,
+     "why": "It is the same act as Save, so it should look like Save (Similarity), and the change moves to the tap.",
+     "reduced": "Button flips at once; no burst or label.",
+     "demoText": "Same page. 300: tap - the button fills copper 300-450, the + swaps to a tick 300-600 and the text reads 'In your myFAM'; a copper ring grows from the tick and fades 300-750 as six sparks fly out; 'ADDED' slides in beside the button 300-500, holds, fades 1200-1400; the bottom line with Open rises. Loop 2800.",
+     "specShort": "swap 300 · burst 450"
+    },
+    {
+     "key": "C",
+     "name": "Instant, optimistic",
+     "summary": "Flips to 'In your myFAM' the moment it is tapped, with no motion; flips back with a message if refused.",
+     "spec": "no motion · optimistic · rollback",
+     "recipe": "Doherty (optimistic)",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "Simplest; an unanimated change on a rare, meaningful tap is easy to miss.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same page. 300: tap - the button is copper with a tick and 'In your myFAM' in one frame; the bottom line rises. Loop 2000.",
+     "specShort": "0 ms · optimistic"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "category-follow",
+   "title": "Following a category",
+   "status": "new",
+   "where": "static/index.html:12803 (toggleFollowCategory) + 964 (.cat-follow)",
+   "trigger": "tap Follow / Following on a category",
+   "frequency": "rare",
+   "now": "Waits for a save and a re-read (two round trips), then the button, the star on the chip and a bottom line change at once.",
+   "verdict": "The same act as following a person: use the owner's Follow pick (§298) - change on the tap, a tick draws in - without its width animation.",
+   "severity": "new",
+   "principles": [
+    "Similarity",
+    "Doherty threshold",
+    "Properties",
+    "Make it mean something"
+   ],
+   "notes": "toggleFollowCategory: guarded by catFollowBusy, POSTs the whole list to /api/categories/mine, GETs /api/categories, then renderCategoryChips and drawCategoryPanel - the button changes after two round trips. For following a person the owner picked (§298): 'The button changes on the tap: a tick draws in and it takes its new width (260 ms)' - Motion.follow. Reuse the behaviour (optimistic, the tick by stroke-dashoffset, rollback on refusal) but not the width animation (Properties: Motion.follow animates width): give .cat-follow a min-width that fits the tick and 'Following', so the label swaps in place. The star on the chip (and on the category's row in the Categories home) appears on the tap. B adds a rare secondary action linking cause and effect: the star travels to the chip; skip it when the chip is scrolled out of the row. Keep catFollowBusy (one write at a time) and the bottom line. Reduced motion: flips at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Tick, fixed width",
+     "summary": "The button fills and a tick draws itself in on the tap; it never changes width; it flips back if refused.",
+     "spec": "fill 150ms ease · tick dashoffset 1→0 220ms (.32,.72,0,1) @80ms · min-width, no resize",
+     "recipe": "The owner's Follow pick, stroke-dashoffset",
+     "principles": [
+      "Similarity",
+      "Doherty threshold",
+      "Properties"
+     ],
+     "tradeoff": "Small; the star on the chip still just appears.",
+     "recommended": true,
+     "why": "It is the owner's own Follow motion minus the one property the skill forbids, and it answers on the tap.",
+     "reduced": "Following, with its tick, at once.",
+     "demoText": "Categories with Money picked: chips '×  Money  Markets  Crypto'; a hero picture 'Most played in Money today'; a row with copper 'Play all 6 · 9 min' and an outlined 'Follow'. 300: tap Follow - it fills cream-paper 300-450; a tick draws 380-600; the label reads 'Following'; a star appears on the Money chip at 300. 1600: tap - the tick fades 1600-1720, the fill clears 1600-1750, the star goes. Loop 2600.",
+     "specShort": "fill 150 · tick 220 @80"
+    },
+    {
+     "key": "B",
+     "name": "Star flies over",
+     "summary": "As A, then a copper star arcs from the button up to the category's chip and settles there.",
+     "spec": "A · star arc 15% bulge 360ms (.77,0,.175,1), scale 1→1.2→1 · chip star .5→1 160ms",
+     "recipe": "Arcs (two nested wrappers) + secondary action",
+     "principles": [
+      "Arcs",
+      "Make it mean something",
+      "Secondary action"
+     ],
+     "tradeoff": "Shows where following shows up; one more moving part, skipped when the chip is scrolled away.",
+     "recommended": false,
+     "reduced": "As A; star on the chip at once.",
+     "demoText": "Same scene. 300: tap Follow - fill and tick as A 300-600; 600-960 a copper star lifts from the button and arcs up-left to the Money chip, swelling to 1.2 at the top; 960-1120 the chip's star pops in. Loop 2600.",
+     "specShort": "A + star arc 360 io"
+    },
+    {
+     "key": "C",
+     "name": "Instant, optimistic",
+     "summary": "Flips to Following on the tap with no motion; flips back with a message if refused.",
+     "spec": "no motion · optimistic · rollback",
+     "recipe": "Doherty (optimistic)",
+     "principles": [
+      "Doherty threshold"
+     ],
+     "tradeoff": "Removes the wait; nothing marks the change but the label.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same scene. 300: tap Follow - 'Following' with a tick and paper fill in one frame; the star on the chip. 1600: tap - back to Follow at once. Loop 2400.",
+     "specShort": "0 ms · optimistic"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "morning-dot",
+   "title": "The morning dot on the myFAM tab",
+   "status": "new",
+   "where": "static/index.html:24883 (drawMixDot) + 3636 (.tab-badge.tab-new)",
+   "trigger": "the morning edition writes a mix; opening the tab clears it",
+   "frequency": "rare",
+   "now": "The copper dot appears and disappears in one frame (hidden toggles), while the unread count beside it pops in and shrinks away (§298).",
+   "verdict": "Same family as the unread count the owner picked: pop it in and shrink it away. Once a morning, so a single ring may earn its place.",
+   "severity": "new",
+   "principles": [
+    "Similarity",
+    "Von Restorff effect",
+    "Exits",
+    "Frequency of use"
+   ],
+   "notes": "checkFreshMixes (at launch, on return, every 15 minutes) fills freshMixes; drawMixDot toggles hidden on every [data-mix-dot] (one per tab bar copy). openPlayFAM → clearMixDot on the tab tap, the same moment as the tab slide. The Messages count uses Motion.badge (§298: pops in, bumps when it rises, shrinks away as an inert copy) - the dot is the same kind of thing (Similarity) drawn by another path. Reuse Motion.badge for the dot; only the visible tab bar animates (Motion.badge checks the active screen) - but on the tab tap the visible bar is the arriving screen's, which Motion.badge skips (:not(.arriving)), so the exit needs that check relaxed for the tab bar. Motion.badge pops from scale(0) with a 1.25 overshoot - the lead may tune that shared curve; the options say what the dot does whichever curve wins, and A's numbers are the skill's. B's ring is a secondary action on a rare event (once a morning), 450 ms, once - never a loop, since people aim at the tab. 'New today' on the card (.mix-a-new) stays still: it is information, and the card's own arrival carries it. Dot and ring scale from their centres. Reduced motion: the dot is simply there or gone.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Pop like a count",
+     "summary": "The dot pops onto the tab the way unread counts do, and shrinks away when you open myFAM.",
+     "spec": "in .5→1 + fade 240ms (.32,.72,0,1) · out: copy 1→.5 + fade 160ms (.55,0,1,.45)",
+     "recipe": "The owner's badge pop (§298); exits on an inert copy",
+     "principles": [
+      "Similarity",
+      "Exits"
+     ],
+     "tradeoff": "One badge behaviour across the tab bar; the dot is small, so it can still be missed.",
+     "recommended": true,
+     "why": "The owner already chose how a tab badge arrives and leaves; the dot is the same object and should not snap.",
+     "reduced": "Dot appears and goes at once.",
+     "demoText": "Tab bar: dailyFAM (active), myFAM, search, Messages with a red '1', yourFAM; rails above. 400: the copper dot pops onto myFAM's icon 400-640. Hold. 1600: tap myFAM - the dot shrinks away 1600-1760 as the tab switches. Loop 2600.",
+     "specShort": "in 240 out · out 160 in"
+    },
+    {
+     "key": "B",
+     "name": "Pop and one ring",
+     "summary": "As A, and once a morning a thin copper ring spreads from the dot and fades.",
+     "spec": "A · ring scale 1→2.4, opacity .6→0, 450ms (.32,.72,0,1), 200ms after landing, once",
+     "recipe": "Secondary action (the rare branch)",
+     "principles": [
+      "Von Restorff effect",
+      "Secondary action"
+     ],
+     "tradeoff": "Pulls the eye to the morning's mix, as the owner asked (§550); one more motion in the tab bar.",
+     "recommended": false,
+     "reduced": "Dot at once; no ring.",
+     "demoText": "Same tab bar. 400: the dot pops 400-640; 840-1290 a thin copper ring grows from it and fades. Hold. 1800: tap myFAM - the dot shrinks 1800-1960. Loop 2800.",
+     "specShort": "A + ring 450 once"
+    },
+    {
+     "key": "C",
+     "name": "Instant",
+     "summary": "As today: the dot is there or not.",
+     "spec": "no motion",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "Nothing to build; the one tab badge that snaps while its neighbour pops.",
+     "recommended": false,
+     "reduced": "Same.",
+     "demoText": "Same tab bar. 400: the dot appears in one frame. 1600: tap myFAM - the dot is gone at once. Loop 2400.",
+     "specShort": "0 ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "mix-finished",
+   "title": "Finishing today's mix",
+   "status": "new",
+   "where": "static/index.html:5055 (#mixDoneOverlay) + 13732 (finishMix)",
+   "trigger": "the last episode of a mix ends",
+   "frequency": "rare",
+   "now": "A text card ('You have finished listening to your Morning playlist for today') lifts in with the shared modal fade-and-lift (200 ms, 14 px).",
+   "verdict": "The end of the myFAM flow (Peak-end). A daily finish is routine: a quiet confirmation that shows what was done - today's cards stacked away - not a celebration.",
+   "severity": "new",
+   "principles": [
+    "Peak-end rule",
+    "Make it mean something",
+    "Staging",
+    "Frequency of use"
+   ],
+   "notes": "finishMix clears mixPlay, hides the mini bar and adds .active to #mixDoneOverlay (a .modal-overlay holding a .nextup-card); the lift itself is shared (the lead's). The card has words only. Peak-end: people judge a flow by its end; the skill keeps celebration for real milestones and gives routine completions a quiet confirmation - a mix finishing is daily, so no sparks in A or B. 'Finished things recede: collapse, fade back or stack away' - the day's cards squaring into one stack says 'done' without words, in the mix's own look (the stacked deck, §616). Build: draw the mix's three cover_tiles fanned on the card as on its myFAM card (read from mixes by mixPlay.id before it is cleared), square them once the modal has landed (Staging: chain after the ~200 ms lift), then draw a copper check. If the queue has more, finishMix plays on and no card shows - unchanged. Reduced motion: the stack is drawn squared, with the check.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Deck squares up",
+     "summary": "Today's three pictures sit fanned on the card; once it lands they square into a stack and a copper check draws on it.",
+     "spec": "@260ms rotate ±7°→0, translate→0, 300ms (.77,0,.175,1) · check dashoffset 220ms (.32,.72,0,1) @560",
+     "recipe": "Storyboard; finished things stack away",
+     "principles": [
+      "Peak-end rule",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Quiet and on-brand; the mix's pictures must be kept until the card is drawn.",
+     "recommended": true,
+     "why": "It ends the flow on what was done, in the deck's own language, without turning a daily routine into a party.",
+     "reduced": "Stack drawn squared, with the check.",
+     "demoText": "Player dimmed behind; the card lifts in 300-500 (shared): three fanned pictures (Nvidia, AI, The Fed) on Morning's purple, 'You have finished listening to your Morning playlist for today', 'Fresh episodes on the same topics tomorrow', 'Back to myFAM'. 560-860 the fan squares into one stack; 860-1080 a copper check draws on the top card. Hold to 2400; loop.",
+     "specShort": "square 300 io · check 220"
+    },
+    {
+     "key": "B",
+     "name": "Cards file in",
+     "summary": "The day's cards, each marked Played, slide in from the right one after another onto the stack, then the check.",
+     "spec": "≤6 cards 260ms (.32,.72,0,1), 40ms apart · stack squares 300ms · check 220ms",
+     "recipe": "Storyboard + stagger (a rare moment)",
+     "principles": [
+      "Stagger",
+      "Make it mean something",
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "Counts what was heard; longer (about 900 ms) for a routine end, and busier than the moment needs.",
+     "recommended": false,
+     "reduced": "Stack drawn with the check.",
+     "demoText": "Same card, an empty deck spot. 560: five small cards marked 'Played' slide in from the right onto the spot at 560/600/640/680/720, 260ms each; 980-1280 they square into one stack; 1280-1500 the check draws. Loop 2800.",
+     "specShort": "5 × 260 @40 · 300 · 220"
+    },
+    {
+     "key": "C",
+     "name": "Words only",
+     "summary": "As today: the sentence and Back to myFAM, lifting in with the shared modal.",
+     "spec": "shared modal: 200ms lift in, 150ms drop out · no new motion",
+     "recipe": "Peak-end (a quiet confirmation)",
+     "principles": [
+      "Peak-end rule",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Already says what happened; nothing ties the end to the mix the listener built.",
+     "recommended": false,
+     "reduced": "Card appears at once.",
+     "demoText": "Player dimmed behind; 300-500 the text card lifts in: 'You have finished listening to your Morning playlist for today', the sub line, 'Back to myFAM'. Hold to 2000; loop.",
+     "specShort": "shared lift 200"
+    }
+   ],
+   "picked": "B"
+  }
+ ]
+}

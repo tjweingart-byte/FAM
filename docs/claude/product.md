@@ -927,6 +927,7 @@ to the writer is judged.
   question goes through `autocorrect.correct_text`.
 
 <!-- rule:search-bar -->
+> **Current (PROBLEMS.md §643, the owner's pick of 11.16, bar-focus-go: C):** the go arrow **takes the mic's place** - one slot, the two crossing on the icon swap - while something is typed or attached, and the mic is back when the box is empty; attach never moves. "The mic and attach on its right" below holds for an empty box.
 > **Current (PROBLEMS.md §637, the owner 11.16):** the third bubble is a **lock with no word on it** (`private-search`); the page keeps its colours while it is on. "Charcoal" below is superseded.
 > **Current (PROBLEMS.md §305, the owner 10.23):** the length a search opens on, and returns to every time somebody comes back into the app, is **one minute**, not two (`DEFAULT_LENGTH_MINUTES`); the Length bubble still offers 1-5, and the Voice bubble is unchanged. Where the text below says two minutes, read one.
 

@@ -1,0 +1,1538 @@
+{
+ "page": "search",
+ "codeScreens": [
+  "screen-home",
+  "screen-myfamsearch",
+  "voiceSearch",
+  "famLoading",
+  "readingOverlay",
+  "goDeeperOverlay"
+ ],
+ "summary": "Search moves in three places today: voice search's sheet and talking lines, the private blind, and the loader's chevrons and ticks. Almost everything else swaps in one frame. Biggest gap: the wait's edges - the loader cuts in up to 700ms after the press and cuts out onto a flash of search.",
+ "interactions": [
+  {
+   "name": "Tap the search field",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "the field is live and ready for words"
+  },
+  {
+   "name": "Type a question",
+   "trigger": "keyboard",
+   "frequency": "many",
+   "tells": "send is ready; trending steps aside"
+  },
+  {
+   "name": "Clear the field",
+   "trigger": "keyboard",
+   "frequency": "few",
+   "tells": "trending is back; send is gone"
+  },
+  {
+   "name": "Send (Enter or the go arrow)",
+   "trigger": "touch / keyboard",
+   "frequency": "few",
+   "tells": "the question was taken and the wait has started"
+  },
+  {
+   "name": "Tap a trending search",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that already-written episode starts"
+  },
+  {
+   "name": "Trending list lands",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "what people are asking in the last two hours"
+  },
+  {
+   "name": "A loading step checks off",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "which step the server finished; it is alive"
+  },
+  {
+   "name": "Cancel the wait (X)",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "nothing was made; back where you asked"
+  },
+  {
+   "name": "First audio: loader gives way to the player",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "your episode is playing, here"
+  },
+  {
+   "name": "Pick a length (Length bubble)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the length took, without printing it on the bubble"
+  },
+  {
+   "name": "Pick a voice (Voice bubble)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the voice took, without printing it on the bubble"
+  },
+  {
+   "name": "Turn Private on or off",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "this page is private now, or not"
+  },
+  {
+   "name": "Tap the mic",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "FAM is listening, and where that came from"
+  },
+  {
+   "name": "Speak",
+   "trigger": "voice",
+   "frequency": "few",
+   "tells": "words are being heard; lines move only while talking"
+  },
+  {
+   "name": "Speech stops: Search now counts 5 s",
+   "trigger": "timer",
+   "frequency": "few",
+   "tells": "it will search by itself unless stopped"
+  },
+  {
+   "name": "Tap X beside Search now",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it will not send by itself; the button waits"
+  },
+  {
+   "name": "Tap the heard words to fix them",
+   "trigger": "touch / keyboard",
+   "frequency": "rare",
+   "tells": "editing; the countdown stopped"
+  },
+  {
+   "name": "Tap the FAM ring (stop / listen again)",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "listening is on or off"
+  },
+  {
+   "name": "Close voice search",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "back to search as it was"
+  },
+  {
+   "name": "Say \"hey FAM\" (opt-in)",
+   "trigger": "voice",
+   "frequency": "rare",
+   "tells": "voice search opened from any tab"
+  },
+  {
+   "name": "Attach a file or link",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "which file, still being read, read or failed"
+  },
+  {
+   "name": "Remove an attachment",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it is off this search"
+  },
+  {
+   "name": "Which one do you mean?",
+   "trigger": "network",
+   "frequency": "rare",
+   "tells": "the name is ambiguous; pick a reading"
+  },
+  {
+   "name": "Type your own reading",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the field is where the pill was"
+  },
+  {
+   "name": "Bookshelf: open the A-Z",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "episodes other people made, A to Z"
+  },
+  {
+   "name": "Type in the A-Z search",
+   "trigger": "keyboard",
+   "frequency": "rare",
+   "tells": "the closest episodes"
+  },
+  {
+   "name": "Go Deeper: suggestion lands, pick length",
+   "trigger": "network / touch",
+   "frequency": "few",
+   "tells": "what follows, and how long it runs"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "broken",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:9077 (useThreadSuggestion)",
+   "before": "A tap on Go Deeper's chip sends whatever line is there now, even one that just swapped",
+   "after": "Send the line shown at pointerdown; hold the swap while a finger is on the chip"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:7074 (runSearch)",
+   "before": "Send waits up to 700ms on /api/spell with nothing new on screen after the press",
+   "after": "Open the loader on the press; the speller's wait runs under step one"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:12062 (confirmGoDeeper)",
+   "before": "Continue closes the box, then up to 700ms of nothing before the loader appears",
+   "after": "Loader opens as the box closes; the correction runs under it"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:11349 (openLengthMenu), :11946",
+   "before": "A length or voice pick changes nothing on the page (the bubbles never print it)",
+   "after": "The bubble's icon acknowledges a changed pick as the sheet drops"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:402 (.attach-chip.working)",
+   "before": "A 'reading...' chip sits still at 60% opacity for seconds",
+   "after": "A copper bar moves along the chip while the server reads"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:14996 (runMyFamSearch)",
+   "before": "Each A-Z query swaps the list for 'Searching...' at once; fast answers flash it",
+   "after": "Keep the old rows; show 'Searching...' only after 300ms"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:7660 (onGenerationStarted)",
+   "before": "Loader cuts out and the search page flashes back, mid-push, as the player arrives",
+   "after": "The loader is what leaves: push from it, or lift it off the player"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:11779 (sendVoiceSearch)",
+   "before": "Voice send hides the sheet, shows search (up to 700ms), then the loader cuts in",
+   "after": "The loader opens over the sheet; the sheet is hidden beneath it"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:6531 (Motion.dimDown)",
+   "before": "The pressed Private bubble sits under a static copy ~130ms: no squeeze, no new state",
+   "after": "Cut the bubble out of the copy so the touched control answers first"
+  },
+  {
+   "severity": "friction",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:2195, :2248",
+   "before": "Chevrons (2.4s) and the active step's ring (1.6s) loop on two clocks",
+   "after": "One beat: the ring fires as the top chevron lands, every 2.4s"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:11747 (stopVoiceCountdown)",
+   "before": "X, or a tap on the words, snaps the fill to full: reads as the count finishing",
+   "after": "Freeze the fill, fade to 'ready' in 150ms; never sweep to full"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:373 (.vs-bottom)",
+   "before": "Search now jumps 29px sideways in one frame when the X hides",
+   "after": "FLIP the pill to centre in 220ms, or keep the X's slot"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:2346",
+   "before": "Reduced motion stills chevrons and ring: the loader looks hung for 8s+",
+   "after": "Keep the active ring pulsing by opacity (the progress exception)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:11763 (closeVoiceSearch)",
+   "before": "Voice search enters in 220ms but closes in one frame",
+   "after": "An inert copy exits 170ms ease-in with an 8px drop (or into the mic)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:2175, :7317 (clearGenOverlay)",
+   "before": "The loader appears, and leaves on cancel or a replay, in one frame",
+   "after": "In 220ms ease-out; out as an inert copy, 160ms ease-in"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Staging",
+   "where": "static/index.html:7706 (onGenerationFailed), :7758",
+   "before": "'Which one do you mean?': the loader cuts out under the arriving modal",
+   "after": "The loader's copy fades 160ms while the modal lifts in"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:7197 (paintSearchBar)",
+   "before": "On the first letter go appears and the mic and clip jump 42px left, in one frame",
+   "after": "Go scales in (.3 to 1, 260ms) while mic and clip FLIP aside in 200ms"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:401 (.attach-chip .rm)",
+   "before": "Remove x is a ~8x13px glyph in a span",
+   "after": "A button with a 44px ::after zone; the glyph stays small"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:7147 (sendSearch), :7687",
+   "before": "Cancel or 'Which one' Cancel returns to an empty bar: the question was cleared at send",
+   "after": "Put the question and attachments back in the bar on Cancel"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:7197 (paintSearchBar), :21008",
+   "before": "Keystroke changes (trending hides, bar grows tall, a word corrected) are instant",
+   "after": "Keep them instant: nothing that follows the keys gets a transition"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:7062 (setPrivateSearch)",
+   "before": "'Private search is on' rises while the blind is still falling",
+   "after": "Start the bottom line as the blind lands (+320ms)"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Staging",
+   "where": "static/index.html:11895 (wakeUp)",
+   "before": "'Hey FAM' from another tab runs the tab slide under the sheet's entrance",
+   "after": "Show search without the tab move (Motion.still); only the sheet moves"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Exaggeration",
+   "where": "static/index.html:11518 (paintVoiceState)",
+   "before": "A voice failure (mic blocked) is the status line changing words in one frame",
+   "after": "Status turns coral and nudges once (x 0,-6,6,-3,3,0 over 300ms)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2251 (.fam-step-dot svg)",
+   "before": "Step tick scales .4 to 1 on cubic-bezier(.3,1.6,.5,1): overshoots to ~1.07",
+   "after": "No bounce: a stroke draw like Follow's tick, or (.32,.72,0,1)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:2253 (famStepPulse)",
+   "before": "Active ring animates box-shadow 0 to 5px: a repaint every frame",
+   "after": "An ::after ring on transform scale + opacity"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Timing",
+   "where": "static/index.html:2240 (.fam-steps li)",
+   "before": "Row opacity and color move over .35s on the bare ease keyword",
+   "after": "150ms ease: it is a color change"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:326 (sheet-in)",
+   "before": "Voice sheet's entrance is a keyframe: closing mid-open cannot turn around",
+   "after": "A transition on an open state, the shorter exit on the closed one"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:347 (.voice-search.speaking)",
+   "before": "Wave keyframes drop with the class: scale snaps to 1 as speech pauses",
+   "after": "Amplitude from the rAF loop decays to rest; no class toggle"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:11595 (voiceLevelLoop)",
+   "before": "--lvl is written on the whole sheet every frame, even when nobody talks",
+   "after": "Write transforms on the 8 paths; stop the loop when not listening"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:277 (#screen-home.private-search)",
+   "before": "Background fades .25s while text flips at once (reduced motion, theme switch)",
+   "after": "Remove the transition; the blind already draws the change"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Stagger",
+   "where": "static/index.html:7174 (paintTrendSearches)",
+   "before": "Trending chips appear, and swap on a refetch, in one frame",
+   "after": "New chips fade up 8px, 40ms apart (the rails' arrival)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:7799 (openReadingOwn)",
+   "before": "'Type your own' pill becomes the field in one frame",
+   "after": "Cross-fade in one grid cell, 150ms out / 200ms in"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:12000 (setGoDeeperMinutes)",
+   "before": "Go Deeper's length pills swap their fill in one frame",
+   "after": "A copper thumb slides between pills, 220ms ease-in-out"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:326 (.voice-search.open)",
+   "before": "Voice search rises 14px from mid-screen, not from the mic that opened it",
+   "after": "Grow from the mic (circle reveal); close back into it"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:375 (.vs-bottom[hidden])",
+   "before": "Search now appears in one frame when speech stops",
+   "after": "Rise 12px + fade, 220ms ease-out"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Timing",
+   "where": "static/index.html:365 (.listening .vs-mark)",
+   "before": "The FAM ring's border turns copper in one frame when listening starts",
+   "after": "A 150ms color transition"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:616, :611, :265, :2176",
+   "before": "Bookshelf 34px, voice X 30px, go 36px, loader X 34px",
+   "after": "::after zones to 44x44px; the visuals stay as drawn"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:316 (.trend-chip)",
+   "before": "Trending chips are 32px tall, 6px apart",
+   "after": "38px zones, shrunk equally where they meet (24px floor)"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:249 (.fam-input-box)",
+   "before": "The search bar has no focus state; Next-up's search turns copper on focus",
+   "after": ":focus-within border copper, 120ms ease"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:7106 (sendSearch)",
+   "before": "Go shows while a file is still reading; pressing it only toasts 'Still reading'",
+   "after": "Go dims while a file reads; the chip's moving bar says why"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:6948 (removeAttachment)",
+   "before": "x deletes the attachment on the server at once; no Undo",
+   "after": "Off the bar at once; deleted when a 5s Undo line closes"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:11779 (sendVoiceSearch)",
+   "before": "The mic with words typed opens empty, and sending overwrites the typed words",
+   "after": "Seed the sheet with the typed words, as 'hey FAM' seeds its rest"
+  }
+ ],
+ "bugs": [
+  "static/index.html has no <meta name=viewport>: in a phone browser the 520px rules would never apply. Could not tell if a wrapper adds one.",
+  "The #screen-home.private-search comment (line 274) says the page goes back once the search is sent; since 285 it stays on until turned off.",
+  "dimDown's veil clones the tab bar and mini player with their ids; for 320ms .tab and [data-msg-badge] queries match both copies.",
+  "The bookshelf (aria 'The episode library') opens a screen titled 'Search DailyFAM', though it lives on search.",
+  "'Hey FAM' shows nothing in the app while it listens; only the browser's own mic dot says the microphone is open.",
+  "vs-wave and vs-line read var(--lvl) inside @keyframes; live updates are unverified on iPhone Safari, where the arcs may hold one size."
+ ],
+ "animations": [
+  {
+   "id": "bar-focus-go",
+   "title": "Search bar: focus and the go arrow",
+   "status": "new",
+   "where": "static/index.html:7197 (paintSearchBar), :249 (.fam-input-box), :265 (.go-btn)",
+   "trigger": "tap the field; type the first letter",
+   "frequency": "many",
+   "now": "No focus style at all. On the first letter the 36px copper go arrow appears and the mic and clip jump 42px left - all in one frame; clearing reverses it in one frame.",
+   "verdict": "Focus is a color change (exempt, 120ms). The arrow is the primary action appearing: a quick deep-scale entrance. Hiding on clear stays instant - it follows the keys.",
+   "severity": "new",
+   "principles": [
+    "Frequency of use",
+    "Doherty threshold",
+    "Replacements",
+    "Similarity",
+    "Von Restorff"
+   ],
+   "notes": "Today: .fam-input-box (249) has no :focus-within rule and the textarea has outline:none, so the only sign of focus on a phone is the keyboard rising. Next-up's search (2869) turns its border copper on focus - the search bar should match it (Similarity). paintSearchBar (7197) sets go.hidden from the value on every input event, so the arrow appears with the first letter and disappears when the box is emptied; go is added at the right of .bar-btns, so the mic and attach jump 42px left in the same frame (measured: mic x 283 to 241 at 390 wide) - the brief's 'mic swaps to a send arrow' is option C, not today. The .tall reflow (a question past one line) and trending hiding on the first keystroke are keyboard-driven and must stay instant (Frequency of use). Option A: border-color transition 120ms ease on :focus-within, put on the focus rule only so a keyboard focus is not delayed by more than the color. The arrow: render it always, toggle a data-state, and run the icon-swap recipe (scale .3 to 1, opacity, blur 3px to 0) over 260ms (.32,.72,0,1); origin centre. Its exit when cleared is instant (backspace is the keyboard). Interrupt: typing a letter, deleting it and typing again mid-entrance turns around from where it is because it is a transition, not a keyframe. The press squeeze still applies when the arrow is tapped. Option C is a layout change for the owner (rule search-bar says mic and attach inside the bar's right; that stays true while the box is empty). Today the mic with words typed opens an empty sheet and sending replaces the typed words, so losing the mic while typing costs little. Reduced motion: everything changes on the same frame. Verify: Tenth use - a 260ms pop seen 30 times a day; cut to 200ms if it feels slow.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Copper ring, arrow pops",
+     "summary": "The bar's edge warms to copper when tapped; on the first letter the arrow grows in and the mic and clip glide aside.",
+     "spec": "focus 120ms ease · go scale .3→1, blur 3→0, 260ms (.32,.72,0,1) · mic, clip FLIP 200ms io",
+     "recipe": "icon swaps (entrance half) + FLIP + color transition",
+     "principles": [
+      "Similarity",
+      "Replacements",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Two small cues and no jump, all under 300ms; nothing slows typing. Clearing still snaps back (it follows the keys).",
+     "recommended": true,
+     "why": "The skill's recipe exactly: one color cue for focus, one deep-scale entrance for send, and nothing that lags the keys.",
+     "reduced": "Border and arrow change on the same frame; nothing scales.",
+     "demo_note": "Search page. 500ms: tap the bar; border turns copper in 120ms. 1100ms: 'w' - the copper arrow grows from 30% and sharpens over 260ms while mic and clip glide left 25px in 200ms; trending hides. 2480ms: last backspace - arrow gone, mic and clip back, trending back, in one frame.",
+     "specShort": "260ms out · go .3→1 · FLIP 200"
+    },
+    {
+     "key": "B",
+     "name": "Arrow slides in",
+     "summary": "Mic, clip and arrow slide left as one train, the arrow entering from the bar's inner edge; clearing slides them back.",
+     "spec": "focus 120ms ease · mic, clip, go slide as one, x+42→0, 240ms (.32,.72,0,1) · back 170ms ease-in",
+     "recipe": "entrances / exits (nudge toward where it goes)",
+     "principles": [
+      "Make it mean something",
+      "Exits",
+      "Origin"
+     ],
+     "tradeoff": "Says 'forward' and explains the shift, but its 170ms exit runs on a backspace - a transition that follows the keys.",
+     "recommended": false,
+     "reduced": "Arrow appears and leaves on one frame; border changes at once.",
+     "demo_note": "Search page. 500ms: tap the bar, copper border. 1100ms: 'w' - mic, clip and the arrow slide left as one train over 240ms, the arrow entering from beyond the bar's inner edge. 2480ms: last backspace - the train slides back right over 170ms and the arrow leaves through the edge.",
+     "specShort": "240ms out · slide in · back 170"
+    },
+    {
+     "key": "C",
+     "name": "Mic becomes the arrow",
+     "summary": "Google's pattern: the mic turns into the copper arrow in the same spot as you type, and back when the box is empty.",
+     "spec": "one 40px slot · mic⇄arrow cross-fade, scale .3↔1, blur 3px, 300ms cubic-bezier(.25,.1,0,1)",
+     "recipe": "icon swaps (both stacked, nothing unmounts)",
+     "principles": [
+      "Jakob's law",
+      "Replacements",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "No jump at all - the bar's buttons never move - but the mic is gone while text is typed: a layout change against 190 (owner's call).",
+     "recommended": false,
+     "reduced": "Mic and arrow swap on one frame.",
+     "demo_note": "Search page; bar's right shows mic and clip. 600ms: tap the bar, border copper. 1000ms: 'w' types; in the mic's own slot the mic shrinks to 30% and blurs out while the copper arrow grows from 30% to full, both over 300ms; the clip stays put; the text area keeps its width. 2100ms: backspaces; on the last (2280ms) the arrow shrinks out and the mic grows back in, 300ms. Loop 3000ms.",
+     "specShort": "300ms · mic⇄arrow · scale .3↔1"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "loader-arrives",
+   "title": "The loading screen arrives",
+   "status": "new",
+   "where": "static/index.html:8399 (generate), :2175 (.fam-loading.active), :7074 (runSearch), :7687",
+   "trigger": "send a search, a trending search, a Go Deeper or a voice search",
+   "frequency": "few",
+   "now": "The full-screen loader appears in one frame (display none to flex) - up to 700ms after the press while /api/spell answers. Its X (cancel) removes it in one frame.",
+   "verdict": "Few a session and full-screen: a 220ms fade is in budget. Show it on the press, not after the speller; leave as an inert copy in 160ms. Nothing here delays a step.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Exits",
+    "Timing",
+    "Staging",
+    "Origin"
+   ],
+   "notes": "Today: generate() (8393) adds .active and .fam-loading.active (2175) is display:flex - a cut. Before that, runSearch (7074) may wait up to AC_SEND_WAIT_MS 700ms on acCorrectQuestion with searchSending set and nothing new drawn: after the press squeeze there is no answer for up to 0.7s (Doherty). Opening the loader on the press is honest - step one, 'Contextualizing your search', is literally what the speller is doing - and holds nothing: startGenSteps' 0.5s first-step floor should still count from the request, so the first check can only be later, never earlier. Edge: the AI-consent question (withAiConsent) may still need to appear; open the loader after consent is known, or close it before the consent modal. Exit: cancelGeneration (7687) and failures call clearGenOverlay, which cuts. With an inert copy (Motion's pattern) the real overlay is gone on frame one and the copy fades, so the search page is live at once. The 'Cancelled' bottom line should start as the copy lands (Staging). Voice send: the loader fades in over the voice sheet, and the sheet is hidden under it, so search never flashes. Option B's wordmark glide is short (search's FAM logo sits ~28px above the loader's at 390x844; the loader's is ~23% wider); the five rows stagger 40ms (copies of one element), all in by ~400ms, inside step one's 0.5s floor. Option C adds the typed question to the loading screen: new content, so it is the owner's call; it answers 'what is it making?' but the loader has been kept spare (232 removed the seconds). Reduced motion: the loader appears and leaves on one frame (A, B, C), and still opens on the press. Never: a delay before the loader shows (it would be a hold), or a longer fade - Tenth use at 220ms is fine.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Fade up on press",
+     "summary": "The loader fades in the moment you press send, its contents rising a few pixels; Cancel fades it away.",
+     "spec": "in 220ms (.32,.72,0,1): opacity + content y 8→0 · opens on press · out copy 160ms (.55,0,1,.45) y→8",
+     "recipe": "modal (fade) + exits (inert copy)",
+     "principles": [
+      "Doherty threshold",
+      "Exits",
+      "Timing"
+     ],
+     "tradeoff": "Plain and quick; says nothing about where the loader came from.",
+     "recommended": true,
+     "why": "The press answers on its own frame, the wait is honest from its first millisecond, and a plain fade never competes with the five steps.",
+     "reduced": "Appears and leaves on one frame; still opens on the press.",
+     "demo_note": "Search page; bar reads 'who won the ryder cup' with the copper arrow. 400ms: finger taps the arrow (it squeezes). Same frame: the loader begins fading in over the page - FAM wordmark, chevrons, 'FAMiliarizing...', five step rows - all rising 8px together, fully in at 620ms; step 1's ring pulses. 1900ms: finger taps the X top-right; the loader fades and drops 8px, gone by 2060ms; search page shows; at 2060ms a copper rule and 'Cancelled' appear above the tabs. Loop 3000ms.",
+     "specShort": "220ms out · fade + y8 · out 160"
+    },
+    {
+     "key": "B",
+     "name": "FAM keeps its mark",
+     "summary": "All fades but the FAM logo, which glides into the loader's wordmark; then the five steps arrive one by one.",
+     "spec": "mark glide y+28, scale 1.23, 320ms (.77,0,.175,1) · page fade 200ms · rows y8→0 240ms, 40ms apart",
+     "recipe": "storyboard + shared element + entrances (copies, 40ms)",
+     "principles": [
+      "Staging",
+      "Stagger",
+      "Make it mean something"
+     ],
+     "tradeoff": "Ties the wait to the page you asked from; more to build (a wordmark ghost), and the rows finish 400ms in.",
+     "recommended": false,
+     "reduced": "Loader appears at once; the logo does not move.",
+     "demo_note": "Search page with FAM logo at y95. 300ms: tap the arrow. The bar, bubbles and trending fade out over 200ms while the loader background fades in; the FAM logo alone glides 14px down and grows 23% over 320ms, becoming the loader's wordmark. Chevrons fade in under it from 300ms. The five step rows rise 8px and fade in at 400, 440, 480, 520, 560ms (240ms each). 1900ms: X; loader fades 160ms. Loop 2800ms.",
+     "specShort": "320ms io glide · rows 40ms apart"
+    },
+    {
+     "key": "C",
+     "name": "Your question follows",
+     "summary": "The words you typed lift out of the bar and settle under 'FAMiliarizing...' as the loader fades in, and stay there.",
+     "spec": "question ghost arcs to subtitle, 340ms (.77,0,.175,1), bulge 12% · loader fade 220ms (.32,.72,0,1)",
+     "recipe": "arcs + shared element (text ghost) + modal fade",
+     "principles": [
+      "Origin",
+      "Arcs",
+      "Make it mean something"
+     ],
+     "tradeoff": "Clearest 'what is it making?', but adds the question to the loader - new content, the owner's call.",
+     "recommended": false,
+     "reduced": "Loader appears with the question already under the title.",
+     "demo_note": "Search page; bar reads 'who won the ryder cup'. 400ms: tap the arrow. A copy of the words lifts off the bar and travels up-and-down on a gentle arc to sit, 11px muted, under 'FAMiliarizing...' by 740ms, shrinking from 15px to 11px; the loader background fades in under it over 220ms; steps visible, step 1 pulsing. The bar under the fading page is now empty. 2000ms: X; loader fades. Loop 3000ms.",
+     "specShort": "340ms io arc · fade 220"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "steps-check-off",
+   "title": "The five steps check off",
+   "status": "existing",
+   "where": "static/index.html:2238-2257 (.fam-steps), :7400 (paintGenSteps), :7484 (advanceGenSteps)",
+   "trigger": "the server's mark for a step (each held 2s, the first 0.5s)",
+   "frequency": "few",
+   "now": "Row: opacity .55→1 and color over .35s ease. Dot: copper fill .3s ease. Tick: opacity .25s, scale .4→1 .3s cubic-bezier(.3,1.6,.5,1) (peaks ~1.07). Next dot pulses a box-shadow.",
+   "verdict": "Restyle only - the timing is product. Drop the overshoot (routine, not a milestone), draw the tick like Follow's, ring on transform/opacity, finish inside the 400ms last beat.",
+   "severity": "polish",
+   "principles": [
+    "Make it mean something",
+    "Similarity",
+    "Properties",
+    "Zeigarnik / goal gradient",
+    "Slow in and slow out"
+   ],
+   "notes": "Decided behaviour, untouched by every option: each check lands only on the server's mark (/api/progress), each step is on screen at least GEN_STEP_MIN_MS 2000 (first GEN_STEP_FIRST_MIN_MS 500), audio is held until the fifth check, then GEN_STEP_LAST_BEAT_MS 400 before it starts; a replay paints all five done at once. So the fifth check's animation must be complete within 400ms or the screen leaves on a half-drawn tick: A lands at 300ms, B's tick at 300ms (its rail is not drawn after step 5), C at 220ms. Today (2238-2257): li transition opacity .35s ease, color .35s ease; dot background/border .3s ease; svg opacity .25s ease and transform .3s cubic-bezier(.3,1.6,.5,1) from scale(.4) - the y1 of 1.6 overshoots, which the skill keeps out of product UI; famStepPulse animates box-shadow, which repaints. A: give the check path pathLength=1 and stroke-dasharray 1, and transition stroke-dashoffset 1 to 0 over 220ms, 80ms after the fill - the numbers of the owner's Follow tick (Motion.follow, 6573), so a finished thing is drawn the same way across the app. The ring moves to li.active .fam-step-dot::after (see 'The loader's moving mark' for its clock). paintGenSteps toggles classes, so everything is a transition and a replay's all-done paint jumps straight to the end state (no five ticks in a row). B adds a 2px copper rail between dots (an element per gap, scaleY from the top) - Uniform connectedness: five rows read as one path, and the filled length is how far along the work is (goal gradient). It never suggests a step is done before its mark: the segment fills only after the tick. C is today's look, cleaned. Reduced motion (all): dot fills and tick shows on one frame; the active ring keeps an opacity-only pulse - the progress-indicator exception - so the screen never looks hung. Interrupt: a cancel mid-tick removes the overlay copy; nothing to turn around.",
+   "options": [
+    {
+     "key": "A",
+     "name": "The tick draws in",
+     "summary": "The circle fills copper and a tick draws itself in, like Follow's; the row turns copper; the next circle pulses.",
+     "spec": "fill 150ms ease · tick dashoffset 1→0 220ms (.2,.8,.2,1) +80ms · row color 150ms · ring as ::after",
+     "recipe": "async buttons (success) + stroke draw (owner's Follow tick)",
+     "principles": [
+      "Similarity",
+      "Make it mean something",
+      "Properties"
+     ],
+     "tradeoff": "Calm and consistent; a drawn tick is quieter than a pop, so a fast reader may notice it a beat later.",
+     "recommended": true,
+     "why": "Matches the owner's Follow tick, finishes by 300ms so the fifth check is whole inside the 400ms beat, and drops the bounce the skill bans.",
+     "reduced": "Fill and tick appear at once; the active ring keeps a slow opacity pulse.",
+     "demo_note": "Loader, five rows; rows 1-2 done (copper, ticked), row 3 'Verifying the relevance' active with a ring pulsing out of its circle, rows 4-5 grey. 600ms: row 3's circle fills copper over 150ms; at 680ms a dark tick draws left-to-right inside it, done by 900ms; its text goes copper. Same frame as the fill, row 4's text goes dark and its circle begins the ring pulse. 2600ms (2s floor): row 4 checks the same way. Loop 4000ms.",
+     "specShort": "fill 150 · tick draws 220 +80"
+    },
+    {
+     "key": "B",
+     "name": "A thread runs down",
+     "summary": "A thin copper line joins the circles; when a step checks, the line fills down to the next one and that circle lights.",
+     "spec": "tick 220ms +80ms · segment scaleY 0→1, origin top, 260ms (.77,0,.175,1) at +120ms · ring on arrival",
+     "recipe": "storyboard + progress fill (scaleY, never height)",
+     "principles": [
+      "Uniform connectedness",
+      "Zeigarnik / goal gradient",
+      "Staging"
+     ],
+     "tradeoff": "Shows progress as one path filling, but the next ring lights ~380ms after its step is already active.",
+     "recommended": false,
+     "reduced": "Segments and ticks appear filled on one frame; ring pulses by opacity.",
+     "demo_note": "Loader; a 2px grey line runs through the five circles; rows 1-2 done with their joining segment copper. 600ms: row 3 fills copper (150ms), tick draws 680-900ms; from 720ms the segment below it fills downward over 260ms, reaching row 4's circle at 980ms, which then starts its ring pulse; row 4's text is already dark from 600ms. 2600ms: row 4 checks; its segment runs to row 5. Loop 4200ms.",
+     "specShort": "tick 220 · rail fills 260ms io"
+    },
+    {
+     "key": "C",
+     "name": "Today's, tuned",
+     "summary": "Same scale-in tick as today, but without the bounce, quicker row fades, and a pulse that no longer repaints.",
+     "spec": "fill 150ms ease · tick scale .4→1 + fade 220ms (.32,.72,0,1) · row 150ms · ring ::after",
+     "recipe": "icon swaps (scale-in half), cleaned",
+     "principles": [
+      "Slow in and slow out",
+      "Properties",
+      "Timing"
+     ],
+     "tradeoff": "Least change; a scale pop says 'appeared' more than 'done'.",
+     "recommended": false,
+     "reduced": "Fill and tick appear at once; the active ring keeps a slow opacity pulse.",
+     "demo_note": "Loader as A. 600ms: row 3's circle fills copper in 150ms while the tick grows from 40% to full with no overshoot, done by 820ms; text turns copper over 150ms; row 4 starts its ring. 2600ms: row 4 the same. Loop 4000ms.",
+     "specShort": "fill 150 · tick scale .4→1 220"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "loader-loops",
+   "title": "The loader's moving mark",
+   "status": "existing",
+   "where": "static/index.html:2192-2207 (famRise), :2247-2257 (famStepPulse), :2346 (reduced)",
+   "trigger": "while any step is pending",
+   "frequency": "few",
+   "now": "Three chevrons rise 11px and fade, 2.4s (.4,0,.2,1) loop, 0/.22/.44s apart; the active dot pulses box-shadow 0→5px, 1.6s ease-in-out. Reduced motion stops both.",
+   "verdict": "Two loops on two clocks split the eye, and box-shadow repaints. Lock both to one beat, ring on transform/opacity, and under reduced motion keep one indicator moving.",
+   "severity": "friction",
+   "principles": [
+    "Staging",
+    "Compound motion and loops",
+    "Properties",
+    "Reduced motion",
+    "Timing"
+   ],
+   "notes": "The chevrons (2192) are HTML layers since 288 so the compositor moves them while the page is busy - keep that. famRise: 0% y+11 opacity 0, 20% in place, 62% hold, 100% y-11 opacity 0; c2 and c3 start .22s and .44s later, so c3 lands at .44+.48 = .92s of every 2.4s cycle. famStepPulse (2253) runs a 1.6s box-shadow ring on li.active .fam-step-dot. Two periods (2.4s, 1.6s) drift against each other: the eye has two things to follow (Staging), and box-shadow is painted each frame (Properties). Reduced motion (2346) sets both to animation:none: for 8.5s or more the screen is completely still, which the skill names as the one exception - a progress indicator keeps moving. Phase-locking in A: the ring is a 2.4s animation on ::after (0% scale 1 opacity 0; 38% opacity .5; 88% scale 1.7 opacity 0); it starts whenever a row becomes active, so set its startTime to the chevrons' (WAAPI anim.startTime = chev.getAnimations()[0].startTime) or a negative animation-delay of (now - loaderStart) mod 2400. B moves the chevrons to a rAF sine - truly seamless and one clock, but 288 moved them OFF the main thread because they stalled while an episode starts; B would bring that back unless written as WAAPI keyframes sampled from a sine (12 stops), which is the build note if B is picked. C stills the chevrons only on search's stepped loader; Play All's 'Writing your episodes...' keeps them. famDot (dots) is hidden on search (.stepped) and famLdUp/famLdPulse belong to dailyFAM's and myFAM's loaders - not this page. Under reduced motion every option keeps the ring as opacity .35 to 1, 1.2s ease-in-out alternate, and the chevrons still.",
+   "options": [
+    {
+     "key": "A",
+     "name": "One heartbeat",
+     "summary": "The chevrons keep rising as today; the step's ring now pulses once each cycle, just as the top chevron lands.",
+     "spec": "chevrons 2.4s as today · ring ::after scale 1→1.7, opacity .5→0, fires at .92s of each 2.4s",
+     "recipe": "loops (phase-locked) + properties (transform/opacity)",
+     "principles": [
+      "Staging",
+      "Compound motion and loops",
+      "Properties"
+     ],
+     "tradeoff": "Keeps the brand loop and fixes the clash; needs a few lines to lock the phase.",
+     "recommended": true,
+     "why": "Keeps the owner's FAMiliarizing loop, gives the eye one rhythm, puts the ring on the compositor, and the screen never freezes for reduced motion.",
+     "reduced": "Chevrons still; the active ring pulses by opacity only (progress).",
+     "demo_note": "Loader: FAM wordmark, three copper chevrons, 'FAMiliarizing...', five rows with row 3 active. Chevrons rise and fade on their 2.4s loop (bottom first, 220ms apart). At 920ms, as the top chevron settles, a thin copper ring expands from row 3's circle to 1.7x and fades by 2120ms. Again at 3320ms. Nothing else moves. Loop 4800ms.",
+     "specShort": "2.4s beat · ring at .92s · 1.7x"
+    },
+    {
+     "key": "B",
+     "name": "Sine conveyor",
+     "summary": "The chevrons drift upward without a reset, a third of a cycle apart; the ring breathes on the same wave.",
+     "spec": "y +11→-11 linear per 2.4s, phases 0/.33/.66 · opacity sin(π·p) · ring on the same wave",
+     "recipe": "loops (sine, phase offsets) + mapRange",
+     "principles": [
+      "Compound motion and loops",
+      "Staging"
+     ],
+     "tradeoff": "Smoothest, no seam; risks the main-thread stalls 288 removed unless baked into WAAPI keyframes.",
+     "recommended": false,
+     "reduced": "Chevrons still; ring pulses by opacity.",
+     "demo_note": "Loader. The three chevrons climb 22px in a steady upward drift, each brightening mid-way and fading at the ends (sin), a third of a cycle apart, so one is always arriving; period 2.4s, no reset visible. Row 3's ring swells and fades on the same wave.",
+     "specShort": "2.4s conveyor · opacity sin(πp)"
+    },
+    {
+     "key": "C",
+     "name": "Still mark, one mover",
+     "summary": "On search's loader the chevrons stand still as the logo; the only thing moving is the active step's ring.",
+     "spec": "chevrons static when .stepped · ring ::after scale 1→1.7, opacity .5→0, 1.2s loop",
+     "recipe": "staging (one primary motion)",
+     "principles": [
+      "Staging",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Purest focus on the steps, but takes the FAMiliarizing loop off search - a change to the look 288 built.",
+     "recommended": false,
+     "reduced": "Same: chevrons still; ring pulses by opacity.",
+     "demo_note": "Loader as A, but the three chevrons sit still at full copper. Only row 3's ring moves: it expands to 1.7x and fades every 1.2s (0, 1200, 2400, 3600ms). Loop 4800ms.",
+     "specShort": "chevrons still · ring 1.2s loop"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "loader-to-player",
+   "title": "The loader gives way to the player",
+   "status": "new",
+   "where": "static/index.html:7660 (onGenerationStarted), :7348 (finishGenOverlay), :6062 (push)",
+   "trigger": "first audio after the fifth check (or a replay)",
+   "frequency": "few",
+   "now": "The overlay vanishes in one frame while the player pushes in (320ms) over the search page drifting left - so search flashes back. A replay holds the overlay 450ms, then cuts.",
+   "verdict": "What you leave is the loader, so the loader should be what moves. Start the hand-off when the overlay really goes; audio is already playing.",
+   "severity": "new",
+   "principles": [
+    "Staging",
+    "Similarity",
+    "Exits",
+    "Make it mean something",
+    "Doherty threshold"
+   ],
+   "notes": "Order today: genStepsGate releases the audio after the fifth check + 400ms; onFirstAudio calls onGenerationStarted (7660): finishGenOverlay (7348) removes .active (a cut) and navigate('player') runs a push (Motion.screen: player 100% to 0, from-screen 0 to -28% and opacity 1 to .55, 320ms (.2,.8,.2,1)). For a typed search there is no tapped picture, so player-open falls back to push, and the from-screen is search - which the overlay had hidden for 10 seconds. The listener sees: loader, then search sliding away, then the player. On a replay (cache hit) the overlay is held to GEN_MIN_VISIBLE_MS 450 (decided in 148, kept) while the push runs underneath, then cuts onto a player that is already in place. All options: begin the hand-off from clearGenOverlay's moment, not navigate's; the player is active and tappable on its first frame; audio is never touched. B: pass the overlay to Motion.screen as the from-screen (an inert copy of #famLoading, since it is not a .screen), and keep the real search screen hidden; the copy slides to -28% and dims to .55 under the player - the owner's push pick, unchanged, with the right screen leaving. On a replay the 450ms floor ends with the same push. A is the minimal fix (the player snaps under the overlay, which lifts away) - fastest, but it is the only screen opening in the app that does not move forward. C reveals the player through a growing circle centred on the chevrons, like the story's grow (298) and the blind's clip - a third reveal shape; animated circle() is still unverified on iPhone Safari (298). Reduced motion: today's rule makes a screen change a 120ms crossfade; the skill says a cut. Whichever the lead sets app-wide applies here. Interrupt: a pause tap on the arriving player works on frame one.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Lift away",
+     "summary": "The player is already there underneath; the loading screen fades and lifts off it.",
+     "spec": "player snaps under · overlay copy opacity 1→0, y 0→-8, 180ms (.55,0,1,.45)",
+     "recipe": "exits (inert copy, nudge)",
+     "principles": [
+      "Exits",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Quietest and fastest, but the one screen open in the app that does not move forward.",
+     "recommended": false,
+     "reduced": "Overlay gone on one frame; player there.",
+     "demo_note": "Loader, all five rows ticked copper. 400ms (end of the last beat): the player is already under it - picture, title 'Who won the Ryder Cup', progress bar starting, pause icon. The loader fades and lifts 8px, gone by 580ms. Three tiny sound bars by the title move from 400ms (audio playing). Loop 2000ms.",
+     "specShort": "180ms in · fade + lift 8"
+    },
+    {
+     "key": "B",
+     "name": "Push from the loader",
+     "summary": "The owner's push, with the loading screen as the screen leaving: it drifts left and dims as the player slides in.",
+     "spec": "player x 100%→0 · loader copy x 0→-28%, opacity 1→.55 · 320ms (.2,.8,.2,1)",
+     "recipe": "page transition (the owner's push, 292)",
+     "principles": [
+      "Similarity",
+      "Staging",
+      "Make it mean something"
+     ],
+     "tradeoff": "Fixes the flash and keeps the app's one meaning for 'forward'; the push is 140ms longer than A's lift.",
+     "recommended": true,
+     "why": "Keeps the owner's push pick and its meaning ('forward'), and fixes the flash: what slides away is what you were looking at.",
+     "reduced": "Lead's app-wide rule: a cut, or today's 120ms crossfade.",
+     "demo_note": "Loader, five rows ticked. 400ms: the player slides in from the right edge over 320ms; behind it the loader (not the search page) slides 28% left and dims to 55%. By 720ms the player fills the phone: picture, title 'Who won the Ryder Cup', progress starting, sound bars moving from 400ms. Loop 2000ms.",
+     "specShort": "320ms push · loader to -28%"
+    },
+    {
+     "key": "C",
+     "name": "Iris from the chevrons",
+     "summary": "The loading screen opens from its own chevrons outward, a growing circle revealing the player behind it.",
+     "spec": "player revealed via circle(0 at chevrons)→circle(150%) on the loader copy, 340ms (.77,0,.175,1)",
+     "recipe": "masks and reveals (iris)",
+     "principles": [
+      "Origin",
+      "Make it mean something"
+     ],
+     "tradeoff": "Says 'FAM opens onto your episode'; a third reveal shape in the app, unverified on iPhone Safari.",
+     "recommended": false,
+     "reduced": "Overlay gone on one frame; player there.",
+     "demo_note": "Loader, five rows ticked. 400ms: a circular hole opens at the chevrons' centre and grows over 340ms until the whole loader is gone; through it the player is visible - picture, title, progress. Sound bars move from 400ms. Loop 2000ms.",
+     "specShort": "340ms io · iris from chevrons"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "lists-arrive",
+   "title": "Trending and the A-Z arrive",
+   "status": "new",
+   "where": "static/index.html:7174 (paintTrendSearches), :7217 (loadTrendSearches), :15014 (drawMyFamSearch)",
+   "trigger": "the trending fetch lands; the A-Z or a query's results land",
+   "frequency": "few",
+   "now": "Trending's label and five chips appear in one frame when the fetch lands, and swap in one frame on a refetch. The A-Z replaces 'Loading...' in one frame; each query flashes 'Searching...'.",
+   "verdict": "Content arriving on its own: stagger the first 6, 8px, 40ms - the owner's rails motion. Only new items arrive, never mid-slide. No 'Searching...' before 300ms.",
+   "severity": "new",
+   "principles": [
+    "Stagger",
+    "Similarity",
+    "Doherty threshold",
+    "Frequency of use"
+   ],
+   "notes": "Trending: loadTrendSearches (7217) paints from memory at once, then fetches at most once a minute (TREND_REFETCH_MS); the first open in a session paints nothing, then the box un-hides with five chips in one frame 100-500ms later. paintTrendSearches rewrites innerHTML on every call, so a refetch with a changed order swaps chips in one frame. Hiding on the first keystroke and showing again on clear are keyboard-driven: keep both instant. A: reuse Motion.arrive (8px, 260ms, 40ms apart, rails pick of 292) with a 'shown' map keyed on the query, exactly as arriveRails keys on topic id, so a refetch animates only chips that are new; the label leads when the box was hidden. Skip the stagger when #screen-home is .arriving (the tab slide moves the content as one piece - Stagger says content riding in on a moving container arrives with it), and when nothing is new. The A-Z (screen-myfamsearch, opened by the bookshelf): first draw replaces 'Loading the episodes people made...' in one frame - stagger the first 6 rows the same way (letters included); a query (250ms debounce) puts 'Searching...' in place of the list at once, so a 120ms answer flashes it. Keep the old rows at .6 opacity and show 'Searching...' only after 300ms (async-button rule), then cross-fade results 150ms. C (paint the last list from the device) is the skill's 'show what they saw last time' rule, but trending is 'cache only' (190): a day-old chip may no longer be kept, and its tap would write an episode instead of replaying. Reduced motion: chips and rows appear at once; 'Searching...' still waits 300ms.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rails' arrival",
+     "summary": "The label appears, then each trending search fades up a few pixels just after the one before, like dailyFAM's rails.",
+     "spec": "y 8→0 + fade 260ms (.2,.8,.2,1) · 40ms apart · first 6 · new ids only · results fade 150ms",
+     "recipe": "entrances: split, then stagger (copies 40ms)",
+     "principles": [
+      "Stagger",
+      "Similarity",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Consistent with the owner's rails pick; five chips finish 420ms after the fetch lands.",
+     "recommended": true,
+     "why": "The same motion as the owner's rails, so FAM's lists read as one family; only new items move, so nothing replays.",
+     "reduced": "Chips and rows appear at once; no 'Searching...' before 300ms.",
+     "demo_note": "Search page at rest: FAM logo, bar, three bubbles, empty space below. 300ms: 'TRENDING SEARCHES' label fades up 8px (260ms). Chips 1-5 fade up 8px each at 340, 380, 420, 460, 500ms, each over 260ms, all in by 760ms. Hold. 2600ms: everything below the bubbles fades out 150ms (reset). Loop 3000ms.",
+     "specShort": "260ms fam · y8 · 40ms apart"
+    },
+    {
+     "key": "B",
+     "name": "Unroll under the bubbles",
+     "summary": "The whole list unrolls downward from under the bubbles in one motion, its text sharpening as it comes.",
+     "spec": "clip inset(0 0 100% 0)→inset(0) 300ms (.32,.72,0,1) · blur 2px→0 · changed chip fades 200ms",
+     "recipe": "masks and reveals (wipe) + cross-fade",
+     "principles": [
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "One motion instead of five; a mask reveal is new vocabulary for lists in this app.",
+     "recommended": false,
+     "reduced": "List appears at once.",
+     "demo_note": "Search page as A. 300ms: the trending block (label + five chips) is revealed top to bottom by a wipe over 300ms, text going from 2px soft to sharp. 1800ms: the third chip's text cross-fades to a new question over 200ms (a refetch). Loop 3000ms.",
+     "specShort": "300ms out · wipe down · blur 2→0"
+    },
+    {
+     "key": "C",
+     "name": "Last list first",
+     "summary": "Trending is already there when the page opens - last time's list - and only a chip that changed fades to its new text.",
+     "spec": "paint last-known list on open · changed chips cross-fade 150ms · nothing arrives",
+     "recipe": "Doherty: reads show the last state, then reconcile",
+     "principles": [
+      "Doherty threshold",
+      "Tesler's law"
+     ],
+     "tradeoff": "Nothing pops in late, but an old chip may no longer be cached: its tap would write and spend, not replay.",
+     "recommended": false,
+     "reduced": "Changed chips swap text on one frame.",
+     "demo_note": "Search page; trending already shown with five chips on the first frame. 900ms: chip 2's text fades out and its new text fades in, 150ms; the others do not move. Loop 2400ms.",
+     "specShort": "already there · changed fades 150"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "go-deeper-box",
+   "title": "Go Deeper: suggestion and length",
+   "status": "new",
+   "where": "static/index.html:9067 (showThreadSuggestion), :9077, :12000 (setGoDeeperMinutes), :1334",
+   "trigger": "the predicted line lands while the box is open; tap a length",
+   "frequency": "few",
+   "now": "The chip's label and line swap in one frame when /api/next lands (its height can jump); a tap then sends the new line. Length pills swap their copper fill in one frame.",
+   "verdict": "A replacement: cross-fade in one cell, never under a finger. The length is a radio: a sliding thumb says what changed in 220ms. The box itself is the shared modal.",
+   "severity": "new",
+   "principles": [
+    "Replacements",
+    "Errors: prevent then recover",
+    "Interruptible",
+    "Make it mean something"
+   ],
+   "notes": "The box (5149) opens with the shared modal fade-and-lift; not reviewed here. Inside it: showThreadSuggestion (9067) first draws the title-built line ('Follow the thread' - What's the bigger story behind X?), and fetchEpisodeThread / openGoDeeperOn replace it with the writer's <<NEXT:>> line ('Pick up the thread') whenever it lands - often while the box is open, because the episode is still being written. The replacement is innerHTML: label and words change in one frame and the chip's height changes, so the field and pills below jump. Worse, useThreadSuggestion (9077) reads the text at click time: a finger already on the chip when the line lands sends a question the listener never read (broken, Errors). Fix in every option: remember the text shown at pointerdown and send that; while a pointer is down on the chip, hold the swap until pointerup + 300ms. A: stack old and new in one grid cell (grid-area 1/1), old fades 150ms ease-in, new fades 200ms ease-out, cell height via grid-rows or FLIP 220ms ease-in-out. Lengths (role=radio, 1333-1338): one absolutely positioned copper thumb under the six pills, moved with translateX and width by scaleX from its left (never width), 220ms (.77,0,.175,1); the digits' color 150ms. Arrow keys (radiogroup) move it instantly (keyboard rule). B reuses the writer's title wipe (Motion.retitle, 320ms, 298) so any line FAM wrote arrives one way; 320ms is long for text about to be tapped. C fixes only the tap with no motion. Continue: the box closes (shared) and the loader should open on the same frame (see 'The loading screen arrives'): today up to 700ms of nothing while acCorrectQuestion runs. Reduced motion: text and thumb change on one frame; the swap still waits for the finger.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Cross-fade, sliding thumb",
+     "summary": "The suggestion fades from the stand-in line to FAM's real one in place; picking a length slides a copper thumb.",
+     "spec": "text out 150ms, in 200ms · height 220ms (.77,0,.175,1) · thumb x 220ms (.77,0,.175,1)",
+     "recipe": "replacements (one grid cell) + sliders (thumb on transform)",
+     "principles": [
+      "Replacements",
+      "Make it mean something",
+      "Errors: prevent then recover"
+     ],
+     "tradeoff": "Two familiar motions; the thumb is a new element to build in the radiogroup.",
+     "recommended": true,
+     "why": "Answers 'what changed' in both places with the skill's own recipes, and closes the tap-sends-unread-text hole.",
+     "reduced": "Text and thumb change on one frame; the swap waits for the finger.",
+     "demo_note": "Modal 'Go deeper'. Chip: small caps 'FOLLOW THE THREAD' over 'What's the bigger story behind the Ryder Cup?'; field; six pills 1 1.5 2 3 4 5 with '3' copper. 800ms: the chip's label and line fade out (150ms) as 'PICK UP THE THREAD' / 'How Europe's captain chose his wildcards' fade in (200ms); chip grows one line over 220ms, field and pills ease down. 1900ms: finger taps '4'; the copper thumb slides from 3 to 4 in 220ms; digits recolor. Loop 3200ms.",
+     "specShort": "150/200 fade · thumb 220ms io"
+    },
+    {
+     "key": "B",
+     "name": "Writes itself in",
+     "summary": "FAM's line wipes in from left to right over the stand-in, the way the player's title does; lengths just recolor.",
+     "spec": "label swap at once · line clip-path wipe 320ms (.4,0,.2,1) · pills color 150ms ease",
+     "recipe": "masks and reveals (the owner's title wipe, 298)",
+     "principles": [
+      "Similarity",
+      "Make it mean something"
+     ],
+     "tradeoff": "Every line FAM writes arrives the same way; 320ms is long for words someone may be about to tap.",
+     "recommended": false,
+     "reduced": "Line and pills change on one frame.",
+     "demo_note": "Modal as A. 800ms: label changes to 'PICK UP THE THREAD'; the new line is revealed left to right over 320ms where the old one was; chip grows at once. 1900ms: tap '4'; '3' loses its copper and '4' gains it, 150ms color fades. Loop 3200ms.",
+     "specShort": "320ms wipe · pills color 150"
+    },
+    {
+     "key": "C",
+     "name": "Instant, guarded",
+     "summary": "Nothing animates; the suggestion simply never changes under your finger, and sends what you saw.",
+     "spec": "no motion · swap held while pointer is down (+300ms after up) · tap sends text shown at pointerdown",
+     "recipe": "errors: prevent (no motion)",
+     "principles": [
+      "Errors: prevent then recover",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Fixes the real bug at no cost; the line still changes under the eye with no cue.",
+     "recommended": false,
+     "reduced": "Same as with motion: one-frame swap, guarded.",
+     "demo_note": "Modal as A. 600ms: finger rests on the chip (pressed). 800ms: the real line arrives but the chip keeps the stand-in. 1100ms: finger lifts - the stand-in question is what starts (loader appears). Reset; 2200ms: with no finger, the line swaps in one frame. Loop 3200ms.",
+     "specShort": "0ms · held under finger"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "bubble-ack",
+   "title": "Length and Voice say 'set'",
+   "status": "new",
+   "where": "static/index.html:11349 (openLengthMenu), :11946 (voiceItem), :4500, :4504 (bubbles)",
+   "trigger": "pick a different length or voice in the sheet",
+   "frequency": "few",
+   "now": "Nothing on the page changes after a pick - the bubbles never print the choice (190) - so the only proof is the tick the next time the sheet opens.",
+   "verdict": "'Did my action register?' with no words allowed: motion is the only channel. Small, inside the icon, chained after the sheet drops, only when the value changed.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Make it mean something",
+    "Staging",
+    "Peak-end"
+   ],
+   "notes": "Rule search-bar: 'Length (1-5 min) and Voice bubbles never print the choice; back to 1.5 on every return to the app.' The sheets (showActionSheet, shared fade-and-lift) tick the current item with '  ✓' and close on a pick; the action then runs. On the search page nothing changes, so a listener who picks 3 min sees no sign it took (Doherty: the press must register). Fire only when the value changed (openLengthMenu computes 'changed'; voiceItem returns early on the same voice), only on the search page (not when the same menus are opened from the player or Settings), and start when the sheet's 150ms drop ends (Staging: one thing at a time). A is color only (exempt from motion budgets) and holds ~1s. B: the stopwatch's hand path (M12 9v4l2.5 2.5) rotates one full turn about the dial centre (12,13 in the 24 viewBox - transform-box: view-box) over 420ms ease-in-out; the voice icon's five strokes (M4 10v4 ... M20 11v2) each scaleY 1 to 1.6 to 1 from their own centre, 240ms, 35ms apart. Both icons are 14px, so the motion is small in absolute terms; it is the icon of the thing you changed, which names it. C makes the hand a standing gauge (angle from minutes: 1 min 30deg ... 5 min 150deg) - it lets the bubble carry the choice, which may count as 'printing' under 190; offered for the owner to rule on, not recommended. The length resets to 1.5 on return; C's hand would reset with it (no motion on reset - it is at rest on paint). Reduced motion: A and B show the copper state for 1s with no transitions (the information survives); C's hand jumps to its angle. Tenth use: a 420ms turn after each pick is fine at a few a session.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Copper blink",
+     "summary": "After you pick, the bubble's border and icon glow copper for a moment, then fade back.",
+     "spec": "+150ms · border + icon → copper 120ms ease · hold 600ms · back 300ms ease",
+     "recipe": "color transition (press/hover/color class)",
+     "principles": [
+      "Doherty threshold",
+      "Peak-end"
+     ],
+     "tradeoff": "Quietest, no movement at all; easy to miss on a phone in sunlight.",
+     "recommended": false,
+     "reduced": "Copper for 1s, no fades.",
+     "demo_note": "Search page; bubbles Length / Voice / Private. 200ms: tap Length; a sheet rises with 1, 1.5 ✓, 2, 3, 4, 5 min. 1000ms: tap '3 min'; the sheet drops (150ms). 1150ms: the Length bubble's border and stopwatch turn copper (120ms), hold, and fade back by 2170ms. Loop 2800ms.",
+     "specShort": "copper 120 · hold 600 · back 300"
+    },
+    {
+     "key": "B",
+     "name": "The icon acts",
+     "summary": "After you pick a length, the stopwatch hand sweeps once round; after a voice, its little bars bounce like speech.",
+     "spec": "+150ms · hand rotate 360°, 420ms (.77,0,.175,1) · bars scaleY 1→1.6→1, 240ms, 35ms apart",
+     "recipe": "make it mean something (icon-level motion) + stagger",
+     "principles": [
+      "Make it mean something",
+      "Doherty threshold",
+      "Staging"
+     ],
+     "tradeoff": "Says which setting took and what it is about, without printing the value; two tiny icon builds.",
+     "recommended": true,
+     "why": "Answers 'did it take?' at the control, in its own language (time, a voice), and still never prints the value.",
+     "reduced": "The changed bubble's icon turns copper for 1s instead.",
+     "demo_note": "Search page. 200ms: tap Length; sheet with minutes. 1000ms: tap '3 min'; sheet drops 150ms. 1150ms: the stopwatch's hand sweeps one full turn by 1570ms. 1900ms: tap Voice; sheet of voices; 2600ms: tap 'Ava'; sheet drops. 2750ms: the Voice icon's five bars hop in turn left to right, 35ms apart, settled by 3030ms. Loop 3600ms.",
+     "specShort": "hand 360° 420ms io · bars 240"
+    },
+    {
+     "key": "C",
+     "name": "Hand shows length",
+     "summary": "The stopwatch hand turns to point at the length you picked and stays there, a quiet gauge; Voice blinks copper.",
+     "spec": "hand angle = 30° + (min-1)·30°, 300ms (.77,0,.175,1), stays · Voice: copper 120ms/600ms/300ms",
+     "recipe": "mapRange (value to angle)",
+     "principles": [
+      "Make it mean something",
+      "Tesler's law"
+     ],
+     "tradeoff": "The choice is readable at a glance, but that may count as printing it - 190 says never. Owner's call.",
+     "recommended": false,
+     "reduced": "Hand jumps to its angle; Voice copper 1s.",
+     "demo_note": "Search page; stopwatch hand at the 1.5-minute angle. 200ms: tap Length; sheet. 1000ms: tap '4 min'; sheet drops. 1150ms: the hand turns clockwise to the 4-minute angle (120deg) by 1450ms and stays. 2000ms: tap Length, pick '1 min'; the hand turns back to 30deg. Loop 3400ms.",
+     "specShort": "hand to 3 min 300ms io · stays"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "voice-sheet",
+   "title": "Voice search opens and closes",
+   "status": "existing",
+   "where": "static/index.html:326 (sheet-in), :11702 (openVoiceSearch), :11763 (close), :11779 (send)",
+   "trigger": "tap the mic, or say 'hey FAM'; X; send",
+   "frequency": "few",
+   "now": "Opens on keyframes sheet-in: y 14→0 + fade, 220ms (.22,.7,.3,1), from mid-screen. Closes in one frame. Send hides it, search flashes (up to 700ms), then the loader cuts in.",
+   "verdict": "Few a session: both ways, on a transition (interruptible), exit 20-30% shorter. Grow it from the mic it came from. On send, leave it under the loader.",
+   "severity": "friction",
+   "principles": [
+    "Origin",
+    "Exits",
+    "Interruptible",
+    "Staging",
+    "Similarity"
+   ],
+   "notes": "openVoiceSearch (11702) un-hides #voiceSearch and restarts the keyframe by removing and re-adding .open (void offsetWidth). Keyframes cannot turn around: an X tapped during the 220ms entrance cuts it. closeVoiceSearch (11763) sets hidden - no exit at all. sendVoiceSearch (11779) closes, writes the words into the bar and calls runSearch, which may wait 700ms for the speller with search on screen, then generate() cuts the loader in: two full-screen cuts with search flashing between. In every option, send keeps the sheet up until the loader is on screen (loader fades in over it, then the sheet is hidden beneath) - no exit animation on send. B: clip-path circle from the mic's centre, measured in the sheet's own box (the sheet starts at --sb-h), radius 20px to hypot(w,h); the FAM ring scales .9 to 1 40ms behind (follow-through; few a session, not many). Close: an inert copy shrinks back into the mic over 240ms (.77,0,.175,1), like shrinkStory - the real sheet is hidden on frame one, so search is live. If the mic is not on screen (wake word, or a re-render), grow from the FAM ring instead: 'FAM heard you'. Wake word from another tab: show search without the tab slide (Motion.still or showScreen with no how) so only the sheet moves. Both B and C reuse the owner's story grow/close (298) vocabulary. C flies a copper disc from the mic into the 104px ring on an arc (the mic is ~110px right of and ~185px above the ring's centre - both axes past 40px, so Arcs applies) - literal but 380ms each voice search. Reduced motion (all): appears and closes on one frame; send goes straight to the loader. Interrupt: B's open and close are WAAPI animations reversed from their current time (anim.reverse()) so a quick X turns the circle around.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Sheet, both ways",
+     "summary": "Voice search rises in as today, and now fades and drops away when closed; sending goes straight to the loader.",
+     "spec": "in y16→0 + fade 240ms (.32,.72,0,1) · X: copy out y→8, 170ms (.55,0,1,.45) · send: under loader",
+     "recipe": "drawer and sheet (transition, inert copy exit)",
+     "principles": [
+      "Exits",
+      "Interruptible",
+      "Staging"
+     ],
+     "tradeoff": "Smallest change, consistent with every sheet; still appears from nowhere in particular.",
+     "recommended": false,
+     "reduced": "Opens and closes on one frame; send goes straight to the loader.",
+     "demo_note": "Search page. 300ms: finger taps the mic in the bar; the white voice screen rises 16px and fades in by 540ms: 'Listening...' near the bottom, FAM ring in the centre with copper border. 1700ms: finger taps the X top-right; the screen fades and drops 8px, gone by 1870ms; search page with an empty bar. Loop 2600ms.",
+     "specShort": "240ms out · y16 · close 170 in"
+    },
+    {
+     "key": "B",
+     "name": "Grows from the mic",
+     "summary": "The listening screen opens as a circle out of the mic you tapped, and closes back into it.",
+     "spec": "circle(20px at mic)→full 300ms (.32,.72,0,1) · ring .9→1 +40ms · close copy 240ms (.77,0,.175,1)",
+     "recipe": "masks and reveals (iris) - the owner's story grow (298)",
+     "principles": [
+      "Origin",
+      "Similarity",
+      "Exits"
+     ],
+     "tradeoff": "Answers 'where did this come from?' and matches the story pick; animated circle() unverified on iPhone Safari.",
+     "recommended": true,
+     "why": "Answers 'where did this come from?', closes the way it opened, matches the owner's story pick, and send no longer flashes search.",
+     "reduced": "Opens and closes on one frame; send goes straight to the loader.",
+     "demo_note": "Search page; bar at y150 with the mic near its right end. 300ms: finger taps the mic; a white circle grows from the mic until it fills the phone at 600ms, revealing the voice screen; the FAM ring in the middle scales from 90% to full, landing 40ms after. 'Listening...' at the bottom. 1700ms: X tapped; the screen shrinks back into a circle at the mic, gone by 1940ms. Loop 2600ms.",
+     "specShort": "300ms out · iris from mic · 240"
+    },
+    {
+     "key": "C",
+     "name": "Mic becomes the ring",
+     "summary": "A copper disc leaves the mic, arcs down into the centre and grows into the FAM ring as the screen fades in behind it.",
+     "spec": "disc ghost arc (bulge 15%) 40→104px 380ms (.77,0,.175,1) · sheet fade 220ms · close 280ms",
+     "recipe": "arcs + shared element (ghost)",
+     "principles": [
+      "Arcs",
+      "Origin",
+      "Make it mean something"
+     ],
+     "tradeoff": "Most literal (the mic is what listens), but a 380ms flight on every voice search; tenth use may drag.",
+     "recommended": false,
+     "reduced": "Opens and closes on one frame.",
+     "demo_note": "Search page. 300ms: tap the mic; a 20px copper disc lifts off the mic and travels down-left on a soft arc to the screen centre, growing to the 52px ring, landing at 680ms; the white voice screen fades in behind it from 300 to 520ms. 'Listening...' appears. 1700ms: X; the ring flies back to the mic and the screen fades, done at 1980ms. Loop 2800ms.",
+     "specShort": "380ms io · disc arcs into ring"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "search-now",
+   "title": "Search now: count, stop, fix",
+   "status": "existing",
+   "where": "static/index.html:11726 (startVoiceCountdown), :11747 (stop), :373-389 (.vs-bottom), :11518",
+   "trigger": "speech stops; tap X; tap the heard words",
+   "frequency": "few",
+   "now": "Pill + X appear in one frame; fill sweeps scaleX 0→1, 5000ms linear (right). X or a tap on the words: X vanishes, fill snaps full, pill jumps 29px to centre - one frame.",
+   "verdict": "The 5s linear sweep is correct (it is time itself). Stopping must not look like the count finishing: freeze, settle to 'ready' by fade, X exits, pill glides.",
+   "severity": "friction",
+   "principles": [
+    "Make it mean something",
+    "Replacements",
+    "Exits",
+    "Interruptible",
+    "Errors: prevent then recover"
+   ],
+   "notes": "Kept in every option: startVoiceCountdown's fill is transform scaleX on a 5000ms linear transition set two frames after the reset, and the timer and the fill share VOICE_AUTO_SEND_MS (159) - the sweep is the countdown and must keep moving under reduced motion (progress exception); today it does, since the transition is set in JS. Today's stop (stopVoiceCountdown(true), 11747) sets transition none and scaleX(1): a part-filled button becomes full in one frame - the same picture the count shows a frame before it sends, so stopping looks like sending. The X is hidden (paintVoiceState) and .vs-bottom centres its children, so the pill moves (48+10)/2 = 29px right in one frame (shot: pill 156-508, X 528-624 at 2x). Editing (tap the words) runs the same stop, plus a background tint .2s and an underline that appears at once. The pill's arrival (.vs-bottom[hidden] is visibility:hidden) is one frame; a 12px rise draws the eye down to the count at the moment it starts. A: read the fill's current scale (getComputedStyle transform), pin it, then fade a full copper layer (a second span) over it in 150ms; the X leaves as an inert copy (scale .9, fade 150ms ease-in); the pill FLIPs from its old x to centre over 220ms. B drains the fill back to 0 and leaves the pale button - says 'undone' most plainly, but changes the end state the code chose on purpose ('the X means not by itself, not not at all'): owner's call. C reserves the X's slot (visibility, not display) so nothing moves and keeps the snap. Interrupt: the mark tapped to add more hides the pill (listening) - its copy exits 150ms. Reduced motion: the pill appears at once, the fill still sweeps, stop is one frame (no FLIP).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Freeze, then ready",
+     "summary": "Stop the count and the fill halts, then softly becomes a full ready button; the X fades, the button glides to centre.",
+     "spec": "rise y12→0 220ms · stop: full layer fades 150ms · X out 150ms ease-in · pill FLIP 220ms ease-in-out",
+     "recipe": "replacements (cross-fade) + exits + FLIP",
+     "principles": [
+      "Make it mean something",
+      "Replacements",
+      "Exits"
+     ],
+     "tradeoff": "Stopping reads as stopping and nothing jumps; one more layer in the button.",
+     "recommended": true,
+     "why": "The stop looks like a stop - the fill never races to full - nothing jumps, and the five-second sweep the owner picked is untouched.",
+     "reduced": "Pill appears; fill still sweeps; stop is one frame.",
+     "demo_note": "Voice screen, words 'who won the ryder cup' at top, still FAM ring. 200ms: 'Search now' pill and round X rise 12px into place by 420ms; the copper fill starts sweeping left to right (real speed, 5s). 2450ms (fill ~45%): finger taps X. The X shrinks and fades by 2600ms; the fill stops dead; a full copper layer fades over it by 2600ms; the pill glides 29px right to centre by 2670ms. Status reads 'Tap the words to fix them...'. Loop 3600ms.",
+     "specShort": "freeze · fade 150 · FLIP 220 io"
+    },
+    {
+     "key": "B",
+     "name": "Drain back",
+     "summary": "When you stop the count, the fill runs back out to empty and the button waits, pale, for you to press it.",
+     "spec": "stop: fill scaleX now→0, 260ms (.77,0,.175,1) · X out 150ms · pill FLIP 220ms",
+     "recipe": "make it mean something (reverse the timer) + exits",
+     "principles": [
+      "Make it mean something",
+      "Interruptible"
+     ],
+     "tradeoff": "Most plainly 'undone', but changes the end state from a full ready button to a pale one - owner's call.",
+     "recommended": false,
+     "reduced": "Fill empties and X goes on one frame.",
+     "demo_note": "Voice screen as A. 200ms: pill + X rise in; fill sweeps. 2450ms: tap X; the copper fill slides back to empty over 260ms; the X shrinks away; the pill glides to centre. The pale pill reads 'Search now'. Loop 3600ms.",
+     "specShort": "drain 260ms io · FLIP 220"
+    },
+    {
+     "key": "C",
+     "name": "Hold the X's place",
+     "summary": "No new motion: the X's space stays reserved so the button never jumps; the fill still snaps to full.",
+     "spec": "X hidden with visibility (slot kept) · everything else as today",
+     "recipe": "occam's razor (layout fix only)",
+     "principles": [
+      "Occam's razor / progressive disclosure",
+      "Replacements"
+     ],
+     "tradeoff": "One line of CSS removes the jump; the snap-to-full still looks like the count finishing.",
+     "recommended": false,
+     "reduced": "Same as today.",
+     "demo_note": "Voice screen as A. 200ms: pill and X appear at once; fill sweeps. 2450ms: tap X; the X disappears but its gap remains, so the pill stays put; the fill jumps to full in one frame. Loop 3600ms.",
+     "specShort": "0ms · X's slot kept · snap full"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "voice-waves",
+   "title": "The lines while you talk",
+   "status": "existing",
+   "where": "static/index.html:344-358 (.vs-waves, vs-wave, vs-line), :11595 (voiceLevelLoop)",
+   "trigger": "speech start and result events",
+   "frequency": "few",
+   "now": "While speaking, arcs pulse scale 1→1+lvl·0.09 (lines scaleX 1+lvl·0.35), 1.1s ease-in-out loop, 0/.18/.36s delays; opacity follows lvl over .35s. Below lvl .08 scale snaps to 1.",
+   "verdict": "Keep 'moves only while somebody talks'. Drive it from the rAF loop that exists, as a sine with phases on the 8 paths, so it settles instead of snapping.",
+   "severity": "polish",
+   "principles": [
+    "Compound motion and loops",
+    "Interruptible",
+    "Properties",
+    "Make it mean something"
+   ],
+   "notes": "The rule (151 comment at 11467): the lines move because somebody is talking, driven by the recogniser's speech and result events, so a silent room shows a still mark. Keep it. Today voiceLevelLoop (11595) runs every frame while the sheet is open: lvl *= 0.93, writes --lvl on the whole #voiceSearch (every descendant restyles - the skill's 'never animate a custom property read deep in a tree'), and toggles .speaking when lvl > .08. A result sets lvl to 1; it falls below .08 after ~35 frames (~580ms). .speaking adds the vs-wave keyframes; removing the class removes the animation, so the arcs jump to scale 1 mid-pulse while their opacity fades over .35s - a seam each time speech pauses (keyframes on a toggle). Also var(--lvl) inside @keyframes: live updates are unverified on iPhone Safari. A: in the same loop, compute each path's transform from a sine with a phase per ring (0, .16, .33 cycles - phase, not delay) and amplitude lvl, write style.transform and opacity on the 8 paths only; as lvl decays the motion shrinks to rest smoothly; stop the loop when not listening and lvl is ~0 (battery), restart on speech. B is a different metaphor: each result event (throttled to one per 150ms) emits one ring from the mark - honest per event, but busy when results stream, and it drops the arcs the owner approved. C keeps keyframes always running with amplitude on .vs-waves, so a pause fades the amplitude rather than removing the animation. Reduced motion: no scaling; the arcs' opacity still follows lvl (an indicator that it is hearing you), changing without a transition.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Sine, settles to rest",
+     "summary": "The same arcs breathe outward while you talk, each ring a beat behind the last, and calm smoothly when you stop.",
+     "spec": "scale 1+0.09·lvl·sin(2π·0.9t+φ) · φ 0/.16/.33 · opacity .35+.65·lvl, to 0 at rest · 8 paths",
+     "recipe": "loops (sine, phase offsets) + performance",
+     "principles": [
+      "Compound motion and loops",
+      "Interruptible",
+      "Properties"
+     ],
+     "tradeoff": "Same look, no seam, cheaper per frame; moves a CSS animation into script that already runs.",
+     "recommended": true,
+     "why": "The owner's arcs, unchanged in look, with the snap on every pause gone and the per-frame cost cut to eight paths.",
+     "reduced": "Arcs don't move; their opacity still follows what is heard.",
+     "demo_note": "Voice screen: FAM ring centre, three copper arcs each side, two short lines below, words at top. 200ms: speech starts; arcs fade up and breathe outward, inner ring first, middle a sixth of a cycle later, outer a third; lines stretch. Words appear one at a time every 300ms: 'who', 'won', 'the', 'ryder', 'cup'. 1800ms: talking stops; over ~600ms the breathing shrinks to stillness and the arcs fade out. Loop 3000ms.",
+     "specShort": "sine 0.9Hz · phases · settles"
+    },
+    {
+     "key": "B",
+     "name": "A ripple per word",
+     "summary": "Each word FAM hears sends one ring outward from the mark; between words, nothing moves.",
+     "spec": "per result (max 1/150ms): ring scale 1→1.35, opacity .8→0, 420ms (.32,.72,0,1) · arcs removed",
+     "recipe": "make it mean something (one event, one ripple)",
+     "principles": [
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Each ring is a word heard - honest - but bursts of results look busy, and the owner's arcs go.",
+     "recommended": false,
+     "reduced": "No rings; ring border turns copper while words arrive.",
+     "demo_note": "Voice screen with FAM ring only. 200ms: 'who' appears at top and one copper ring ripples out from the mark to 1.35x, fading by 620ms. 500ms: 'won' and a second ripple; 800ms 'the', 1100ms 'ryder', 1400ms 'cup', each with its ripple. Then still. Loop 3000ms.",
+     "specShort": "1 ring per word · 420ms out"
+    },
+    {
+     "key": "C",
+     "name": "Today's, tuned",
+     "summary": "Looks as today, but when you pause the arcs ease to rest instead of jumping back.",
+     "spec": "keyframes always on · amplitude var on .vs-waves only · pauses fade amplitude, no class toggle",
+     "recipe": "loops (cleaned)",
+     "principles": [
+      "Interruptible",
+      "Properties"
+     ],
+     "tradeoff": "Least code; still relies on var() inside @keyframes updating live on iPhone Safari (unverified).",
+     "recommended": false,
+     "reduced": "Arcs don't move; opacity follows what is heard.",
+     "demo_note": "Voice screen as A. 200ms: speech; arcs pulse on a 1.1s loop, rings 180ms apart. 1800ms: speech stops; the pulse's size eases down to nothing over ~500ms while the arcs fade - no jump back to rest. Loop 3000ms.",
+     "specShort": "1.1s loop · amplitude fades"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "private-blind",
+   "title": "Private search: the blind",
+   "status": "existing",
+   "where": "static/index.html:6531 (Motion.dimDown), :7048 (setPrivateSearch), :277",
+   "trigger": "tap the Private bubble",
+   "frequency": "rare",
+   "now": "A copy of the old page is cut away by clip-path inset: on, from the top, 320ms (.4,0,.2,1); off, from the bottom, 260ms. The pressed bubble sits under the static copy; the toast rises at once.",
+   "verdict": "The owner's pick (298), kept. Let the touched bubble lead (cut it out of the copy), chain the toast after the blind, and drop the .25s background fade that leaks.",
+   "severity": "polish",
+   "principles": [
+    "Staging",
+    "Doherty threshold",
+    "Similarity",
+    "Exits",
+    "Reduced motion"
+   ],
+   "notes": "dimDown (6531): settle(), clone #screen-home as .leaving.on-top (pointer-events none, z 3), copy the textarea's value, paint the new state underneath, then clip the copy away - inset top 0 to 100% (on, 320ms) or bottom 0 to 100% (off, 260ms), EASE_IO. The real page is live under it at once (good). Three faults: (1) the Private bubble sits ~40% down the page, so the static copy covers the real bubble - its press squeeze and its new white state - until the edge passes it, ~130ms in: the control you touched is the last thing to answer. Fix: in the copy, set the bubble to visibility:hidden so the real one shows through a hole, flipping on frame one. (2) setPrivateSearch's toast ('Private search is on') rises while the blind falls - chain it at +320ms. (3) #screen-home.private-search has transition: background .25s (277); dimDown turns it off during the blind, but under reduced motion (dimDown just paints) and on a theme switch it fades the background while text flips at once - light text on cream for a moment. Remove it. The copy also clones the tab bar and mini player with ids for 320ms (by design; listed in bugs). The private note's 4 lines appear under the blind and push trending down; the wipe reveals the new layout, so the jump is hidden by the edge. Interrupt: a second tap mid-blind calls settle() (finishes the first at once) and starts the other direction - acceptable for a rare toggle. B's hem is a secondary detail riding the edge - allowed for a rare moment, never for a many-times one. C's circle from the bubble replaces the owner's metaphor - shown because Origin argues for it, not recommended. Reduced motion (all): repaint on one frame, no background fade, toast after.",
+   "options": [
+    {
+     "key": "A",
+     "name": "The blind, tuned",
+     "summary": "The owner's blind; the Private button flips the moment you touch it, and the message waits for the blind to land.",
+     "spec": "on inset-top 0→100% 320ms, off inset-bottom 260ms, (.77,0,.175,1) · bubble cut out · toast +320ms",
+     "recipe": "masks and reveals (the owner's blind, 298) + staging",
+     "principles": [
+      "Staging",
+      "Doherty threshold",
+      "Similarity"
+     ],
+     "tradeoff": "Keeps the pick; the hole in the copy is a few lines in dimDown.",
+     "recommended": true,
+     "why": "Keeps the owner's pick and fixes the one thing it hides - the button you pressed - plus the toast clash and the background leak.",
+     "reduced": "Repaints on one frame, no background fade; message after.",
+     "demo_note": "Cream search page. 300ms: finger taps 'Private'; on that frame the bubble turns white-on-dark and squeezes. From 300ms, charcoal is revealed from the top down as the cream copy is cut away, edge passing the bubble (which is already charcoal-themed) at ~440ms, done at 620ms; the lock note shows under the bubbles. 620ms: 'Private search is on' appears above the tabs. 2000ms: tap again; cream returns as the charcoal copy lifts from the bottom up over 260ms. Loop 3400ms.",
+     "specShort": "320 / 260ms io · bubble cut out"
+    },
+    {
+     "key": "B",
+     "name": "Blind with a hem",
+     "summary": "The same blind, with a thin copper hem and a soft shadow riding its edge that fade as it lands.",
+     "spec": "wipe as A · 2px copper hem + soft shadow ride the edge, same curve · hem fades 120ms on landing",
+     "recipe": "masks and reveals + secondary detail on the edge",
+     "principles": [
+      "Solid drawing",
+      "Make it mean something",
+      "Secondary action"
+     ],
+     "tradeoff": "Reads more like a real blind; a hem on a privacy switch may feel decorative, and its fade adds 120ms.",
+     "recommended": false,
+     "reduced": "Repaints on one frame; message after.",
+     "demo_note": "Cream search page. 700ms: tap Private (it flips at once). A charcoal blind comes down with a 2px copper hem and a soft shadow on its edge, reaching the bottom at 1020ms; the hem fades by 1140ms; then the message line. 2200ms: tap again; the blind lifts with its hem, 260ms.",
+     "specShort": "320 / 260ms io · copper hem"
+    },
+    {
+     "key": "C",
+     "name": "Spreads from the bubble",
+     "summary": "The charcoal spreads out of the Private button in a growing circle; turning it off shrinks it back in.",
+     "spec": "circle(0 at bubble)→circle(150%) 360ms (.77,0,.175,1) · off: shrinks into bubble 280ms",
+     "recipe": "masks and reveals (iris from the trigger)",
+     "principles": [
+      "Origin",
+      "Make it mean something"
+     ],
+     "tradeoff": "Strongest 'it came from what you touched', but replaces the owner's blind; heaviest of the three.",
+     "recommended": false,
+     "reduced": "Repaints on one frame; message after.",
+     "demo_note": "Cream search page. 300ms: tap 'Private'; a charcoal circle grows out of the bubble until it covers the phone at 660ms, revealing the private page; note visible. 660ms: message line. 2000ms: tap again; the charcoal shrinks back into the bubble over 280ms, cream returning around it. Loop 3400ms.",
+     "specShort": "360 / 280ms io · iris from bubble"
+    }
+   ],
+   "picked": "dropped",
+   "dropNote": "Dropped by the owner (11.17): the 11.16 notes made Private search a lock and the page no longer turns charcoal, so there is no blind to draw. The lock's open/shut change uses the icon-swap recipe (shared play-pause: A)."
+  },
+  {
+   "id": "which-one",
+   "title": "Which one do you mean?",
+   "status": "new",
+   "where": "static/index.html:7706 (onGenerationFailed), :7758 (askReading), :7799 (openReadingOwn), :2512",
+   "trigger": "the server finds an ambiguous name; tap 'Type your own'",
+   "frequency": "rare",
+   "now": "The loader vanishes in one frame as the modal fades and lifts in (200ms). 'Type your own' becomes the field in one frame (hidden swap, same 46px slot). A choice cuts back to the loader.",
+   "verdict": "A question in the middle of a wait: hand off from the loader without a flash of search, and swap the pill for the field in place, in one grid cell.",
+   "severity": "new",
+   "principles": [
+    "Replacements",
+    "Staging",
+    "Exits",
+    "Make it mean something"
+   ],
+   "notes": "Flow: the search's loader is up (step 1 active); the server answers with readings (426); onGenerationFailed (7706) calls clearGenOverlay - a cut to the search page - then askReading adds .active to #readingOverlay (shared modal fade-and-lift, 200ms). So for one frame the listener is back on search, then a modal. A: let the loader's inert copy fade 160ms ease-in on the same frame the modal starts, so the eye goes loader to question. Choosing a reading calls generate, whose loader should fade in (see 'The loading screen arrives') as the modal drops (150ms, shared). 'Type your own' (.reading-own, 2512) and the field row (.reading-own-row, 2514) are both 46px min-height with 8px top margin - a perfect replacement slot: put both in one grid cell, pill fades + scales to .97 (150ms ease-in) while the row fades in from .97 (200ms ease-out); the send arrow (disabled until text) enters with the icon-swap scale .3 to 1. Focus is set on the same frame so the keyboard rises at once (never wait for the animation). B makes the pill and field one object (dashed border cross-fades to solid copper, label slides into the placeholder) - nicer, fussy for a rare moment. C moves the question onto the loader itself: step 1 'Contextualizing your search' is exactly where the server stopped, so its row opens (grid-rows 250ms ease-in-out) to hold the choices and closes when one is picked, the steps carrying on - honest and modal-free, but a layout change for the owner. Cancel: today returns to an empty bar (the question was cleared at send) - see findings. Reduced motion: loader goes and the field appears on one frame.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Hand-off and swap",
+     "summary": "The loading screen fades as the question card lifts in; tapping 'Type your own' turns it into a field in the same spot.",
+     "spec": "loader copy out 160ms (.55,0,1,.45) · pill out .97 150ms · field in .97→1 200ms (.32,.72,0,1)",
+     "recipe": "replacements (one grid cell) + exits",
+     "principles": [
+      "Replacements",
+      "Staging",
+      "Exits"
+     ],
+     "tradeoff": "No flash of search, and the field appears exactly where the pill was; nothing new to learn.",
+     "recommended": true,
+     "why": "The skill's replacement recipe on a slot that is already the same size, and no flash of the search page mid-question.",
+     "reduced": "Loader leaves and field appears on one frame.",
+     "demo_note": "Loader with step 1 active. 500ms: the loader fades out (160ms) while the 'Which one do you mean?' card lifts in over a dimmed search page: 'YOU ASKED HOW DID UNITED DO', three choices, dashed 'Type your own', Cancel. 1600ms: finger taps the dashed pill; it fades and shrinks slightly while a solid copper-bordered field fades in on the same spot by 1800ms, caret blinking, grey arrow at its right. Loop 3000ms.",
+     "specShort": "loader out 160 · swap 150/200"
+    },
+    {
+     "key": "B",
+     "name": "The pill unfolds",
+     "summary": "The dashed pill becomes the field: dashes turn solid copper, its words slide into the placeholder, the arrow grows.",
+     "spec": "dashed→solid cross-fade · label x 0→-12 + fade · arrow scale .3→1 · all 260ms (.32,.72,0,1)",
+     "recipe": "replacements (one object) + icon swaps",
+     "principles": [
+      "Replacements",
+      "Make it mean something"
+     ],
+     "tradeoff": "Reads as one object changing; text sliding into a placeholder is fussy for a moment this rare.",
+     "recommended": false,
+     "reduced": "Field appears on one frame.",
+     "demo_note": "Card as A. 1600ms: tap 'Type your own'; its dashed outline fades to a solid copper ring, the pen and words slide 12px left fading into the grey placeholder 'Say which one you mean', and a round arrow grows at the right, all by 1860ms. Loop 3000ms.",
+     "specShort": "260ms out · pill unfolds"
+    },
+    {
+     "key": "C",
+     "name": "Ask on the loader",
+     "summary": "No card: the loader's first step opens to show the choices; picking one closes it and the steps carry on.",
+     "spec": "step 1 row expands grid-rows 0fr→1fr 250ms (.77,0,.175,1) · close 190ms · choices arrive with it",
+     "recipe": "expanders (grid-rows)",
+     "principles": [
+      "Make it mean something",
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "Most honest about where it stopped, no modal, but moves the question onto the loader - a layout change.",
+     "recommended": false,
+     "reduced": "Row opens and closes on one frame.",
+     "demo_note": "Loader, step 1 'Contextualizing your search' active. 500ms: its row opens downward over 250ms to show 'Which one do you mean?' and three choice pills under it; steps 2-5 slide down. 1700ms: tap 'Manchester United'; the row closes (190ms), step 1 ticks when the server marks it. Loop 3200ms.",
+     "specShort": "step 1 opens 250ms io · 190"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "attach-chip",
+   "title": "An attachment: read, failed, removed",
+   "status": "new",
+   "where": "static/index.html:6929 (renderAttachments), :6995 (sendAttachment), :6948, :395-403",
+   "trigger": "pick a file or link; the server reads it; tap x",
+   "frequency": "rare",
+   "now": "The chip appears in one frame at 60% opacity with 'reading...' and nothing moves for seconds; done or failed swap in one frame (coral + a toast); x removes it in one frame.",
+   "verdict": "Rare, so it may be choreographed. A read that takes seconds needs a moving indicator; a failure may register once; a removal leaves with the gap closing.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Exaggeration",
+    "Exits",
+    "Errors: prevent then recover",
+    "Hit area"
+   ],
+   "notes": "sendAttachment (6995) pushes a pending slot and renderAttachments (6929) rewrites #attachRow's innerHTML on every change - so nothing can transition; render by key instead (one element per slot, updated in place). Pending is .attach-chip.working (opacity .6) with 'reading...': a PDF can take seconds, and a still, faded chip looks like it stalled (Doherty: work that takes seconds is never a bare wait; this one is not even moving). A's bar is a 2px copper strip clipped to the chip's bottom edge, translateX -100% to 100%, 1.2s linear, infinite - a progress indicator, so it keeps moving under reduced motion. Failure (.failed, coral, 403) plus a toast: an error shake is the skill's one sanctioned exaggeration for a failed attempt (translateX 0,-6,6,-3,3,0 over 300ms, smaller than the field's 10px because a chip is small), once, with the message already in the chip. Removal: the x is a 13px glyph in a span (401) - make it a button with a 44px ::after; the chip leaves as an inert copy (opacity, scale .95, 150ms ease-in) and the other chips close the gap with FLIP 200ms ease-in-out. removeAttachment (6948) DELETEs at once with no Undo; the skill's rule is remove from view now, delete when a 5s Undo window closes. Side effects to keep instant: trending hides while anything is attached, and the go arrow appears (see 'Search bar: focus and the go arrow'). B adds Origin and Arcs (a glyph flies from the clip into the chip) - 560ms of choreography is allowed for a rare action, slow for someone attaching three. C is Occam's razor: only the wait moves. Reduced motion: chips appear and leave at once; the reading bar keeps moving; no shake (the coral and the words carry the failure).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Reading bar",
+     "summary": "The chip rises in; a thin copper line runs along it while FAM reads; a failure shakes once; x folds it away.",
+     "spec": "in y8→0 220ms · reading bar 1.2s linear loop · fail shake 300ms · out 150ms + FLIP 200ms",
+     "recipe": "entrances + progress loop + error shake + exits (FLIP)",
+     "principles": [
+      "Doherty threshold",
+      "Exaggeration",
+      "Exits"
+     ],
+     "tradeoff": "Every state answered; four small pieces to build in a rarely used corner.",
+     "recommended": true,
+     "why": "Says 'still reading' with something that moves (even for reduced motion), lets a failure register once, and nothing leaves without a trace.",
+     "reduced": "Chip appears at once; the reading bar still moves (progress).",
+     "demo_note": "Search page; bar empty. 300ms: chip 'Q3-report.pdf  READING...  x' fades up 8px under the bar by 520ms, 60% opacity; a thin copper line slides along its bottom edge, 1.2s per pass. 2700ms: note becomes '42K CHARS', the line fades (150ms), chip goes full opacity; the copper go arrow is in the bar. 3400ms: finger taps x; chip fades and shrinks to 95% by 3550ms. Loop 4200ms.",
+     "specShort": "rise 220 · bar 1.2s · shake 300"
+    },
+    {
+     "key": "B",
+     "name": "The file flies in",
+     "summary": "A small document arcs from the paperclip into the chip, which unfolds from the left; a light scans it while it reads.",
+     "spec": "doc glyph arc (bulge 15%) 360ms (.77,0,.175,1) · chip scaleX .6→1 200ms · scan 1.4s loop",
+     "recipe": "arcs + entrances + masks (scan)",
+     "principles": [
+      "Origin",
+      "Arcs",
+      "Make it mean something"
+     ],
+     "tradeoff": "Ties the chip to the button that made it; 560ms before the chip reads - fine once, slow for a power user.",
+     "recommended": false,
+     "reduced": "Chip appears at once; scan replaced by the moving bar.",
+     "demo_note": "Search page. 300ms: a 10px document glyph leaves the paperclip in the bar and arcs down-left to the space under the bar, landing at 660ms; the chip unfolds from its left edge (200ms). A soft light sweeps across 'Q3-report.pdf' every 1.4s. 3000ms: '42K CHARS', sweep stops. 3600ms: x; chip fades out. Loop 4400ms.",
+     "specShort": "arc 360ms io · unfold 200 · scan"
+    },
+    {
+     "key": "C",
+     "name": "Only the wait moves",
+     "summary": "Chips appear and go as today; only 'reading...' gets a moving line; a failure just turns coral.",
+     "spec": "reading bar 1.2s linear loop · everything else instant",
+     "recipe": "occam's razor + progress indicator",
+     "principles": [
+      "Occam's razor / progressive disclosure",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Fixes the one real question (is it still reading?) with the least motion; removal still vanishes.",
+     "recommended": false,
+     "reduced": "Same: the reading bar moves; all else instant.",
+     "demo_note": "Search page. 300ms: chip appears at once with 'READING...'; a copper line runs along its bottom, 1.2s per pass. 2700ms: '42K CHARS', line gone. 3400ms: x; chip vanishes. Loop 4000ms.",
+     "specShort": "0ms · reading bar 1.2s only"
+    }
+   ],
+   "picked": "C"
+  }
+ ]
+}

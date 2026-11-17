@@ -51,7 +51,8 @@ def test_light_is_the_default_and_dark_is_the_choice():
     assert 'localStorage.getItem("fam.theme") !== "dark"' in prepaint
     assert prepaint.count('setAttribute("data-theme", "light")') == 2  # storage refused too
     settings = _fn("renderSettings")
-    assert 'settingsRow("Dark mode", currentTheme() === "dark" ? "On" : "Off"' in settings
+    # A switch since §645 (settings-switches: A).
+    assert 'settingsSwitch("Dark mode", currentTheme() === "dark"' in settings
     assert '"Light mode"' not in INDEX
 
 

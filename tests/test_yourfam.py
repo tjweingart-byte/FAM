@@ -182,7 +182,7 @@ def test_the_last_tab_is_yourfam_on_every_tab_bar():
 def test_what_came_off_the_hub_stays_off_it():
     """The spec's "removed on purpose, so don't bring these back"."""
     page = _interface()
-    start = page.index("  function renderProfile(p){")
+    start = page.index("  function renderProfile(p, o){")
     end = page.index("  function loadHubMessages(){")
     body = page[start:end]
     assert "This month" not in body

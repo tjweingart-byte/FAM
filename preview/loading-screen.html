@@ -136,23 +136,45 @@
   .fam-loading.stepped .fam-loading-dots{ display:none; }
   .fam-steps li{ display:flex; align-items:center; gap:12px;
     font-family:'Geist Mono', monospace; font-size:12px; letter-spacing:0.02em;
-    color:var(--text-muted); opacity:.55; transition:opacity .35s ease, color .35s ease; }
+    color:var(--text-muted); opacity:.55;
+    transition:opacity var(--dur-colour) var(--ease-out), color var(--dur-colour) var(--ease-out); }
   .fam-steps li.active, .fam-steps li.done{ opacity:1; }
   .fam-steps li.active{ color:var(--text); }
   .fam-steps li.done{ color:var(--copper); }
+  /* A step checks off (steps-check-off: B, §643): the circle fills copper
+     (150 ms), the tick draws in (220 ms, 80 ms later - Follow's tick), and
+     a thin copper thread fills down from it to the next circle (260 ms,
+     120 ms later), which then lights. Only ever after the server's mark: the
+     timing of the steps is `GEN_STEP_*`, untouched; every part of a check is
+     drawn inside the 400 ms beat before the audio. */
   .fam-step-dot{ position:relative; flex:none; width:20px; height:20px; border-radius:50%;
     border:1.6px solid currentColor; display:flex; align-items:center; justify-content:center;
-    transition:background .3s ease, border-color .3s ease; }
-  .fam-steps li.active .fam-step-dot{ border-color:var(--copper);
-    animation:famStepPulse 1.6s ease-in-out infinite; }
-  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); }
-  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); opacity:0;
-    transform:scale(.4); transition:opacity .25s ease, transform .3s cubic-bezier(.3,1.6,.5,1); }
-  .fam-steps li.done .fam-step-dot svg{ opacity:1; transform:scale(1); }
-  @keyframes famStepPulse{
-    0%,100%{ box-shadow:0 0 0 0 rgba(224,181,99,0.45); }
-    50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
+    transition:background-color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out); }
+  .fam-steps li.active .fam-step-dot{ border-color:var(--copper); }
+  .fam-steps li.active:not([data-step="0"]) .fam-step-dot{ transition-delay:0s, calc(var(--dur-step-rail-at) + var(--dur-step-rail)); }
+  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); transition-delay:0s; }
+  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); }
+  .fam-step-dot svg path{ stroke-dasharray:1; stroke-dashoffset:1;
+    transition:stroke-dashoffset var(--dur-step-tick) var(--ease-out) var(--dur-step-tick-at); }
+  .fam-steps li.done .fam-step-dot svg path{ stroke-dashoffset:0; }
+  .fam-step-rail{ position:absolute; left:calc(50% - 1px); top:calc(100% + 1.6px); width:2px; height:13px;
+    background:var(--border-strong); pointer-events:none; }
+  .fam-step-rail::after{ content:""; position:absolute; inset:0; background:var(--copper);
+    transform:scaleY(0); transform-origin:top;
+    transition:transform var(--dur-step-rail) var(--ease-in-out) var(--dur-step-rail-at); }
+  .fam-steps li.done .fam-step-rail::after{ transform:scaleY(1); }
+  /* The active circle's ring (loader-loops: A, §643) fires once a beat, as
+     the top chevron lands - one clock with the chevrons, on transform and
+     opacity. `Motion.stepRing` runs it; here it is only drawn. */
+  .fam-step-ring{ position:absolute; inset:-1.6px; border-radius:50%; border:1.6px solid var(--copper);
+    opacity:0; pointer-events:none; }
+  /* A replay paints all five done at once: no five ticks in a row. */
+  .fam-steps.instant *, .fam-steps.instant *::after{ transition:none !important; }
+  @media (prefers-reduced-motion: reduce){
+    .fam-steps li, .fam-step-dot, .fam-step-dot svg path, .fam-step-rail::after{ transition:none; }
+    .fam-steps li.active .fam-step-ring{ animation:famRingPulse var(--dur-ring-pulse) var(--ease-in-out) infinite alternate; }
   }
+  @keyframes famRingPulse{ from{ opacity:.35; } to{ opacity:1; } }
 
   /* The two browse waits (§509, the owner's pick from the loading-screen
      options page). A DailyFAM tile tapped shows the tuning dial; a myFAM
@@ -173,7 +195,10 @@
   .fam-ld-kick b{ font-weight:inherit; color:var(--copper); }
   .fam-ld-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px;
     line-height:1.22; color:var(--text); text-wrap:balance; max-width:300px;
-    animation:famLdUp .3s ease both; }
+    animation:famLdUp var(--dur-title) var(--ease-out) both; }
+  /* A mix's title comes with the loader in one piece (mix-glide: B, §642):
+     the row and the lit card are the only things that move. */
+  .fam-ld-alt.is-glide .fam-ld-title{ animation:none; }
   .fam-ld-status{ font-family:'Geist Mono', monospace; font-size:11.5px; letter-spacing:.03em;
     color:var(--text-muted); display:flex; align-items:center; gap:8px; }
   .fam-ld-status::before{ content:""; flex:none; width:7px; height:7px; border-radius:50%;
@@ -190,17 +215,24 @@
   .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
     background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
   .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
-  .fam-dev.develop .fam-dev-pic{ animation:famDevelop 2.4s cubic-bezier(.2,.7,.2,1) both; }
+  /* Two speeds (picture-develop: B, §641): a ready tile - written and
+     voiced ahead, so its audio is a few hundred ms away - is sharp in
+     420 ms, before the loader can leave, so the last frame of it is the
+     picture itself; an unwritten one keeps the owner's slow develop. No
+     scale (a 2.4 s movement); the blur and the colour carry it. The sheen
+     is time passing, so it is linear, like a spinner. */
+  .fam-dev.develop .fam-dev-pic{ animation:famDevelop var(--dur-develop) var(--ease-develop) both; }
+  .fam-dev.develop.ready .fam-dev-pic{ animation-duration:var(--dur-develop-ready);
+    animation-timing-function:var(--ease-out); }
   .fam-dev.develop .fam-dev-pic::after{ content:""; position:absolute; inset:0;
     background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.5) 50%, transparent 65%);
-    transform:translateX(-120%); animation:famDevSheen 1.6s .4s ease-in-out infinite; }
-  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); transform:scale(.94); }
-    to{ filter:none; transform:none; } }
+    transform:translateX(-120%); animation:famDevSheen var(--dur-sheen) var(--dur-sheen-delay) linear infinite; }
+  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); } to{ filter:none; } }
   @keyframes famDevSheen{ to{ transform:translateX(120%); } }
   .fam-dev.friends{ margin-bottom:16px; }
   .fam-dev-faces{ position:absolute; left:12px; bottom:-18px; display:flex; z-index:2; }
   .fam-dev-faces .src-mark{ width:44px; height:44px; font-size:14px; margin-left:-10px;
-    border:3px solid var(--bg); animation:famFaceIn .6s cubic-bezier(.2,1.3,.4,1) both; }
+    border:3px solid var(--bg); animation:famFaceIn var(--dur-faces) var(--ease-faces) both; }
   .fam-dev-faces .src-mark:first-child{ margin-left:0; --fx:-130px; --fy:-170px; animation-delay:.12s; }
   .fam-dev-faces .src-mark:nth-child(2){ --fx:40px; --fy:-230px; animation-delay:.28s; }
   .fam-dev-faces .src-mark:nth-child(3){ --fx:190px; --fy:-130px; animation-delay:.44s; }
@@ -209,16 +241,36 @@
   .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
     animation:famLdUp .3s .7s both; }
   .fam-dev-names b{ color:var(--text); font-weight:600; }
+  /* A ready tile's friends are already there (friends-gather: C, §641):
+     the flight is kept for a tile with time for it, and a ready one's
+     loader leaves before a face could land. */
+  .fam-dev.ready .fam-dev-faces .src-mark, .fam-dev.ready + .fam-dev-names{ animation:none; }
+  /* The tile's picture on its way into the loader's frame, and the loader
+     left behind as the picture flies on into the player (tile-to-player: A). */
+  .fam-dev.motion-loader-pic{ position:absolute; z-index:61; max-width:none; aspect-ratio:auto;
+    margin:0; pointer-events:none; transform-origin:0 0; }
+  .fam-loading.motion-loader-out{ pointer-events:none; }
+  /* Sent from voice search, the loader fades in over its sheet, which is
+     then hidden beneath it (voice-sheet: B, §643). */
+  .fam-loading.over-voice{ z-index:460; }
+  /* searchFAM's FAM on its way into the loader's wordmark (loader-arrives: B). */
+  .motion-mark{ position:absolute !important; z-index:470; pointer-events:none; margin:0 !important;
+    box-sizing:border-box; }
+  .motion-left{ position:absolute !important; pointer-events:none; margin:0 !important; }
+  .fam-loading.motion-loader-out *, .fam-loading.motion-loader-out *::before,
+  .fam-loading.motion-loader-out *::after{ animation:none !important; }
 
   /* Option 3, the mix gliding along: its episodes in order, the last one
      marked Heard, this one slid to the middle and lifted. */
   .fam-glide{ width:calc(100% + 64px); overflow:hidden; padding:10px 0; }
-  .fam-glide-track{ display:flex; gap:10px; width:max-content;
-    animation:famGlide .45s .1s cubic-bezier(.3,1.1,.4,1) both; }
-  @keyframes famGlide{ from{ transform:translateX(var(--from, 0px)); } to{ transform:translateX(var(--to, 0px)); } }
+  /* Drawn at rest; `Motion.glide` moves it there (mix-glide: B, §642): the
+     row slides one card in 300 ms, the card heard steps down, this one
+     lifts to 1.05 - no overshoot - and the copper pill moves one dot, by
+     transform, never by width. */
+  .fam-glide-track{ display:flex; gap:10px; width:max-content; transform:translateX(var(--to, 0px)); }
   .fam-glide-card{ flex:none; width:128px; border-radius:12px; padding:6px 6px 9px; box-sizing:border-box;
     background:var(--surface); border:1px solid var(--border); text-align:left; position:relative;
-    display:flex; flex-direction:column; gap:5px; opacity:.4; overflow:hidden; }
+    display:flex; flex-direction:column; gap:5px; opacity:.45; overflow:hidden; }
   /* The episode's picture, 4:3 like every tile (§591); the surface shows
      through when the topic has none. */
   .fam-glide-pic{ display:block; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden;
@@ -228,30 +280,32 @@
   .fam-glide-card .n{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:.08em; color:var(--text-faint); }
   .fam-glide-card .t{ font-size:12px; line-height:1.25; color:var(--text-muted); display:-webkit-box;
     -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .fam-glide-card.on{ opacity:1; border-color:var(--copper); animation:famGlidePick .4s .25s cubic-bezier(.2,1.3,.4,1) both; }
+  .fam-glide-card.on{ opacity:1; border-color:var(--copper); transform:scale(1.05); }
   .fam-glide-card.on .t{ color:var(--text); }
   .fam-glide-card.on .n{ color:var(--copper); }
   .fam-glide-card.played .n{ color:var(--text-muted); }
   .fam-glide-card.skipped .n{ color:var(--text-faint); }
-  @keyframes famGlidePick{ from{ transform:scale(1); } to{ transform:scale(1.08); } }
-  .fam-glide-dots{ display:flex; gap:6px; }
+  .fam-glide-dots{ display:flex; gap:6px; position:relative; }
   .fam-glide-dots i{ width:6px; height:6px; border-radius:3px; background:var(--border-strong); }
   .fam-glide-dots i.h{ background:var(--text-faint); }
-  .fam-glide-dots i.on{ background:var(--copper); animation:famGlideDot .4s .25s both; }
-  @keyframes famGlideDot{ from{ width:6px; } to{ width:18px; } }
+  .fam-glide-dots i.on{ background:var(--copper); }
+  /* The pill over this episode's dot, 18 px centred on it. */
+  .fam-glide-pill{ position:absolute; top:0; width:18px; height:6px; border-radius:3px;
+    background:var(--copper); left:calc(var(--at, 0) * 12px - 6px); }
 
   /* Motion is decoration here; the words are the information. Anyone who has
-     asked for less of it still gets the full status line. */
+     asked for less of it still gets the full status line. Nothing moves;
+     but a frozen loader reads as a hang, so the marks that say work is
+     still happening keep a gentle opacity pulse (reduced: A, §640). */
   @media (prefers-reduced-motion: reduce){
-    .fam-loading-mark .chev{ animation:none; opacity:1; }
-    .fam-loading-dots i{ animation:none; opacity:.7; }
-    .fam-steps li.active .fam-step-dot{ animation:none; }
-    .fam-ld-title, .fam-ld-status::before, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
-    .fam-dev-faces .src-mark, .fam-dev-names,
-    .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
+    .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    /* Search's stepped loader keeps one mover (loader-loops: A, §643): the
+       chevrons are still and the active ring pulses. */
+    .fam-loading.stepped .fam-loading-mark .chev{ animation:none; }
+    .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
+    .fam-dev-faces .src-mark, .fam-dev-names{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }
-    .fam-glide-track{ transform:translateX(var(--to, 0px)); }
-    .fam-glide-dots i.on{ width:18px; }
   }
 
 
@@ -295,11 +349,11 @@
              server's own marks for this episode, never from a timer - see
              /api/progress. -->
         <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
-          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Contextualizing your search</span></li>
-          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Retrieving your information</span></li>
-          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Verifying the relevance</span></li>
-          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Finalizing your script</span></li>
-          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Generating the audio</span></li>
+          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Contextualizing your search</span></li>
+          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Retrieving your information</span></li>
+          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Verifying the relevance</span></li>
+          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Finalizing your script</span></li>
+          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i></span><span>Generating the audio</span></li>
         </ol>
 
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put

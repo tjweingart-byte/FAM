@@ -2016,6 +2016,150 @@
   *The bottom message (§299):* what an action did is a plain line - text
   under a short copper rule just above the mini player or the tabs, no box,
   no shadow - for both the old pill and the old Undo bar.
+  > **Current:** round three (PROBLEMS.md §640, the owner's picks of 11.16
+  > for what every page shares) changes several of these, still inside the
+  > rule above - nothing held, 450 ms or less, the change made first.
+  > Every curve and time is a named token (`--ease-out` .32,.72,0,1,
+  > `--ease-in`, `--ease-in-out`, `--dur-*`, `--spring-*` on `:root`), read
+  > alike by the CSS and `Motion`. **Tabs no longer slide the old tab out:**
+  > it is gone on the first frame and the new tab's content nudges 12 px in
+  > over 160 ms; the tab icon never pops. A drag from the left edge of a
+  > screen with a back control goes back under the finger (1:1, a spring on
+  > release, a flick over 0.1 px/ms) and never takes a rail's swipe.
+  > **Sheets slide all the way up from the bottom edge (280 / 200 ms) and
+  > centred popups grow from 97% and fade (220 / 160 ms)**, as transitions
+  > that turn round when closed half open. **Save, vibe and like swap their
+  > icon on a spring and say "SAVED" for 900 ms - no ring, no sparks.** Play
+  > and pause cross at the same moment; the writer's title rolls up 8 px
+  > over the old one; **a tile shows a colour at once and its picture fades
+  > in over it (no blur)**; captions change colour only, the sentences already
+  > spoken dimmed above the one being read (§637's stack); the player's picture flies by
+  > transform (FLIP); a queued episode arcs and the count rolls; the bottom
+  > line rises 16 px and an Undo stays five seconds. **With reduced motion
+  > every one of these is off, fades included - a screen change and a sheet
+  > are instant - and only loading indicators keep a gentle opacity pulse.**
+  > A theme change turns every transition off for two frames. The press and
+  > the opening intro are unchanged.
+  > **Current:** dailyFAM's picks (PROBLEMS.md §641, the owner's 14 of
+  > 11.16), on the same terms. **One picture from tile to player:** the
+  > tapped tile's picture grows into DailyFAM's loader (300 ms) and the
+  > loader's picture - not a second copy of the tile - flies on into the
+  > player's when the audio is here (340 ms); the player opens under the
+  > loader. A ready tile's picture is sharp in 420 ms, before the loader can
+  > leave; an unwritten one keeps the 2.4 s develop, and its friends'
+  > overshooting flight (a ready tile's faces are already in place) - the
+  > owner's loader looks, which are a wait and not a movement. **New rails
+  > rise 8 px out of a 2 px blur** (350 ms, headings 90 ms ahead, tiles 30 ms
+  > apart, six at most, none below the fold or while the screen is moving).
+  > Pick up and the faces row are drawn as last seen and only a changed card
+  > moves; View more opens on the rail's own tiles; Refresh deals the next
+  > page (out left, in from the right) with its spinner only after 300 ms;
+  > a tile's save lights on the tap; a changed score or time left rolls its
+  > digits and warms copper for a moment; a removed tile folds away and can
+  > be undone for five seconds. A story's bar fills by scale; held, its
+  > chrome hides in 150 ms and returns in 200 ms (at once with reduced
+  > motion); it grows from the face's ring, **pulls down to close** and
+  > **turns to the next friend under the finger** (springs of 400 ms, faces
+  > shaded to 30% side-on); a sent reply's words rise out of the box.
+  > **Current:** myFAM's picks (PROBLEMS.md §642, the owner's 14 of 11.16),
+  > on the same terms. **Every edit on a mix changes on the tap and is put
+  > back, moving, if the server refuses it** - Add topics' (+) and tick, a
+  > recommended topic joining the list, Public / Private, a reorder, Follow
+  > on a category; a mix's page is redrawn in place, never pushed onto
+  > itself. **Back from a mix, from Add topics and New mix's X is a pop**,
+  > not the tab's nudge. The glide hands the light on (the card heard steps
+  > down and says Played as the next lifts to 1.05, the copper pill moves one
+  > dot) by transform, landed inside the 450 ms a written-ahead episode is
+  > shown, and the loader fades in over 120 ms and out over 150 ms. Mix cards
+  > not seen this session are dealt (rise, then their pictures fan); a card
+  > whose lead changed puts the heard picture behind the stack and raises the
+  > new one, READY popping on. Mixes | Categories has one sliding underline
+  > and the list nudges 18 px toward the side chosen; a tapped category chip
+  > slides to its new place; the loading line comes only after 300 ms. A
+  > dragged row lifts, tilts with its speed while the rest dims, rubber-bands
+  > at the ends and settles from under the finger on a spring. Create turns
+  > the named folder into the mix's cover (the page fades in, the name
+  > travels to the title); Add to myFAM and Create are async buttons (a
+  > spinner only past 300 ms, at least 500 ms). The morning dot pops like a
+  > count; a finished mix files the day's cards onto one stack and draws a
+  > check. Reduced motion: all of it instant, the spinner still turning.
+  > **Current:** search's picks (PROBLEMS.md §643, the owner's 13 of
+  > 11.16), on the same terms. **The loader opens on the press** - the
+  > speller's wait runs under its first step, which is what the speller is
+  > doing - fading in over the page while searchFAM's FAM glides into its
+  > wordmark and the five rows rise; a cancel or a failure takes it down at
+  > once and a copy fades, and Cancel puts the question back in the bar.
+  > **Search's five steps keep their timing exactly** (`GEN_STEP_*`, the
+  > server's marks, audio held to the fifth): only how a step checks off
+  > changed - the circle fills, the tick draws in, a copper thread runs down
+  > to the next circle, all inside the 400 ms last beat; the active ring
+  > fires once a beat as the top chevron lands (one clock, transform and
+  > opacity), and with reduced motion the chevrons are still and the ring
+  > pulses. **The loader opens onto the player through a hole from its
+  > chevrons** (340 ms; the player does not push under it). The mic and the
+  > go arrow share one slot and cross on the icon swap; the bar's edge turns
+  > copper on focus. Voice search grows out of the mic and shrinks back into
+  > it; each word heard sends one ring out of the mark and nothing moves
+  > between words (the arcs are gone); stopping Search now drains its fill
+  > back to a pale button. Length and Voice act in their icons when the
+  > choice changed, never printing it. Trending searches and the A-Z arrive
+  > as the rails do, and "Searching..." waits 300 ms. Go Deeper's line
+  > writes itself in, and **what the chip showed is what is sent** - no
+  > swap under a finger. "Type your own" becomes the field in its own place;
+  > a file being read has a moving line (kept with reduced motion); the
+  > Private lock swaps on the icon spring.
+  > **Current:** Messages' picks (PROBLEMS.md §644, the owner's 13 of
+  > 11.16), on the same terms. **New messages no longer pop from their
+  > tail:** when the reader is at the bottom the chat rises by the new
+  > message's height (220 ms, 40 ms apart in a burst, nothing scaled or
+  > faded), and **a chat follows a new message only when the reader was
+  > already at the bottom** - anywhere else their place is kept. Their
+  > message grows out of the typing dots, whose wave is opacity only and
+  > keeps going with reduced motion. A send shows nothing until a second
+  > has passed, then "Sending…" under it; **a send that fails stays in the
+  > chat, faded, marked "Not sent · Tap to retry"**. **The unread count
+  > rolls its number** (up as it grows, 300 ms) and fades in from .7 rather
+  > than popping and bumping; a change made while its tab bar was out of
+  > sight plays when that screen has landed, and the app's first paint is
+  > still. A chat is read on the tap. A chat moving to the top of the list
+  > glides there (280 ms) and a new one fades down into it - only for the
+  > network's answer, never the search box's keys or a first draw, and
+  > never under a finger. The header keeps its chips' room from the first
+  > frame. **Delete chat and Leave group have no confirmation**: the chat
+  > goes at once, slides out when the list has slid back, and Undo stays
+  > five seconds before anything is sent (Block keeps its question). The
+  > share sheet's own Cancel row becomes "Cancel | Share with @maya" in its
+  > cell; a like on a vibe is a heart on the card's corner; New message's
+  > picked faces arc into a stack beside "Group with…". Reduced motion:
+  > all of it instant, the dots still pulsing.
+  > **Current:** yourFAM's picks (PROBLEMS.md §645, the owner's 14 of
+  > 11.16), on the same terms. **The hub is drawn once and reconciled**:
+  > its first draw in a session builds top down (80 ms apart, tiles 40 ms,
+  > 300 ms each); every later answer touches only what changed - a number
+  > rolls (350 ms), a name cross-fades, a new photo develops (blur 8 -> 0,
+  > 1.06 -> 1, 320 ms), interests arrive and leave - and an unchanged one
+  > moves nothing. Vibes | Mixes is one sliding underline (250 ms) and the
+  > grid nudges toward the side chosen, as the app's tabs did. **Follow
+  > keeps §298's look on transforms**: the button is its new width at once
+  > and its paint scales from the old one (260 ms), its neighbours glide;
+  > Follow is filled copper and Following an outline with its tick in its
+  > markup, everywhere; the line says nothing on success. A Friends row
+  > glides to its new group when the server answers (320 ms), the counts
+  > roll after it. A friend's page has its numbers and interests' rows from
+  > the first frame (dashes, then values fading in), so Follow never moves.
+  > **Settings opens whole**: its values are read at app open and sign-in,
+  > rows are updated in place and never rebuilt under a finger; on/off rows
+  > are switches (no chevron, the knob 200 ms, flipped on the tap). A saved
+  > row and a My Vibes row go with Undo (five seconds, the request when the
+  > line goes); a vibe deleted from the grid recedes on the confirm and the
+  > grid closes over it. An episode filed in a folder arcs into its chip.
+  > An interest floods copper from the tap with a fixed icon slot. **Edit
+  > profile, Where you are and Your interests are page sheets** (up 300 ms
+  > over a page receding to .97, down 220 ms). The story editor grows out of
+  > the (+) or VIBE!, its panels are drawers, and **a post shrinks into your
+  > photo and a ring draws round it** - two moves (380 + 400 ms) after the
+  > post exists, the line at 780 ms. Reduced motion: all of it instant
+  > (page sheets too, not B's 120 ms crossfade - the shared pick).
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

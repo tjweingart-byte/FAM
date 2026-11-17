@@ -16,7 +16,7 @@ def test_profile_message_button_is_for_friends_only():
     gate = body.index("var mutual = (friendsData.friends || []).some(")
     button = body.index("Message</button>")
     assert gate < button
-    assert "(mutual ? '<button class=\"yf-btn gold\" onclick=\"messagePerson(" in body
+    assert "(mutual ? '<button class=\"yf-btn gold\" data-act=\"message\" onclick=\"messagePerson(" in body
     ios = (SWIFT / "Views" / "PersonView.swift").read_text()
     assert "if social.isFriend(userID) {" in ios
 

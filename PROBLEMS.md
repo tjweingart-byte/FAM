@@ -38706,3 +38706,652 @@ counted zero; the one-time fill; a wipe and a deleted account take their
 days; the page draws it and says what counts). The card's drawing code was
 run on sample data. **Not verified here:** the page in a browser against a
 real deployment, or the query on Postgres.
+
+## 640. Motion, round three: the shared picks (2026-11-16)
+
+Every animation in the app was reviewed against the `charles-ux-animation`
+skill, page by page, with three options each, and the owner picked one per
+animation (`docs/motion/round-three/`, 88 picks). This is the first of six
+phases (`BUILD.md`): the 19 in `shared.json` - the `Motion` module and what
+every page shares.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Curves and times | A: the skill's, named | `:root` tokens `--ease-out` (.32,.72,0,1), `--ease-in` (.55,0,1,.45), `--ease-in-out` (.77,0,.175,1), `--dur-*`, `--spring-*`; `Motion` reads them at start (`Motion.EASE`, `Motion.DUR`), so CSS and script share one copy |
+| Press | C: keep today's | Unchanged - down 90 ms, back 220 ms through the overshoot - on the tokens (the bare `ease-out` became `--ease-out`) |
+| Screens | B: push + edge swipe | Push 340 ms, back 260 ms, both `out`; a drag from within 24 px of the left edge of a screen with a back control moves it 1:1, the screen beneath (`stack`'s previous) at -28% and dimmed; let go past half way or flicked over 0.1 px/ms and the screen's own back control is pressed, the pop going on from where the finger left it on a .5 s spring carrying the release speed; else it springs home |
+| Tabs | C: nudge, shortened | The old tab is gone on the first frame; the new tab's content nudges 12 px in, 160 ms `out`; `tabPop` deleted |
+| Sheets and modals | A: the skill's split | Transitions with `@starting-style`: `.sheet-overlay` slides its card from `translateY(100%)` 280 / 200 ms; `.modal-overlay` grows from .97 and fades 220 / 160 ms; the dim fades on the same clock; `closing` held for the way out, with `inert` |
+| Bottom line, banner | B: toast + follow-through | Rises 16 px in 240 ms `out`, leaves in 170 ms `in`; the copper dot lands 30 ms later on the soft spring (.5 s, bounce .15); a line with an action stays 5 s (`SNACK_ACTION_MS`); the banner already swiped away (§127) and now enters and leaves on the same tokens |
+| Opening the player | A: FLIP | The ghost is laid out at the player's picture and drawn as the tile by `translate + scale` and a `clip-path: inset(... round r)` crop, 360 ms `in-out`, both ways |
+| Mini player | B: rise + thumb settles | Rise 260 `out`, drop 190 `in`; the picture and play button settle 30 ms later on the soft spring; its line is `scaleX` from the left |
+| Play / pause | A: icon swap | Both at once: the new icon from .3 with a 3 px blur, the old to .3, on a .35 s spring with no bounce |
+| The writer's title | C: roll up | A copy of the old title rises 8 px out as the new rises 8 px in, 240 ms, both at once |
+| Pictures | B: colour first | A tile with a picture shows `--pic-placeholder` at once; a late picture fades in over it in 240 ms (no blur, no scale) |
+| Captions | B: highlight only | The sentence before stays, dimmed, beside the one being spoken; colour changes over 150 ms, nothing moves |
+| Save, like, VIBE! | A: quiet swap + word | The icon arrives on the icon-swap spring and the word shows for 900 ms; no ring, no sparks |
+| Queue | A: arc with lift | A 28x22 copy travels a quadratic curve bulging 15% of the way, lifting to 1.15 at the top and shrinking as it lands, 360 ms `in-out`, transform only; the count rolls up once it lands (`Motion.roll`). A removed row now slides out while the rows below glide up by transform, at the same time |
+| What's next | B: soft rise | The card rises 8 px with a 2 px blur clearing, 280 ms `out`; the countdown was already the lead tile's own bar |
+| Intro | C: keep | Unchanged |
+| Sign-up's steps | B: bars + words | Bars fill from their left edge 0 -> 1, 260 ms `in-out`; "Step 2 of 3" under them, the number rolling 300 ms `in-out` |
+| Tour | A: transforms | The hole and card are laid out where they go and glide there by FLIP (the card only translates), 340 ms `in-out`, one clock; the fill is `scaleX` |
+| Reduced motion | A: all off | Screens, sheets, the tour's steps: instant (the 120 ms crossfades are gone); the loading chevrons, dots and step dot keep an opacity pulse, the status dot keeps its own; a theme change adds `theme-switching` (`transition: none !important` everywhere) for two frames |
+
+**Reversals the owner made**, so the rule's text changed (`rule:motion`,
+`> **Current:**`): reduced motion is all off rather than a 120 ms
+crossfade; tabs no longer slide the old tab out and the icon no longer
+pops; sheets slide from the edge rather than lift 14 px; the burst is a
+quiet icon swap; pictures fade over a colour rather than blur up; and
+captions show the sentence before, dimmed, rather than one sentence at a
+time (§127) - option B's "all recent text stays put; the last one dims".
+
+**Pictures: no dominant colour yet.** The pick asks for each picture's main
+colour, computed server-side when the thumbnail is made. Nothing computes
+one today, so the placeholder is one neutral token colour
+(`--pic-placeholder`, the palette's `--surface-2`) for every tile. A
+`thumb_color` on the tile, set as a custom property on `.seed-thumb`, is
+the follow-up; the CSS reads only the token.
+
+**The springs.** There is no Motion library here (WAAPI and CSS only), so a
+spring is a `linear()` curve sampled from a damped spring of the skill's
+duration and bounce (`Motion.spring`, and the same function's output
+pasted as the `--spring-*` tokens). The .5 s ones are cut at the 450 ms
+ceiling, where the bounce-free spring is within 0.3% of rest; the edge
+swipe's starts at the speed the finger let go. A browser without
+`linear()` gets `--ease-out` instead.
+
+**Where the pick needed a judgement.** The edge swipe presses the screen's
+own `.back` / `.yf-back` rather than calling `goBack()`, so a back that
+returns by name (`rule:intro-not-on-stack`) is still the one taken; the
+screen drawn beneath during the drag is the stack's previous one, and if
+the back goes somewhere else the pop draws that instead. It starts only
+within 24 px of the edge, only once the drag is plainly sideways (10 px,
+1.2x the vertical), never on a field, the scrub bar or inside anything
+scrolled sideways that the same drag would scroll back, and never under a
+sheet or the loading screen. The queue's target bump (1.3, an overshoot)
+is dropped; the count rolling is the landing.
+
+**Not changed here**, left for their pages' phases: the unread badge's pop
+(messages), the next-hint's bob loop (now off under reduced motion), the
+rails' arrival, stories, private search and Follow (their curves are the
+tokens now; their numbers are their pages'). The iOS client's
+`Motion.swift` still draws round two (`ios/FAM/PARITY.md`); its parity is
+separate work.
+
+Tests: `tests/test_motion_round_three_640.py`; the smoke run's
+"Round-three motion holds nothing and leaves nothing behind" (tokens read
+alike, a tab change leaves nothing of the old tab, a sheet closed half way
+is held inert and then gone, an edge drag goes back and a middle drag
+does not, the mini player's line is scaled, an Undo line stays 5 s, a
+theme change switches transitions off and nothing is left behind).
+**Not verified here:** an iPhone's Safari (`@starting-style` and
+`linear()` need Safari 17.5 / 17.2; older ones open sheets at once and use
+the plain curve), and the edge swipe with a real finger - only a mouse in
+Chromium.
+
+## 641. Motion, round three: dailyFAM (2026-11-17)
+
+The second of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks
+in `dailyfam.json` - the rails screen (`screen-myfam`), View more
+(`screen-section`), the faces row and the story viewer. Every time is a new
+named token on `:root` (`--dur-loader-*`, `--dur-arrive`, `--dur-deal-*`,
+`--dur-story-*`, `--dur-fold`, `--dur-gap` ...), read by `Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Tile to player | A: one picture, both ways | `Motion.intoLoader`: a copy of the loader's picture, laid out at the frame and drawn as the tapped tile (FLIP), grows there 300 ms `out` while the loader fades in 150 ms; it develops on the real picture's clock and hands back to it. `Motion.handOff` (from `finishGenOverlay`, whose 450 ms floor still decides when): the loader is taken down at once and a copy leaves - the picture flies to `#playerBg` 340 ms `in-out` (clearing any blur left), the words fade 150 ms and the background 200 ms, both `in`. The player now opens first (`onGenerationStarted`), under the loader, with no flight of its own (`screen` returns while `dailyLoader()` is up) - the double picture is gone, and so is the 8 s expiry of the tapped picture for this path |
+| Picture develops | B: two speeds | `.fam-dev.develop.ready` (the tile's `cached`) is sharp in 420 ms `out`; unwritten keeps 2.4 s on `--ease-develop`; the scale is gone; the sheen is 1.4 s linear |
+| Friends gather | C: keep, ready ones still | A ready tile's faces and names are drawn at rest; an unwritten one keeps the owner's 600 ms overshoot (tokenised as `--dur-faces`, `--ease-faces`). A face already on the device is drawn at once, not faded up from its initials |
+| Late sections | B: draw what was there | Pick up and the faces row are kept per account (`famLastPickUp`, `famLastCircle`, emptied on log-out) and painted on the first frame; when the answer lands, identical draws nothing, else `Motion.relist`: a new card rises 8 px (260 ms `out`), a gone one recedes as a copy (fade, .95, 150 ms `in`), the rest glide (200 ms `in-out`) |
+| Rails arrive | B: soft rise with blur | Rail by rail: heading (with Play all) first, its tiles 90 ms behind and 30 ms apart, 350 ms `out`, 8 px and a 2 px blur, six tiles at most; nothing below the fold, past the screen's edge or while the screen is moving (push or tab nudge) |
+| Story bar and hold | A: scaleX, quick fade | The bar is `scaleX` from the left, linear; held, the chrome hides 150 ms `in` and returns 200 ms `out`, both at once under reduced motion; the bar still fills |
+| View more | A: rail first | The rail's own tiles are drawn before the push and ride in with it; when the answer lands only cards that were not there rise, 30 ms apart, first six, never while the screen is arriving. Trending's grouped grid now arrives and lights its saves too (it returned before both) |
+| Refresh | B: deal the next page | Old cards on screen slip out as copies, -24 px and fading 160 ms `in`, 20 ms apart; the new come in from +24 px, 260 ms `out`, 30 ms apart; the scroll goes to the top under them. The arrow turns once on the press (400 ms); it spins only after 300 ms and then for at least 500 ms |
+| Tile save | B: the player's save | Lights on the tap and is put back with the line if refused; outline and filled bookmarks share the chip's cell and swap on the icon spring (only on a tap); `Motion.celebrate(..., "SAVED", true)` adds the word (phase 1 made the burst a quiet word) |
+| Changed since | B: roll and mark | `Motion.changed`: only the digits that changed roll in a one-digit window (320 ms `in-out`, up as the number grows), and the line warms to copper and back (600 ms) - a game's line by topic id, Pick up's time left; Pick up's bar is `scaleX` and fills on from its last value (300 ms), never backward; `tabular-nums` on both |
+| Story open and close | B: drag down to close | Grows from the `.yf-ring`'s centre, not the button's; a drag down follows 1:1, scaling to .85 over 300 px; past 80 px or a 0.1 px/ms flick it shrinks into the face from where it was, else springs home (400 ms, no bounce). The ring is grey at once and a copy of the gold fades under the face 200 ms after the shrink lands |
+| Next friend | B: turns under the finger | Past 12 px sideways the next friend's story is drawn and the cube follows the finger (`Motion.cubeDrag`); let go past a third or flicked, it springs on, else back - the old story, its vibe, its bar's place and the next friend's unwatched mark all restored. Each face shades to 30% black side-on, on the programmatic turn too. Past the first or last friend it rubber-bands (12 px dead zone, 64 px ceiling) |
+| Reply sent | A: words rise and go | A copy of the words rises 24 px and fades, 220 ms `in`, as the box empties; a failed send puts the words back |
+| Remove a tile | B: fold away | Not interested and Pick up's X: the tile is out at once; a copy tips back (rotateX 20deg at 700 px, .9, 220 ms `in`) while the rest close in (240 ms, the last 30 ms late); Not interested waits for the sheet's 200 ms exit. **Undo** on the line for 5 s; the event or dismiss is sent when the line goes (`action.done` on `snack`: time up, replaced, or the page hidden). Pick up's X is a 44 x 44 zone; the second redraw after a dismiss is gone |
+
+**Bugs fixed with them:** the double picture; the 8 s expiry (for DailyFAM);
+Trending's View more without arrive or saves; every open rewriting the rails
+and the faces row (an identical redraw is now skipped, and a changed one keeps
+each rail's and the row's sideways scroll); `dismissGoDeeper`'s second
+redraw; friends' faces flashing their initials when already loaded.
+
+**Where the pick needed a judgement.** The rails' B spec gives the rise and
+the stagger; the per-rail order, the in-view test and "not while moving"
+come from the review's notes. The deal is drawn with copies over the new
+grid, both at once (Replacements), not one after the other. The pull past
+the last friend still closes on release, and past the first still restarts
+that friend - as a swipe did - after the rubber band. A finger that stopped
+80 ms before letting go carries no speed. The story now takes every drag
+(`touch-action:none`, was `pan-y`; `test_packet_1001_third` updated). The
+faces row's late answer redraws the row whole when it changed: the per-card
+diff is Pick up's.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note for these) and
+`rule:no-not-interested` (the event waits for its Undo).
+
+**Not built:** findings outside the picks - the skeleton's size, the View
+more end card's cross-fade, offline greying, the free month's words, the
+story X/⋯ 44 px zones and the story heart's word (the lead's shared item).
+
+Tests: `tests/test_motion_round_three_641.py`; the smoke run's "dailyFAM's
+round-three motion holds nothing and leaves nothing behind" (no tile copy
+while the loader is up, the picture into and out of it, View more on the
+rail's tiles, no early spinner, a save lit on the tap, Not interested and
+Pick up gone at once with Undo and nothing sent before the line goes, a
+44 px X, a story's bar scaled, a short sideways drag turned back, a reply's
+words rising, a drag down closing, nothing left). **Not verified here:** a
+real finger on a phone (the drags are a mouse in Chromium), and how the
+2 px blur on six tiles costs on an older phone.
+
+## 642. Motion, round three: myFAM (2026-11-17)
+
+The third of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks
+in `myfam.json` - the mixes screen (`screen-playfam`), a mix's page, New
+mix, Add topics, a public mix, the glide and the end of a mix. Built on the
+merged screens (Main's 11.16 notes, §637: Edit topics, the bubbles gone).
+Every time is a named token on `:root` (`--dur-glide*`, `--dur-deck-*`,
+`--dur-chip*`, `--dur-knob`, `--ease-swap` ...), read by `Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| The mix glide | B: light hand-off | `Motion.glide`: the loader fades in 120 ms; the row slides one card 300 ms `in-out` from 0 ms (was 100 ms late, 450 ms, overshooting); the card just heard steps down 1.05 -> 1 and to .45, 200 ms `in`, its "· Played" fading on at 180 ms; this one lifts 200 ms at 160 ms; a copper pill (`.fam-glide-pill`, 18 px) moves one dot by transform - the width animation is gone. The first episode enters as A (row from +80 px, card and pill grow 200 ms at 220 ms). The rest pose is the CSS, the same with reduced motion; the status dot keeps pulsing. Out: a copy fades 150 ms `in` (`glideOut`), without finishing the player's push under it |
+| Mix cards arrive | B: deck deals | `Motion.mixDeck`, keyed on mix id and on *seen* (on screen), not rendered: a card not seen this session rises 8 px (260 ms `out`, 40 ms apart, the first four) and its pictures, squared on the top one, fan out 240 ms from 100 ms into its rise; nothing while the screen is still moving in (`movingFor`, from the screen's own animations); a card that went fades with an 8 px nudge as a copy, the rest glide into the gap |
+| Mixes / Categories | B: underline and nudge | One underline (`.pf-tabs::after`) slid by a 240 ms `in-out` transition; labels colour 150 ms; a tap nudges the list toward the side chosen (`Motion.panels`: the old list a copy, out 18 px 110 ms `in`, the new in from 18 px 200 ms `out`, 90 ms later). Arrivals and keys (arrow keys added, Enter/Space) switch at once. The Create row keeps its height on Categories (`visibility`), and is decided from the account on the first frame |
+| Category chips | B: chip moves to front | `Motion.chips`: chips keyed by `data-chip`; the tapped chip slides to its place (260 ms `in-out`), the others leave as copies (120 ms `in`), the X arrives at once and the sub-chips fade in 160 ms after it lands, 30 ms apart; with the X the others fade in as it slides back. The list no longer flashes "Loading": what was there stays (`aria-busy`), the line only after 300 ms, held 500 ms |
+| Add topics' (+) | A: icon swap | Optimistic: the mix and every row for that id change on the tap (`markAddTopicRows`), the list is never redrawn; + and tick share one cell and cross through .3 and a 3 px blur on `--ease-swap` (300 ms); fill and edge 150 ms; a refusal flips it back with the server's words |
+| Deck reshuffle | B: heard card goes back | Tiles keyed by story (`data-key`, `data-slot`); the old top dips 10% and to .96 (160 ms `in`), its layer swapped at the low point, then settles in its slot (220 ms `in-out`); the new lead rises into the top 300 ms at 60 ms; one that left the three slides down behind the stack; READY pops at 360 ms (160 ms) and the headline cross-fades 150 ms; changed cards 60 ms apart |
+| Recommended (+) | A: leave up, list grows | `Motion.joinRow`: on the tap the topic is in the mix; the suggestion lifts 12 px away as a copy (160 ms `in`), then everything keyed `data-flip` glides (250 ms `in-out`) while the new row opens by a clip and its copper edge fades over 450 ms. Refused, `Motion.putBack` glides it all back. Shuffle: the five fade out as copies (120 ms) and five fade up 6 px (200 ms, 30 ms apart) |
+| Drag a topic | B: tilt as you carry | Lift 1.02 (150 ms, added to the finger's transform) and a shadow on `::after`; the rest dims to .6 and steps aside on 200 ms `in-out`; the row tilts with its speed (±0.5 px/ms -> ±2deg); past either end a rubber band (12 px dead zone, 64 * b / (b + 150)); let go, it lies flat and settles from under the finger on a 260 ms spring carrying the finger's speed, and the list undims. The handle and the row buttons have 44 px zones |
+| Public / Private | B: lock clicks shut | Toggled in place (`paintMixVisibility`), so the knob is the same element and slides (220 ms `in-out`); one lock rides it and its shackle lifts open or drops shut after the knob lands (180 ms `out` at 220 ms); the words cross-fade in one cell; the line under the name changes in place; refused, it slides back |
+| Create | B: folder and name travel | Create is an async button; on the answer the mix's page takes New mix's place on the stack and fades in (`showScreen(..., "fade")`, 240 ms) while a copy of the folder flies to the cover by translate and scale (360 ms `in-out`), the name typed travels to the title 40 ms behind (scaled, its colour turning), both hand over in 120 ms; "Add topics to mix" rises at 420 ms, the empty line at 510 ms. A screen change finishes it |
+| Add to myFAM | A: async button | `.async-btn`: disabled at once, a spinner only past 300 ms and then at least 500 ms; label, spinner and tick cross-fade through .9 (150 ms) and the fill follows; every button for that mix waits together; changed in place (`markMixAdded` no longer redraws the page or the lists) |
+| Follow a category | B: star flies over | `Motion.followCategory`: on the tap, as Follow on a person - fill 150 ms, a tick drawn in 220 ms at 80 ms, a fixed width; following, a copper star arcs 15% (360 ms `in-out`, swelling to 1.2) to the chip, whose own star pops .5 -> 1 when it lands; none when the chip is scrolled out of the row; refused, it is all put back. The second round trip (the server's list) is no longer waited for |
+| Morning dot | A: pop like a count | `Motion.dot`: in .5 -> 1 and a fade, 240 ms `out`; opening myFAM shrinks a copy away (160 ms `in`) - the arriving tab bar too, since the tap that clears it brings myFAM in |
+| Mix finished | B: cards file in | The day's played cards (six at most, else the whole order), each marked Played, slide in from the right onto a stack once the card has grown (260 ms `out`, 40 ms apart, fanned), square into one (300 ms `in-out`) and a copper check draws (220 ms). The CSS draws the end |
+
+**Bugs fixed with them:** Back on a mix page, New mix's X, Leave and Delete
+played the tab's nudge from the right (`closeMixPage` pops); Back on Add
+topics pushed a second mix page (`closeAddTopics` pops); Rename, Public /
+Private, "Make public and share" and "Make it yours alone" pushed the page
+onto itself (`repaintOpenMix`, in place); a refused reorder stayed on screen;
+the switch's CSS comment said private; mix cards opened on Enter but not
+Space; the 42 px jump when the Create pill appeared.
+
+**Where the pick needed a judgement.** The deal's fan: the spec says "40 ms
+after each card", the demo draws it 100 ms into the card's rise; the demo
+won (`--dur-fan-lag`). The lock: one closed glyph whose shackle the CSS
+lifts 3 units and turns -20deg about its right foot (the spec's numbers,
+in the 24-unit drawing), in place of the two glyphs the code kept for
+legibility at 9 px - the owner's pick. The glide's title no longer rises on
+its own (the review's staging: it arrives with the loader). The tilt's
+spring is an approach with a third of the lift's time, per frame. Create's
+page fades in rather than pushing, as the player's open does (§292) - the
+review's note that this extends the push rule. The async button holds its
+state swap until the spinner's 500 ms are up; the page Create opens never
+waits for it. Every redraw of a mix's page is skipped when identical, and
+the server's answer to an edit is drawn once what is moving has landed.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note for these).
+
+**Not built:** findings outside the picks - Undo on Delete mix (it still
+deletes from the ⋯ menu), the Categories home listing each category twice,
+category plays showing search's five steps, "Searching..." on Search mixes,
+a new cover photo's blur-up, joint-mix faces under reduced motion, marking
+the playing row, a keyboard way to reorder, and the dead picker CSS. A
+suggestion that tops the five back up after a (+) appears without rising.
+The iOS client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_642.py`; the smoke run's "myFAM's
+round-three motion holds nothing and leaves nothing behind" (the underline
+slid and the old list a copy, the Create row kept, a chip's X on the tap
+with no loading flash, cards dealt once and a changed lead reshuffled, the
+switch changed on the tap without a redraw, a refused reorder back in the
+server's order, Add topics' (+) flipped on the tap, Back from Add topics
+and from a mix a pop, the glide's lit card and pill by transform, Create's
+folder flying with New mix gone from the stack, a finished mix's cards,
+nothing left); `mix_visibility` reads the one lock. **Not verified here:**
+a real finger on the drag and its tilt (a mouse in Chromium only), and the
+glide against a real voice's timing.
+
+## 643. Motion, round three: search (2026-11-17)
+
+The fourth of six phases (`docs/motion/round-three/BUILD.md`): the picks in
+`search.json` - searchFAM (`screen-home`), its loader and five steps, voice
+search, Go Deeper's box, "Which one do you mean?" and the A-Z catalogue.
+Every time is a named token on `:root` (`--dur-loader-fade`, `--dur-iris`,
+`--dur-beat`, `--dur-wipe`, `--ease-wipe`, `--dur-ripple` ...), read by
+`Motion.DUR`. **Search's five steps keep their timing exactly**
+(`GEN_STEP_MIN_MS`, `GEN_STEP_FIRST_MIN_MS`, `GEN_STEP_LAST_BEAT_MS`,
+`GEN_MIN_VISIBLE_MS`, `rule:search-no-cover`): only how a step checks off
+is restyled.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Bar focus and go | C: mic becomes the arrow | `#barSlot`: the mic and go are stacked in one 40 px slot and cross on the icon swap (.3 and a 3 px blur, 300 ms `--ease-swap`), both always in the page; `paintSearchBar` toggles `typing`; attach never moves. With no mic (no speech recognition) the slot is only there while go is. The bar's edge turns copper on focus (120 ms) |
+| Loader arrives | B: FAM keeps its mark | `openGenOverlayNow`: the loader opens on the press (search and a typed Go Deeper) and the speller's wait runs under step one - never before the AI question or with a file still reading; `generate` takes it over as it is (`genEarly`), and a cancel meanwhile sends nothing. `Motion.loaderIn`: the loader fades in 200 ms over the page, searchFAM's FAM (a copy) glides into the wordmark 320 ms `in-out` by translate and scale (the letters' height to the wordmark's), the five rows rise 8 px 40 ms apart, 240 ms. Out on a cancel or failure (`Motion.loaderLeave`): down at once, a copy fades 160 ms `in`; "Cancelled" comes as it has gone |
+| Steps check off | B: a thread runs down | The circle fills 150 ms; the tick is a stroke drawn in (`pathLength=1`, 220 ms at 80 ms); a 2 px thread (`.fam-step-rail`, four of them) fills `scaleY` from the top 260 ms `in-out` at 120 ms, and the next circle lights when it lands. Rows recolour 150 ms. No overshoot, no box-shadow. A replay's all-done paint is the end state (`instant`) |
+| Loader's moving mark | A: one heartbeat | `Motion.stepRing`: the active circle's ring (`.fam-step-ring`) grows 1 -> 1.7 as it fades from .5, once each 2.4 s at .92 s - read off the chevrons' own animation's `startTime`, so one clock; the first waits for the thread. Cancelled when the loader goes. Reduced motion: chevrons still on search's loader, the ring pulses .35 -> 1 |
+| Loader to player | C: iris from the chevrons | `iris` (from `Motion.handOff`): the player is in place under the loader (`screen` returns before settling anything while search's loader is up), and a copy of the loader opens from the chevrons' centre - a `path(evenodd, ...)` clip, the rectangle less a growing circle - 340 ms `in-out`. Replays too, after the 450 ms floor |
+| Lists arrive | A: the rails' arrival | Trending: chips keyed on their question (`trendShownQ`), a new one rises 8 px 260 ms `out` 40 ms apart (the label first, once), an identical redraw draws nothing; hiding and showing as the box is typed stay instant. A-Z: the catalogue's first draw arrives the same way; a query keeps the old rows at .6 and says "Searching..." only after 300 ms; results fade in 150 ms |
+| Go Deeper's box | B: writes itself in | The label swaps at once and FAM's new line is wiped in left to right (clip, 320 ms `--ease-wipe`) where the old one was; lengths recolour 150 ms |
+| Bubble says set | B: the icon acts | A changed length turns the stopwatch's hand once about the dial's centre (420 ms `in-out`); a changed voice hops its five bars (240 ms, 35 ms apart); both after the sheet's drop (200 ms), only on searchFAM. Reduced motion: the icon is copper for 1 s |
+| Voice sheet | B: grows from the mic | `Motion.voiceOpen`: a circle from the mic to the whole sheet 300 ms `out`, the FAM ring from .9 40 ms behind; from the ring when the wake word opened it (whose tab change is `Motion.still`). `voiceClose`: a copy shrinks back 240 ms `in-out`, from however far the opening had got. Sent, the loader fades in over the sheet (`over-voice`) and the sheet is hidden beneath it |
+| Search now | B: drain back | Stopped (X or a tap on the words), the fill drains from where it was to 0 (260 ms `in-out`) and leaves the pale button; the X leaves as a copy (.9, 150 ms `in`) and the button glides to the centre (220 ms); it rises 12 px in when they stop talking |
+| Lines while you talk | B: a ripple per word | The arcs, `voiceLevelLoop` and `--lvl` are gone: each recognition result sends one copper ring out of the mark (1 -> 1.35, .8 -> 0, 420 ms `out`), at most one each 150 ms; nothing runs while nobody talks. Reduced motion: the mark's ring is lit while words arrive |
+| Private search | dropped (owner) | The lock's open / shut swap is the shared icon swap (play-pause: A), on the tap only (`Motion.swapShown`) |
+| Which one? | A: hand-off and swap | The loader leaves as its copy while the question lifts in; "Type your own" and its field share one grid cell - the pill's copy fades to .97 (150 ms `in`), the field comes from .97 (200 ms `out`), its arrow on the icon swap; focus on the same frame |
+| Attachment | C: only the wait moves | A chip being read has a copper line running along its foot, 1.2 s a pass, kept under reduced motion; everything else instant |
+
+**Bugs fixed with them:** Go Deeper's suggestion now sends the line the
+listener saw - read at pointerdown, and no swap is drawn while a finger is on
+the chip or for 300 ms after (`goDeeperShown`, `goDeeperHold`); Continue with
+nothing typed, and the "own" flag, use that same line. Send no longer waits
+up to 700 ms with nothing on screen (search, Go Deeper, voice). Cancel, and
+Cancel on "Which one?", put the question and its attachments back in the bar
+(`restoreAskedSearch`) until a word has been heard. The voice sheet no longer
+writes a custom property on itself every frame.
+
+**Where the pick needed a judgement.** The bubbles' "+150 ms" was the sheet's
+old drop; they start when today's drop ends (`--dur-sheet-out`, 200 ms). The
+loader's wordmark scale is measured (letters' height), not the spec's 1.23.
+The ring is a WAAPI animation on a real element rather than a CSS `::after`:
+a keyframe cannot read the `--ease-out` token, and the phase is set from the
+chevrons' clock anyway. Lists use `--ease-out` for the spec's (.2,.8,.2,1),
+as the rails did (§641); the wipe's (.4,0,.2,1) got its own token. A Go
+Deeper keeps the suggestion as written when it is the one sent; the typed
+one is corrected under the loader. The steps' arrival and the loader fade
+are skipped under reduced motion; the reading line is not (progress).
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note) and
+`rule:search-bar` (go takes the mic's slot; CLAUDE.md's line says so).
+
+**Not built:** findings outside the picks - 44 px zones for the bookshelf,
+voice X, go and loader X; the attachment's removal Undo and its 44 px x; go
+dimming while a file reads; the coral nudge on a voice failure; the
+`<meta name=viewport>` question; "hey FAM" showing that it listens. The iOS
+client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_643.py`; the smoke run's "search's
+round-three motion holds nothing and leaves nothing behind" (go in the mic's
+slot with the clip still, the hand turning for a changed length and nothing
+printed, the loader up on the press while the speller is out, a cancel under
+it leaving a copy, sending nothing and keeping the words, a step's ring that
+stops with the loader, the iris clip, a new trending search arriving once, Go
+Deeper sending the line under the finger, the lock's swap, "type your own"
+in its cell, nothing left), and the voice check's ring per word and drained
+fill. **Not verified here:** iPhone Safari's `path()` clip interpolation and
+animated `circle()`, a real microphone's result rate, and a real finger.
+
+## 644. Motion, round three: Messages (2026-11-17)
+
+The fifth of six phases (`docs/motion/round-three/BUILD.md`): the 13 picks
+in `messages.json` - the inbox (`screen-messages`), a chat (`screen-thread`),
+the Messages tab's count, the share sheet and New message. Every time is a
+named token on `:root` (`--dur-column`, `--dur-dots-grow`,
+`--dur-sending-after`, `--dur-reorder`, `--dur-badge-in`, `--dur-arc`,
+`--dur-undo-in` ...), read by `Motion.DUR`. Several picks change behaviour,
+built as the owner picked them.
+
+| Animation | Pick | Built |
+|---|---|---|
+| New bubbles | A: column rises | `Motion.column`: when the reader was at the bottom, every row starts the chat's growth lower and rises into place, 220 ms `out`, transform only - the new bubble comes up from behind the box at full opacity, never scaled; a burst's new messages 40 ms apart, the first six. A second message mid-rise turns it round from where it is (`columnCarry`). `popMessages` and its .6 -> 1.04 pop are gone. Names and day lines carry their message (`data-mi`) and move with it |
+| Typing dots | B: dots become the message | One `#threadTypingRow` element for the chat, never redrawn: it comes up with the column and fades in (150 ms), leaves as a copy (120 ms `in`). When their message lands, the new bubble is clipped to the dots' box at its tail and opens to its own, 240 ms `in-out`, its words fading in at 80-200 ms, a copy of the dots fading over 80 ms. The loop is an opacity wave (no bob) with phase offsets, kept under reduced motion |
+| Sent, then confirmed | B: "Sending…" line | No dim at all (the 55% flicker is gone). Past one second without an answer, "Sending…" fades in under the last bubble (150 ms `out`) and leaves as a copy (120 ms `in`) when nothing is waiting. Cards and bubbles alike |
+| Chat to the top | A: glide into place | `data-thread` on every row; only a redraw from the network (`renderThreadRows({ fetched })`) moves: `Motion.reorder` glides each row from where it was (280 ms `in-out`), the risen one drawn over the rest; a new chat fades down 8 px (240 ms). Never for the search box's keys, a first draw, rows past the scroller's edge, or a screen still moving; a redraw waits while a finger is on the list (applied after the click) |
+| Unread count | A: rolling count | The badge holds the new number from the first frame; a clipped copy of the old (`.motion-badge`) leaves 14 px the way the number went while the new follows, 300 ms `in-out`, `tabular-nums`; in from .7 with a fade (220 ms `out`), out as a copy to .7 (160 ms `in`). A change while that tab bar was not on a settled screen is owed (`b._owed`) and played once the screen lands - push, pop or tab (`owed`). The app's first paint is still (`setUnreadDot(d.unread, true)`) |
+| Read clears | B: already read | `markThreadRead` on open: the row's unread is 0 and the count lowered at once - after the push, so the drop is owed and rolls when the list is back |
+| Header chips | B: room kept | `#threadChipsRoom`, a grid row 34 px from the first frame for a one-to-one chat (closed at once for a group or no handle); the chips fade in 150 ms, 30 ms apart; someone who shows none closes it, 190 ms `in-out` (the grid expander). One sideways line, so the room is always one height |
+| Opening | C: already in hand | The inbox is read beside the notifications' first call, and again when the poll's count moves or a message arrives with the list shut (`fetchInbox`); each chat opened is kept in memory (`threadMemory`, emptied by `logOut`), drawn at once on reopening and topped up by an immediate poll from its cursor. A chat never opened, or the inbox before its first answer, says "Loading…" only past 300 ms and keeps it 500 ms (`lateLoader`) |
+| Share: pick | C: bottom row becomes Share | The confirm moved into the sheet's bottom row: `#shareIdle` (Cancel) and `#shareConfirm` (Cancel / Share with @maya) share one grid cell and cross over 150 ms, the old face a copy (`Motion.crossFade`); choosing someone else crosses the label. The ring is its own circle (`::after`), .9 -> 1 and a fade, 150 ms |
+| Like or reply to a vibe | C: heart on the card | A like is a 22 px heart on the card's corner (`.msg-react`), arriving .3 -> 1 out of a 3 px blur, 300 ms `--ease-swap`, after the card rises; the separate 30 px heart row is gone. A reply is still the card and a bubble |
+| New message: pick | B: faces gather | The tapped face is toggled, never redrawn (its press is no longer cut); a copy arcs 15% into its place in a stack beside "Group with…" (360 ms `in-out`, shrinking to 22 px), the words beside it gliding as the slot opens (200 ms); unpicked, a copy returns (240 ms). The tick swaps like an icon; the group's name opens as an expander (250 / 190 ms); "Start chat" / "Start group" cross in one cell; Start group is an async button |
+| Send failed | C: stays, marked Not sent | The bubble stays, fading to .55 (150 ms), with "Not sent · Tap to retry" in coral under it (150 ms `out`); the box stays clear. A tap on the line or the bubble sends it again: the line leaves as a copy (120 ms) and the bubble comes back up. A shared episode that fails does the same |
+| Delete chat | B: delete with Undo | No confirmation for Delete chat or Leave group: the chat is off the list and memory at once (`threadsGone` keeps re-reads from bringing it back), the list is drawn from memory before the back-slide with the chat on it, inert, and once the pop has landed (`Motion.landed`) it slides out (180 ms) and then the gap closes (200 ms, `removeRow`'s new `gapAt`). "Chat deleted · Undo" / "You left the group · Undo" for 5 s; the request goes when the line goes (`action.done`), and a refusal puts it back and says so; Undo fades it down into its place (220 ms). Block keeps its question and leaves the list the same way, without Undo |
+
+**The code's rule reversed (send-failed: C).** `sendThreadMessage` took a
+failed message back off the screen - "leaving it there would be the app
+showing somebody a message that was never sent" - and put the words back in
+the box with a toast. The owner picked iMessage's convention: it stays,
+marked "Not sent · Tap to retry", which is what keeps it from reading as
+sent. The comment says so; `rule:op-social-live` has a `> **Current:**`
+note.
+
+**Bugs fixed with them:** every chat redraw (a save, an acknowledgement, the
+dots) jumped the scroll to the bottom, mid-history too; a deleted or left
+chat showed again on the list during Back; a banner for another chat tapped
+inside a chat pushed a second chat (Back looked dead) - it now replaces the
+chat in place and fades the new one in (150 ms); the Messages count stayed
+on the tab after log-out; a like's banner read "Shared: <title>" (now "Liked
+your vibe", and a reply's "Replied to your vibe: ..."); a group opened from
+its banner read "0 people"; a group's header went stale when someone left
+(the poll refreshes it); a double-spaced message came back with a new key;
+chat rows could not be opened from a keyboard; saving a shared card waited
+for the server and redrew the chat (it now fills on the tap and only that
+button changes).
+
+**Where the pick needed a judgement.** The chat is measured as laid out
+(`threadHeight`), not by `scrollHeight`, which the rising rows' transforms
+inflate - a second message mid-rise read as the reader having scrolled away.
+The listener's own send always shows itself (it jumps to the bottom, without
+the rise, if they had scrolled up). In a short chat that does not scroll,
+the column has nowhere to go, so the new rows rise by their own height. The
+dots' arrival and plain exit came from the notes (B's spec gives only the
+hand-over). The dots' phase offsets run -0.3 / -0.15 / 0 s, so the wave
+still reads left to right (the notes' -0.15 / -0.3 on dots 2 and 3 would
+run it backwards). "Not sent" keeps the server's reason in its label for a
+screen reader; the line on screen is the pick's words. The badge's exit
+shrinks to .7 as its entrance grows from it. The chat's gap closes after the
+slide (the pick's staging), where the queue keeps both at once. A delete
+still waiting on its Undo is sent at log-out, under that account. The
+loader holds an answer that lands in its first 500 ms for the rest of them
+(the async button's rule).
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note) and
+`rule:op-social-live` (a failed send stays; the inbox at app open; chats in
+memory; read on the tap; Undo on delete and leave). CLAUDE.md's lines are
+still true.
+
+**Not built:** findings outside the picks - 44 px zones for the composer's
+buttons, ⋯, back, card buttons and header chips; wide rows opting out of the
+squeeze; cross-fading the ⋯ sheet's contents; a picture on a shared card;
+naming a group in the app's own card rather than `window.prompt`; muting the
+send arrow on an empty box; the guest (+) toast that is never read. Header
+chips' C (fetch on press) was not picked; the room is B's. The iOS client's
+`Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_644.py` (and §641's ceiling test now
+names the dots' loop and "Sending…"'s second as waits); the smoke run's
+"Messages' round-three motion holds nothing and leaves nothing behind" (the
+count rolling with the new number in it, a redraw keeping the reader's place
+and the column rising from the bottom unscaled, a message growing out of the
+dots, "Sending…" only past a second, a failed send staying marked with the
+box clear and going again, a chat kept in memory reopening at its newest
+message, a banner's chat replacing the open one, a chat
+read on the tap, Delete going back with Undo and the chat sliding out with
+nothing sent and Undo putting it back, a reorder gliding and the keys' not,
+the share sheet's bottom row turning in place, New message's face toggled
+and gathering, nothing left). **Not verified here:** a real phone's scroll
+with the column rising under momentum, Safari's `clip-path` on a bubble,
+and a real finger on the list.
+
+## 645. Motion, round three: yourFAM (2026-11-17)
+
+The last of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks in
+`yourfam.json` - the hub (`screen-profile`), a friend's page
+(`screen-person`), Friends, Settings, Save for Later, My Vibes, Edit profile
+and its interests, and the story editor (`#vibeComposer`). Built on the
+screens as Main's 11.16 notes left them (Friends | Following, private mode,
+a profile's vibes and interests for followers only). Every time is a named
+token on `:root` (`--dur-hub-*`, `--dur-follow`, `--dur-regroup`,
+`--dur-count-roll`, `--dur-flood`, `--dur-page-sheet-*`, `--dur-folder-arc`,
+`--dur-switch`, `--dur-into-ring`, `--dur-ring-draw` ...), read by
+`Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| The hub arrives | A: stagger the first draw | `renderProfile` builds parts (`data-part`) and `patchParts` reconciles them with what is drawn: an unchanged part is not touched, a changed one is patched (`patchHubPart`). The first draw of a session builds top down (`Motion.hubArrive`: hero, numbers, buttons, interests, tabs 80 ms apart, the first six tiles 40 ms apart, 300 ms `out`, 8 px and a 2 px blur); every later open with nothing new moves nothing. A device that was signed in no longer flashes the guest gate before `/api/auth/me` answers (`authKnown`) |
+| Vibes / Mixes | A: slide by side | One underline (`.yf-tabs::after`) slid by a 250 ms `in-out` transition; the grid nudges with `Motion.panels` (old a copy out 18 px 110 ms `in`, new in 200 ms `out` 90 ms later), and a second tap finishes the first. Yours and a friend's (`drawShelf`). A number's scroll to the grid is `auto` under reduced motion |
+| Follow | C: keep §298, fixed - on transforms (the lead's direction) | `Motion.followButton`: the button is its new width at once; a paint layer under its words scales from the old width (`scaleX`, 260 ms) while its colour turns (150 ms), its neighbours glide (FLIP); the tick draws 220 ms at 80 ms. No `width` animation. Follow filled copper, Following an outline with its tick in its own markup (`Motion.followLabel`), everywhere - Friends, search, a friend's page, their friends, the popup. "Following" / "Unfollowed" on the bottom line are gone (refusals only) |
+| Friends regroup | A: row travels to group | `drawFriends`: rows keyed `data-k`; a row still there keeps its element (so the tap's tick goes on drawing) and glides to its new place (`Motion.regroup`, 320 ms `in-out`); a leaver goes as a copy 8 px left, 150 ms `in`; a new heading fades in 150 ms; the tab and "Follows you" counts roll after the move (350 ms). A tab turned draws as it is |
+| A friend's page fills | A: reserve, then fill | The numbers row is drawn from the first frame with dashes; the interests line is kept (`.yf-int-room`, three empty pills) and closes under the buttons when there are none to show (190 ms, the expander); values cross-fade 150 ms, pills fade in 150 ms, tiles rise 8 px (260 ms `out`, 40 ms apart, first six). Patched in place (`patchPersonPart`): Follow stays the same element and Message is added beside it |
+| Saved: remove | A: §298 on transforms + Undo | The row slides out as a copy (180 ms `in`), the rows below close after it on `in-out` (200 ms, `removeRow`'s new `leave`); "Removed · Undo" for 5 s; the DELETE goes when the line goes (`action.done`); Undo fades the row back while the rows make room (`relist`'s `enterFade`). The shelf is no longer re-read under the slide. My Vibes' X is the same ("Vibe taken back · Undo"); the last row gone fades the empty sentence in |
+| Settings' late rows | C: ask before you look | `preloadSettings` reads preferences, plan, AI consent, reset mail, blocks, activation and push at app open and sign-in (from `refreshAuth`); `openSettings` asks again. `renderSettings` reconciles (`patchSettings`): rows keep their elements (`data-set`), values cross-fade 150 ms when they change, and the list is drawn whole only when its rows no longer line up - never while a finger is on it (owed to the pointerup). The lost tap is fixed |
+| Delete a vibe | A: shrink and close up | On the confirm: the tile is out of the grid, its copy recedes (.92, 150 ms `in`) after the sheet's 200 ms drop, later tiles slide back (250 ms `in-out`, 30 ms apart, first six), the vibes number rolls down as they land; the request goes at once, a refusal puts it back and says so (`relist`'s `leaveScale`, `stagger`) |
+| Your interests | B: fill from the tap | Every chip keeps a 14 px icon slot (+ at 60%, then a tick) and one weight, so its width never changes; a tap changes that chip in place: copper floods from the tap point (`clip-path: circle`, 250 ms `out`) and the tick draws (200 ms at 80 ms); unchosen it drains back (180 ms `in`). "3 OF 5" rolls its digit; a typed interest arrives from .95 |
+| Edit profile opens | B: page sheet rises | `Motion.screen` kinds `sheet-up` (y 100% -> 0, 300 ms `out`, the page beneath to .97 and 10% dimmer) and `sheet-down` (220 ms `in`), for Edit profile, Where you are and Your interests from Settings; the first run's step keeps its motion |
+| Your changes land | B: develop like a picture | A new photo shows at once, on this device, developing (blur 8 -> 0, 1.06 -> 1, fade, 320 ms) with "Checking photo…" under it until the image check answers; refused, the old one develops back and the line says why; the server's copy then swaps in without developing again (`hubQuietPhoto`). Name and place cross-fade; interests by A (`Motion.pills`: new from .95 200 ms `out` 40 ms apart, gone 150 ms `in`, the rest glide 200 ms) |
+| File in a folder | A: fly to the chip | `fileInFolder` changes the row, its meta and the counts on the tap; a copy of the row's square (a vibe row's folder button) arcs into the chip (`Motion.toFolder`, 15%, 380 ms `in-out`, 1 -> 1.15 -> .4, fading over the last 30%), then the chip's count rolls and it bumps (1.1, 220 ms); a chip out of view is scrolled in and the flight goes 200 ms later. A row that leaves the folder shown goes up 8 px (150 ms `in`) while the rows close up. Refused, the shelf is read again |
+| Settings' switches | A: a real switch | Ten on/off rows are `settingsSwitch`: no chevron, `role="switch"` on the row, the mix's switch with its knob on a 200 ms `in-out` transition; flipped on the tap (`flipSetting`), the saved state drawn after (a refusal flips back). "Send my questions to AI" asks first and moves on the answer |
+| Adding to your story | B: into your ring | The editor grows out of the (+), your face or VIBE! (`growStory`), closes into it on X (240 ms `in`); tool panels slide up 280 ms and down as a copy 200 ms. Posted: the ring is drawn on your photo at once (`markMyStoryUp`), a copy of the canvas shrinks into the photo (380 ms `in-out`, rounding, fading over its last 20%), a copper ring draws from twelve o'clock (400 ms), and the line comes at 780 ms (`Motion.intoRing`); with no face on screen the copy fades 150 ms |
+
+**Bugs fixed with them:** the hub repainting stale after a change elsewhere
+(`refreshHub`); the "N vibes" number left stale by a delete; the ring left on
+your photo after taking down your last story; the Message button and "friends"
+not appearing after Follow on a friend's page (the profile is asked again
+once the graph has answered); the tick drawn by Follow vanishing when Friends
+was redrawn; the saved row's fold cut off by the shelf's re-read; the popup's
+Follow back waiting for the server and tappable twice; follows from a friend's
+friends waiting with nothing on the tap; Settings rebuilt up to seven times
+under a finger.
+
+**Where the pick needed a judgement.** Follow's C is "today's motion
+exactly", which animated `width`; the lead asked for it on transforms, so it
+is option B's paint-layer FLIP with C's numbers. Edit profile's B names a
+120 ms crossfade under reduced motion; the shared pick (reduced: A, §640)
+made every screen change instant, and that wins. The hub's first draw is
+skipped (and not owed) when its screen is still moving in. The story's
+storyboard holds the bottom line to 780 ms by the pick; with no face on
+screen it is at once. A vibe row has no picture, so its folder button is
+what flies. A row taken out of a filtered folder goes up and the gap closes
+together, where Saved's removal closes after the slide.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note). CLAUDE.md's
+lines are still true.
+
+**Not built:** findings outside the picks - the 44 px zones for the saved
+row's folder and X, the interest pills, Vibes / Mixes and the (+); wide rows
+opting out of the squeeze; the photo editor's rubber band and transform
+drag; the interests line's edge fade; the shake at 5 of 5 (option A's); the
+replies sheet and the editor as `.sheet-overlay`; a LIKED word on a post's
+heart and its count rolling; a vibe deleted from a post or the posts list
+animating (they are redrawn as before); History and Topic keeping the old
+list while a filter loads; a new folder's chip growing in before the flight
+lands. The iOS client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_645.py` (and §575's Message test and
+the guest gate test read the new markup); the smoke run's "yourFAM's
+round-three motion holds nothing and leaves nothing behind" (an identical
+answer leaving the hub's elements, a changed count rolling in place, the
+shelf's underline and copy, Follow by `scaleX` with no width and its tick,
+Settings keeping a row and switching on the tap, Edit profile rising, an
+interest flooding at the same width, a saved row going with Undo and no
+DELETE, the editor's drawer, a post into the ring with the line after,
+nothing left). **Not verified here:** a real finger, Safari's `clip-path`
+circle on a chip, and the preload's cost on a slow network at sign-in.
+
+## 646. Motion round three: the first audit (2026-11-17)
+
+Seven reviewers drove the six phases (§640-§645) in a browser and filed 37
+findings (`p1`-`p7`: 8 broken, the rest friction and polish). Every one was
+reproduced with the reviewer's own probe before it was fixed, and again
+after; all 37 are fixed, two of them in part (said below). Nothing in
+`rule:motion` changed: each fix is the existing pattern - the change made
+first, inert copies, rollback to what the server said.
+
+**The stale Undo (broken; p1, p5, p7, and p6's duplicate row).** A pending
+Undo's commit goes early when the page is hidden or left, and on log-out
+(§641, §644); the line stayed up and its Undo still ran `run()`, putting
+back on screen what the server had deleted - after log-out, the previous
+account's chat into the next account's memory. Now `flushSnackCommit`
+takes the line down and disarms the button whenever it sends a commit
+(`endSnackLine`; `snack()` keeps its own line as it draws the next), an
+Undo whose commit has gone does nothing, and `logOut` hides the line
+whatever it offered. The Saved and My Vibes shelves keep a removal's id
+while its Undo is up (`savedPendingRemove`, `vibePendingRemove`): a shelf
+read again inside the five seconds leaves the row (and its folder count)
+off, and Undo puts it back only if it is missing - it was drawn twice. A
+commit sent as the page closes is `keepalive` (`recordFamEvent`, the
+saved / vibe / chat DELETEs), or it was cancelled with the page. Not
+interested's Undo after the rails were redrawn (p2) draws the rails again
+from what they last were (`feedSectionsLast`) - it reinserted nodes into
+rails no longer on the page.
+
+**The other broken findings.**
+- *A story dragged with a mouse never finished* (p2): let go over the
+  turning copy or off the frame, the pointerup never reached the overlay, so
+  the cube stayed half-turned and paused and its copies outlived the viewer.
+  A drag now takes pointer capture once it is a drag (not on pointerdown, so
+  a tap's click still lands on its button), a leftover drag ends on the next
+  pointerdown or on `lostpointercapture`, and `closeStory` ends any drag or
+  turning cube first (`storyDragEnd`, `Motion.cubeEnd`). A turn back that
+  finishes after the viewer closed restores what was watched and stops.
+- *myFAM's sub-chip acted on the wrong category* (p3): the last category's
+  panel, kept while the next loads (§642), was live - Play all said nothing
+  was made, Follow followed the sub. It is `inert` while `aria-busy`
+  (`catPanelIdle` clears both, also where a load is abandoned), and Play all
+  and Follow do nothing while loading.
+- *A mix drag cut off by `settleMixBody`* (p3): the server's redraw replaced
+  the carried row, `mixDrag` stuck and the tilt loop ran for good. The redraw
+  waits while a row is carried; the tilt loop and the next drag end a drag
+  whose row is gone.
+- *The player's past captions not dimmed after the b3eacb33 merge* (p7):
+  the player's own `.cc-said` rule restored full colour. It is the dimmed
+  colour now, and `ccIn` has no `to` (fill `backwards`) so it warms to the
+  line's own colour - the player's is not `--paper`.
+
+**The smoke run's story checks skipped silently** (p2). Both were gated on
+the row's `.yf-vibe` badge, gone since §297, so §641's checks (and the
+27/09 one) never ran. `story_face()` finds a face with stories, draws two
+into the row on the live build (whose database has nobody's), and fails
+when there is none. The §641 check now also drags a mouse to the next
+friend's and lets go off the story, and closes one mid-turn (it fails on
+the old code). A new check, "An Undo whose request has gone does nothing",
+hides the page under a pending Undo and re-reads Saved under one. The
+27/09 check's "tap right" clicks the tap zone itself: the live build's
+stories have no layout, and their title lies over the zone's middle.
+
+**Friction.**
+- Not interested committed on page close: `keepalive` (above). Fixed.
+- Pick-up rails: an Undo after a redraw (above). Fixed.
+- A paused picture fade held the next picture at opacity 0 (p1):
+  `Motion.picture` ends the last one's fade first, and a cleared picture
+  ends it too. Fixed.
+- An edge-swipe that outlived a screen change pressed the new screen's back
+  (p1): `Motion.screen` ends a drag under way, and letting go presses back
+  only on the screen that was dragged. Fixed.
+- Public/Private tapped twice (p3): only the last tap's answer paints; an
+  earlier one records what the server has, which a refused last tap goes
+  back to. Fixed.
+- A topic played before its save answered was asked as its bare title (p3):
+  the stand-in item is `pending` and is not played (a row's play says "Still
+  adding that"); Add topics' save redraws the mix page beneath it. Fixed.
+- The public mix's Add button read both faces (p3): the face not on is
+  `aria-hidden`. Fixed.
+- Search DailyFAM left dimmed (p4): cleared on every search and open. Fixed.
+- A failed search's words put back by an unrelated Cancel (p4): any other
+  episode clears `searchAsked`, as does a failure not asked again. Fixed.
+- Go pressed again after cancelling under the speller was lost (p4): a
+  cancel frees the next press, and a late speller answer clears only its
+  own mark. Fixed.
+- A send that failed after switching chats vanished (p5): the failed draft
+  is kept with its chat's memory and the failure is said. Fixed.
+- Follow tapped twice inside 260 ms spread its paint over the screen (p6):
+  only the latest paint takes the class away. Fixed.
+- A settings switch tapped twice sent the same value twice (p6): the row's
+  action turns round with its switch. Fixed in part: a preload answering
+  mid-save still redraws the row once (it slides back and forth).
+- A refused folder move's flight wrote the hoped-for count (p6): it writes
+  nothing once refused. Fixed.
+- `authKnown` never set on a non-JSON `/api/auth/me` (p6): an answer it
+  cannot read counts as unreachable, and an open Profile is drawn from it.
+  Fixed.
+- A friend's page said "Nothing vibed yet" from the last person's answer
+  (p6): cleared before drawing. Fixed.
+- `Motion.roll` called again mid-roll ('43', p7 and p1): the outgoing
+  number is drawn by CSS (`::before{content:attr(data-n)}`), so the
+  element's text is always the current number. Fixed.
+
+**Polish.**
+- The tour's first card jumped as the glide and its entrance fought (p1):
+  the first card's glide is cancelled. Fixed.
+- The tour took taps through its fade (p1): `pointer-events:none` while it
+  fades. Fixed.
+- `watchRailEnds` stacked listeners on kept rails (p2): once per rail. Fixed.
+- A turn back finishing after close ran the story on (p2): above. Fixed.
+- `aria-busy` left on an abandoned category load (p3): above. Fixed.
+- The voice sheet shown again by a cancel inside 200 ms (p4): the pending
+  hide runs when the loader goes. Fixed.
+- The column's carry counted twice (p5): `Motion.column` stops the last
+  rise, already folded into `carry`. Fixed.
+- New message: a second pick mid-arc drew the first face twice, an unpick
+  mid-arc flew an invisible copy (p5): a flying pick's stack item stays
+  hidden through repaints and lands by its current element; unpicked, it
+  returns from where its copy had got to. Fixed.
+- The placeholder story could be opened (p6): `openMyStory` skips it.
+  Fixed in part: if the hub's re-read fails, `profileNow` keeps it for the
+  ring (nothing opens it).
+- `--spring-page` was read by nothing (p7): deleted (the page spring is
+  built in the script with the finger's speed). Fixed.
+
+**Skipped:** none. **Disagreed with:** p2's "setPointerCapture in
+pointerdown" - capture on pointerdown sends a tap's click to the overlay,
+not to the X or Like under it, so it is taken once the drag starts.
+
+Tests: `tests/test_motion_round_three_646.py`; §640's spring test drops
+`--spring-page`, §642's and §644's read the new rollback and log-out; the
+smoke run's "An Undo whose request has gone does nothing" and the story
+checks above. **Not verified here:** a real finger, iOS's suspended timer
+behind the stale Undo, and a page actually closed under a `keepalive` send.
+
+## 647. Motion round three: the second audit (2026-11-17)
+
+Three reviewers drove §640-§646 again in a browser and filed eight
+findings (one broken, the rest friction and polish; all three found the
+reduced-motion line). Each was reproduced with the reviewer's own probe
+before it was fixed and again after, on a preview built from the change.
+All eight are fixed. Nothing in `rule:motion` changed: each fix is the
+existing pattern - the change made first, rollback to what the server said.
+
+**A refused Settings switch never flipped back (broken).** `flipSetting`
+turns the row on the tap; the refusal redraws Settings, which drew exactly
+the HTML it drew before the tap, so `patchSettings` (`was._html ===
+held[i]`) skipped the row and Private mode stayed on - `aria-checked="true"`
+- while the server had it off. A privacy control saying the listener was
+hidden when they were not. `flipSetting` now clears the row's `_html`, so
+the next redraw always patches a flipped row to what the server has. §646's
+source pin passed throughout; the new smoke check refuses
+`/api/preferences`, taps Private mode and reads `aria-checked` back.
+
+**Friction.**
+- *Reduced motion: the bottom line still rose and faded, its dot sprang*
+  (all three). The reduced block's `.toast, .snack, ::before{ transition:none }`
+  is one class; `.toast.show, .snack.show` and their `::before` carry the
+  entrance at two, and won. The block names the `.show` selectors too. A
+  regression of §640: the merge base's `.show` rule had no transition.
+  Fixed; the smoke run reads the computed transitions under emulated
+  reduced motion.
+- *A tile's save lit on the tap was switched off by a shelf read already in
+  flight* (§641's optimistic paint opened the window): `loadTileSaves`
+  rebuilt `savedTileQueries` from the pre-save list. A read that started
+  before a tap began or settled is dropped (`tileSaveSeq`), and a tap still
+  in flight wins over any read (`tileSavePending`). Fixed; driven in the
+  smoke run with the shelf read held 600 ms.
+- *Log-out did not wait for the chat delete it sent* (§644/§646 said it
+  goes "under this session"; nothing ordered the two requests): a logout
+  handled first made the DELETE a 401 - the chat not deleted, and "You need
+  an account for this." on the signed-out screen - and a late answer put
+  the last account's unread count back on every Messages tab.
+  `flushSnackCommit` and `hideSnack` return the commit's request (the chat,
+  group, Saved, My Vibes and Go Deeper commits return theirs), `logOut`
+  posts `/api/auth/logout` once it settles or after
+  `LOGOUT_COMMIT_WAIT_MS` (1.5 s), and `goneChat`'s answer is ignored once
+  `authEpoch` has moved (log-out bumps it). Fixed.
+
+**Polish.**
+- *A story closed during a tap's or the timer's cube turn* left the cube
+  and `.motion-story-back` turning over the page for 340 ms: `turnToFriend`
+  never set the drag closure's `turning`. `Motion.turnStory` returns its
+  cube, kept in `storyTurning`, which `storyDragEnd` ends with the viewer
+  (and a second turn ends the first). Fixed.
+- *Public / Private said `role="switch"` but took no keyboard* (§642):
+  `tabindex="0"` and Enter/Space, as the Settings switch rows. Fixed.
+- *`markPlaying` left the play icon's swap key stale*, so the first pause
+  of a new episode did not swap: it sets `_iconKey` with the HTML (and the
+  album player's two icons likewise). Fixed.
+- *yourFAM's Saved Undo smoke check passed whether or not Undo worked*: it
+  counted DELETEs at 400 ms, before any could go. It now asserts the row
+  count is back and the row is there, then ends the line and checks that
+  still nothing was deleted. Fixed.
+
+**Skipped:** none.
+
+Tests: `tests/test_motion_round_three_647.py`; the smoke run's new "A
+refused switch flips back; reduced motion moves no line; a tile's save
+holds" and the stronger Saved Undo in yourFAM's check. **Not verified
+here:** a real network reordering the DELETE and the logout (the probes
+delay one side in the page), and a real screen reader on the mix switch.

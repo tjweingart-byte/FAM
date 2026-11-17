@@ -631,3 +631,11 @@ and `limit` = Lines.
 | 38475 | 133 | 637. The owner's 11.16 notes: edit topics, Friends / Following, captions that start off and scroll, a lock for private search, the player on an iPad (2026-11-16) |
 | 38608 | 55 | 638. Private mode, and a profile's vibes and interests for followers only (2026-11-17) |
 | 38663 | 47 | 639. Listeners who came back, counted on /admin (2026-11-17) |
+| 38710 | 82 | 640. Motion, round three: the shared picks (2026-11-16) |
+| 38792 | 59 | 641. Motion, round three: dailyFAM (2026-11-17) |
+| 38851 | 70 | 642. Motion, round three: myFAM (2026-11-17) |
+| 38921 | 69 | 643. Motion, round three: search (2026-11-17) |
+| 38990 | 92 | 644. Motion, round three: Messages (2026-11-17) |
+| 39082 | 75 | 645. Motion, round three: yourFAM (2026-11-17) |
+| 39157 | 134 | 646. Motion round three: the first audit (2026-11-17) |
+| 39291 | 68 | 647. Motion round three: the second audit (2026-11-17) |

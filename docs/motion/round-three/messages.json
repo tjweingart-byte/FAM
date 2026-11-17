@@ -1,0 +1,1325 @@
+{
+ "page": "Messages",
+ "codeScreens": [
+  "screen-messages",
+  "screen-thread",
+  "newChatOverlay",
+  "shareOverlay"
+ ],
+ "summary": "Three things move today: bubbles pop from their tail (§298), the typing dots bob, and the tab's unread count pops and bumps. A chat jumping to the top, read state, sent status, deletes, the share bar and a failed send change in one frame, and every chat redraw yanks the scroll to the bottom.",
+ "interactions": [
+  {
+   "name": "Open Messages (tab)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "your chats, newest first, and which are unread"
+  },
+  {
+   "name": "Type in Search messages",
+   "trigger": "keyboard",
+   "frequency": "few",
+   "tells": "which chats match, on the next frame"
+  },
+  {
+   "name": "Tap a chat",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "that conversation, at its newest message"
+  },
+  {
+   "name": "Type in the message box",
+   "trigger": "keyboard",
+   "frequency": "many",
+   "tells": "your words; the box grows to about five lines"
+  },
+  {
+   "name": "Send (arrow or Return)",
+   "trigger": "touch / keyboard",
+   "frequency": "many",
+   "tells": "your message is in the chat, now"
+  },
+  {
+   "name": "Server acknowledges a send",
+   "trigger": "network",
+   "frequency": "many",
+   "tells": "it was received - only worth saying when it is slow"
+  },
+  {
+   "name": "A send fails",
+   "trigger": "network",
+   "frequency": "rare",
+   "tells": "it did not go, why, and your words are back to try again"
+  },
+  {
+   "name": "Their message arrives (2 s poll)",
+   "trigger": "network",
+   "frequency": "many",
+   "tells": "something new, from whom, and where it landed"
+  },
+  {
+   "name": "They are typing",
+   "trigger": "network",
+   "frequency": "many",
+   "tells": "a reply is coming"
+  },
+  {
+   "name": "Share an episode into the chat (+)",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "the episode card is on its way to them"
+  },
+  {
+   "name": "Listen / Go Deeper / Save on a shared card",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "that episode plays, the follow-up opens, or it is saved"
+  },
+  {
+   "name": "A like or reply to your vibe arrives",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "a friend liked or answered your vibe"
+  },
+  {
+   "name": "Header: face, interest chips, ⋯",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "their profile, a topic, or the chat's options"
+  },
+  {
+   "name": "Delete chat / Leave group / Block / Report",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "it is gone from your list (or reported), and where it went"
+  },
+  {
+   "name": "Group photo or name changed",
+   "trigger": "touch / network",
+   "frequency": "rare",
+   "tells": "the group's new look, once the photo check passes"
+  },
+  {
+   "name": "Back to the list",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "the list as it is now: read, reordered"
+  },
+  {
+   "name": "A message while the list is open (3 s poll)",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "which chat has news, and that it is now first"
+  },
+  {
+   "name": "Unread count changes on the tab",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "how many are unread, and whether it went up or down"
+  },
+  {
+   "name": "(+) New message: pick friends",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "who is in, and whether it is a chat or a group"
+  },
+  {
+   "name": "Start chat / Start group",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the conversation opens (the group is made)"
+  },
+  {
+   "name": "Share sheet: pick a face, then Share",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "who gets it, and that it went"
+  },
+  {
+   "name": "Share sheet: Anywhere else",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "where the link goes: opens, clipboard or card"
+  },
+  {
+   "name": "Banner for another chat",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "who wrote; a tap opens that chat"
+  },
+  {
+   "name": "Guest: Sign up / Log in card",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "messaging needs an account"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "broken",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:21232",
+   "before": "Every redraw (typing dots, a save, an ack) snaps the chat to the bottom, mid-history too",
+   "after": "Pin to the bottom only if the reader was there; otherwise keep their scroll"
+  },
+  {
+   "severity": "broken",
+   "question": 4,
+   "principle": "Jakob's law",
+   "where": "static/index.html:25085",
+   "before": "A banner tapped inside another chat swaps it in one frame and stacks a 2nd 'thread'",
+   "after": "Replace the chat in place (no new stack entry) and cross-fade the body 150ms"
+  },
+  {
+   "severity": "broken",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:20732",
+   "before": "A deleted or left chat shows again on the list during Back, then vanishes on re-fetch",
+   "after": "Redraw from memory before Back; take the row out with the §298 slide once it lands"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:21242",
+   "before": "Saving a shared card waits for the server, then redraws the whole chat",
+   "after": "Fill the bookmark on the tap, roll back on failure; patch that button only"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:20461",
+   "before": "Unread dot and dark preview stay until the re-fetch lands, then flip in one frame",
+   "after": "Mark read on open (optimistic), lower the badge; reconcile when the list lands"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:1268",
+   "before": "Every send dims to 55% for one round trip, then snaps back: a flicker per message",
+   "after": "Dim only after 300ms, hold 500ms once shown, fade back over 150ms"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:20481",
+   "before": "'Loading…' shows at once for the inbox and every chat, even for a 100ms answer",
+   "after": "Nothing for 300ms; better, hold the inbox and opened chats in memory already"
+  },
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Doherty threshold",
+   "where": "static/index.html:22541",
+   "before": "Share: 'Sending…' replaces the label at once; the sheet waits for the server",
+   "after": "Close on Share and say 'Sent to Maya'; roll back with Retry on failure"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:20952",
+   "before": "A message while the list is open rebuilds it: the chat jumps to the top in one frame",
+   "after": "FLIP: rows glide from old to new places, 280ms cubic-bezier(.77,0,.175,1)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:20952",
+   "before": "The 3s poll can redraw and reorder the list under a finger in the middle of a tap",
+   "after": "Hold a list redraw while a pointer is down; apply it on pointerup"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:20514",
+   "before": "Interest chips land late, grow the header 34px; the newest bubble slips under the box",
+   "after": "Have them on arrival (fetch on press, cache), else reserve the row; stay pinned"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:20868",
+   "before": "Typing dots appear and vanish in one frame; their message replaces them as a new pop",
+   "after": "Fade in/out from the tail; grow the dots' bubble into their message (clip, 240ms)"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:22519",
+   "before": "Share bar toggles hidden: 'Anywhere else' jumps 45px and the centred card shifts",
+   "after": "Open it as a grid-rows expander, 250ms in / 190ms out, ease-in-out"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:1278",
+   "before": "Typing dots freeze at .7 under reduced motion, which reads as nothing happening",
+   "after": "Activity indicators keep moving: keep an opacity-only pulse, drop the 3px bob"
+  },
+  {
+   "severity": "friction",
+   "question": 4,
+   "principle": "Hit area",
+   "where": "static/index.html:3087",
+   "before": "Composer (+)/send, ⋯ and back are 36px; card Save/buttons 30px; header chips 23px",
+   "after": "Keep the visuals; add a ::after hit zone of max(100%, 44px)"
+  },
+  {
+   "severity": "friction",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:21345",
+   "before": "A failed send vanishes in one frame; the reason is a toast away from the box",
+   "after": "The bubble drops back into the box as the words return; reason on a line above it"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:24931",
+   "before": "At app open the bootstrap paint plays the badge's pop-in (often under the FAM intro)",
+   "after": "Paint the bootstrap count without motion; animate only later changes"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:4978",
+   "before": "Search messages filters on each key with no motion - correct",
+   "after": "Keep instant; any reorder FLIP must skip keyboard-driven redraws"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:21121",
+   "before": "The message box grows a line at a time with no transition - correct for typing",
+   "after": "Keep instant; never animate its height (keyboard-driven, and a Properties breach)"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Stagger",
+   "where": "static/index.html:6488",
+   "before": "Several messages in one poll all pop on the same frame",
+   "after": "40ms apart, first 6; the rest arrive with the sixth"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:6493",
+   "before": "Bubbles start at scale .6 and overshoot to 1.04 (bounce in product UI)",
+   "after": "Rise instead, or pop from ≥.9 at the tail with no overshoot"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:6494",
+   "before": "Bubble pop and badge pop/bump run on the bare 'ease-out' keyword",
+   "after": "cubic-bezier(.32,.72,0,1) to appear; (.77,0,.175,1) for a change in place"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:6518",
+   "before": "Badge grows from scale 0, its copy shrinks to 0; out is 47% shorter than in",
+   "after": "From and to ≥.6 with a fade; out 20–30% shorter (220ms in / 160ms out)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Make it mean something",
+   "where": "static/index.html:6501",
+   "before": "Count digits swap in one frame; the clear rarely shows (tab bar hidden or arriving)",
+   "after": "Roll changed digits 300ms; play an owed clear when that tab bar is next settled"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Compound motion and loops",
+   "where": "static/index.html:1274",
+   "before": "Dots 2 and 3 wait 150/300ms at full opacity, then snap to .35 when their loop starts",
+   "after": "Negative delays (phase offsets): all three are mid-wave from the first frame"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6599",
+   "before": "removeRow closes the gap by animating height, padding and margin",
+   "after": "FLIP the rows below with translateY and drop the copy at once"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Anticipation",
+   "where": "static/index.html:1244",
+   "before": "Chat rows (358px) scale to .978 on press on top of their :active background",
+   "after": "Wide rows change background only; opt them out of the squeeze"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:21424",
+   "before": "New chat: each tap redraws every face, cutting the press spring; ✓ and field pop in",
+   "after": "Toggle .on on the tapped face; ✓ as an icon swap, the field as an expander"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:11259",
+   "before": "⋯ → Delete / Leave / Block / Report swaps the sheet's content in one frame",
+   "after": "Cross-fade the sheet's contents 150ms so the new question reads as new"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:21205",
+   "before": "A shared card has no picture, so Listen cannot grow the player out of it (push)",
+   "after": "Carry the episode's picture on the card; the existing grow then starts there"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:1268",
+   "before": "A pending episode card is never dimmed; a pending text bubble is",
+   "after": "Apply the pending rule to .yf-ep as well"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Jakob's law",
+   "where": "static/index.html:20608",
+   "before": "Naming a group uses window.prompt, a browser box unlike every other input",
+   "after": "Use the app's modal card with a name field, fading and lifting like the rest"
+  },
+  {
+   "severity": "polish",
+   "question": 5,
+   "principle": "Errors: prevent then recover",
+   "where": "static/index.html:5030",
+   "before": "The send arrow is lit with an empty box and does nothing when tapped",
+   "after": "Mute it while the box is empty (colour only, no transition: it follows keys)"
+  }
+ ],
+ "bugs": [
+  "logOut() stops the polls but never repaints [data-msg-badge] (drawMixDot is cleared, this is not): the last account's unread count stays on the tab.",
+  "A vibe like or reply raises a banner reading 'Shared: <title>': pollNotifications ignores m.text for kind 'episode' (24967); the list says 'Liked a vibe'.",
+  "A group opened from its banner passes members: [] (25081), so the header reads '0 people · See who's here' until the thread loads.",
+  "messages.clean_text collapses inner spaces and scrubs slurs, so a double-spaced message comes back with a new key (21157) and pops again on ack.",
+  "A group's header (name, photo, 'N people') is set only when the chat opens; the 2 s poll never refreshes it, so it is stale after someone leaves.",
+  "Chat rows are <div onclick> with no role or tabindex (20450): a keyboard cannot open a chat.",
+  "Guest (+) toasts 'Messaging needs an account' and then openAuth('signup') leaves for /waitlist (22843), so the toast is never read."
+ ],
+ "animations": [
+  {
+   "id": "chat-bubbles",
+   "title": "New bubbles in a chat",
+   "status": "existing",
+   "where": "static/index.html:6486 (Motion.popMessages), called at 21233",
+   "trigger": "send a message, or theirs arrives on the 2 s poll",
+   "frequency": "many",
+   "now": "Each new bubble scales .6→1.04→1 from its tail corner, opacity 0→1 by 65%, 260 ms bare ease-out; older bubbles jump up a row in one frame (scrollTop snap); a burst pops at once.",
+   "verdict": "Keep motion (it says where a message came from) but drop the overshoot and the .6 start, move the conversation with the new row instead of jumping it, and stagger bursts 40 ms.",
+   "severity": "polish",
+   "principles": [
+    "Make it mean something",
+    "Origin",
+    "Slow in and slow out",
+    "Stagger",
+    "Frequency of use"
+   ],
+   "notes": "Code: renderThreadBody (21141) rewrites #thread-body.innerHTML on every change, sets scrollTop = scrollHeight (21232), then pops rows marked msg-new (21233). New is keyed on what a message says (21157), so an acknowledged send does not pop twice. Rows: .msg-row with .msg-bubble or .yf-ep (a shared card); a group adds .msg-from names and .msg-day lines, which today appear without motion above a popping bubble - in every option they move with their row.\n\nFrequency: this is the many branch. It passes only because it answers 'where did this come from?' and never delays reading: no follow-through, no overshoot (many-branch rule), and in A the text is at full opacity from frame one. Return in the composer is a keyboard send, which is why C exists.\n\nA, build: before the write, note old scrollHeight and whether the reader is at the bottom (scrollHeight - scrollTop - clientHeight < 24). After it, if they were, set the bottom, h = new - old scrollHeight, and run translateY(h px)→0 on the rows (runAdd, or one wrapper) for 220 ms. #thread-body clips, so new rows emerge from behind the composer. If the reader had scrolled up, change nothing - this also fixes the scroll yank (finding 1). Burst: each new row starts 40 ms after the previous, first 6. Interrupt: a second message mid-move commits the current transform and starts from there plus the new h - no jump.\n\nB keeps the owner's §298 'pops out of its tail corner' and only tunes it: .9 instead of .6, no 1.04, a real curve. .9 is deeper than the skill's .95 floor on purpose, or it no longer reads as a pop.\n\nStaging: when the typing dots were up, entry 2's B (dots become the message) replaces this entrance for that one bubble.\n\nReduced motion (all): nothing moves; the new bubble is there and, if the reader was at the bottom, the chat is at the bottom.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Column rises",
+     "summary": "The chat slides up by the new message's height; the new bubble rises from behind the message box, fully opaque.",
+     "spec": "220ms cubic-bezier(.32,.72,0,1) · rows y +h→0 · new rows 40ms apart · no scale, no fade",
+     "recipe": "Make it mean something (a sent message rises) + FLIP, moving in place",
+     "principles": [
+      "Make it mean something",
+      "Similarity",
+      "Stagger",
+      "Interruptible"
+     ],
+     "tradeoff": "Replaces the owner's tail pop; needs a FLIP over the rows and an 'at the bottom' check, which also fixes the scroll yank.",
+     "recommended": true,
+     "why": "One motion for both directions says where a message came from, removes the jump, and never scales or fades words being read.",
+     "reduced": "No movement: the new bubble is there and the chat sits at the bottom.",
+     "specShort": "220ms out · column y+h→0 · 40ms"
+    },
+    {
+     "key": "B",
+     "name": "Tail pop, tuned",
+     "summary": "The owner's pop stays: each bubble grows from its tail corner, with no overshoot; older bubbles still jump up.",
+     "spec": "200ms cubic-bezier(.32,.72,0,1) · scale .9→1 from tail corner · fade in 0-40% · 40ms stagger",
+     "recipe": "Origin (grow from the trigger) + entrances",
+     "principles": [
+      "Origin",
+      "Slow in and slow out",
+      "Stagger"
+     ],
+     "tradeoff": "Closest to §298; the chat still jumps a row on every message, and .9 is past the skill's .95 floor to keep the pop.",
+     "recommended": false,
+     "reduced": "The bubble appears at once.",
+     "specShort": ".9→1 from tail · 200ms out"
+    },
+    {
+     "key": "C",
+     "name": "Yours instant, theirs rise",
+     "summary": "Your own message is simply there on the keypress; only messages that arrive from them rise into view.",
+     "spec": "yours 0ms · theirs 220ms cubic-bezier(.32,.72,0,1) · rows y +h→0 · bursts 40ms apart",
+     "recipe": "Frequency of use (keyboard → instant) + FLIP, moving in place",
+     "principles": [
+      "Frequency of use",
+      "Doherty threshold",
+      "Make it mean something"
+     ],
+     "tradeoff": "The fastest-feeling send and keyboard-proof, but your side and theirs behave differently (the Similarity law warns).",
+     "recommended": false,
+     "reduced": "Both appear at once.",
+     "specShort": "yours 0ms · theirs 220ms rise"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "typing-dots",
+   "title": "Typing indicator",
+   "status": "existing",
+   "where": "static/index.html:1271 (.msg-typing, @keyframes typingDot); 20914 (typingRowHTML)",
+   "trigger": "their keystrokes, read on the 2 s thread poll",
+   "frequency": "many",
+   "now": "Three 6px dots bob 3px and pulse .35↔1 (1.2 s bare ease-in-out, 150 ms apart). The bubble blinks in and out on a poll; their message replaces it in one frame. Frozen under reduced motion.",
+   "verdict": "An activity indicator: keep it moving (opacity) under reduced motion. The bubble should arrive and leave, and hand over to their message instead of blinking out.",
+   "severity": "friction",
+   "principles": [
+    "Replacements",
+    "Reduced motion",
+    "Compound motion and loops",
+    "Make it mean something"
+   ],
+   "notes": "Code: typingRowHTML (20914) draws #threadTypingRow as the last row; pollThread (20846) flips threadTyping and calls renderThreadBody (20868), which rebuilds the chat and snaps the scroll. The server holds a note 5 s (typing_indicator.TYPING_SECONDS); the sender re-notes every 2.5 s (20925), so the dots go when they pause more than 5 s and come back when they resume.\n\nBuild: keep the typing row as a stable element toggled by class rather than re-rendered, so its entry and exit can run; the exit uses an inert copy (§298's rule: the change is made, the movement drawn over it).\n\nLoop: the pulse is symmetric (0/60/100% equal), so keyframes have no seam. Today dots 2 and 3 sit at full opacity through their 150/300 ms delay, then snap to .35; switching the dots' animation-delay to negative values (-0.15 s, -0.3 s: phase offsets, the skill's loops technique) has all three mid-wave from the first frame. Dropping the 3px translate makes it an opacity-only wave, safe for reduced motion, where the skill keeps an indicator that work is still happening moving.\n\nB, build: before the redraw that adds their message, read the typing bubble's rect; after it, on the new incoming bubble run clip-path inset(T R 0 0 round 15px 15px 15px 5px) → inset(0 round …) where T = newH - dotsH and R = newW - dotsW (anchored at the tail, bottom-left), 240 ms; its text fades in from 80 to 200 ms; an inert copy of the dots fades out over 80 ms. Text is never scaled (masks and reveals, not scale). If no dots were showing, entry 1 runs.\n\nC moves typing to the header's sub-line (thread-sub, 20499: 'View profile' / group count). The smoke check that waits for #threadTypingRow (tools/smoke_preview.py:1570) would move with it.\n\nReduced motion (all): bubble or label appears and goes at once; dots keep an opacity pulse.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Quiet in, quiet out",
+     "summary": "The bubble fades in growing slightly from its tail; the dots pulse in a smooth wave; it fades out when they stop.",
+     "spec": "in 160ms (.32,.72,0,1) scale .95→1 · out 120ms (.55,0,1,.45) · dots opacity .35↔1, 1.2s",
+     "recipe": "Popover (scale from the trigger) + loops (phase offsets)",
+     "principles": [
+      "Origin",
+      "Exits",
+      "Compound motion and loops",
+      "Reduced motion"
+     ],
+     "tradeoff": "Fixes the blink and reduced motion; their message still replaces the dots as two separate things.",
+     "recommended": false,
+     "reduced": "Bubble appears and goes at once; dots keep an opacity pulse, no bob.",
+     "specShort": "in 160 · out 120 · opacity wave"
+    },
+    {
+     "key": "B",
+     "name": "Dots become the message",
+     "summary": "When their message lands, the typing bubble's outline grows into it, the dots fading as the words appear.",
+     "spec": "240ms cubic-bezier(.77,0,.175,1) · clip dots box→full · dots out 80ms · text in 80-200ms",
+     "recipe": "Replacements (one element through the change) + masks and reveals (clip-path)",
+     "principles": [
+      "Replacements",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Most build: the redraw must measure the dots before and the bubble after. Plays only when the dots were up.",
+     "recommended": true,
+     "why": "It answers 'what caused it?' - the reply grows out of the person typing - and ends the one-frame swap behind most replies.",
+     "reduced": "Message replaces the dots at once; dots keep an opacity pulse.",
+     "specShort": "dots→message clip · 240ms io"
+    },
+    {
+     "key": "C",
+     "name": "typing… in the header",
+     "summary": "No bubble: the line under their name reads 'typing…' with three small dots, so the chat itself never moves.",
+     "spec": "150ms (.32,.72,0,1) cross-fade 'View profile'↔'typing…' · out 120ms · dots opacity wave",
+     "recipe": "Replacements (cross-fade in one grid cell)",
+     "principles": [
+      "Jakob's law",
+      "Replacements",
+      "Staging"
+     ],
+     "tradeoff": "WhatsApp's convention; nothing in the chat moves, but the cue is far from where the reply lands.",
+     "recommended": false,
+     "reduced": "The words swap at once; the dots keep an opacity pulse.",
+     "specShort": "header xfade 150 / 120ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "send-confirm",
+   "title": "Sent, then confirmed",
+   "status": "new",
+   "where": "static/index.html:1268 (.msg-row.pending) and 21323-21341 (sendThreadMessage)",
+   "trigger": "the server acknowledging your send",
+   "frequency": "many",
+   "now": "Your bubble is drawn at 55% until the POST answers (usually under 300 ms), then snaps to full in one frame - a flicker on every send. A shared episode card is never dimmed.",
+   "verdict": "Say 'not acknowledged yet' only when it is slow (after 300 ms, held 500 ms) and let it clear with a short fade. Cards and bubbles behave alike.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Similarity",
+    "Replacements"
+   ],
+   "notes": "The pending state is the code's honest 'not acknowledged yet' (comment at 21318, CSS 1263): no delivery receipts, nothing invented about the other person. Every option keeps that rule.\n\nWhy it flickers: sendThreadMessage draws the draft with pending (21323), and the reply swaps the server's row in (21339) and redraws. A normal round trip is under 300 ms, so every message dims and brightens within a few frames - the 'spinner that flashes' the skill's 300 / 500 ms rule exists to stop.\n\nBuild: renderThreadBody replaces the body's HTML, so a CSS transition between pending and not cannot run (it is a new element). A: draw pending rows with an animation, not a state - @keyframes pend { to { opacity:.55 } } on .msg-row.pending .msg-bubble and .yf-ep, 150 ms, animation-delay 300 ms, fill both - so a send answered in time never dims. Record when the dim became visible; on the ack, if it was shown, wait out 500 ms from then, then run WAAPI opacity .55→1 over 150 ms on the new row (find it by the content key from 21157 kept as data-k). It is a one-shot indicator, so keyframes are fine (nothing toggles it back).\n\nSimilarity: .msg-row.pending only reaches .msg-bubble today (1268), so sendEpisodeToThread's draft card (20773) never dims. Include .yf-ep.\n\nB shows words instead of a fade, past 1 s only (Doherty: show progress where the result lands). C keeps today's dim-at-once and only eases the clear.\n\nReduced motion: the dim and the clear are instant but keep the 300 ms rule - the state is information, not decoration.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Dim only if slow",
+     "summary": "A normal send never dims. Only one still unanswered after 300 ms fades to 55%, and fades back up when answered.",
+     "spec": "after 300ms: 150ms to .55, held ≥500ms · clear 150ms cubic-bezier(.32,.72,0,1) to 1",
+     "recipe": "Async buttons (show after 300 ms, hold 500 ms)",
+     "principles": [
+      "Doherty threshold",
+      "Similarity"
+     ],
+     "tradeoff": "A fast send shows no sign it was pending (that is the point); a slow one waits 300 ms to say so.",
+     "recommended": true,
+     "why": "Every send flickers today; the skill's 300/500 ms rule shows the state only when it means something, and fades it.",
+     "reduced": "Dim and clear happen at once, still only after 300 ms.",
+     "specShort": "dim after 300ms · 150ms fades"
+    },
+    {
+     "key": "B",
+     "name": "Sending… line",
+     "summary": "No dim at all. If the server is slow past a second, a small 'Sending…' shows under your last bubble.",
+     "spec": "after 1000ms: 'Sending…' fades in 150ms (.32,.72,0,1) · out 120ms (.55,0,1,.45)",
+     "recipe": "Doherty threshold (past 1 s, progress where the result lands)",
+     "principles": [
+      "Doherty threshold",
+      "Exits"
+     ],
+     "tradeoff": "Words are plainer than a fade, but a label is what the code avoided as noise; only slow sends show it.",
+     "recommended": false,
+     "reduced": "The line appears and goes at once.",
+     "specShort": "'Sending…' after 1s · 150ms"
+    },
+    {
+     "key": "C",
+     "name": "Dim at once, ease it",
+     "summary": "Keeps today's honest dim from the first frame, but the bubble fades up when acknowledged instead of snapping.",
+     "spec": ".55 from frame one · clear 150ms cubic-bezier(.32,.72,0,1) · cards dim too",
+     "recipe": "Cross-fade (opacity only)",
+     "principles": [
+      "Replacements",
+      "Similarity"
+     ],
+     "tradeoff": "Smallest change; every send still blinks dim-then-bright within a round trip.",
+     "recommended": false,
+     "reduced": "Dims and clears at once, as today.",
+     "specShort": "dim at once · clear 150ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "chat-to-top",
+   "title": "A chat moving to the top",
+   "status": "new",
+   "where": "static/index.html:20435 (renderThreadRows), from 20952 (poll) and 6716 (goBack)",
+   "trigger": "a message while the list is open; coming back after sending",
+   "frequency": "few",
+   "now": "The list is rebuilt from scratch: the chat jumps to the top in one frame, the rows it passed jump down, a brand-new chat just appears, and its time and preview change with no cue.",
+   "verdict": "A reorder is a move in place: glide each row from where it was to where it is (FLIP). Never for search typing (keyboard) or the first draw.",
+   "severity": "new",
+   "principles": [
+    "Make it mean something",
+    "Interruptible",
+    "Frequency of use",
+    "Properties"
+   ],
+   "notes": "Code: pollNotifications re-fetches the inbox whenever a message arrives while the list is open (20952); goBack re-fetches it on every return from a chat (6716). renderThreadRows rewrites #threadList.innerHTML; rows carry onclick=openThread(index) and no id.\n\nBuild: add data-thread=\"<t.with>\" to each row. In renderThreadRows, only when the redraw comes from a fetch (not the search box's oninput, 4978 - keyboard stays instant), read each row's top by id before the write; after it, run translateY(old - new)→0 on every row that moved (transform only - Properties). The risen row draws above the rest for the move. A row with no old position is new: it enters at the top with opacity 0→1 and y -8→0. Rows that start or end past the scroll edge just appear.\n\nStaging: pollNotifications paints the badge first (24949) and the list after its fetch, so the badge (entry 5) moves 100-300 ms before the row - already chained; keep that order.\n\nInterrupt: a second poll mid-glide reads positions with the transform included and starts from where each row is - it turns around, no jump.\n\nFinger down: hold any list redraw until pointerup (finding: a redraw under a thumb can put another chat under it).\n\nB's lift: a ::after shadow on the moving row fades in and out (never animate box-shadow); 1.02 on a 358px row is the most the 'wide surface' rule tolerates.\n\nC reuses Motion.removeRow (6582), the owner's §298 'Removing from a list' pick, for the old slot.\n\nReduced motion (all): the rows are in their new order at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Glide into place",
+     "summary": "The chat glides up to the top while the chats it passes slide down a row; a new chat fades down into the top.",
+     "spec": "280ms cubic-bezier(.77,0,.175,1) · FLIP translateY · new row y -8→0 + fade 240ms",
+     "recipe": "FLIP (measure, then animate the transform) - moving in place",
+     "principles": [
+      "Make it mean something",
+      "Properties",
+      "Interruptible"
+     ],
+     "tradeoff": "Needs ids on rows and a check that the redraw came from the network, not the keys.",
+     "recommended": true,
+     "why": "It answers 'what changed?' at a glance - this chat has news and is now first - with no hunting for a dot.",
+     "reduced": "Rows are in their new order at once.",
+     "specShort": "FLIP glide 280ms io"
+    },
+    {
+     "key": "B",
+     "name": "Lift, then settle",
+     "summary": "The chat lifts off the list with a soft shadow, glides over the others to the top and settles down.",
+     "spec": "300ms cubic-bezier(.77,0,.175,1) · scale 1→1.02→1 · shadow fades in/out · others 280ms",
+     "recipe": "FLIP + Make it mean something (a card passes over, not through)",
+     "principles": [
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Reads as a card being moved; more than a few-per-session update needs.",
+     "recommended": false,
+     "reduced": "Rows are in their new order at once.",
+     "specShort": "lift 1.02 + shadow · 300ms io"
+    },
+    {
+     "key": "C",
+     "name": "Leave and reappear",
+     "summary": "The chat folds out of its old place and drops in at the top; nothing travels across the list.",
+     "spec": "old slot: x 0→-45% + fade 180ms, gap 200ms · top: y -8→0 + fade 220ms from 180ms",
+     "recipe": "Exits (the owner's §298 removeRow) + entrances",
+     "principles": [
+      "Exits",
+      "Similarity"
+     ],
+     "tradeoff": "Reuses the owner's removal pick and suits long jumps, but reads as delete-then-add, in two motions.",
+     "recommended": false,
+     "reduced": "Rows are in their new order at once.",
+     "specShort": "out 180 · gap 200 · in 220ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "unread-badge",
+   "title": "Unread count on the Messages tab",
+   "status": "existing",
+   "where": "static/index.html:6500 (Motion.badge), from 25108 (paintMessageBadges)",
+   "trigger": "the 3 s notifications poll and the inbox fetch",
+   "frequency": "few",
+   "now": "Pops in 0→1.25→1 (300 ms bare ease-out), bumps 1→1.3→1 (220 ms) when it rises, a copy shrinks to 0 (160 ms) when cleared; digits change in one frame; it pops on app open.",
+   "verdict": "A changing number rolls its digits. Nothing scales from 0, the app-open paint stays still, and a clear owed while the tabs were hidden plays when they are seen again.",
+   "severity": "polish",
+   "principles": [
+    "Make it mean something",
+    "Origin",
+    "Frequency of use",
+    "Slow in and slow out",
+    "Exits"
+   ],
+   "notes": "Code: every screen has its own tab bar, each with a [data-msg-badge]; only the active, settled screen's copy animates (live = .screen.active:not(.arriving), 6501).\n\nWhy the §298 clear is almost never seen: you read a chat on the thread screen, which has no tab bar; the 3 s poll (24949) clears the count there, or the inbox fetch from goBack clears it during the 260 ms back-slide (.arriving). Either way the badge is simply gone when you look. All three options add: if a copy is cleared or changed while not live, remember the old text on it (b._owed) and play the change once Motion.screen's finish has run for that screen.\n\nApp open: the bootstrap poll (24931) paints the count that existed before the app opened, which today plays the pop-in (the skill: nothing at rest on first paint plays an entrance). Pass a 'still' flag from startNotificationPolling.\n\nA, build: the badge holds the new text from its first frame (the smoke check at smoke_preview.py:2337 reads textContent at once). An inert copy of the old text is put in the frame over the badge; both sit in a clip the badge's size; on a rise the old moves y 0→-14px and the new 14→0, on a fall the reverse; tabular-nums so the width holds. '9+' rolls as one glyph. 9→'9+' widens the badge 3px in one frame - acceptable.\n\nB: squash on the badge's shape only (scaleX 1.15 × scaleY .87, volume kept) - the digit sits in an unscaled child.\n\nC: keeps the owner's pop/bump/shrink; the linear() stands in for a 500/25 spring (the skill's starting point for badges and pop-ins).\n\nStaging: the badge moves before the inbox row reorders (entry 4) - keep that order.\n\nReduced motion (all): the count changes, appears and goes at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rolling count",
+     "summary": "The number rolls up when it grows and down when it falls; it fades in growing slightly and out shrinking.",
+     "spec": "roll 300ms cubic-bezier(.77,0,.175,1) ±14px · in 220ms .7→1 + fade · out 160ms (.55,0,1,.45)",
+     "recipe": "Numbers (roll only the changed digits, tabular-nums)",
+     "principles": [
+      "Make it mean something",
+      "Origin",
+      "Exits"
+     ],
+     "tradeoff": "Replaces the owner's bump with a roll; needs a clipped copy of the old digit (the badge holds the new one).",
+     "recommended": true,
+     "why": "The skill's rule for a changing number: the roll says up or down without reading it; a bump only says 'something'.",
+     "reduced": "The new count shows at once; it appears and goes at once.",
+     "specShort": "roll 300ms io · in 220 · out 160"
+    },
+    {
+     "key": "B",
+     "name": "Lands with a squash",
+     "summary": "The badge drops a few pixels onto the icon's corner and squashes as it lands; a new message makes it hop.",
+     "spec": "in 260ms y -6→0, squash 1.15×.87→1 in 160ms · hop 200ms y 0→-3→0 · out 160ms fade",
+     "recipe": "Squash and stretch (a badge landing)",
+     "principles": [
+      "Squash and stretch",
+      "Make it mean something"
+     ],
+     "tradeoff": "The most physical and playful; the digit must sit unscaled inside the squashing shape.",
+     "recommended": false,
+     "reduced": "Shown at once.",
+     "specShort": "drop+squash 260 · hop 200 · 160"
+    },
+    {
+     "key": "C",
+     "name": "Owner's pop, tuned",
+     "summary": "Keeps pop, bump and shrink, but from .5 not 0, half the overshoot, real curves, and clears you can see.",
+     "spec": "in 260ms .5→1.12→1 (linear() spring) · bump 200ms 1→1.15→1 · out 200ms to .5",
+     "recipe": "Springs (500/25 for badges and pop-ins), as CSS linear()",
+     "principles": [
+      "Origin",
+      "Slow in and slow out",
+      "Exits"
+     ],
+     "tradeoff": "Closest to §298; the digit still changes in one frame and a bump only says 'something changed'.",
+     "recommended": false,
+     "reduced": "Shown at once.",
+     "specShort": "pop .5→1.12→1 · bump 1.15 · 200"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "read-clears",
+   "title": "Unread dot clearing",
+   "status": "new",
+   "where": "static/index.html:20455 (.tr-preview.unread, .tr-dot); refreshed from 6716 (goBack)",
+   "trigger": "coming back from a chat you just read",
+   "frequency": "few",
+   "now": "The list slides back still showing the dot and dark preview (it is the stale list), then both vanish in one frame when the re-fetch lands, mid-slide or just after.",
+   "verdict": "Mark the chat read on the tap (it almost never fails) and let the dot recede once the list has arrived: finished things recede.",
+   "severity": "new",
+   "principles": [
+    "Doherty threshold",
+    "Make it mean something",
+    "Staging"
+   ],
+   "notes": "Code: openThread (20461) leaves inboxThreads[i].unread alone; the server marks the chat read on GET /api/messages/thread; the list learns only from renderThreadList's re-fetch in goBack (6716), which replaces the rows when it lands - a default that flips when the fetch lands (Doherty).\n\nBuild (all): in openThread, set inboxThreads[i].unread = 0, lower the badge by the old count (paintMessageBadges(total - n)), and remember the thread as 'owed'. A: in goBack's messages branch call renderThreadRows() at once from memory, still drawing the owed dot; when Motion.screen's pop finishes (260 ms), run the dot's exit and the preview's colour change, then drop the dot. If the fetch then disagrees (a message came in meanwhile), it reconciles through entry 4.\n\nStaging: the back-slide is the primary motion; the dot waits for it to land.\n\nColour: .tr-preview.unread is var(--text) vs var(--text-muted); a 150 ms colour transition is in the skill's colour band.\n\nC: an inert copy of the 8px dot travels on an arc (both axes differ by far more than 40px) to the Messages tab's badge, then the badge rolls down by that chat's count (entry 5 A). Three chained moves, about 920 ms in all, each under 450 ms.\n\nReduced motion (all): the list arrives already read; the count is already lower.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Recede after arriving",
+     "summary": "Back on the list, that chat's dot shrinks away and its preview fades from dark to grey, just after the list settles.",
+     "spec": "from 260ms · dot scale 1→.5 + fade 160ms (.55,0,1,.45) · preview colour 150ms ease",
+     "recipe": "Exits + Make it mean something (finished things recede)",
+     "principles": [
+      "Make it mean something",
+      "Staging",
+      "Doherty threshold"
+     ],
+     "tradeoff": "A small beat after Back; needs the read marked locally on the tap so the stale list never shows.",
+     "recommended": true,
+     "why": "It confirms 'read' where you'll look, after the slide, and fixes the dot that flips when the fetch lands.",
+     "reduced": "The list arrives already read.",
+     "specShort": "after 260ms: dot out 160ms in"
+    },
+    {
+     "key": "B",
+     "name": "Already read",
+     "summary": "Marked read the moment you open the chat, so the list you come back to is already plain; nothing moves.",
+     "spec": "0ms · unread = 0 on open (optimistic) · badge lowered at once",
+     "recipe": "Doherty threshold (optimistic update)",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use",
+      "Occam's razor / progressive disclosure"
+     ],
+     "tradeoff": "Simplest and honest; you never see it change, which matters little right after reading.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "specShort": "read on open · 0ms"
+    },
+    {
+     "key": "C",
+     "name": "Dot drains to the badge",
+     "summary": "The dot lifts off the row and arcs down into the Messages tab, whose count rolls down by one.",
+     "spec": "from 260ms: dot arc 360ms (.77,0,.175,1), peak 15% · badge roll 300ms on landing",
+     "recipe": "Arcs + Numbers (roll)",
+     "principles": [
+      "Arcs",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Shows what the count is made of, but a long trip and three chained moves (~920ms) for a few-a-session read.",
+     "recommended": false,
+     "reduced": "Read at once; the count is lower at once.",
+     "specShort": "dot arc 360 io · roll 300"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "header-chips",
+   "title": "Interests landing in the chat header",
+   "status": "new",
+   "where": "static/index.html:20514 (loadThreadInterests → #threadChips); 3523 (:empty)",
+   "trigger": "their profile (/api/person) answering after the chat opens",
+   "frequency": "few",
+   "now": "The chip row appears in one frame when their profile answers, growing the header ~34 px; the conversation shrinks under it and the newest bubble ends partly behind the composer.",
+   "verdict": "Nothing should push the chat after it opens: have the chips there on arrival (start earlier), and reserve or open the row when they are late.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Replacements",
+    "Properties"
+   ],
+   "notes": "Code: openThreadWith (20474) empties #threadChips, pushes the screen, then fetches the thread and /api/person in parallel (20484-20485). .yf-thread-head .yf-chips:empty{display:none} (3523) collapses the row until it fills; when it fills, the flex column gives #thread-body 34 px less (23 px chips + 11 px margin). renderThreadBody already set scrollTop to the bottom, so the last 34 px of the conversation now sit behind the composer. Which lands first is down to the network. Groups have no chips.\n\nAny option: when the head changes height and the reader was at the bottom, re-pin the body to the bottom (per frame during A's expand).\n\nC, build: keep interestRows per handle for the session (memory only; cleared in logOut with the rest, 16765); fetch it on pointerdown of a chat row - a press, never a hover - and for the top 5 inbox rows when the list loads. It is the same public /api/person read the profile makes. A late answer (none cached, slow network) falls back to B's reserved row.\n\nA uses the expander recipe, the one layout animation the skill allows (grid-template-rows).\n\nReduced motion (all): chips appear at once; the chat stays pinned to the bottom.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Row opens",
+     "summary": "When their interests arrive, the chip row opens smoothly and the chips fade in; the chat stays at its newest message.",
+     "spec": "grid-rows 0fr→1fr 250ms (.77,0,.175,1) · chips fade 150ms from 60ms, 30ms apart (first 6)",
+     "recipe": "Expanders (grid-rows) + stagger",
+     "principles": [
+      "Properties",
+      "Stagger",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Still moves the chat after it opens, smoothly; needs per-frame scroll pinning during the expand.",
+     "recommended": false,
+     "reduced": "Chips appear at once; the chat stays pinned.",
+     "specShort": "rows 0fr→1fr 250ms io · fade 150"
+    },
+    {
+     "key": "B",
+     "name": "Room kept",
+     "summary": "The header always keeps a chip-height line for one-to-one chats; the chips fade into it, so nothing moves.",
+     "spec": "34px reserved from frame one · chips fade 150ms (.32,.72,0,1), 30ms apart · none: closes 190ms",
+     "recipe": "Replacements (reserve the slot so nothing shifts)",
+     "principles": [
+      "Replacements",
+      "Prägnanz"
+     ],
+     "tradeoff": "No layout shift; an empty band shows for a beat, and someone with no interests closes it (rare).",
+     "recommended": false,
+     "reduced": "Chips appear at once.",
+     "specShort": "row kept · chips fade 150ms"
+    },
+    {
+     "key": "C",
+     "name": "There on arrival",
+     "summary": "Their interests are fetched as you press their row and kept for the session, so the header is whole on frame one.",
+     "spec": "fetch on pointerdown + session cache · 0ms motion · late answer: B's reserved row",
+     "recipe": "Doherty threshold (reads show what was seen last time) - start earlier",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "One small extra read per press that may not open a chat; nothing to tune.",
+     "recommended": true,
+     "why": "The owner's rule - latency is answered by starting earlier - applied: the chips never move the chat because they were never late.",
+     "reduced": "Same as with motion.",
+     "specShort": "fetched on press · 0ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "chat-loading",
+   "title": "Opening the inbox or a chat",
+   "status": "new",
+   "where": "static/index.html:20385 (inbox 'Loading…'), 20481 (chat 'Loading…')",
+   "trigger": "first open of Messages in a session; opening any chat",
+   "frequency": "few",
+   "now": "A dashed 'Loading…' card shows at once - even for a 100 ms answer - then the rows or the whole conversation replace it in one frame, mid-push for a chat.",
+   "verdict": "Don't flash a loader for a fast read: nothing until 300 ms. Better, have the inbox and the chats already opened this session in hand.",
+   "severity": "friction",
+   "principles": [
+    "Doherty threshold",
+    "Stagger",
+    "Staging"
+   ],
+   "notes": "Code: renderThreadList (20379) writes 'Loading…' only while inboxThreads is empty - the first open of the session unless YourFAM's loadHubMessages ran (17681). openThreadWith always writes 'Loading…' into #thread-body before navigate (20481), so a chat opened twice shows it twice, during the 320 ms push.\n\nA: write the loader from a 300 ms timer; once shown, hold it at least 500 ms (the async-button rule). Inbox rows landing after the tab change has settled (Motion.screen tab: 90 ms delay + 200 ms) enter as copies, 40 ms apart, first 6; if they land during it they arrive with the content (Stagger: never inside a moving container). A chat's messages arrive in one piece - they are one container, read bottom-up.\n\nC, build: fetch /api/messages alongside the notifications bootstrap (24926) and refetch it when the 3 s poll's unread total changes; keep each chat's last-drawn messages in memory, keyed by thread id, for the session (cleared in logOut, 16765 - memory only, never storage, the same privacy line the code draws for the inbox). Reopening a chat draws them at once and the 2 s poll tops up from its cursor. The loader rule from A still covers a chat never opened.\n\nB's skeleton is the skill's past-1 s answer; at under a second it is identical to A.\n\nReduced motion (all): no stagger, no cross-fade; the 300 ms loader rule stays.",
+   "options": [
+    {
+     "key": "A",
+     "name": "300 ms, then arrive",
+     "summary": "No loader for a quick answer; 'Loading…' only if it takes longer. Inbox rows then rise in one after another.",
+     "spec": "loader after 300ms, held ≥500ms · rows 260ms (.32,.72,0,1) y 8→0 + fade, 40ms apart, first 6",
+     "recipe": "Async buttons (300/500 ms) + entrances (stagger copies)",
+     "principles": [
+      "Doherty threshold",
+      "Stagger"
+     ],
+     "tradeoff": "Ends the flash; the first open still waits a round trip on an empty list.",
+     "recommended": false,
+     "reduced": "Rows appear together; the loader rule is unchanged.",
+     "specShort": "loader >300ms · rows 260, 40 apart"
+    },
+    {
+     "key": "B",
+     "name": "Skeleton rows",
+     "summary": "After 300 ms, grey shapes the size of real chats hold the place; the real rows cross-fade over them.",
+     "spec": "skeleton after 300ms, 4 rows · cross-fade to rows 150ms (.32,.72,0,1)",
+     "recipe": "Doherty threshold (skeleton the size of the content) + cross-fade",
+     "principles": [
+      "Doherty threshold",
+      "Replacements"
+     ],
+     "tradeoff": "Shows where things will land on slow networks; on fast ones the same as A; one more look to keep true.",
+     "recommended": false,
+     "reduced": "Skeleton and rows swap at once.",
+     "specShort": "skeleton >300ms · xfade 150ms"
+    },
+    {
+     "key": "C",
+     "name": "Already in hand",
+     "summary": "The inbox is fetched when the app opens, and chats you've opened keep their messages, so both draw on frame one.",
+     "spec": "inbox with the notifications bootstrap · chats kept in memory · 0ms · loader after 300ms",
+     "recipe": "Doherty threshold (reads show what was seen last time) - start earlier",
+     "principles": [
+      "Doherty threshold",
+      "Frequency of use"
+     ],
+     "tradeoff": "One inbox read at app open whether or not Messages is visited; memory only, wiped on log out.",
+     "recommended": true,
+     "why": "Latency is answered by starting earlier (the owner's rule): the fix is having the list before it is asked for.",
+     "reduced": "Same as with motion.",
+     "specShort": "fetched at app open · 0ms"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "share-pick",
+   "title": "Choosing who gets the episode",
+   "status": "new",
+   "where": "static/index.html:22512 (drawShareChoice), 22535 (confirmShareContact); sheet 5176",
+   "trigger": "tap a face in the share sheet, then Share",
+   "frequency": "few",
+   "now": "The ring and the 'Share with @maya' bar appear in one frame; the bar pushes 'Anywhere else' down 45 px and shifts the centred card; 'Sending…' shows at once; it closes after the server.",
+   "verdict": "Open the bar as an expander so nothing jumps, ring the face in, and send optimistically: close on Share and roll back with Retry.",
+   "severity": "friction",
+   "principles": [
+    "Properties",
+    "Doherty threshold",
+    "Replacements",
+    "Errors: prevent then recover"
+   ],
+   "notes": "Where it opens: the player's share, a tile's ⋯, a story's ⋯ (18119) and a mix (openMixShareModal, 14612) - one element, #shareOverlay. Its fade-and-lift is shared; this entry is what happens inside it.\n\nCode: sendToContact toggles shareChosen; drawShareChoice (22512) toggles .selected (a two-ring box-shadow, 1224) and bar.hidden (22519). The bar sits between Friends and 'Anywhere else' and the card is centred (.modal-overlay align-items:center), so its 45 px reflow moves the card up and down. Picking another face rewrites the label 'Share with @maya' → '@jon' in one frame. confirmShareContact writes 'Sending…' at once (22541) and closes only on success.\n\nBuild: ring as a ::after on .av scaled .9→1 with opacity (not box-shadow); bar wrapped in a one-cell grid expander; the label's two texts stacked in one grid cell to cross-fade.\n\nB: Share closes the sheet at once (the normal close), snack('Sent to Maya'), then the POST; on failure a toast/snack with Retry reopens the sheet with Maya chosen. §142's reason for select-then-confirm - nobody could tell whether it went, or to whom - still holds: the line names them. The send-in-flight lock (shareSending) stays.\n\nC moves the confirm into the sheet's own bottom row (Cancel), so nothing reflows.\n\nAnywhere else (.sh-target) hands off to other apps; its press is the shared squeeze - nothing to add.\n\nReduced motion (all): ring and bar at once; no cross-fade; B's behaviour is unchanged.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Ring and bar",
+     "summary": "The face gets a copper ring that grows in; the Share bar opens smoothly in place; 'Sending…' shows only if slow.",
+     "spec": "ring 150ms .9→1 + fade · bar grid-rows 250ms/190ms (.77,0,.175,1) · label xfade 150ms",
+     "recipe": "Expanders + async buttons (300/500 ms) + cross-fade in one cell",
+     "principles": [
+      "Properties",
+      "Replacements",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Fixes every jump; the sheet still waits for the server before it closes.",
+     "recommended": false,
+     "reduced": "Ring and bar appear at once; 'Sending…' after 300 ms.",
+     "specShort": "ring 150 · bar rows 250ms io"
+    },
+    {
+     "key": "B",
+     "name": "Ring, bar, sent on tap",
+     "summary": "As A, but Share closes the sheet at once with 'Sent to Jon'; if it fails, a line with Retry brings it back.",
+     "spec": "A's ring and bar · Share: sheet closes at once (shared close) + 'Sent to Jon' · fail: Retry",
+     "recipe": "Doherty threshold (optimistic send, roll back with a message) + expanders",
+     "principles": [
+      "Doherty threshold",
+      "Errors: prevent then recover",
+      "Properties"
+     ],
+     "tradeoff": "A failed share is said after the sheet has gone (with Retry), not inside it.",
+     "recommended": true,
+     "why": "Sending a message is the skill's own example of an optimistic action; the wait in the sheet is sharing's slowest moment.",
+     "reduced": "Ring and bar at once; the sheet closes at once.",
+     "specShort": "A + closes on Share, 'Sent to'"
+    },
+    {
+     "key": "C",
+     "name": "Bottom row becomes Share",
+     "summary": "No new bar: the sheet's own Cancel row turns into 'Cancel | Share with @maya', so nothing above it moves.",
+     "spec": "bottom row cross-fade 150ms (.32,.72,0,1) in one grid cell · ring 150ms · no reflow",
+     "recipe": "Replacements (stacked in one cell so nothing shifts)",
+     "principles": [
+      "Replacements",
+      "Fitts's law",
+      "Prägnanz"
+     ],
+     "tradeoff": "Share lands under the thumb and needs no expander, but sits far from the faces it confirms.",
+     "recommended": false,
+     "reduced": "Swaps at once.",
+     "specShort": "bottom row xfade 150ms"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "vibe-reply-like",
+   "title": "A like or reply to your vibe",
+   "status": "new",
+   "where": "static/index.html:21197-21219 (card + .msg-like heart)",
+   "trigger": "a friend likes or replies to your vibe (2 s poll)",
+   "frequency": "few",
+   "now": "The card ('Maya liked your vibe') and the 30 px heart under it pop together as two ordinary bubbles, from .6 with an overshoot; nothing marks it as a like.",
+   "verdict": "Arrive like any message, in order: the card first, then the heart or the words 90 ms later, as two parts of one message.",
+   "severity": "new",
+   "principles": [
+    "Similarity",
+    "Stagger",
+    "Secondary action",
+    "Exaggeration"
+   ],
+   "notes": "Code: a like on an episode vibe is kind 'episode' with text '❤️' (STORY_LIKE, 18013), drawn as the card plus a .msg-like row (1260: no bubble, 30 px); a reply is the card plus a text bubble. A like on a note is plain text ('❤️ your story — re: …', 18039) and draws as an ordinary bubble. Both rows of a card get msg-new together (21204, 21217) and pop at once.\n\nA: distinct pieces of one section enter 80-100 ms apart (Stagger); 90 ms here, both with entry 1's motion.\n\nB: the beat is a secondary action - it starts as the heart lands and is a third of its movement - which the skill allows only in the rarely branch. Likes are a few a session at most; it plays once, on arrival, never on a redraw (the msg-new key). The heart is text (an emoji): scale it uniformly, never squash it.\n\nC: a reaction badge on the card instead of a separate heart row (iMessage tapbacks, Instagram's DM heart). It changes the chat's layout and the list preview ('Liked a vibe' stays), so it is a design call, not only motion.\n\nRelated bug: the banner for a like reads 'Shared: <title>' (24967).\n\nReduced motion (all): both parts appear at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Card, then heart",
+     "summary": "The card arrives like any message and the heart or the reply follows a beat later: one message in two parts.",
+     "spec": "card: entry 1's motion · heart/reply +90ms, same 220ms cubic-bezier(.32,.72,0,1)",
+     "recipe": "Entrances (distinct pieces 80-100 ms apart)",
+     "principles": [
+      "Similarity",
+      "Stagger"
+     ],
+     "tradeoff": "Quiet: a like is not singled out beyond its size.",
+     "recommended": true,
+     "why": "Similarity: here a like is a message, so it moves like one; the 90 ms order reads 'about this episode: this'.",
+     "reduced": "Both parts appear at once.",
+     "specShort": "card 220 · heart +90ms"
+    },
+    {
+     "key": "B",
+     "name": "Heart beats once",
+     "summary": "As A, and once it lands the heart gives a single heartbeat - the only message that does.",
+     "spec": "A, then heart 1→1.18→1 (180ms) →1.08→1 (160ms), cubic-bezier(.32,.72,0,1), from centre",
+     "recipe": "Secondary action (on top of the arrival, ending with it)",
+     "principles": [
+      "Secondary action",
+      "Von Restorff",
+      "Peak-end"
+     ],
+     "tradeoff": "Makes a like feel like one; the app's only beating thing, in a list people read.",
+     "recommended": false,
+     "reduced": "Both parts at once, no beat.",
+     "specShort": "A + beat 1.18 (180) · 1.08 (160)"
+    },
+    {
+     "key": "C",
+     "name": "Heart on the card",
+     "summary": "The heart becomes a small badge on the card's corner that pops in, like a reaction, not a big separate heart.",
+     "spec": "22px badge · scale .3→1 + blur 3px→0 + fade, 300ms cubic-bezier(.25,.1,0,1)",
+     "recipe": "Icon swaps (deep scale with blur)",
+     "principles": [
+      "Jakob's law",
+      "Proximity",
+      "Uniform connectedness"
+     ],
+     "tradeoff": "Instagram/iMessage's reaction look and tighter grouping; a layout change, not only motion.",
+     "recommended": false,
+     "reduced": "The badge appears at once.",
+     "specShort": "badge .3→1 + blur · 300ms"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "new-chat-pick",
+   "title": "Picking friends for a new chat",
+   "status": "new",
+   "where": "static/index.html:21398 (paintNewChatContacts), 21406 (paintNewChatPicked); modal 5571",
+   "trigger": "tap faces under (+) New message",
+   "frequency": "rare",
+   "now": "Each tap redraws every face (cutting the press spring); the ✓ and ring appear in one frame; at two picks the name field appears and the centred card jumps; the button's words swap.",
+   "verdict": "Toggle the face instead of redrawing, swap the tick in like an icon, open the name field with the expander, and cross-fade the button's words.",
+   "severity": "new",
+   "principles": [
+    "Replacements",
+    "Properties",
+    "Interruptible"
+   ],
+   "notes": "Code: startChatWith (21420) → paintNewChatContacts rewrites #newChatContacts' HTML on every tap, so the tapped face is replaced mid-press and its squeeze's spring-back runs on a detached node. Switch to classList.toggle('on') and aria-checked on the tapped .share-contact.\n\nTick: .pick (3377) is display:none → flex; draw it always, at opacity 0, scale .3, blur 3px, and transition to the .on state (the icon-swap recipe without Motion: both states present, classes swap, cubic-bezier(.25,.1,0,1) ~300 ms). Ring: .on .av box-shadow - move it to a ::after so it can scale.\n\nField: #newChatGroupName toggles hidden at two picks (21412); wrap it in a one-cell grid expander (250 ms open, 190 ms close). Button: 'Start chat' / 'Start group' (21413) stacked in one grid cell. The 'Chat with Maya' line (#newChatPicked) already has min-height; its words can change at once.\n\nStart group (21427) disables the button with no pending state: async-button rule (pending after 300 ms).\n\nB is choreography: rare (once per new group), so up to 500 ms per move is allowed; copies of the face fly on an arc (>40px on both axes) to a stack beside 'Group with…'.\n\nReduced motion (all): every change at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Tick and expander",
+     "summary": "The ✓ pops onto the face, the name field opens smoothly at two people, and 'Start chat' cross-fades to 'Start group'.",
+     "spec": "✓ 300ms (.25,.1,0,1) .3→1 + blur 3→0 · field rows 250/190ms (.77,0,.175,1) · label 150ms",
+     "recipe": "Icon swaps + expanders + cross-fade in one grid cell",
+     "principles": [
+      "Replacements",
+      "Properties",
+      "Interruptible"
+     ],
+     "tradeoff": "Several small parts to build, each a known recipe.",
+     "recommended": true,
+     "why": "Every change here is a swap or a reveal; the recipes keep the card still and the taps responsive.",
+     "reduced": "Every change happens at once.",
+     "specShort": "✓ 300 icon · field 250/190 io"
+    },
+    {
+     "key": "B",
+     "name": "Faces gather",
+     "summary": "Each picked face sends a small copy on an arc into a stack beside 'Group with…', which grows as you pick.",
+     "spec": "arc 360ms (.77,0,.175,1), peak 15% · stack slot opens 200ms · unpick: copy returns 240ms",
+     "recipe": "Arcs + storyboard",
+     "principles": [
+      "Arcs",
+      "Make it mean something",
+      "Staging"
+     ],
+     "tradeoff": "Shows a group forming; the most to build, and long moves for quick-fire taps.",
+     "recommended": false,
+     "reduced": "The stack updates at once.",
+     "specShort": "arc 360ms io · slot 200 · back 240"
+    },
+    {
+     "key": "C",
+     "name": "Instant, nothing jumps",
+     "summary": "No motion: tick and ring show at once, and the name field is always there, greyed until two are picked.",
+     "spec": "0ms · field always present, disabled under 2 picks · label swaps at once",
+     "recipe": "Occam's razor / progressive disclosure (fewer moving parts)",
+     "principles": [
+      "Occam's razor / progressive disclosure",
+      "Frequency of use"
+     ],
+     "tradeoff": "No jump and nothing to build, but an optional field shows on every one-to-one chat.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "specShort": "instant · field always shown"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "send-failed",
+   "title": "A message that did not send",
+   "status": "new",
+   "where": "static/index.html:21342-21350 (sendThreadMessage, catch)",
+   "trigger": "the server refusing, or the network failing",
+   "frequency": "rare",
+   "now": "Your bubble disappears in one frame, your words reappear in the box, and the reason shows in a toast at the bottom, away from the box.",
+   "verdict": "Roll back visibly toward where it went - into the box - and say why beside the box. The code's rule stands: an unsent message is not left in the chat.",
+   "severity": "new",
+   "principles": [
+    "Errors: prevent then recover",
+    "Make it mean something",
+    "Exaggeration",
+    "Exits"
+   ],
+   "notes": "Code: the catch removes the draft, redraws, restores input.value and calls toast(err.message) (21345-21350). It removes it on purpose: 'leaving it there would be the app showing somebody a message that was never sent' (21343). A and B keep that rule; C reverses it and is a product decision for the owner, not a motion one.\n\nA, build: before the redraw read the draft bubble's rect; after it, put an inert copy in the frame there and move it toward the composer (y +16, scale .96, opacity 0) over 150 ms ease-in, the words already back in the box on frame one. The reason goes on one coral line just above the composer for about 4 s (the thread screen has no tab bar, so the shared bottom line already sits low; this keeps it beside the field).\n\nB: the skill's error shake, on the field that's wrong - the composer, not the gone bubble: translateX 0, -10, 10, -6, 6, -3, 0 px over 360 ms, focus there. Exaggeration is allowed for a failed attempt.\n\nReduced motion (all): no movement; the words, the focus and the line are there at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Back into the box",
+     "summary": "The bubble drops back into the message box as your words reappear there, and a line above the box says why.",
+     "spec": "copy y +16, scale .96, fade 150ms cubic-bezier(.55,0,1,.45) · line above box fades in 150ms",
+     "recipe": "Exits (toward where it goes) + Make it mean something",
+     "principles": [
+      "Errors: prevent then recover",
+      "Make it mean something",
+      "Exits"
+     ],
+     "tradeoff": "A rare path; needs a copy of the removed bubble.",
+     "recommended": true,
+     "why": "The motion says what happened - it came back to you, unsent - and the reason sits where your eyes and thumb are.",
+     "reduced": "Bubble gone, words back and the line shown, all at once.",
+     "specShort": "drop y+16 .96 · 150ms in"
+    },
+    {
+     "key": "B",
+     "name": "Shake the box",
+     "summary": "The bubble fades and the message box gives one short shake, with the reason beside it and the cursor in it.",
+     "spec": "bubble out 120ms · box x 0,-10,10,-6,6,-3,0px over 360ms · focus box · line above",
+     "recipe": "Exaggeration (error shake on the field that's wrong)",
+     "principles": [
+      "Exaggeration",
+      "Errors: prevent then recover"
+     ],
+     "tradeoff": "The loudest; a shake usually means 'you typed it wrong', and here it is the network's fault.",
+     "recommended": false,
+     "reduced": "No shake; words, focus and line at once.",
+     "specShort": "shake ±10px · 360ms"
+    },
+    {
+     "key": "C",
+     "name": "Stays, marked Not sent",
+     "summary": "The bubble stays, faded, with 'Not sent · Tap to retry' under it in coral; the box stays clear.",
+     "spec": "bubble to .55 in 150ms · line fades in 150ms (.32,.72,0,1) · retry: line out 120ms",
+     "recipe": "Errors: recover (beside the thing that failed)",
+     "principles": [
+      "Jakob's law",
+      "Errors: prevent then recover"
+     ],
+     "tradeoff": "iMessage's convention and Retry in place, but reverses the code's rule against an unsent message in the chat.",
+     "recommended": false,
+     "reduced": "Shown at once.",
+     "specShort": "fade .55 · line 150ms"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "delete-chat",
+   "title": "Deleting or leaving a chat",
+   "status": "new",
+   "where": "static/index.html:20716 (deleteChat), 20680 (confirmLeaveGroup), 6582 (removeRow)",
+   "trigger": "⋯ → Delete chat / Leave group / Block, confirmed",
+   "frequency": "rare",
+   "now": "After the server answers you slide back to the list, which still shows the deleted chat for a round trip; the row vanishes in one frame when the re-fetch lands; a toast says so.",
+   "verdict": "Never show the deleted row again; once the list has landed, take it out the way the owner chose for lists (§298): slide out left, then the gap closes.",
+   "severity": "new",
+   "principles": [
+    "Exits",
+    "Similarity",
+    "Staging",
+    "Errors: prevent then recover"
+   ],
+   "notes": "Code: deleteChat filters inboxThreads (20726) but goBack (20732) only re-fetches (6716) and never redraws first, so the back-slide reveals the stale list with the deleted chat on it. Leaving a group (20689-20694) and blocking (blockPerson's after → goBack, 8209) have the same shape.\n\nA, build: in goBack's messages branch, redraw from memory at once but keep the removed row drawn (inert); when Motion.screen's pop has finished (260 ms), call Motion.removeRow(row, redraw, '#threadList .thread-row') - the owner's §298 'Removing from a list' (slide left 180 ms, then the gap closes 200 ms; it already draws the leaving row as an inert copy). Its gap-close animates height/padding/margin today (finding: Properties) - FLIP the rows below instead. Staging: the slide, then the removal.\n\nB replaces the confirmation sheet with Undo (the skill: anything reversible gets Undo instead of a confirmation). Deleting here is for you only (MessageStore.clear), so deferring the request 5 s makes it reversible; leaving a group tells the others, so it too waits for the window to close (or the page to hide). Block keeps its confirmation - it changes things for the other person.\n\nC removes the row before the back-slide: the one-line fix, nothing to watch.\n\nThe ⋯ → confirm step itself swaps the sheet's contents in one frame (finding); it is the shared sheet.\n\nReduced motion (all): the list arrives without the row; B's Undo puts it back at once.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Slide out after Back",
+     "summary": "You land on the list with the chat there for a beat; it slides out left and the chats below close the gap.",
+     "spec": "after the 260ms back-slide: x 0→-45% + fade 180ms (.55,0,1,.45) · gap closes 200ms",
+     "recipe": "Exits (the owner's §298 'Removing from a list')",
+     "principles": [
+      "Exits",
+      "Similarity",
+      "Staging"
+     ],
+     "tradeoff": "A deliberate beat after Back (440ms); the row is inert from the first frame, so it can't be opened.",
+     "recommended": true,
+     "why": "The owner already chose how a row leaves a list; reusing it is Similarity, and it shows where the chat went.",
+     "reduced": "The list arrives without the row.",
+     "specShort": "after back: out 180 · gap 200 io"
+    },
+    {
+     "key": "B",
+     "name": "Delete with Undo",
+     "summary": "No 'are you sure': Delete goes back, the row slides out, and 'Chat deleted · Undo' waits 5 s before anything is sent.",
+     "spec": "A's motion · line with Undo 5s, request on close · Undo: row back y -8→0 + fade 220ms",
+     "recipe": "Errors: recover (Undo instead of a confirmation) + exits",
+     "principles": [
+      "Errors: prevent then recover",
+      "Exits"
+     ],
+     "tradeoff": "One tap fewer and recoverable; a product change (no confirmation) and the request waits 5 s.",
+     "recommended": false,
+     "reduced": "The row is absent; Undo puts it back at once.",
+     "specShort": "no confirm · out 180+200 · Undo"
+    },
+    {
+     "key": "C",
+     "name": "Already gone",
+     "summary": "The list is redrawn before you go back, so it arrives without the chat; the line says it was deleted.",
+     "spec": "0ms · redraw from memory before the 260ms back-slide",
+     "recipe": "Occam's razor / progressive disclosure",
+     "principles": [
+      "Occam's razor / progressive disclosure",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Fixes the stale flash in one line; you never see where the chat went.",
+     "recommended": false,
+     "reduced": "Same as with motion.",
+     "specShort": "list redrawn first · 0ms"
+    }
+   ],
+   "picked": "B"
+  }
+ ]
+}

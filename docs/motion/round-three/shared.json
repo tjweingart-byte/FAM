@@ -1,0 +1,1500 @@
+{
+ "page": "Across the app",
+ "codeScreens": [
+  "Motion (static/index.html:5875-6630)",
+  "showScreen / navigate / goBack / setTab",
+  "screen-player",
+  "nowBar",
+  "sheets and modals",
+  "tour",
+  "fam intro",
+  "sign-up"
+ ],
+ "summary": "One Motion module draws 22 animations the owner picked in §292 and §298, all within 450 ms and none holding a wait. The gaps: curves softer than the skill's, bounce on product UI, layout properties animated, and tabs that animate on every switch.",
+ "interactions": [
+  {
+   "name": "Open a screen / go back",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "where the new screen came from; back returns the way it came"
+  },
+  {
+   "name": "Switch tabs",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "which tab is now current"
+  },
+  {
+   "name": "Press any button or card",
+   "trigger": "touch",
+   "frequency": "many",
+   "tells": "the press registered before the result arrives"
+  },
+  {
+   "name": "Open / close a sheet or modal",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "a layer is over the page, and it is gone"
+  },
+  {
+   "name": "A bottom line or banner appears",
+   "trigger": "network/action",
+   "frequency": "few",
+   "tells": "what an action did; a notification arrived"
+  },
+  {
+   "name": "Open the player from a picture",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "this tile became the episode playing"
+  },
+  {
+   "name": "Minimise / close the player",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "it is still playing, down in the mini player"
+  },
+  {
+   "name": "Play / pause",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "audio state changed"
+  },
+  {
+   "name": "Title settles, picture lands",
+   "trigger": "network",
+   "frequency": "few",
+   "tells": "the real title and picture arrived"
+  },
+  {
+   "name": "Captions advance",
+   "trigger": "time",
+   "frequency": "many",
+   "tells": "the sentence being spoken now"
+  },
+  {
+   "name": "Save / like / VIBE!",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "it was kept, and where it went"
+  },
+  {
+   "name": "Add to queue / remove from it",
+   "trigger": "touch",
+   "frequency": "few",
+   "tells": "it is in the queue; it left the queue"
+  },
+  {
+   "name": "Episode ends: four next tiles",
+   "trigger": "time",
+   "frequency": "few",
+   "tells": "what plays next and when"
+  },
+  {
+   "name": "First run: intro, sign-up steps, tour",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "where you are in setting up"
+  },
+  {
+   "name": "Change theme",
+   "trigger": "touch",
+   "frequency": "rare",
+   "tells": "the whole app is now light or dark"
+  }
+ ],
+ "findings": [
+  {
+   "severity": "friction",
+   "question": 1,
+   "principle": "Frequency of use",
+   "where": "static/index.html:6077",
+   "before": "Every tab switch slides content 18px over ~290ms (110 out + 90 gap + 200 in)",
+   "after": "Content shows on the next frame; only the tab marker changes"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Replacements",
+   "where": "static/index.html:6343",
+   "before": "Play/pause: old icon leaves 90ms, THEN the new one pops 180ms - 270ms in sequence",
+   "after": "Both at once: scale .3→1, fade, 3px blur, spring .35s no bounce"
+  },
+  {
+   "severity": "friction",
+   "question": 3,
+   "principle": "Interruptible",
+   "where": "static/index.html:2116",
+   "before": "Sheets/modals open with keyframes; closing mid-open jumps",
+   "after": "Transitions on the open state: close turns around from where it is"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:5876",
+   "before": "Curves (.2,.8,.2,1), (.4,0,.2,1), (.4,0,1,1) and bare ease-out",
+   "after": "Skill tokens: out (.32,.72,0,1), in (.55,0,1,.45), io (.77,0,.175,1)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Anticipation (press)",
+   "where": "static/index.html:6146",
+   "before": "Press scales by size down to 0.90, springs back past 1 (overshoot)",
+   "after": "0.96 (never <0.95), 150ms ease-out, no overshoot; cards >200px tint"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Slow in and slow out",
+   "where": "static/index.html:2058",
+   "before": "Tab icon pops 420ms with cubic-bezier(.3,1.6,.5,1) overshoot",
+   "after": "No bounce in product UI; nav icons never pop on a frequent change"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6047",
+   "before": "Player picture flies by animating left/top/width/height",
+   "after": "FLIP: measure, animate transform + clip, compositor only"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6311",
+   "before": "Queue flight animates left/top/width/height for 450ms",
+   "after": "transform-only arc, 360ms (page-move range 300-400)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:6598",
+   "before": "Removed row collapses height/padding/margin AFTER sliding (180 then 200)",
+   "after": "Collapse with FLIP at the same time as the slide (popLayout)"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:2029",
+   "before": "Mini player progress animates width linearly every 200ms tick",
+   "after": "scaleX from the left edge"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:186",
+   "before": "Tour spotlight moves with top/left/width/height transitions 380ms",
+   "after": "transform + clip-path inset, 320ms io"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Properties",
+   "where": "static/index.html:1402",
+   "before": "transition: all .15s on the player's side buttons (and .cr-toggle knob :1169)",
+   "after": "Name each property: background-color, border-color"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Exits",
+   "where": "static/index.html:1426",
+   "before": "Captions leave in 320ms, same as they arrive",
+   "after": "Exit 20-30% shorter (about 230ms) and quieter"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Origin",
+   "where": "static/index.html:6513",
+   "before": "Unread badge pops from scale(0) with 1.25 overshoot",
+   "after": "Start at 0.5-0.6, no overshoot; or roll the digit"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Reduced motion",
+   "where": "static/index.html:6044",
+   "before": "Reduced motion still crossfades screens 120ms and fades sheets",
+   "after": "Skill: every animation off, fades too; only progress keeps moving"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Theme switch",
+   "where": "static/index.html:11418",
+   "before": "setTheme flips colours while colour transitions run, each at its own speed",
+   "after": "theme-switching class turns transitions off for two frames"
+  },
+  {
+   "severity": "polish",
+   "question": 1,
+   "principle": "Tenth use",
+   "where": "static/index.html:23753",
+   "before": "The 1.8s FAM intro plays on every app open",
+   "after": "Full intro once (first run / sign-in); a short one or none after"
+  },
+  {
+   "severity": "polish",
+   "question": 2,
+   "principle": "Secondary action",
+   "where": "static/index.html:6189",
+   "before": "Ring + 6 sparks + label on every save/like/vibe (a few times a session)",
+   "after": "Celebrate the first time; routine saves get the quiet icon swap"
+  },
+  {
+   "severity": "polish",
+   "question": 3,
+   "principle": "Compound motion and loops",
+   "where": "static/index.html:2154",
+   "before": "Next-hint arrow bobs on a keyframe loop forever",
+   "after": "Sine loop that stops once seen or touched; paused off screen"
+  },
+  {
+   "severity": "polish",
+   "question": 4,
+   "principle": "Similarity",
+   "where": "static/index.html:5876",
+   "before": "Durations are bare numbers in 40+ places (CSS and JS)",
+   "after": "One named set: --dur-press, --dur-sheet, --dur-page ... used everywhere"
+  }
+ ],
+ "bugs": [
+  "Press squeeze reads `1 - 8/longest side` so a 22px icon button computes 0.64 and is clamped to 0.90 - below the skill's 0.95 floor on the smallest targets.",
+  "nextup-in is a keyframe one-shot of 360ms on the post-episode card, longer than the 300ms the skill allows a modal-like card.",
+  "Tour track `.tour-fill` animates width; progress should grow with scaleX and never jump backward."
+ ],
+ "animations": [
+  {
+   "id": "tokens",
+   "title": "One set of curves and durations",
+   "status": "existing",
+   "where": "static/index.html:5876 (Motion EASE/EASE_IO/EASE_IN) + 42 CSS transitions",
+   "trigger": "every animation",
+   "frequency": "many",
+   "now": "JS uses (.2,.8,.2,1), (.4,0,.2,1), (.4,0,1,1); CSS adds bare ease, ease-out, (.22,.7,.3,1), (.3,1.6,.5,1). Durations are bare numbers in 40+ places.",
+   "verdict": "Appeal comes from one set of named curves used everywhere. FAM's are softer than the skill's and scattered, so like things don't move alike.",
+   "severity": "polish",
+   "principles": [
+    "Slow in and slow out",
+    "Similarity",
+    "Name the numbers"
+   ],
+   "notes": "The skill's step 4, Name the numbers: durations, curves and springs live in named tokens at the top of the file and every animation uses them. Today the Motion module declares three curves (EASE = cubic-bezier(.2,.8,.2,1) for appearing, EASE_IO = (.4,0,.2,1), EASE_IN = (.4,0,1,1)) and several functions fall back to the bare 'ease-out' keyword (press squeeze, burst, popMessages, badge, swapIcon), which the skill calls too weak to read as a decision. CSS has its own: sheets (.2,.8,.2,1), toast (.2,.8,.2,1), notif (.2,.8,.3,1), nextup (.22,.7,.3,1), voice search (.22,.7,.3,1), tabPop (.3,1.6,.5,1) overshoot, loaders (.2,1.3,.4,1) overshoot, plus 'ease' on many colour/opacity fades (fine for colour per the skill). Proposal: a :root block of --ease-out/--ease-in/--ease-in-out and --dur-* tokens, mirrored as Motion.EASE/Motion.DUR so WAAPI and CSS read the same values. Option A adopts the skill's curves as they are; B keeps FAM's feel but names it; C uses the skill's curves for movement and FAM's softer one only for large spatial moves (player, screens). Whatever is chosen, the reduced-motion rule and the 450ms cap stay. Every later slide in these decks is written in the skill's tokens; if B wins, read 'out' as FAM's (.2,.8,.2,1).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Skill curves, named",
+     "summary": "Three named curves and a duration scale, used by every CSS rule and every Motion call.",
+     "spec": "out (.32,.72,0,1) · in (.55,0,1,.45) · io (.77,0,.175,1)",
+     "recipe": "The curves; Name the numbers",
+     "principles": [
+      "Slow in and slow out",
+      "Similarity"
+     ],
+     "tradeoff": "Snappier starts than today; every animation shifts a little at once, so the whole app needs one look-over.",
+     "recommended": true,
+     "why": "The skill's appeal rule: one set of named curves everywhere. Ease-out (.32,.72,0,1) makes responses feel instant.",
+     "reduced": "Tokens unchanged; reduced motion is a separate switch",
+     "specShort": "out .32,.72,0,1 · in .55,0,1,.45"
+    },
+    {
+     "key": "B",
+     "name": "FAM's curves, named",
+     "summary": "Keep today's softer curves, but name them once and remove the bare keywords and overshoots.",
+     "spec": "out (.2,.8,.2,1) · in (.4,0,1,1) · io (.4,0,.2,1)",
+     "recipe": "Name the numbers",
+     "principles": [
+      "Similarity"
+     ],
+     "tradeoff": "Least change; keeps a softer, floatier feel the skill calls weaker for things that move.",
+     "recommended": false,
+     "reduced": "Same",
+     "specShort": "out .2,.8,.2,1 · in .4,0,1,1"
+    },
+    {
+     "key": "C",
+     "name": "Split by distance",
+     "summary": "Skill curves for presses, sheets and small moves; a softer long curve kept for full-screen moves.",
+     "spec": "small: skill · page: (.2,.8,.2,1) 320ms",
+     "recipe": "Curves library: softer quad/cubic for large moves",
+     "principles": [
+      "Timing",
+      "Slow in and slow out"
+     ],
+     "tradeoff": "Two families to keep straight; the screen push stays as the owner first saw it.",
+     "recommended": false,
+     "reduced": "Same",
+     "specShort": "small: skill · page .2,.8,.2,1 320"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "press",
+   "title": "Pressing any button or card",
+   "status": "existing",
+   "where": "static/index.html:6146 (Motion pointerdown squeeze)",
+   "trigger": "touch down / up",
+   "frequency": "many",
+   "now": "Scales by size: 1 - 8/longest side, floor 0.90, 90ms ease-out down; release 220ms back through an overshoot to 1+(1-s)×0.3. Cards up to 30% of the screen squeeze too.",
+   "verdict": "Right idea, two misses: small buttons go below the 0.95 floor, and the overshoot is a bounce. Wide cards should tint, not scale.",
+   "severity": "polish",
+   "principles": [
+    "Anticipation (press)",
+    "Slow in and slow out",
+    "Hit area"
+   ],
+   "notes": "Skill, Anticipation, the everyday form: buttons, icon buttons and chips scale to 0.96 on press (never below 0.95) with a 150ms ease-out transition, so letting go mid-press glides back. Surfaces wider than 200px (cards, rows) change background on press instead of scaling, because 4% of a wide surface is a jump. Dense controls opt out. Put the scale on a wrapper when the element already has a transform. FAM today (index.html:6146-6186): one pointerdown listener on PRESSABLE, scale s = max(0.9, 1 - 8/longest side) so a 22px icon button computes 0.64 and is clamped at 0.90 (10% - visibly squashed), a 40px button 0.80 → 0.90, a 120px pill 0.93, a 350px card 0.977. Down: 90ms 'ease-out' keyword, fill forwards. Release: waits for the down animation to finish, then 220ms through scale(1 + (1-s)×0.3) at 60% - an overshoot of up to 3%. That wait means a quick tap plays 90 + 220 = 310ms. The composite:'add' approach is good and should stay (it keeps an element's own transform). Option A is the skill's rule exactly. Option B keeps FAM's 'scaled by size' idea, which the owner chose (§292: 'about 4 px smaller'), but clamps it to the skill's 0.95-0.98 band and removes the overshoot. Option C keeps today's. Interrupt check: the skill wants the release to turn around from wherever the press is - use a transition-like reverse (animation.reverse() or a new animation from the current computed scale) instead of waiting for 'down' to finish.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Skill press 0.96",
+     "summary": "Every button dips to 96% and glides back; wide cards and rows tint instead of shrinking.",
+     "spec": "150ms out · scale .96 · cards >200px: bg tint",
+     "recipe": "Press",
+     "principles": [
+      "Anticipation (press)"
+     ],
+     "tradeoff": "One number for all sizes: small icon buttons move less than today, big cards stop moving.",
+     "recommended": true,
+     "why": "The press confirms the tap without a bounce; no target squashes past 5%, and releasing mid-press glides back.",
+     "reduced": "No scale; the tint stays (it is colour, not motion)",
+     "specShort": "150ms out · scale .96 · cards tint"
+    },
+    {
+     "key": "B",
+     "name": "Size-scaled, clamped",
+     "summary": "Keep 'about 4px smaller' by size, but never below 95% or above 98%, and no spring past 1.",
+     "spec": "150ms out · 1-4/size, clamp .95-.98",
+     "recipe": "Press",
+     "principles": [
+      "Anticipation (press)",
+      "Similarity"
+     ],
+     "tradeoff": "Keeps the owner's §292 idea; still scales wide cards slightly, which the skill avoids.",
+     "recommended": false,
+     "reduced": "None",
+     "specShort": "150ms out · 1-4/size, .95–.98"
+    },
+    {
+     "key": "C",
+     "name": "Keep today's squeeze",
+     "summary": "Today's squeeze: down to 90% on small buttons, springing back past full size.",
+     "spec": "90ms down · 220ms back via overshoot",
+     "recipe": "-",
+     "principles": [],
+     "tradeoff": "A bounce on every press; a quick tap plays 310ms; tiny buttons squash 10%.",
+     "recommended": false,
+     "reduced": "None",
+     "specShort": "90ms down · 220ms back, overshoot"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "screens",
+   "title": "Opening a screen, going back",
+   "status": "existing",
+   "where": "static/index.html:6019 (Motion.screen push/pop), 6702 navigate, 6708 goBack",
+   "trigger": "tap into a screen / back",
+   "frequency": "many",
+   "now": "Push: new screen in from 100% over 320ms (.2,.8,.2,1); old drifts to -28% and dims to 0.55. Back: 260ms (.4,0,.2,1). Reduced motion: 120ms crossfade.",
+   "verdict": "Inside the 300-400ms page range and exits are shorter, as the skill asks. Curves are weak, and there is no swipe-from-the-left-edge back (Jakob's law on iOS).",
+   "severity": "polish",
+   "principles": [
+    "Timing",
+    "Exits",
+    "Jakob's law",
+    "Interruptible"
+   ],
+   "notes": "Skill timing: page transition 300-400ms; exits 20-30% shorter and quieter, except things whose destination is the point, which leave the way they came (a back is exactly that). Today: push 320ms with EASE (.2,.8,.2,1), the leaving screen to translateX(-28%) and opacity .55; pop 260ms (19% shorter - just under the 20% band) with EASE_IO (.4,0,.2,1). The new screen is active and tappable from its first frame (good - FAM's rule and the skill's 'never block input'). A second change finishes the first at once (settle()), which is not 'turning around from where it is' - a back pressed mid-push jumps to the end of the push and then pops. Jakob's law: 'swiping from the left edge goes back on iOS' - FAM's native client will get that for free; the web app has no edge swipe. Option A retimes to the skill (push 340 out, back 260 out - a back is also an arrival). Option B adds the interactive edge swipe: the screen follows the finger 1:1 and a spring (0.5s, bounce 0) carries the release velocity - flick > 0.1px/ms goes back. Option C is a quieter cross-push (24px nudge + fade, 240/180) for the many in-app pushes that aren't hierarchical. Reduced motion: the skill wants none at all; FAM's 120ms crossfade is a deliberate choice (rule:motion) - shown as the reduced-motion slide.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Push, skill curves",
+     "summary": "Same push the owner picked: in from the right, back to the right, on the skill's ease-out.",
+     "spec": "push 340ms out · back 260ms out · old -28%",
+     "recipe": "Page transition (Timing)",
+     "principles": [
+      "Timing",
+      "Exits"
+     ],
+     "tradeoff": "Small change in feel; still no edge swipe.",
+     "recommended": false,
+     "reduced": "Instant swap (skill) or 120ms fade (FAM today)",
+     "specShort": "push 340 out · back 260 out"
+    },
+    {
+     "key": "B",
+     "name": "Push + edge swipe back",
+     "summary": "As A, plus drag from the left edge to go back: the page follows the finger and springs home or away.",
+     "spec": "drag 1:1 · release spring .5s b0 · flick >0.1px/ms",
+     "recipe": "Drawer and sheet (drag), Interruptible",
+     "principles": [
+      "Jakob's law",
+      "Interruptible"
+     ],
+     "tradeoff": "Most work: a gesture recogniser beside horizontal rails, which must not steal their swipes.",
+     "recommended": true,
+     "why": "People expect iOS's edge swipe; the drag is direct and a flick finishes it, and it turns around mid-way.",
+     "reduced": "Swipe still works; the page jumps instead of springing",
+     "specShort": "edge drag 1:1 · spring .5s b0"
+    },
+    {
+     "key": "C",
+     "name": "Short cross-push",
+     "summary": "The new screen fades in from 24px to the right while the old fades out - quieter and quicker.",
+     "spec": "240ms out · x 24→0 · fade · back 180ms in",
+     "recipe": "Entrances / Exits",
+     "principles": [
+      "Timing",
+      "Frequency of use"
+     ],
+     "tradeoff": "Loses the sense of a stack you can go back down; reads lighter on many pushes a session.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "240ms out · x 24→0 · back 180 in"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "tabs",
+   "title": "Switching tabs",
+   "status": "existing",
+   "where": "static/index.html:6077 (how === 'tab'), 2054-2061 (.tabbar .dot, tabPop)",
+   "trigger": "tap a tab",
+   "frequency": "many",
+   "now": "Old content slides 18px and fades in 110ms, then new content slides in 200ms after a 90ms delay; the tab icon pops 420ms with a (.3,1.6,.5,1) overshoot.",
+   "verdict": "Tabs are fired many times a session: the skill says the new state shows on the next frame. The pop is a bounce on navigation icons, which the skill rules out.",
+   "severity": "friction",
+   "principles": [
+    "Frequency of use",
+    "Slow in and slow out",
+    "Replacements"
+   ],
+   "notes": "Skill question 1, Frequency of use: 'Many times a session, or from the keyboard (shortcuts, arrow keys, ⌘K, tabs, focus moving) → no transition. The new state shows on the next frame.' Press feedback is exempt and keeps its 100-150ms. Today a tab change costs 110ms (old out) + 90ms delay overlap + 200ms (new in) ≈ 290ms before the page is still, and the icon plays a 420ms overshooting pop (tabPop, scale .7 → 1.15ish). Every switch also replays the pop. The owner picked 'slide by position' in §292 (rule:motion: 'tabs nudge toward the new tab's side'), so this is a deliberate reversal for the owner to make: option A follows the skill; option B keeps a sense of place with something that moves in place (the active marker glides 220ms io under the new tab - a 'moving in place' animation) while content is instant; option C keeps the nudge, shortened and on skill curves, with the pop's overshoot removed. Icon swap recipe says 'never on permanent navigation icons', so none of the options pops the icon.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Instant, press only",
+     "summary": "The new tab is there on the next frame; the only motion is the button's own press.",
+     "spec": "0ms · press .96 150ms · no icon pop",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "Reverses the owner's §292 pick; the app feels faster but loses the sideways cue.",
+     "recommended": true,
+     "why": "The skill's rule for many-times-a-session: motion stops informing by the tenth switch. Saves ~290ms per switch.",
+     "reduced": "Same",
+     "specShort": "0ms · press .96 150ms"
+    },
+    {
+     "key": "B",
+     "name": "Marker glides, page instant",
+     "summary": "Content is instant; the copper marker behind the icon glides to the new tab.",
+     "spec": "marker 220ms io · x only · content 0ms",
+     "recipe": "Moving in place (Timing)",
+     "principles": [
+      "Make it mean something",
+      "Frequency of use"
+     ],
+     "tradeoff": "One small motion per switch, in the bar, not the page; the eye goes to the content anyway.",
+     "recommended": false,
+     "reduced": "Marker jumps",
+     "specShort": "marker 220ms io · content 0ms"
+    },
+    {
+     "key": "C",
+     "name": "Nudge, shortened",
+     "summary": "Keep the sideways nudge toward the new tab, faster, with no gap and no icon bounce.",
+     "spec": "in 160ms out · x 12→0 · old 0ms",
+     "recipe": "Entrances",
+     "principles": [
+      "Timing"
+     ],
+     "tradeoff": "Keeps the owner's pick in spirit; still a motion on every switch.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "in 160ms out · x 12→0 · old 0ms"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "sheets",
+   "title": "Sheets and modals",
+   "status": "existing",
+   "where": "static/index.html:2116-2129 (.modal-overlay/.sheet-overlay), 6238 watchOverlays",
+   "trigger": "open / close a sheet, menu or popup",
+   "frequency": "few",
+   "now": "Overlay fades and the card lifts 14px in 200ms (.2,.8,.2,1) by keyframes; closing fades and drops 8px in 150ms. Bottom sheets and centred modals move the same way.",
+   "verdict": "Times are right, but keyframes can't turn around mid-open, and the skill splits the two: a modal scales from 0.97 quietly; a sheet slides fully from its edge.",
+   "severity": "friction",
+   "principles": [
+    "Interruptible",
+    "Origin",
+    "Exits",
+    "Make it mean something"
+   ],
+   "notes": "Skill recipes. Modal: 220ms in, 160ms out, opacity 0→1 and scale 0.97→1, overlay on the same clock; never slide a modal in, grow it from 0 or bounce it. Drawer and sheet: 280ms in, 200ms out, sliding all the way back to its edge because where it goes is the point; contents arrive with it in one piece; slides on a transition, never keyframes, because people close drawers mid-open; a sheet people drag uses a spring (0.5s, bounce 0) and dismisses on a fast flick (>0.1px/ms) even when it has barely moved. FAM today (2116-2129): @keyframes mo-in/mo-lift on .active, mo-out/mo-drop on .closing held 150ms by a MutationObserver. Both the bottom sheets (queue, share, ⋯ menus, Length/Voice pickers) and the centred modals (sources, confirmations) use the same 14px lift. Because they are keyframes, closing mid-open restarts the closing keyframe from the open pose (a jump); Inert: confirm `inert` is set on the closed overlay so focus can't land in it while it fades. Popovers anchored to a trigger (a tile's ⋯ menu if it is anchored) should follow the popover recipe: 160/120ms, scale .95 from the trigger with a 4px nudge. Option A splits them per the skill; B adds drag-to-dismiss on sheets; C keeps today's single look but as transitions.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Skill split",
+     "summary": "Sheets slide all the way up from the bottom; centred popups fade in from 97% size. Both turn around mid-way.",
+     "spec": "sheet 280/200ms · modal .97→1 220/160ms",
+     "recipe": "Modal; Drawer and sheet",
+     "principles": [
+      "Make it mean something",
+      "Interruptible",
+      "Exits"
+     ],
+     "tradeoff": "Sheets travel further than today's 14px lift; they read as physical layers.",
+     "recommended": false,
+     "reduced": "Instant open and close",
+     "specShort": "sheet 280/200 · modal 220/160"
+    },
+    {
+     "key": "B",
+     "name": "Split + drag to dismiss",
+     "summary": "As A, and a sheet can be pulled down: it follows the finger, a flick closes it, the top rubber-bands.",
+     "spec": "drag 1:1 · spring .5s b0 · flick >0.1px/ms",
+     "recipe": "Drawer and sheet; Rubber banding",
+     "principles": [
+      "Interruptible",
+      "Jakob's law"
+     ],
+     "tradeoff": "Gesture code on every sheet; scrolling content inside a sheet must hand over at its top.",
+     "recommended": true,
+     "why": "Phones teach pull-down-to-close; the skill's sheet recipe is a dragged spring with a flick, and it never blocks input.",
+     "reduced": "Drag still works; release jumps",
+     "specShort": "drag 1:1 · spring .5s · flick"
+    },
+    {
+     "key": "C",
+     "name": "Today's lift, interruptible",
+     "summary": "Keep the 14px fade-and-lift for everything, but as transitions so closing mid-open turns around.",
+     "spec": "200ms out · y 14→0 · close 150ms in · y 8",
+     "recipe": "Interruptibility",
+     "principles": [
+      "Interruptible"
+     ],
+     "tradeoff": "Smallest change; sheets still don't say they came from the bottom edge.",
+     "recommended": false,
+     "reduced": "Fade 120ms (today)",
+     "specShort": "200ms out · y 14→0 · close 150 in"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "bottom-line",
+   "title": "The bottom line and the banner",
+   "status": "existing",
+   "where": "static/index.html:2391 (.toast/.snack), 2420 (.notif)",
+   "trigger": "an action finishes; a notification arrives",
+   "frequency": "few",
+   "now": "The line fades in 200ms and rises 8px from scale .98 in 220ms; its copper dot grows 260ms after 60ms. The banner drops from -140% in 280ms (.2,.8,.3,1).",
+   "verdict": "Close to the toast recipe. Missing: a 16px rise from its edge, an exit 20-30% shorter, Undo kept 5s, and swipe-away on the banner.",
+   "severity": "polish",
+   "principles": [
+    "Exits",
+    "Errors: prevent, then recover",
+    "Follow through",
+    "Interruptible"
+   ],
+   "notes": "Skill toast recipe: 240ms in, 170ms out, rising 16px from its screen edge with a fade and leaving the same way; stacked toasts shift with transform on the same curve; swipe-to-dismiss uses a spring; a toast with an action (Undo, Retry) stays at least 5s. Errors: anything reversible gets Undo instead of a confirmation - the item leaves at once and the request goes out when the Undo window closes. Today .toast/.snack (2391-2415): opacity .2s ease and transform .22s (.2,.8,.2,1) from translateY(8px) scale(.98); the copper dot scales 0→1 over .26s after .06s - a secondary action that ends 100ms after the main one, inside the skill's 150ms. The exit is the same transition reversed (220ms) - should be ~170ms with the ease-in curve. .notif (2420-2454): translateY(-140%) → 0 over .28s (.2,.8,.3,1), opacity .2s; it is tappable. The skill also asks the scale-in to start at 0.95/0.97 (it does: .98) and never from 0 - the dot does start at 0, which is fine for a 7px dot (it reads as a point appearing). Options: A the recipe straight; B adds follow-through (the dot settles 30ms after the card with a soft spring) and swipe-away; C makes Undo visible as a draining hairline (linear, the motion is time itself).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Toast recipe",
+     "summary": "Rises 16px from the bottom as it fades in, leaves the same way a bit faster; Undo stays 5s.",
+     "spec": "240ms out · y 16→0 · exit 170ms in",
+     "recipe": "Toast",
+     "principles": [
+      "Exits",
+      "Errors: prevent, then recover"
+     ],
+     "tradeoff": "Barely different from today; mainly fixes the exit and the Undo time.",
+     "recommended": false,
+     "reduced": "Appears and goes without moving",
+     "specShort": "240ms out · y 16→0 · exit 170 in"
+    },
+    {
+     "key": "B",
+     "name": "Recipe + follow-through",
+     "summary": "As A; the copper dot lands a beat after the line and settles; a swipe sends the banner away.",
+     "spec": "240ms out · dot +30ms spring .5 b.15",
+     "recipe": "Toast; Follow through",
+     "principles": [
+      "Follow through",
+      "Interruptible"
+     ],
+     "tradeoff": "Slightly livelier; the follow-through is on a non-text part only, as the skill requires.",
+     "recommended": true,
+     "why": "Parts that stop on the same frame read as one rigid sticker; the dot settling makes the line feel placed, not pasted.",
+     "reduced": "No movement",
+     "specShort": "240ms · dot +30ms spring .5 b.15"
+    },
+    {
+     "key": "C",
+     "name": "Undo with a timer line",
+     "summary": "For Undo lines: the copper rule drains left to right over 5s so you can see how long Undo lasts.",
+     "spec": "in 240ms · rule scaleX 1→0 linear 5000ms",
+     "recipe": "Curves: linear when the motion is time",
+     "principles": [
+      "Errors: prevent, then recover",
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "Only for lines with an action; a moving line near the tabs draws the eye for 5s.",
+     "recommended": false,
+     "reduced": "The rule still drains (progress keeps moving)",
+     "specShort": "in 240 · rule 1→0 linear 5s"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "player-open",
+   "title": "Opening and minimising the player",
+   "status": "existing",
+   "where": "static/index.html:6038 (player-open), 6055 (player-close), 6311 ghost",
+   "trigger": "tap a tile; tap the down arrow",
+   "frequency": "few",
+   "now": "A copy of the tapped picture grows into the player's in 380ms while the player fades in 240ms; minimising shrinks it into the mini thumb in 340ms. The copy animates left/top/width/height.",
+   "verdict": "The right shared-element move, in the 300-400ms range. Fix: animate transform only (FLIP), and since it travels on both axes by >40px the skill wants an arc.",
+   "severity": "polish",
+   "principles": [
+    "Properties",
+    "Arcs",
+    "Origin",
+    "Replacements"
+   ],
+   "notes": "Skill: page transition / shared-element move / something flying to a new place: 300-400ms. Properties: movement and size changes use only transform and opacity; never animate width/height/top/left - use FLIP (measure, then animate the transform). Arcs: when something travels between two points that differ on both axes by more than 40px, move it on a curve that bulges 10-20% of the distance; for depth, scale up to at most 1.3 at the top of the arc with a larger shadow. Replacements: something that's travelling stays one element for the whole move - FAM does this (a ghost carries the picture, the real one is hidden until it lands, then the ghost fades 120ms). Today (6038-6070): ghost from the tapped picture's box to #playerBg's box over 380ms EASE via place() = left/top/width/height/borderRadius - layout every frame, which can stutter while the player screen is building. Close (6055-6070): 340ms EASE_IO into #nowThumb, player fades out 200ms, mini bar fades in 200ms after 140ms. Option A: same choreography as FLIP - the ghost is positioned at the destination box and animated with transform: translate/scale from the source box, border-radius via clip-path inset(round) - identical look, compositor-only. B adds the skill's arc: x on ease-out, y on ease-in in nested wrappers (techniques: arcs in CSS), with a shadow fading in at the midpoint. C (quiet): no flight - the player pushes like a screen and the picture blurs up in place.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Same move, FLIP",
+     "summary": "The tile's picture grows into the player exactly as today, drawn with transforms only.",
+     "spec": "360ms io · translate+scale · radius via clip",
+     "recipe": "Properties (FLIP)",
+     "principles": [
+      "Properties",
+      "Replacements"
+     ],
+     "tradeoff": "Looks the same; the gain is smoothness on a busy phone, not a new feel.",
+     "recommended": true,
+     "why": "Keeps the owner's pick and removes layout work from every frame of the most-seen flight in the app.",
+     "reduced": "Player appears at once",
+     "specShort": "360ms io · translate+scale (FLIP)"
+    },
+    {
+     "key": "B",
+     "name": "Arc with lift",
+     "summary": "The picture travels on a slight curve, lifting with a soft shadow at the midpoint, then lands.",
+     "spec": "380ms · bulge 12% · shadow at 50%",
+     "recipe": "Arcs (nested wrappers) + depth shadow",
+     "principles": [
+      "Arcs",
+      "Solid drawing"
+     ],
+     "tradeoff": "More character, more code; on short flights (mini player → player) the arc is barely visible.",
+     "recommended": false,
+     "reduced": "Appears at once",
+     "specShort": "380ms · arc 12% · shadow at 50%"
+    },
+    {
+     "key": "C",
+     "name": "Push + blur-up",
+     "summary": "No flight: the player pushes in like any screen and its picture blurs up in place.",
+     "spec": "push 340ms out · picture blur 8→0 280ms",
+     "recipe": "Page transition; cross-fade blur bridge",
+     "principles": [
+      "Occam's razor"
+     ],
+     "tradeoff": "Simplest; loses 'this tile became the episode', which is the question the motion answers.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "push 340 out · blur 8→0 280ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "mini-player",
+   "title": "The mini player arriving and leaving",
+   "status": "existing",
+   "where": "static/index.html:6368-6386 (riseBar/dropBar), 2029 (.nowbar-fill)",
+   "trigger": "playback starts / the X",
+   "frequency": "few",
+   "now": "Rises from behind the tab bar in 260ms (.2,.8,.2,1), clipped so it never covers the tabs; drops back in 200ms. Its progress line animates width linearly every 200ms.",
+   "verdict": "Good: exit 23% shorter, origin from where it lives. Fixes: progress should be scaleX, and the thumbnail can settle a beat after the bar (follow through).",
+   "severity": "polish",
+   "principles": [
+    "Exits",
+    "Properties",
+    "Follow through"
+   ],
+   "notes": "riseBar (6372): barFrames(h) translateY(h)→0 with clipPath inset(0 0 h 0)→inset(0) - so the bar is never drawn over the tabs; 260ms with EASE. dropBar (6376): an inert copy runs the reverse in 200ms EASE_IN while the real bar is already hidden - FAM's 'change first, movement drawn over it' rule, which matches the skill's 'never block input'. Exit is 23% shorter (inside 20-30%). The progress fill (.nowbar-fill, 2029): width 0-100% with transition: width 200ms linear, updated every 200ms - a layout property animated constantly while audio plays; replace with transform:scaleX(p) and transform-origin:left. Follow through (skill): 'when a container stops, the non-text parts inside it settle a beat later: a toast's icon, a sheet's grabber' - the thumbnail could arrive 30ms after the bar with a softer spring, overshoot under 4%. Not for text.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rise, skill curves",
+     "summary": "Same rise from behind the tabs and drop back, on the skill's curves; progress drawn with scaleX.",
+     "spec": "rise 260ms out · drop 190ms in · scaleX",
+     "recipe": "Drawer and sheet (edge it lives at)",
+     "principles": [
+      "Exits",
+      "Properties"
+     ],
+     "tradeoff": "Small visual change; mostly a performance fix for the progress line.",
+     "recommended": false,
+     "reduced": "Appears at once",
+     "specShort": "rise 260 out · drop 190 in"
+    },
+    {
+     "key": "B",
+     "name": "Rise + thumb settles",
+     "summary": "As A, and the picture and play button land a beat after the bar, settling softly.",
+     "spec": "bar 260ms out · thumb +30ms spring .5 b.15",
+     "recipe": "Follow through",
+     "principles": [
+      "Follow through"
+     ],
+     "tradeoff": "A touch more motion each time playback starts; text never wobbles.",
+     "recommended": true,
+     "why": "Parts that stop together read as one sticker; a settling thumbnail makes the bar feel like it arrived, at no cost in time.",
+     "reduced": "Appears at once",
+     "specShort": "bar 260 out · thumb +30ms spring"
+    },
+    {
+     "key": "C",
+     "name": "Fade in place",
+     "summary": "The bar fades in where it sits, no movement; the X fades it out.",
+     "spec": "160ms fade · out 120ms",
+     "recipe": "Exits (quiet)",
+     "principles": [
+      "Occam's razor"
+     ],
+     "tradeoff": "Quietest; loses the cue that it came from behind the tabs.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "fade 160ms · out 120ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "play-pause",
+   "title": "Play and pause",
+   "status": "existing",
+   "where": "static/index.html:6343 (Motion.swapIcon); 9127, 11075, 16470",
+   "trigger": "tap play/pause (4 players)",
+   "frequency": "few",
+   "now": "Old icon shrinks to 0.5 and fades in 90ms; THEN the new icon pops 0.5 → 1.1 → 1 in 180ms (90ms delay). 270ms in sequence, with an overshoot.",
+   "verdict": "The skill's icon-swap recipe: both icons at once, deep scale 0.3→1 with a 3px blur, spring 0.35s with no bounce. Sequential swaps double the wait.",
+   "severity": "friction",
+   "principles": [
+    "Replacements",
+    "Slow in and slow out"
+   ],
+   "notes": "Recipe 'Icon swaps': icons that change with state (play and pause, copy and check, like and liked) cross-fade through a deep scale - scale 0.3 → 1 (a timid 0.8-0.9 reads as a glitch), opacity 0 → 1, blur 3px → 0, on a spring with no bounce {duration 0.35, bounce 0} because icons aren't toys; without Motion, render both icons stacked in one grid cell and swap classes, cross-fading with cubic-bezier(0.25, 0.1, 0, 1) over ~300ms - nothing unmounts, both directions animate. Replacements: 'animate both at once; never wait for the old one to finish leaving.' Today (6343-6365): the new icon is in the button at once (good - state first) but drawn at delay 90ms after the old copy's 90ms exit, and it overshoots to 1.1. One transport rule (rule:transport): setPlayState redraws all four players - the swap must run on whichever is on screen, as now (onActive). Option C makes it instant: play/pause is a high-stakes control where the audio itself is the feedback.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Icon swap recipe",
+     "summary": "Play and pause cross at the same moment: one shrinks and blurs away while the other grows in.",
+     "spec": "spring .35s b0 · scale .3↔1 · blur 3px",
+     "recipe": "Icon swaps",
+     "principles": [
+      "Replacements"
+     ],
+     "tradeoff": "Shorter and smoother than today; loses the little pop.",
+     "recommended": true,
+     "why": "Both at once halves the swap; the deep scale reads as a swap, and no bounce on a transport control.",
+     "reduced": "Icon changes instantly",
+     "specShort": "spring .35s · .3↔1 · blur 3px"
+    },
+    {
+     "key": "B",
+     "name": "Cross-fade in one cell",
+     "summary": "Both icons stacked; a 300ms cross-fade with a small scale, nothing unmounts.",
+     "spec": "300ms (.25,.1,0,1) · scale .8↔1 · fade",
+     "recipe": "Icon swaps (without Motion)",
+     "principles": [
+      "Replacements"
+     ],
+     "tradeoff": "Gentler; the skill warns shallow scales can read as a glitch.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "300ms (.25,.1,0,1) · scale .8↔1"
+    },
+    {
+     "key": "C",
+     "name": "Instant",
+     "summary": "The icon changes on the frame of the tap; the button's press and the sound are the feedback.",
+     "spec": "0ms · press .96 150ms",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use",
+      "Doherty threshold"
+     ],
+     "tradeoff": "Plainest; nothing says 'swap' beyond the press.",
+     "recommended": false,
+     "reduced": "Same",
+     "specShort": "0ms · press .96 150ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "title-wipe",
+   "title": "The episode's title settling",
+   "status": "existing",
+   "where": "static/index.html:6388 (Motion.retitle), 8791, 8797",
+   "trigger": "the writer's title arrives",
+   "frequency": "few",
+   "now": "The writer's title replaces the derived one with a left-to-right wipe, clip-path 320ms (.4,0,.2,1). The words are the new ones from the first frame.",
+   "verdict": "A good use of a mask, and words never wobble. Retime to the skill's io curve; a 2px blur bridge is the alternative when two titles look unrelated.",
+   "severity": "polish",
+   "principles": [
+    "Masks and reveals",
+    "Replacements",
+    "Make it mean something"
+   ],
+   "notes": "Rule title-from-content: a derived title first, then swapped for the writer's <<TITLE:>> once known; titleOverridden never replaced. Motion.retitle (6388): sets textContent first, then animates clipPath inset(0 100% 0 0) → inset(0) over 320ms EASE_IO - reveal-only, so the old title is never seen once the new is known (the §298 note). Skill: masks and reveals - clip-path gives crisp edges, a wipe goes from inset(0 100% 0 0) to inset(0). Cross-fades: when two states look disconnected, a 2px blur during the change bridges them. Replacements: both at once in one grid cell. Text never lags or wobbles (follow-through rule) - all three options keep the text rigid. The mini bar title (8797) runs the same wipe.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Wipe, io curve",
+     "summary": "Keep the left-to-right wipe the owner picked, on the skill's move-in-place curve.",
+     "spec": "300ms io (.77,0,.175,1) · clip inset 100%→0",
+     "recipe": "Masks and reveals",
+     "principles": [
+      "Masks and reveals"
+     ],
+     "tradeoff": "Almost unchanged; the wipe is noticeable on long titles that wrap.",
+     "recommended": true,
+     "why": "The wipe says 'this was written for you' without moving the words; only the curve changes.",
+     "reduced": "New title appears at once",
+     "specShort": "300ms io · clip wipe left→right"
+    },
+    {
+     "key": "B",
+     "name": "Blur bridge",
+     "summary": "The old title blurs out as the new one sharpens in, in the same spot.",
+     "spec": "220ms out · blur 2px · both at once",
+     "recipe": "Cross-fades and groups (blur bridge)",
+     "principles": [
+      "Replacements"
+     ],
+     "tradeoff": "Softer; shows the old title for 220ms, which §298 chose not to.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "220ms out · blur 2px · together"
+    },
+    {
+     "key": "C",
+     "name": "Roll up",
+     "summary": "The old title rises out 8px as the new one rises in under it, both at once.",
+     "spec": "240ms out · y 8→0 / 0→-8 · fade",
+     "recipe": "Replacements; Exits",
+     "principles": [
+      "Replacements",
+      "Make it mean something"
+     ],
+     "tradeoff": "Reads as 'updated'; moving text twice per episode.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "240ms out · y 8→0 / 0→−8 · fade"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "pictures",
+   "title": "Pictures landing",
+   "status": "existing",
+   "where": "static/index.html:6402-6427 (BLUR_UP, Motion.picture)",
+   "trigger": "an image finishes loading",
+   "frequency": "many",
+   "now": "A picture that arrives 100ms+ after its tile blurs up: 8px blur, scale 1.12, fade, to sharp in 320ms. Pictures already on the device appear at once.",
+   "verdict": "Correct instinct - only late pictures animate. A 12% scale is a lot of movement on a tile people are aiming at; blur 8px is within the 20px limit.",
+   "severity": "polish",
+   "principles": [
+    "Doherty threshold",
+    "Cross-fades and groups",
+    "Timing"
+   ],
+   "notes": "Doherty: reads show what the person saw last time, then reconcile - FAM does: only an image whose load lands >=100ms after data-drawn animates (6405-6410), so a cached picture never pretends to load. The movement: opacity 0→1, blur 8→0, scale 1.12→1, 320ms EASE. The skill: blur under 20px (fine); entrances' softest form is fade + 8px rise + 2px blur; an image's scale on a tile someone is about to tap moves the target. Background pictures (player, reel) are held at frame one until loaded and given up after 8s - good. Many pictures land at once on a rail, so the blur-up runs on several tiles together - that's fine because each lands when it arrives, not on a stagger. Option B 'colour first' adds a placeholder in the picture's dominant colour (computed server-side when the thumbnail is made) so the tile is never empty, then cross-fades.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Gentler blur-up",
+     "summary": "Same blur-up, smaller: soft and 4% large to sharp, a little quicker.",
+     "spec": "280ms out · blur 6→0 · scale 1.04→1",
+     "recipe": "Entrances (blur clears)",
+     "principles": [
+      "Timing"
+     ],
+     "tradeoff": "Less visible; still clearly 'just arrived'.",
+     "recommended": true,
+     "why": "Keeps the owner's pick and the honest only-if-late rule while the tile barely moves under a thumb.",
+     "reduced": "Appears at once",
+     "specShort": "280ms out · blur 6→0 · scale 1.04"
+    },
+    {
+     "key": "B",
+     "name": "Colour first",
+     "summary": "The tile shows the picture's main colour at once; the picture fades in over it when it lands.",
+     "spec": "placeholder 0ms · fade 240ms out",
+     "recipe": "Cross-fades (plus-lighter)",
+     "principles": [
+      "Doherty threshold"
+     ],
+     "tradeoff": "Needs a dominant colour per thumbnail from the server; no blur at all.",
+     "recommended": false,
+     "reduced": "Picture appears at once over the colour",
+     "specShort": "colour at once · fade 240ms out"
+    },
+    {
+     "key": "C",
+     "name": "Today's blur-up",
+     "summary": "Today's: 8px blur and 12% large to sharp in 320ms.",
+     "spec": "320ms (.2,.8,.2,1) · blur 8 · scale 1.12",
+     "recipe": "-",
+     "principles": [],
+     "tradeoff": "The most noticeable; the tile grows under the finger.",
+     "recommended": false,
+     "reduced": "None",
+     "specShort": "320ms · blur 8 · scale 1.12"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "captions",
+   "title": "Captions advancing",
+   "status": "existing",
+   "where": "static/index.html:1420-1432 (ccIn/ccOut)",
+   "trigger": "each sentence as it is voiced",
+   "frequency": "many",
+   "now": "Each sentence arrives with ccIn 320ms ease (y 4→0, fade) and the last leaves with ccOut 320ms ease (fade, y 0→-4).",
+   "verdict": "Captions are read while they move and change many times a minute: keep the move tiny, exits shorter, and never the bare ease on something that moves.",
+   "severity": "polish",
+   "principles": [
+    "Frequency of use",
+    "Exits",
+    "Replacements"
+   ],
+   "notes": "Captions publish each sentence as it is voiced (rule live-captions). The panel marks the current sentence (mark.cc-now) and a leaving one (.cc-leaving). Skill: exits 20-30% shorter than their entrance; text never lags or wobbles; never animate anything read while it moves (squash rule) - a 4px rise is acceptable because it ends before reading starts. 'Many times a session → no transition' argues for option C, a highlight that moves through the text with no movement at all (colour is fine at 150ms ease). Under reduced motion today: no animation (1431).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Rise, shorter exit",
+     "summary": "New sentence rises 4px into place; the last leaves faster upward, both at once.",
+     "spec": "in 240ms out · out 170ms in · y 4px",
+     "recipe": "Replacements; Exits",
+     "principles": [
+      "Exits",
+      "Replacements"
+     ],
+     "tradeoff": "Close to today, tidier; still moves every sentence.",
+     "recommended": false,
+     "reduced": "Text swaps at once",
+     "specShort": "in 240 out · out 170 in · y 4px"
+    },
+    {
+     "key": "B",
+     "name": "Highlight only",
+     "summary": "All recent text stays put; the spoken sentence turns full colour and the last one dims.",
+     "spec": "colour 150ms ease · no movement",
+     "recipe": "Frequency of use (colour is not motion)",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "Calmest to read; a new sentence appearing at the bottom has no entrance cue.",
+     "recommended": true,
+     "why": "Captions change every few seconds: colour carries 'now' with nothing moving under the eyes.",
+     "reduced": "Same (colour change only)",
+     "specShort": "colour 150ms ease · no movement"
+    },
+    {
+     "key": "C",
+     "name": "Today's ccIn / ccOut",
+     "summary": "Today's 320ms fade-and-rise in, 320ms fade-and-rise out.",
+     "spec": "320ms ease · y 4 · exit 320ms",
+     "recipe": "-",
+     "principles": [],
+     "tradeoff": "Exit as long as entrance; bare ease on a move.",
+     "recommended": false,
+     "reduced": "None",
+     "specShort": "320ms ease · y 4 · exit 320ms"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "burst",
+   "title": "Save, like and VIBE!",
+   "status": "existing",
+   "where": "static/index.html:6189 (Motion.celebrate), 9875, 22068",
+   "trigger": "turning one on",
+   "frequency": "few",
+   "now": "Icon dips to .8 then pops to 1.2 (380ms); a copper ring grows .4→1.7 and six sparks fly out (450ms); 'SAVED' slides in beside it and stays ~1.1s.",
+   "verdict": "Exactly the reel's 'Check + sparkle' card - which the skill keeps for rare moments. A few times a session, the sparkle starts delaying; save the burst for the first time.",
+   "severity": "polish",
+   "principles": [
+    "Secondary action",
+    "Exaggeration",
+    "Peak-end rule",
+    "Icon swaps"
+   ],
+   "notes": "Skill, Secondary action: 'Only on top of a primary motion, never alone. It starts with the primary or up to 100ms after, ends within 150ms of it, and moves at most a third as much. Example: the check draws in, then a ring scales from 1 to 1.4 while fading out. Only in the rarely branch of question 1.' Exaggeration: only where a moment must register - a first success. Peak-end: save celebration for real milestones; routine completions get a quiet confirmation. Today celebrate() (6189-6236) runs on every save/like/vibe the listener turns on: icon scale 1 → .8 (20%) → 1.2 (60%) → 1 over 380ms (an anticipation dip + overshoot), ring scale .4 → 1.7 fading over 450ms, six 4px sparks travelling 0.8 × icon size over 450ms, label 1100ms linear with a ±8px slide. It never runs when the server paints state (good: setSaved/setEchoed don't call it). Options: A quiet - the icon-swap recipe (outline → filled, spring .35s) with the word beside it; B first-time only - the full burst the first time each kind is turned on (stored per device), A afterwards; C keep the burst but to the skill's numbers (ring 1 → 1.4, no dip, sparks end with the icon).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Quiet swap + word",
+     "summary": "The outline icon swaps to filled, and 'SAVED' fades in beside it for a moment. No ring, no sparks.",
+     "spec": "icon spring .35s · label 900ms",
+     "recipe": "Icon swaps",
+     "principles": [
+      "Peak-end rule",
+      "Frequency of use"
+     ],
+     "tradeoff": "Calm; loses the moment of delight the owner asked for.",
+     "recommended": false,
+     "reduced": "Icon fills at once; the word shows without moving",
+     "specShort": "icon spring .35s · word 900ms"
+    },
+    {
+     "key": "B",
+     "name": "Burst the first time",
+     "summary": "The full ring and sparks the first time you save, like or vibe; the quiet swap after that.",
+     "spec": "first: ring 1→1.4 + sparks · then A",
+     "recipe": "Secondary action; Peak-end",
+     "principles": [
+      "Peak-end rule",
+      "Secondary action",
+      "Tenth use"
+     ],
+     "tradeoff": "Delight once per kind per device; a returning listener may never see it again.",
+     "recommended": true,
+     "why": "The skill keeps secondary actions for rare moments: a first save is a peak, the twentieth is routine.",
+     "reduced": "Quiet swap only",
+     "specShort": "1st: ring 1→1.4 + sparks · then A"
+    },
+    {
+     "key": "C",
+     "name": "Burst, skill numbers",
+     "summary": "Keep it every time, tightened: no dip, ring 1→1.4, sparks end within 150ms of the icon.",
+     "spec": "icon spring .35 · ring 1→1.4 300ms",
+     "recipe": "Secondary action",
+     "principles": [
+      "Secondary action"
+     ],
+     "tradeoff": "Keeps the owner's pick; still sparkles on the tenth save today.",
+     "recommended": false,
+     "reduced": "Quiet swap",
+     "specShort": "spring .35 · ring 1→1.4 300ms"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "queue",
+   "title": "Adding to and removing from the queue",
+   "status": "existing",
+   "where": "static/index.html:6288 (toQueue), 6582 (removeRow), 10210, 10236",
+   "trigger": "Add to Queue; remove a row",
+   "frequency": "few",
+   "now": "A thumbnail flies to the queue button in 450ms on a keyframed bend, shrinking; the button bumps 1.3 and the badge pops from 0. A removed row slides left 180ms, THEN the gap closes 200ms.",
+   "verdict": "Make it mean something, done right (it leaves toward where it went). Over the 400ms ceiling, layout properties, the shrink loses depth, and the removal runs in sequence.",
+   "severity": "polish",
+   "principles": [
+    "Arcs",
+    "Properties",
+    "Make it mean something",
+    "Replacements"
+   ],
+   "notes": "Skill Arcs: both axes > 40px → curve bulging 10-20% of the distance; for depth scale up to at most 1.3 at the top with a larger shadow, so it lifts off the page instead of sliding across it. Staging: chain motions - 'the image reaches the cart, then the badge bumps' - FAM does exactly that (badge waits 450ms). Timing: something flying to a new place is 300-400ms; today 450ms (EASE_IO) via left/top/width/height. Numbers: a changing number rolls only the digits that change, upward when it grows, tabular-nums. Removal (removeRow, 6582): slide to -45% + fade in 180ms EASE_IN, then height/padding/margin collapse in 200ms after 180ms - two layout properties, and sequential. The skill's exits recipe: grouped exits (list items) close the gap with transforms while the item leaves (popLayout). Undo: a queue removal is reversible → bottom line with Undo for 5s (Errors: recover). Options: A arc with lift + digit roll, transform-only, 360ms; B 'drop in': the thumb drops into the queue icon like into a slot (clip as it crosses the opening - masks technique), C quiet: no flight; the queue button's count rolls up and the button bumps.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Arc with lift",
+     "summary": "The thumbnail lifts, arcs to the queue button and lands; the count rolls up by one.",
+     "spec": "360ms io · bulge 15% · scale ≤1.15 · digit roll",
+     "recipe": "Arcs; Numbers",
+     "principles": [
+      "Arcs",
+      "Staging",
+      "Make it mean something"
+     ],
+     "tradeoff": "Same story as today, inside the ceiling; FLIP transform code replaces the left/top flight.",
+     "recommended": true,
+     "why": "The arc and lift say 'thrown into the queue'; chaining the count after the landing keeps one motion at a time.",
+     "reduced": "Count changes; nothing flies",
+     "specShort": "360ms io · arc 15% · lift ≤1.15"
+    },
+    {
+     "key": "B",
+     "name": "Drop into the slot",
+     "summary": "The thumbnail arcs over and drops into the queue icon, clipped at its edge as if posted in.",
+     "spec": "380ms · arc 12% · clip at the icon edge",
+     "recipe": "Masks: putting something into a slot",
+     "principles": [
+      "Make it mean something",
+      "Solid drawing"
+     ],
+     "tradeoff": "Most charming, most fiddly; the icon is small, so the slot effect is subtle at phone size.",
+     "recommended": false,
+     "reduced": "Count changes",
+     "specShort": "380ms · arc 12% · clip at icon"
+    },
+    {
+     "key": "C",
+     "name": "Count only",
+     "summary": "Nothing flies; the queue button bumps and its number rolls up.",
+     "spec": "bump 1→1.08 200ms · digits 300ms io",
+     "recipe": "Numbers",
+     "principles": [
+      "Occam's razor",
+      "Frequency of use"
+     ],
+     "tradeoff": "Quietest; 'where did it go?' is answered only if the button is on screen.",
+     "recommended": false,
+     "reduced": "Count changes",
+     "specShort": "bump 1.08 200ms · digits 300 io"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "nextup",
+   "title": "When an episode ends",
+   "status": "existing",
+   "where": "static/index.html:2828-2864 (nextup-in, .nextup-timer)",
+   "trigger": "the voice stops",
+   "frequency": "few",
+   "now": "The card of four tiles fades up 12px from 98.5% over 360ms (.22,.7,.3,1), as a keyframe. A copper bar at the top empties over 15s before the first auto-starts.",
+   "verdict": "Countdown drawn as a draining bar is right (linear: the motion is time). The card is a modal-sized layer: 220ms, and its four tiles are copies of one element - stagger the first few.",
+   "severity": "polish",
+   "principles": [
+    "Timing",
+    "Stagger",
+    "Curves: linear for time",
+    "Peak-end rule"
+   ],
+   "notes": "Rule post-episode-grid: four recommendations, the first auto-starts in 15s; the lead is Go Deeper's own suggestion; a search box above Back stops the countdown. The card arrives with nextup-in var(--nextup-fade, 360ms) cubic-bezier(.22,.7,.3,1) - deliberately twice the old arrival so it reads as the episode handing over (comment at 2830). Skill: modal 220ms in; menus/modals/toasts 300ms or less; stagger copies of one element 30-50ms, first 6 only; the softest entrance pairs an 8px rise with a 2px blur. Peak-end: the end of an episode is the 'end' people remember - this is the place for the calmest, most legible arrival, not a flourish. The countdown bar (.nextup-timer) is transform-origin:left - good (scaleX). Option C keeps today's slower arrival because the owner tuned it on purpose.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Card, then tiles",
+     "summary": "The card fades up, then its four tiles arrive 40ms apart; the bar starts draining once all are in.",
+     "spec": "card 240ms out · tiles 40ms apart",
+     "recipe": "Entrances: split, then stagger",
+     "principles": [
+      "Stagger",
+      "Staging"
+     ],
+     "tradeoff": "More motion at the end of an episode; still well under half a second.",
+     "recommended": false,
+     "reduced": "All appear at once; the bar still drains",
+     "specShort": "card 240 out · tiles 40ms apart"
+    },
+    {
+     "key": "B",
+     "name": "Soft rise, lead first",
+     "summary": "One soft rise with a 2px blur clearing; the lead tile's own bar shows the 15s left.",
+     "spec": "280ms out · y 8 · blur 2→0 · bar 15s linear",
+     "recipe": "Entrances (softest); linear for time",
+     "principles": [
+      "Peak-end rule",
+      "Von Restorff"
+     ],
+     "tradeoff": "Moves the timer onto the lead tile, which makes clear which one will play.",
+     "recommended": true,
+     "why": "A calm, readable end (peak-end) and the timer sits on the thing it will start - one element breaks the pattern.",
+     "reduced": "No rise; the bar still drains",
+     "specShort": "280ms out · y 8 · blur 2→0"
+    },
+    {
+     "key": "C",
+     "name": "Today's handover",
+     "summary": "Today's slower 360ms rise, kept on purpose so it feels like a handover.",
+     "spec": "360ms (.22,.7,.3,1) · y 12 · .985",
+     "recipe": "-",
+     "principles": [],
+     "tradeoff": "Over the 300ms the skill allows a card; a keyframe that can't be interrupted.",
+     "recommended": false,
+     "reduced": "None",
+     "specShort": "360ms (.22,.7,.3,1) · y 12 · .985"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "intro",
+   "title": "The FAM intro on opening",
+   "status": "existing",
+   "where": "static/index.html:23718 (beginEntryHandoff / playEntryHandoff)",
+   "trigger": "opening the app; finishing sign-in",
+   "frequency": "rare",
+   "now": "1.8s every open: the F and M fold into the A (420ms), the chevron charges copper→yellow twice (560ms), then the page slides off left (480ms) onto the app underneath.",
+   "verdict": "A choreographed rare moment within the 2.5s the skill allows - the first time. Played on every open, by the tenth it is 1.8s between the listener and their app.",
+   "severity": "polish",
+   "principles": [
+    "Frequency of use",
+    "Tenth use",
+    "Peak-end rule",
+    "Storyboards"
+   ],
+   "notes": "Owner's sketch (§201): four beats, ~1.8s; the screen underneath is switched before the first frame, so it is 'a picture over an app that is already there' - nothing waits on it, but nothing can be reached either until it slides away. Skill question 1: 'Rarely: a milestone the person won't repeat this session → may be choreographed: each move up to 500ms, the whole sequence up to about 2.5s.' Each beat obeys (240, 420, 560, 480). The question is frequency: on every open it is the 'many' branch across days. Tenth use: run it at full speed as someone seeing it for the tenth time today - cut or shorten the one that starts to feel slow. Storyboards: a 3+ stage sequence should be written as a TIMING object with a comment (FAM_INTRO_CHARGE_MS is a start). Options: A full intro on first run and after sign-in only, a 500ms version otherwise (logo fade + slide); B full intro at most once a day; C keep.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Full once, short after",
+     "summary": "The full fold-and-charge on first run and sign-in; every other open, the mark fades and slides away.",
+     "spec": "first: 1.8s · then 160ms + 340ms slide",
+     "recipe": "Frequency of use; Storyboards",
+     "principles": [
+      "Tenth use",
+      "Peak-end rule"
+     ],
+     "tradeoff": "The brand moment becomes rarer; daily listeners get to the app 1.3s sooner.",
+     "recommended": true,
+     "why": "Choreography is for milestones; on the hundredth open it is a delay. The short version keeps the mark.",
+     "reduced": "No intro",
+     "specShort": "1.8s first · then 160 + 340ms"
+    },
+    {
+     "key": "B",
+     "name": "Once a day",
+     "summary": "The full intro the first time the app opens each day; straight in after that.",
+     "spec": "1.8s first open of the day · else 0ms",
+     "recipe": "Frequency of use",
+     "principles": [
+      "Frequency of use"
+     ],
+     "tradeoff": "A daily ritual fits a daily-edition product; still 1.8s every morning.",
+     "recommended": false,
+     "reduced": "No intro",
+     "specShort": "1.8s once a day · else 0ms"
+    },
+    {
+     "key": "C",
+     "name": "Every open (today)",
+     "summary": "Today's 1.8s intro on every open.",
+     "spec": "240+420+560+480ms beats",
+     "recipe": "-",
+     "principles": [],
+     "tradeoff": "Strongest brand repetition; the most waiting.",
+     "recommended": false,
+     "reduced": "None (already off)",
+     "specShort": "240+420+560+480ms every open"
+    }
+   ],
+   "picked": "C"
+  },
+  {
+   "id": "signup-steps",
+   "title": "Sign-up's steps",
+   "status": "existing",
+   "where": "static/index.html:6087 (how === 'step'), 6607 (Motion.steps)",
+   "trigger": "Continue between sign-up steps",
+   "frequency": "rare",
+   "now": "Words slide 24px and fade (out 160ms, in 260ms after 80ms); three bars at the top fill from scaleX .3 to 1 in 260ms with the appear curve.",
+   "verdict": "Goal gradient done right in spirit. The skill: a step bar grows from its last value from the left edge on ease-in-out, never jumps back, and a finished step shows done.",
+   "severity": "polish",
+   "principles": [
+    "Zeigarnik / goal gradient",
+    "Exits",
+    "Slow in and slow out"
+   ],
+   "notes": "Skill, Zeigarnik and goal gradient: show where they are and what's left ('Step 2 of 4'), count work already done (a step finished shows as done; progress never reads 0% once they've done something); a step progress bar grows from its last value with scaleX from the left edge (never width), on the ease-in-out curve, and never jumps backward. Today: three separate bars, each filling .3 → 1 when it turns on (260ms EASE), transform-origin? (.motion-steps i - check: the fill starts at 30% because it is a scale from the centre unless origin is left). Exits: 160ms vs 260ms entrance = 38% shorter (beyond the 20-30% band - fine, quieter). One decision per step (Hick) - FAM's three steps are the sign-up form, name and picture, interests. Option C turns the three bars into one continuous bar with 'Step 2 of 3' in words (Miller/Zeigarnik).",
+   "options": [
+    {
+     "key": "A",
+     "name": "Bars grow from the left",
+     "summary": "Each bar fills from its left edge on the move-in-place curve; finished bars stay full.",
+     "spec": "260ms io · scaleX 0→1 · origin left",
+     "recipe": "Zeigarnik / goal gradient",
+     "principles": [
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "A precise fix; the words' slide stays as the owner picked it.",
+     "recommended": true,
+     "why": "Progress should read as growth from where you were, on the in-place curve, never from the middle.",
+     "reduced": "Bars fill at once",
+     "specShort": "260ms io · scaleX 0→1 from left"
+    },
+    {
+     "key": "B",
+     "name": "Bars + step words",
+     "summary": "As A, plus 'Step 2 of 3' under the bars, rolling to the next number on Continue.",
+     "spec": "bars 260ms io · digit roll 300ms io",
+     "recipe": "Numbers; goal gradient",
+     "principles": [
+      "Zeigarnik / goal gradient",
+      "Miller's law"
+     ],
+     "tradeoff": "One more line of chrome on a short flow.",
+     "recommended": false,
+     "reduced": "Number changes at once",
+     "specShort": "bars 260 io · digit roll 300 io"
+    },
+    {
+     "key": "C",
+     "name": "One continuous bar",
+     "summary": "A single bar that grows a third per step, starting a third full because the account already exists.",
+     "spec": "scaleX 1/3→2/3→1 · 300ms io",
+     "recipe": "Goal gradient (count work done)",
+     "principles": [
+      "Zeigarnik / goal gradient"
+     ],
+     "tradeoff": "Loses the three-part count; gains 'you're already a third done'.",
+     "recommended": false,
+     "reduced": "Jumps to the value",
+     "specShort": "one bar ⅓→⅔→1 · 300ms io"
+    }
+   ],
+   "picked": "B"
+  },
+  {
+   "id": "tour",
+   "title": "The tour's spotlight",
+   "status": "existing",
+   "where": "static/index.html:178-224 (.tour-hole, .tour-card, .tour-fill), 23806",
+   "trigger": "Next in the tour",
+   "frequency": "rare",
+   "now": "The spotlight moves by transitioning top/left/width/height 380ms (.2,.8,.2,1); the card moves by top; the progress fill animates width.",
+   "verdict": "A rare, choreographed flow, so 380ms is fine. Layout properties make it stutter; the spotlight and card are two halves of one object and should share a clock.",
+   "severity": "polish",
+   "principles": [
+    "Properties",
+    "Origin (paired elements)",
+    "Zeigarnik / goal gradient"
+   ],
+   "notes": "Tour once per account, Skip on any card (§594-595). The hole is a box with a 9999px box-shadow scrim; it transitions top/left/width/height at 380ms - layout each frame. The card transitions top 380ms. The track's fill transitions width. Skill Properties: never animate width/height/top/left; open with FLIP; progress bars grow with scaleX from the left. Origin: paired elements (tooltip and arrow, drawer and backdrop) share one duration and one curve - hole and card do (380ms both), keep that. Options: A the same tour drawn with transforms: the hole is a fixed-size element scaled and translated (or clip-path on the scrim), card translateY; B adds staging: the hole moves first, then the card follows 80ms later and its text staggers in (heading, copy, actions 80-100ms apart - distinct pieces of a section); C cuts the moving spotlight: each step fades the scrim and card in place.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Same tour, transforms",
+     "summary": "The spotlight and card glide exactly as now, drawn with transforms, on one clock.",
+     "spec": "340ms io · translate+scale · fill scaleX",
+     "recipe": "Properties (FLIP)",
+     "principles": [
+      "Properties",
+      "Origin"
+     ],
+     "tradeoff": "Same look, smoother on phones.",
+     "recommended": true,
+     "why": "A once-per-account flow should be its smoothest; only the drawing method changes.",
+     "reduced": "Each step appears in place",
+     "specShort": "340ms io · translate+scale"
+    },
+    {
+     "key": "B",
+     "name": "Spotlight, then card",
+     "summary": "The spotlight lands first; the card follows and its heading, text and buttons arrive in order.",
+     "spec": "hole 340ms io · card +80ms · text 90ms apart",
+     "recipe": "Staging; Entrances: split, then stagger",
+     "principles": [
+      "Staging",
+      "Stagger"
+     ],
+     "tradeoff": "Richer for a rare moment; about 300ms more per step.",
+     "recommended": false,
+     "reduced": "In place",
+     "specShort": "hole 340 io · card +80 · text 90"
+    },
+    {
+     "key": "C",
+     "name": "Cross-fade steps",
+     "summary": "No travelling spotlight: each step's scrim and card fade in where they belong.",
+     "spec": "200ms out · fade only",
+     "recipe": "Cross-fades",
+     "principles": [
+      "Occam's razor"
+     ],
+     "tradeoff": "Loses the sense of the light moving across the app.",
+     "recommended": false,
+     "reduced": "Instant",
+     "specShort": "200ms out · fade only"
+    }
+   ],
+   "picked": "A"
+  },
+  {
+   "id": "reduced",
+   "title": "Reduced motion and the theme switch",
+   "status": "existing",
+   "where": "static/index.html:6044 (reduced crossfade), 2127, 11418 (setTheme)",
+   "trigger": "system setting; Dark mode toggle",
+   "frequency": "rare",
+   "now": "With Reduce Motion on, screens cross-fade 120ms and sheets fade in 120ms; the rest is still. Switching theme lets every colour transition run at its own speed.",
+   "verdict": "The skill turns every animation off under reduced motion, fades included, except things that show work is happening. A theme switch should turn transitions off for two frames.",
+   "severity": "polish",
+   "principles": [
+    "Reduced motion",
+    "Theme switch"
+   ],
+   "notes": "Skill Verify: Reduced motion (prefers-reduced-motion: reduce) - every animation is off, fades included, and every end state and every piece of information is the same as with motion on; the one exception is an indicator that work is still happening (a spinner, a progress bar), which keeps moving because a frozen spinner looks like a hang. FAM's rule:motion deliberately keeps a 120ms crossfade for screens and a 120ms sheet fade - the owner's choice in §292. Check: the search loading steps' pulse (famStepPulse) and the loading dots are turned off under reduced motion (2346-2349) - by the skill's exception, the indicator that work is happening should keep moving (a calm opacity pulse is fine). Theme switch recipe: add .theme-switching { transition: none !important } to every element for the frame the theme changes, remove it two frames later; setTheme (11418) does not, so the tab bar (200ms), switches (160ms), side buttons (all .15s) and others each fade at their own speed. Switch the theme: no colour transitions fire across the page.",
+   "options": [
+    {
+     "key": "A",
+     "name": "Skill: all off",
+     "summary": "Reduce Motion turns every animation off, fades included; only loading indicators keep a gentle pulse.",
+     "spec": "0ms everywhere · loaders keep opacity pulse",
+     "recipe": "Verify: Reduced motion",
+     "principles": [
+      "Reduced motion"
+     ],
+     "tradeoff": "Reverses the 120ms crossfade the owner kept; loaders start pulsing again under the setting.",
+     "recommended": true,
+     "why": "People who ask for reduced motion asked for none; a frozen loader looks like a hang, so that one keeps moving.",
+     "reduced": "This option is the reduced mode",
+     "specShort": "0ms everywhere · loaders pulse"
+    },
+    {
+     "key": "B",
+     "name": "Today's 120ms fade",
+     "summary": "Keep the 120ms screen crossfade and sheet fade; fix only the theme switch.",
+     "spec": "screens 120ms fade · sheets 120ms",
+     "recipe": "Theme switch",
+     "principles": [
+      "Reduced motion"
+     ],
+     "tradeoff": "Fades are motion to some people; keeps the owner's decision.",
+     "recommended": false,
+     "reduced": "This option is the reduced mode",
+     "specShort": "screens 120ms fade · sheets 120"
+    },
+    {
+     "key": "C",
+     "name": "Fade only for layers",
+     "summary": "Screens change instantly; only sheets and modals fade 120ms so a layer doesn't appear from nothing.",
+     "spec": "screens 0ms · layers 120ms fade",
+     "recipe": "Reduced motion; Exits",
+     "principles": [
+      "Reduced motion"
+     ],
+     "tradeoff": "A middle path; still a fade under the setting.",
+     "recommended": false,
+     "reduced": "This option is the reduced mode",
+     "specShort": "screens 0ms · layers 120ms fade"
+    }
+   ],
+   "picked": "A"
+  }
+ ]
+}

@@ -135,9 +135,11 @@ def test_messages_is_capitalised_on_every_tab_bar():
     assert INDEX.count('<div class="lbl">Messages</div>') == INDEX.count('<div class="tabbar">')
 
 
-def test_the_tab_icons_are_toned_and_spring():
+def test_the_tab_icons_are_toned_and_do_not_bounce():
     assert ".tabbar .tab .dot .tone{" in INDEX
-    assert "@keyframes tabPop" in INDEX
+    # Round three (PROBLEMS.md §640, tabs: C): nothing bounces on
+    # navigation, so the tab icon's spring-up pop is gone.
+    assert "@keyframes tabPop" not in INDEX
     # One tint per tab, two on YourFAM's (head and shoulders), on every copy.
     assert INDEX.count('class="tone"') == 6 * INDEX.count('<div class="tabbar">')
 

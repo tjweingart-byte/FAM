@@ -284,7 +284,7 @@ def test_the_friends_page_invites_new_users():
 # --- 2b. No (+) in YourFAM's header ----------------------------------------
 
 def test_the_profile_header_has_no_plus():
-    head = _fn("renderProfile").split('document.getElementById("pfTop").innerHTML', 1)[1] \
+    head = _fn("renderProfile").split('var topHTML =', 1)[1] \
         .split("// Who you are.", 1)[0]
     assert "openNewChatModal" not in head
     assert 'yfIcon("plus"' not in head
@@ -321,7 +321,9 @@ def test_a_swipe_goes_to_the_next_friends_vibes():
     assert 'onclick="storyTap(1)"' in INDEX and 'onclick="storyTap(-1)"' in INDEX
     assert "storySwipedAt" in _fn("storyTap")
     css = INDEX.split("  .story{", 1)[1].split("}", 1)[0]
-    assert "touch-action:pan-y" in css
+    # The story takes every drag itself since §641: down closes it and
+    # sideways turns the cube under the finger, so the browser pans neither.
+    assert "touch-action:none" in css
 
 
 # --- 3a. The picture is the way to the profile -----------------------------

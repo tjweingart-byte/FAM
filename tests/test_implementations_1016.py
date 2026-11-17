@@ -120,8 +120,9 @@ def test_the_side_buttons_carry_their_own_contrast():
 # --- 4. Continue with nothing typed --------------------------------------------
 
 def test_continue_with_nothing_typed_plays_the_suggestion():
-    body = INDEX.split("function confirmGoDeeper(){", 1)[1].split("\n  }\n", 1)[0]
-    assert "if(!val) val = (goDeeperSuggestionText() || \"\").trim();" in body
+    body = INDEX.split("function confirmGoDeeper(offered){", 1)[1].split("\n  }\n", 1)[0]
+    # The suggestion on screen - the one the listener read (§643).
+    assert "if(!val) val = shown || (goDeeperSuggestionText() || \"\").trim();" in body
     assert body.index("goDeeperSuggestionText()") < body.index(".focus()")
 
 
@@ -177,7 +178,7 @@ def test_private_search_left_on_is_honoured_without_the_flag(searcher):
 
 
 def test_private_search_is_one_switch_in_settings_and_on_search():
-    assert 'settingsRow("Private search"' in INDEX
+    assert 'settingsSwitch("Private search"' in INDEX  # a switch since §645
     assert "savePreferences({ private_search: privateSearch })" in INDEX
     assert "paintPrivateSearch(d.saved ? !!d.private_search" in INDEX
     # It no longer turns itself off after one search.

@@ -58,8 +58,8 @@ def test_the_lead_tile_is_what_go_deeper_would_offer():
     # Corrected at send first (§247), then the same follow-up.
     go = _fn("confirmGoDeeper")
     assert "var minutes = goDeeperMinutes;" in go
-    assert "startFollowUp(val, baseKey, minutes)" in go
-    assert "startFollowUp(r.query, baseKey, minutes, true)" in go
+    assert "startFollowUp(val, baseKey, minutes, false, shown)" in go
+    assert "startFollowUp(r.query, baseKey, minutes, true, shown)" in go
 
 
 def test_the_search_box_sits_above_back_and_stops_the_countdown():

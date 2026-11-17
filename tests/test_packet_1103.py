@@ -157,9 +157,10 @@ def test_the_catalogue_sends_each_rows_age(monkeypatch, tmp_path):
 # --- 4. A vibe deleted from your profile -----------------------------------
 
 def test_holding_a_vibe_on_your_grid_offers_to_remove_it():
-    shelf = _fn("showProfileShelf")
-    assert 'profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query, i)' in shelf
-    assert "armVibeHolds(grid)" in shelf
+    # Drawn by `profileShelfHTML` and armed after each draw (§645).
+    assert 'profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query, i, vibeKey(v))' \
+        in _fn("profileShelfHTML")
+    assert "armVibeHolds(g)" in _fn("showProfileShelf")
     hold = _fn("armVibeHolds")
     assert "VIBE_HOLD_MS" in hold and "contextmenu" in hold
     assert "stopImmediatePropagation" in hold      # lifting does not also play it
