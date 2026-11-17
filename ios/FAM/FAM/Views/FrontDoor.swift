@@ -817,7 +817,7 @@ struct PasswordFirstView: View {
                     .font(FAMFont.heading(26, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("You joined the waitlist with just your email. Choose a password so you can sign in on any device.")
+                Text("You joined the waitlist with just your email. Choose a password and type it twice, so you can sign in on any device.")
                     .font(FAMFont.body(14))
                     .foregroundStyle(FAMColor.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -831,48 +831,37 @@ struct PasswordFirstView: View {
     }
 }
 
-/// The password field, its eye and the Set button (§606's first step).
+/// The password, typed twice (§619), each field with its own show/hide
+/// eye, and the Set button (§606's first step).
 struct FirstPasswordFields: View {
     @EnvironmentObject private var model: AppModel
     /// What happens once it is set.
     let done: () async -> Void
 
     @State private var password = ""
+    @State private var confirm = ""
     @State private var showPassword = false
+    @State private var showConfirm = false
     @State private var working = false
     @State private var problem = ""
+    @FocusState private var field: Field?
+
+    enum Field { case password, confirm }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Group {
-                    if showPassword {
-                        TextField("", text: $password,
-                                  prompt: Text("Choose a password (at least 8 characters)")
-                                    .foregroundColor(FAMColor.textFaint))
-                    } else {
-                        SecureField("", text: $password,
-                                    prompt: Text("Choose a password (at least 8 characters)")
-                                        .foregroundColor(FAMColor.textFaint))
-                    }
-                }
-                .textContentType(.newPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.go)
+            Text("Password").monoLabel(9).padding(.bottom, 7)
+            secret(text: $password, shown: $showPassword,
+                   prompt: "Choose a password (at least 8 characters)",
+                   label: "Password", which: .password)
+                .onSubmit { field = .confirm }
+                .submitLabel(.next)
+            Text("Confirm password").monoLabel(9).padding(.top, 14).padding(.bottom, 7)
+            secret(text: $confirm, shown: $showConfirm,
+                   prompt: "Type it again",
+                   label: "Confirm password", which: .confirm)
                 .onSubmit { Task { await set() } }
-                // `maxlength="1024"`: the field takes no more.
-                .onChange(of: password) { _, typed in
-                    if typed.count > 1024 { password = String(typed.prefix(1024)) }
-                }
-                Button { showPassword.toggle() } label: {
-                    Image(systemName: showPassword ? "eye.slash" : "eye")
-                        .foregroundStyle(FAMColor.textMuted)
-                }
-                .accessibilityLabel(showPassword ? "Hide password" : "Show password")
-                .accessibilityAddTraits(showPassword ? .isSelected : [])
-            }
-            .modifier(FieldBox())
+                .submitLabel(.go)
             if !problem.isEmpty {
                 Text(problem)
                     .font(FAMFont.body(12.5))
@@ -892,6 +881,39 @@ struct FirstPasswordFields: View {
         }
     }
 
+    /// One password box with the eye on its right (`.pw-row`).
+    private func secret(text: Binding<String>, shown: Binding<Bool>,
+                        prompt: String, label: String, which: Field) -> some View {
+        HStack {
+            Group {
+                if shown.wrappedValue {
+                    TextField("", text: text,
+                              prompt: Text(prompt).foregroundColor(FAMColor.textFaint))
+                } else {
+                    SecureField("", text: text,
+                                prompt: Text(prompt).foregroundColor(FAMColor.textFaint))
+                }
+            }
+            .textContentType(.newPassword)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .accessibilityLabel(label)
+            .focused($field, equals: which)
+            // `maxlength="1024"`: the field takes no more.
+            .onChange(of: text.wrappedValue) { _, typed in
+                if typed.count > 1024 { text.wrappedValue = String(typed.prefix(1024)) }
+                problem = ""
+            }
+            Button { shown.wrappedValue.toggle() } label: {
+                Image(systemName: shown.wrappedValue ? "eye.slash" : "eye")
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            .accessibilityLabel(shown.wrappedValue ? "Hide password" : "Show password")
+            .accessibilityAddTraits(shown.wrappedValue ? .isSelected : [])
+        }
+        .modifier(FieldBox())
+    }
+
     private func set() async {
         guard !working else { return }
         guard !password.isEmpty else {
@@ -902,13 +924,23 @@ struct FirstPasswordFields: View {
             problem = "Use at least 8 characters for your password."
             return
         }
+        guard !confirm.isEmpty else {
+            problem = "Type your password again to confirm it."
+            return
+        }
+        guard confirm == password else {
+            problem = "Those passwords don\u{2019}t match."
+            return
+        }
         problem = ""
         working = true
         defer { working = false }
         do {
             try await model.api.setPassword(password)
             password = ""
+            confirm = ""
             showPassword = false
+            showConfirm = false
             model.nowPlaying.say("Password set")
             await done()
         } catch {

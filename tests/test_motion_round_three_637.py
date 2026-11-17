@@ -1,4 +1,4 @@
-"""Motion, round three: the shared picks (PROBLEMS.md §619).
+"""Motion, round three: the shared picks (PROBLEMS.md §637).
 
 Read off the shipped page rather than a browser: the smoke run's "Round-three
 motion holds nothing and leaves nothing behind" drives the same things live.

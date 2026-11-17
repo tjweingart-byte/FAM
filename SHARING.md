@@ -108,6 +108,27 @@ arrived as words. The story card is unchanged for Instagram and Snapchat.
 Drawn on request, a few kept in memory, nothing stored; links already sent
 keep the preview they arrived with.
 
+**Facebook is the exception, and a link never wears a borrowed picture
+(§621).** Facebook draws a link's picture at 1.91:1 and cropped the square
+to a strip with the badge and the play button outside it, so its crawler
+alone is named `/api/share/<id>/wide.jpg` (`link_preview.wide`, 1200x630):
+the picture on the left and, beside it, the logo, the length, the title
+(cut with an ellipsis when long) and the play button. And "the picture the player shows" now stops short of the player's
+borrowing: an episode with no picture of its own draws the title cover on
+every share picture, rather than its branch's or its facet's.
+
+**A photo to post, for where links are held back (§622).** Facebook shows
+a post that links out to few people. `/api/share/<id>/post.jpg` is the
+episode as a 1080x1350 photo - picture, title, its one line, and where to
+listen - for a person to post themselves with the link in the first
+comment. `/admin/groups` offers it on a card; FAM posts nothing.
+
+**And a clip (§623).** `/api/admin/share/<id>/clip.mp4` (admin only) is
+the episode's opening - the whole sentences that fit in 30 seconds - as a
+captioned 1080x1350 video, cut from the kept audio and its measured
+sentence timings (`clip.py`). Nothing is voiced for it: an episode nobody
+has played through has no clip yet.
+
 **Sent from the app, not only pasted (§601).** The tile appears when a link
 is *pasted* into Messages; a link the app types in through `sms:&body=` or
 `mailto:` arrives as plain text and Messages and Mail send it bare. So on

@@ -158,7 +158,7 @@ nothing stored changes; two keys are new.
   *because* why the difference exists.
 - **Lands on:** the concrete fact that separates them.
 - **Never:** which one the listener should choose (the advice rule, §425).
-- **Example:** none - a gap.
+- **Example:** none - a gap (one was tried and taken back out, §630).
 
 ### No shape - `general`
 Kept as today: when nothing fits, the house voice carries it.

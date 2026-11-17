@@ -37336,7 +37336,1143 @@ font boosting does) and checks Continue is the element under a tap on it
 and inside the window - it fails on the old layout, passes on this one.
 **Not verified here:** a real Android phone.
 
-## 619. Motion, round three: the shared picks (2026-11-16)
+## 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16)
+
+**Asked.** The owner: "Right now, people getting off of the waitlist have to
+go through their email to set up their password. This is clunky. We want
+people to sign up for the waitlist using only their email, then when they get
+off of the waitlist, the first thing they see in the app is to set their
+password ... they should set their password and verify it with a matching
+password. In each password box, there should be a button on the right to see
+what they are typing or not."
+
+**What was there (§606).** The join was already the email alone, and the
+device that joined already opened on "You're in. Set your password" (one
+field). Any *other* device - most often the iPhone after joining on the web -
+had to open the let-in link from the email or text, because §606 refused to
+let the email alone in.
+
+**The decision.** Asked how another device should prove it is the person (a
+6-digit code, the email alone, or keep the link), the owner chose **the email
+alone**, with the trade stated: until the password is set, anyone who knows a
+let-in address can sign in as it and set one. The window closes the moment a
+password is set; a waitlisted account, a Google/Apple account and a phone
+sign-in are unchanged.
+
+**Done.**
+* `/api/auth/login`: `NoPasswordYet` on an email sign-in for a
+  `_password_needed` account signs it in (`accounts.signed_in_by_email`,
+  stamping `last_login`), a fresh session as any log-in; the answer carries
+  `password_needed`. Whatever was typed as a password is ignored - there is
+  none to check. **Never an admin account** (`FAM_ADMIN_ACCOUNTS`, made
+  `active` at the join by §216): the email alone must not open `/admin`, so
+  it keeps §606's link or Forgot password?. `_no_password_words` now tells a waiting account it signs in
+  with the email once let in, and a let-in phone sign-in to use the email.
+* Web: `#screen-password-first` has **Password** and **Confirm password**,
+  each with its own eye (`togglePasswordShown`), both reset to hidden once
+  set; "Type your password again to confirm it." / "Those passwords don't
+  match." before any request. Log in no longer refuses an empty password
+  (sign-up still does); a sign-in that comes back `password_needed` opens the
+  screen. `#authLetInNote`: "Just off the waitlist? Leave the password empty -
+  you'll set one next." `/waitlist`'s sign-in says "(leave empty if you
+  haven't set one)" and already sends an active account to `/`.
+* iOS: `FirstPasswordFields` is two `secret(...)` boxes, each with its eye,
+  the same sentences; `AuthView.logIn` sends an empty password, `beginEntry`
+  then opens `PasswordFirstView`; the same note under Log in, and "already
+  registered" says to leave the password empty. Swift parsed with
+  tree-sitter; not compiled here.
+* The let-in email (passwordless): "Open FAM and sign in with this email
+  address; the first thing it asks is to set your password", the home
+  address, then the free-month link. The text: "FAM: you're in! Sign in with
+  your email. Free month of Plus (...)" - one segment. The SMS consent line and
+  the privacy page no longer say the link sets the password.
+
+**Tests:** `tests/test_waitlist.py` (the sign-in: waiting refused, let in
+signed in by email with `password_needed`, and refused by email alone once a
+password is set; the screen's two fields and eyes; Log in's empty password),
+`tests/test_waitlist_notify.py`, `tests/test_ios_app_contract.py`.
+
+## 620. The security audit: sign-in, sessions and what every response says (2026-11-16)
+
+**Asked for** by the owner: a full security audit, the first dedicated one
+since §72, after about 550 sections that added phone sign-up, emailed reset
+codes, Google and Apple, bearer tokens, `/admin`, photos, messages, groups,
+public profiles and the waitlist. **This section is the part that is done.**
+The account's usage limit stopped the three parallel reviewers part-way
+(the web interface's HTML sinks; uploads, outbound fetches and SQL; the admin
+query box and what a stranger can make FAM spend), so those areas are **not
+audited yet** and are listed at the end rather than called clean.
+
+Every finding below was reproduced against the running app before it was
+touched; `tests/test_security_audit_620.py` is those reproductions, each
+failing on the old code.
+
+### Fixed
+
+1. **Guessing a password was not paced at all** (high). `_rate_limit` keys
+   on the session (§70: the address is the proxy's), and a request with no
+   cookie is minted a fresh session, so a fresh, full bucket. Measured: forty
+   wrong passwords for one address from clients that sent no cookie, forty
+   401s and no 429; the same forty from one cookie-keeping client, 37
+   refusals. So only a polite client was ever paced - `/api/admin/login`
+   included, and that door opens every store. `ACCOUNTS.md` said log-in was
+   paced per client; it was not.
+   **Now** a wrong try is counted against the *address being tried*
+   (`_auth_attempt`): five are free, the fifth starts a one-minute wait and
+   each try after it doubles the wait, to fifteen minutes; an hour without a
+   try forgets the count and the right password clears it. About a hundred
+   guesses a day at one account instead of twenty a second. Counted before
+   the password is checked, as a reset code's tries are, so guesses sent
+   together cannot all pass first. One count for the app's sign-in, the
+   admin's and the waitlist form's admin preview. The lock reads the same for
+   an address with no account. **A lock is something a stranger can cause**,
+   so it is not allowed to keep the owner out: a request already signed in
+   to that account passes it (a reset code signs a browser in). In memory,
+   as the other limiters are; bounded at 20,000 addresses.
+2. **Both cookies went out without `Secure` on the HTTPS site** (medium).
+   `secure=request.url.scheme == "https"`, and behind Render's router the
+   app sees plain HTTP (`_public_base` already knew this), so `fam_session`
+   and `fam_admin` could be sent over plain http and read off a shared
+   network. `_over_https` reads `X-Forwarded-Proto` as `_public_base` does.
+   A plain-http LAN address still gets a cookie it can send back.
+3. **The reset email linked wherever the request said** (medium). §297 put
+   `{base}/reset` in the email with `base = _public_base(request)`, which
+   reads the caller's `X-Forwarded-Host`. Reproduced: a stranger asks for
+   somebody's code with that header set, and FAM emails them a real code
+   beside "Paste it into the FAM reset password page: https://evil.example/reset".
+   §304 fixed exactly this for the report alert and not here. The link is
+   from settings alone now.
+4. **No response said how a browser may treat it** (low). No header against
+   framing, type sniffing or a return over plain http anywhere. Every
+   response now carries `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+   SAMEORIGIN`, `frame-ancestors 'self'` and a referrer policy, and
+   `Strict-Transport-Security` when it was asked for over https
+   (`security_headers`, the outermost middleware). A full script policy is
+   not possible while every control is an inline `onclick`.
+5. **A note could be deleted by a request with no session** (low).
+   `SOCIAL.remove_note(id, "")` means "a moderator, for everybody", and the
+   handler passed `_listener(request)`, which is "" when a session could not
+   be minted (the accounts store not answering). Reproduced with the store
+   failing: 200 and the note gone. The handler requires a listener now.
+6. **Changing an account's email told nobody** (see open item A). The old
+   address is now told, as a reset and a first password are.
+7. **An admin address nobody holds is said out loud** (see open item B): an
+   error in the boot log, and an alert on `/admin` each time an admin signs in.
+8. **Attaching a link made the server fetch any address it was given** (high).
+   `attachments.fetch_link` checked the scheme and nothing else, followed
+   redirects, and `/api/attach` handed back the page's title and its first
+   160 characters - then the whole text went to the writer. Reproduced with
+   a page on the server's own loopback: 200, `name: "internal admin panel"`,
+   `preview: "... DB_PASSWORD=hunter2 ..."`. So anybody who could attach a
+   link could read what only FAM's machine can reach: its loopback, a
+   private network, its host's metadata address. **Now** a link is opened
+   only where *every* address its name resolves to is public
+   (`_public_addresses`: one private answer among public ones is how a name
+   is made to look safe), each redirect is checked the same way, and the
+   address that was checked is the one connected to - the name goes in
+   `Host` and in the TLS handshake, so a name cannot answer differently the
+   second time and the certificate is still verified against the site asked
+   for (tested with a certificate for another name: refused). The body is
+   read as it arrives and no further than the cap, where it used to be held
+   whole. Proxy settings from the environment are not used.
+   And **`/api/attach` did all of this on the event loop** - eight seconds of
+   fetch, or a PDF's parse, in which no other listener was served. It runs in
+   a thread now, as scrypt does (§241).
+9. **The admin's question box could read a reset code** (medium; SQLite
+   deployments - on Postgres a question's SQL is not run, §243).
+   `admin_tracker.SECRET_COLUMNS` is a list kept by hand ("a guard whose
+   subject is enumerated by hand is decorative") and three secrets were
+   added to the accounts store after it: `password_resets.code_hash` (§244),
+   `accounts.claim_code` (§587) and `identities.token` (§301). Reproduced:
+   `SELECT code_hash FROM accounts.password_resets` answered, and the six
+   digits were found from the hash at once. All three are listed, with a
+   mix's `join_token`; and any column *named* like a credential (`*token*`,
+   `*_hash`, `*secret*`, `password*`, `keys`) is hidden from the live schema
+   without being listed, as BLOB columns already were.
+10. **A visitor with no account could have photos checked by the paid model
+    without end** (low; about $0.0002 a photo). `/api/me` takes a guest's
+    name and picture, the check is paced by `_rate_limit`, and that pace
+    follows a session a guest never has to keep (fix 1's root cause again).
+    Reproduced: forty strangers, forty paid checks. A photo check needs an
+    account now, refused before the money is spent, as a guest's audio is.
+
+### What the independent review of these fixes found
+
+The fixes were written on one model and read by a fresh reviewer on another,
+given the diff and what each change was for and none of the conclusions
+above. It found two ways round them and four regressions; each is fixed and
+pinned (the last tests in the file, all failing on the code as reviewed).
+
+* **The count could be reset by naming addresses.** A full table dropped
+  everything not waiting, so twenty thousand made-up addresses bought five
+  fresh tries at the real one. An address that has used its free tries now
+  keeps its count for the hour; a table holding nothing else refuses a new
+  address rather than letting it through uncounted.
+* **The waitlist form said which addresses are admins**: only an admin's
+  address reached the count there, so only an admin's ever answered 429.
+* **A private address inside an IPv6 one passed as public** (NAT64,
+  IPv4-compatible, 6to4, site-local): `is_global` is true for them.
+* **Regressions in the link fetch**: an IPv6 link named itself without
+  brackets; only the first address of a name was tried, where the old code
+  let the name fall back to another; and the cap counted compressed bytes,
+  so 200 KB of gzip unpacked to 67 MB in one piece. Pages are asked for
+  uncompressed and unpacked only to the cap.
+* **The question box hid the ledger's token counts**: `token` anywhere in a
+  name caught `input_tokens`. Whole words now.
+* Left as it is: a 500 from an unhandled exception goes out above every
+  middleware and so without the new headers.
+
+### Open: each needs the owner's decision
+
+A. **An account's email changes with no password, and the next reset code
+   goes to the new address.** Whoever holds a signed-in browser for a minute
+   can make the account theirs for good. The old address is told now (fix 6)
+   but cannot take it back. The real fix is to ask for the current password
+   (or keep the old address able to undo it for a while); asking breaks
+   email-edit on the iOS builds already installed, so it was not done here.
+B. **An admin is whoever's account carries an address in
+   `FAM_ADMIN_ACCOUNTS`, and no address is verified.** Reproduced with an
+   address that had no account: join the waitlist with it, set a first
+   password, sign in to `/admin`, read the tracker. Safe only while every
+   listed address already has its admin's account, and it stops being safe
+   the day an admin changes their email or deletes their account. Fix 7
+   makes the gap visible; closing it means verifying addresses or naming
+   admins by listener id.
+C. **A way in that was linked before a reset survives it.** Somebody who
+   creates an account with another person's address (nothing verifies it)
+   and links their own Google or Apple to it keeps that link after the real
+   owner resets the password.
+D. **The waitlist's friend search answers "whose email or number is this?"**
+   with a name, handle and face, twenty a day per account - and accounts are
+   free and unverified, so the twenty is not a limit.
+E. **Nothing paces a client that does not keep its cookie.** Every such
+   request to `/api/*` is minted a new 90-day session row; sign-up, the
+   waitlist join and a sign-in at an unknown address (two password hashes,
+   about a tenth of a second of CPU) are unpaced per client. Fix 1 closes
+   password guessing; pacing a *client* needs the listener's real address
+   from the proxy (on Render, the header its edge sets), which is a setting
+   that has to be checked on the deployed service.
+F. **A reset code is six digits and five tries, five codes an hour**: 25
+   guesses an hour at one account, which holds. Across many addresses at once
+   it is 25 an hour *each* - about one account per 40,000 account-hours of
+   trying, with every one of them receiving five emails an hour.
+H. **Made-up addresses count as invites.** Joining needs an address and
+   nothing proves it, so five joins with one referral code earn its owner
+   the free month and a higher place; `WAITLIST_REFERRALS_PER_HOUR` slows
+   that and does not stop it. The same missing step as A to D: an address
+   somebody has shown they can read.
+I. **Already decided, recorded here so the audit is whole** (§619, the
+   owner, with the trade stated): until a let-in account sets its password,
+   its email address alone signs in as it. Never an admin's. Fix 1's count
+   does not bear on it - the first try is the one that gets in.
+J. **Fix 1's lock can be held against a phone-only account** (the
+   review): it has no reset, so four wrong tries an hour at its number keep
+   a new device out of it. An email account resets its way past. The cure
+   is E's - knowing one visitor from another - not a weaker lock. An account
+   with an email and a number also has a count on each, twice the rate.
+G. Low: a sign-up keeps the session token the browser already had (a risk
+   only if somebody could plant a cookie); an unknown address costs a
+   sign-in two hashes and a known one one (sign-up already says whether an
+   address is registered).
+
+**Two causes sit under most of the open list**: FAM never checks that an
+address is its owner's (A, B, C, D, H), and it cannot tell one visitor from
+another once they stop sending a cookie (D, E, F). A confirmation email at
+join - `mail.py` already sends - and the listener's real address from the
+proxy would close most of it.
+
+### Checked and found sound
+
+Sessions (server-minted, stored only as a hash, a fresh token at every
+sign-in, ended on reset and password change); password storage (scrypt,
+bounded input); the reset code itself (hash only, tries counted atomically);
+Google and Apple (verified or refused, account reached by subject, never by
+address); the let-in link (22 characters from `secrets`, a way in only while
+the account has no password); the waitlist gate (every request, on the
+decoded path); **every `/api/admin/*` route calls `_require_admin`** (all
+checked by script; only the empty HTML shells do not); the admin token
+compare (constant time, 404 when unset); voice worker registration (off
+without its token, constant-time); message threads and groups (membership
+checked in the store), saved episodes, mixes and invites (scoped to their
+owner in the store, tokens from `secrets`); comments, replies and vibes
+(author or post owner); stored pictures (four image types, served by a fixed
+type, named by a validated hash - no SVG, no path); the shared-episode page
+and story card (escaped).
+
+**Script injection in the web app, tested by running it.** Every
+human-written field in every API answer (names, titles, messages, captions,
+notes, queries, places...) was given a marker payload - as markup, as an
+attribute breakout and as an inline handler's string - and a browser opened
+the app's screens, called all 160 of its no-argument loaders and clicked
+what appeared. Up to 76 tainted values were on screen at once, drawn as
+text. **One ran**: the plans screen draws a tier's `name` unescaped, and a
+tier name is a constant from `entitlements.py`, not anything a person
+types. `topicRowHTML`, `favTopicRowHTML` and `recoRowHTML` also draw a title
+unescaped and are fed only by the built-in topic table. Neither is a hole
+today; both are worth an `escapeHtml` the next time that code is touched.
+No value a person types reaches an inline handler's string (checked by
+script: every one is an id, a validated handle or a constant). The admin
+pages escape through `esc()` throughout, the generic table included.
+
+SQL: forty statements are built with an f-string and every interpolated
+value is a constant, an integer or a schema name; everything else is
+parameterised. Stored pictures cannot be SVG or HTML.
+
+### Not audited yet
+
+Stopped by the usage limit, to be resumed: `static/waitlist.html` and
+`listen.html` by running them (read, not driven); document parsing (a hostile
+PDF or .docx); the rest of what a stranger or a waitlisted account can make FAM
+spend, endpoint by endpoint (the photo check is fix 10); a push subscription's endpoint (the server later posts
+to an https address the browser supplied - blind, low); secrets in logs; the iOS app's own storage. (The repository and
+its history hold no credential: every key-shaped string is a placeholder or
+a test's.)
+
+**Not verified here:** that Render's router sends `X-Forwarded-Proto` on
+every request (fix 2 and HSTS rest on it; `_public_base` has relied on it
+since §114), and whether it overwrites a caller's `X-Forwarded-Host`.
+
+### The second pass (2026-11-16, after #310 merged)
+
+The areas the first pass listed as not audited, done alone rather than by
+parallel reviewers. Tests are the last block of
+`tests/test_security_audit_620.py`.
+
+**Fixed.**
+
+11. **One Word file could take the server down** (high). A .docx is a zip,
+    and `_docx_text` read `word/document.xml` whole: 402 KB of upload was
+    400 MB of XML and, measured, **1.2 GB of memory and 8 seconds** - on a
+    512 MB instance that is the app killed by one attachment. Only the first
+    `MAX_DOCX_XML` (8 MB) is unpacked now, and `_clip` tidies only the front
+    of a long text (collapsing the spaces of 8 MB of words alone made a
+    hundred megabytes of pieces). Same file after: 0.15 s, 22 MB. A PDF was
+    already safe: pypdf stops a stream at 75 MB and the bomb is refused in
+    0.2 s.
+12. **Fix 6's own notice was a way to have FAM email anybody** (medium, and
+    this section's doing). It goes to the address an account is leaving,
+    which nobody verified: join with somebody's address, change it, and FAM
+    wrote to them - twenty a minute from one account. It is now sent only
+    for an account at least a day old, once a day for one account, and at
+    most `ADDRESS_NOTICE_PER_HOUR` times an hour for the whole server. A
+    takeover is of an account somebody has had for a while; a throwaway is
+    new.
+13. **A push subscription could name an address inside the network** (low).
+    FAM later posts to the https address the browser - or anybody with an
+    account - supplied. One that is this machine, a private network or a
+    metadata address is refused at subscribe, by the rule a linked page is
+    held to; a name that does not resolve is let through.
+
+**Driven in a browser, nothing ran.** `static/waitlist.html` (the status
+page, with a marker payload in every name, place, email and code the API
+answers with: twelve drawn as text) and the shared-episode page (a share
+whose title and question carry markup and a closing script tag; a dead link
+whose id carries markup).
+
+**Read and sound.** Logs carry no password, code, token or key (the one
+credential-shaped value logged is an invite code, which is printed on the
+page it comes from). The iPhone keeps the session token in the Keychain,
+`AfterFirstUnlockThisDeviceOnly`, with no transport-security exception.
+
+**The spend that opens the day the waitlist closes - the owner's decision
+before launch.** While `WAITLIST=1` a stranger or a waitlisted account
+reaches nothing that spends (the photo check was the one, fix 10). With the
+gate off, by settled design a guest may search, and a search is a brief, a
+research call, a script and a voicing. `ACCOUNTS.md` calls the free
+allowance "a budget shaped like a limit" because a cookie can be thrown
+away - and it is weaker than that today: `ENFORCE_QUOTAS=0`, and the
+three-second pace follows the session, so a script that sends no cookie is
+not paced at all (fix 1's root cause). `/api/audio` and `/api/script` (which
+no client calls) can then be asked for new episodes without end. Before
+`WAITLIST=0`: require an account to generate, or turn the allowance on,
+or pace by the listener's real address.
+
+**The owner's answer (16/11):** FAM is in beta behind the waitlist, and all
+of the open items in this section are to be done before the waitlist is
+removed. They are a launch checklist, not a change to make now.
+
+Still not audited: every other endpoint's cost one by one with the gate
+off; the voice worker's own image.
+
+## 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16)
+
+**What came in.** The admin of a Facebook science group posted a FAM link
+(the brain-implant episode) and wrote back: his posts usually reach
+thousands, this one reached 168 with no link clicks; Facebook limits
+external audio links and "users scroll past them without a visual hook.
+Adding the episode title directly on the thumbnail will definitely help",
+and a 15-30 second captioned clip posted natively "would perform 10x
+better". Five options were put to the owner; the owner chose the first two.
+The clip, a native photo post and a per-group post kit are not built.
+
+**What the screenshot showed that he did not say.** (a) The picture was an
+observatory: the episode had no picture of its own, and the player's
+borrowing (`thumbnails.pick_for_player`, up the branch, then the facet) is
+what the link drew. (b) Facebook draws link pictures at 1.91:1 and cropped
+the 1200-square preview (§559) to a strip - the FAM badge at the top left
+and the play button at the bottom right were both outside it.
+
+**Built.**
+
+1. `link_preview.wide`: 1200x630. First drawn with the title over the
+   picture under a shade; shown that beside a second layout, the owner
+   chose the second: the picture, square and untouched, on the left, and
+   the wordmark, "1.5 MIN EPISODE", the title and the play button on FAM's
+   ground on the right. With no picture, the words across FAM's ground.
+   The owner on a 270-character title shrunk to fit: "way too much text" -
+   so a long title is cut with an ellipsis here (four lines; three with no
+   picture), the one exception to §615. `GET /api/share/<id>/wide.jpg`,
+   public behind the waitlist like the other three.
+2. `/s/<id>` names it as `og:image` (with 1200x630 and an `og:image:alt`)
+   only when the reader is Facebook's crawler (`sharing.wants_wide`:
+   `facebookexternalhit`, `Facebot`), and says `Vary: User-Agent`. Everyone
+   else gets the head they got before. Why this is not §76's user-agent
+   list is at the rule ([link-picture]).
+3. `app._preview_picture` returns no picture when the picker says
+   `fallback` - so the square, the wide card, the sticker and the story all
+   draw the title cover instead of a borrowed picture. The player is
+   unchanged.
+
+**What this does not fix, said to the owner before building.** A better
+card can raise clicks among the people who see the post. It does nothing
+about the 168: Facebook holds back posts that link out, whatever they look
+like. Only content posted natively (the photo post or the clip) addresses
+reach, and neither is built.
+
+**Not verified here.** How Facebook actually draws it: nothing in this
+container can post to Facebook. After deploy, paste a share link into
+Facebook's Sharing Debugger and press "Scrape Again" - Facebook keeps the
+old picture for a link it has already read until that is done.
+
+Tests: the last block of `tests/test_share_landing.py`.
+
+## 622. The episode as a photo to post, the link in the first comment (2026-11-17)
+
+§621 said what a better link card cannot do: Facebook holds back a post
+that links out, so the 168 the group admin's post reached is not a matter
+of how the link looks. The owner asked for option 4 of the five put to
+them: a photo posted natively, the link in the first comment.
+
+**Built.** `link_preview.post`: 1080x1350 JPEG - the episode's picture
+across the top 720px, then "1.5 MIN EPISODE", the title (three lines, cut
+with an ellipsis), the episode's one line (the cached summary, three lines
+at most and only as many as clear the foot), and a foot with the play
+button, "LISTEN TO THE FULL EPISODE", the host and the wordmark. With no
+picture of its own ([link-picture]) the words are set larger on FAM's
+ground. `GET /api/share/<id>/post.jpg`, `?download=1` for a file, public
+behind the waitlist; `/api/share` names it as `post`. `/admin/groups`: a
+card whose episode has been heard has "Photo for a post" beside "Copy the
+link", with a line saying to send the admin the photo and the link for the
+first comment.
+
+**Not built.** The app's share sheet does not offer the photo. No clip
+(option 3). No per-group tagging of links (option 5), so opens still cannot
+be told apart by group.
+
+**Not known.** Whether it works. Nothing here can post to Facebook; the
+test is the same admin posting the same episode as a photo and reporting
+reach. Egan's first message still pitches a link, not a photo - a person
+says the rest.
+
+Tests: the last block of `tests/test_share_landing.py`.
+
+## 623. The episode's opening as a captioned clip to post (2026-11-17)
+
+The third thing the Facebook group's admin asked for (§621), and the
+owner's next pick: "a quick 15-30 second audiogram/video clip (with
+captions and visuals) to post natively on Facebook before linking to the
+full episode".
+
+**What already existed, which is why this is small.** Kept audio (Opus in
+R2, §237) is stored with the sentences spoken and where each begins
+(`StoredAudio.starts`, measured at voicing for the live captions). PyAV,
+the Opus codec's dependency, carries libx264 and AAC. So a clip is a cut
+and a drawing; no new dependency, no model, no voice.
+
+**Built.** `clip.py`: `opening` picks the whole sentences that end inside
+30 seconds; `cues` shows each sentence about seven words at a time inside
+its own measured span; `render` draws the post photo's frame (picture,
+title, play button, host, wordmark) with the caption large under the
+picture and a bar that fills, at 1080x1350 and 10 fps, then 2.5 seconds of
+"Hear the full episode on FAM" in silence; the audio fades over the last
+quarter second. Measured here: a 30-second clip renders in about 4
+seconds on one core and is about 0.8 MB.
+`GET /api/admin/share/<id>/clip.mp4`, admin only, one at a time, four
+remembered. `/admin/groups`: "Video clip for a post" beside the photo; a
+refusal's sentence is shown as it is.
+
+**Refusals, in words.** No kept audio ("Play it through once from its
+link, then make the clip" - Listen first does exactly that); audio kept
+without timings; a first sentence over 30 seconds.
+
+**Why admin only, when the photo is public.** The photo is a few
+milliseconds of drawing. A clip is seconds of a core and a megabyte held;
+§620 had just closed the ways a stranger could make this server work.
+
+**Not verified here.** No episode in the production voice exists in this
+container: the clip was rendered from a test tone with real sentence
+timings, and its frames looked at. How Facebook treats the upload, and
+whether reach recovers, is the admin's to report.
+
+Tests: `tests/test_clip_623.py`.
+
+## 624. The post kit: a link per community, its opens counted (2026-11-17)
+
+The fifth of §621's options. After §621-623 a person on `/admin/groups`
+could send an admin a better link, a photo and a clip - and still could
+not tell whether anybody in that group followed the link, except by
+asking.
+
+**Why they could not.** `admin_groups_listen` made the share as
+`communities.SHARER`, and `ShareStore.create` returns the existing row for
+the same (owner, question, length). Two groups pitched the same episode
+got the same `/s/<id>`, and its `opens` was both groups'.
+
+**Built.** The share is owned by `communities.sharer_for(lead id)`, so a
+lead has a link of its own - the same question and length, so the same
+cache key and the same kept episode. `/api/admin/groups` adds `opens` and
+`own_link` to a lead with a link; the card says "Opened N times from this
+community's own link", or, for a link made before this, that its count is
+every group's together and Listen again gives the community its own.
+`GET /api/admin/groups/kit?id=`: the link, the photo, the clip, a caption
+composed in code and the first-comment line; the card has **Copy caption**
+and **Copy first comment** beside the photo and the clip.
+
+**What an open is.** The landing page reports it once it is running in
+front of a person (`share_opened`), so link previewers and crawlers are
+not counted. It is not a play, and it is not reach: how many people
+Facebook showed the post to is still only the admin's to say.
+
+**Not built.** The kit is buttons on the card, not a page the group's
+admin opens - a person still sends the pieces. Egan's first message is
+unchanged and pitches a link. Opens are a total, not a history by day.
+
+Tests: `tests/test_post_kit_624.py`.
+
+## 625. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
+
+The owner, on a list of things worth having the session's stronger model
+build while it is available: "start on build 3" - a model's writing samples
+turned into what a weaker model follows. In FAM that is `examples/`
+([examples-lever]): the writer is Haiku 5.5 and matches examples more
+closely than rules.
+
+**What was missing.** No example at three minutes (1, 2, 4, 5 only), the
+first length past the two-minute band. `examples/pairs/` empty since §522,
+though the writer's instructions show up to six. Four examples with no
+worked plan (not done here).
+
+**Nothing the writer reads has changed.** Everything is in
+`examples/candidates/`, which no loader reads; the owner picks by ear and
+moves what is worth teaching (`examples/candidates/README.md`). The folder
+is in the repository because the session's machine is thrown away and
+`~/.fam/` goes with it.
+
+**The example** (`3-virus-and-bacteria.txt`, 510 words). A comparison -
+shape 10 in `docs/story_shapes.md`, "none - a gap" - on settled facts: opens
+on the difference that decides it, each side in its own terms, why the
+medicine divides, lands on what an antibiotic taken for a cold does do. No
+advice. By the code's measures it sits with the house examples (hook 1.0,
+flow 0.92, repetition 1.0, ear 1.0). A first draft claimed the measles
+vaccine came decades before any antiviral drug; it did not (both 1963), and
+the line is gone.
+
+**The pairs** (`pairs/`, six). `tools/editor_eval.py --freeze` researched 18
+of its fixed questions today into `~/.fam/editor_eval_fable/`, and `--run
+--arms none,none_low --no-grade` had the writer draft each twice (36
+scripts, $0.10). `teaching_pairs.candidates` ranked them by the flaws the
+code names. The six most flawed across facets - oil prices, Apple, the box
+office, the Eagles, Nvidia, the WTA Finals - were rewritten **by hand in the
+session from the same packet**, in place of the tool's Opus call, and put
+through the tool's own two gates:
+
+| pair | words | code flaws | grade (Opus, mean of six) | unsupported claims |
+|---|---|---|---|---|
+| oil prices | 286 → 229 | 4 → 0 | 3.67 → 4.17 | 3 → 0 |
+| Apple | 270 → 253 | 3 → 0 | 3.33 → 4.17 | 0 → 0 |
+| box office | 310 → 220 | 3 → 1 | 2.33 → 4.33 | 3 → 0 |
+| Eagles | 209 → 173 | 2 → 0 | 2.67 → 3.83 | 1 → 0 |
+| Nvidia | 184 → 176 | 2 → 0 | 2.67 → 4.17 | 1 → 0 |
+| WTA Finals | 149 → 144 | 2 → 0 | 2.67 → 3.33 | 2 → 0 |
+
+No story or ear score fell. The one flaw left is `visual` on the film title
+"You Can See Everything", which the draft has too. The grader named an
+unsupported detail in three first rewrites (which tankers, "ahead of all of
+them", "did not recover") and one inferred cause; each was taken out and
+the pair graded again, and the table is the final text. Three WHY lines
+carry a flaw found by reading, in the tool's own words, that the code did
+not flag: a two-sentence recap ending (box office, Nvidia) and the next
+game said twice (Eagles).
+
+**What the drafts showed, beside the pairs** (36 scripts, not a
+measurement):
+- three speak about their own material - "the latest price we have",
+  "the reporting we have", "I don't have a confirmed result for that
+  return" - against [missed-not-absent] and the house rules;
+- two end mid-sentence ("As", "But"); not diagnosed - the cut may be the
+  tool's, not the writer's;
+- the Starship draft says the landing is unconfirmed while one wire-grade
+  source in its packet reports the catch and the others, dated the same
+  day or the next, still preview it. Left out of the pairs: a pair must not
+  teach which way that goes ([started-not-finished]);
+- the box-office draft gave Paramount a claim that was another outlet's
+  headline, and the Eagles draft read as one win where the packet has two.
+
+**Cost**, on the owner's key, with their yes: about $0.80 - research ~$0.20
+(estimated from §527's rate), writing $0.10, twenty Opus grades ~$0.50
+(estimated likewise).
+
+**If adopted:** six pairs add about 2,800 words to the writer's cached
+block, the example about 500. Whether that helps is §527's kind of
+question: run `tools/editor_eval.py` on the frozen questions with and
+without.
+
+**Also true, and not changed here:** [no-api-key] says there is no key in
+the build container. This environment has `FAM_ANTHROPIC_KEY` and the
+search keys, as §527 found; the rule's wording is the owner's to change.
+
+Tests: `tests/test_example_candidates_625.py` (there are candidates; none
+reaches the writer's instructions; the example is about its length; each
+pair parses, has fewer flaws by the code than its draft, is no longer than
+it, and carries a reason line).
+
+## 626. The owner adopted every candidate, and a project skill for how to work here (2026-11-16)
+
+The owner, on §625's table: "Adopt all of them and start on build 1."
+
+**Adopted.** `3-virus-and-bacteria.txt` is in `examples/` (facet `health`
+in `facets.json`) with a worked plan, `examples/plans/3-virus-and-bacteria.json`,
+written by hand in the session in place of `tools/editor_teaching.py
+--draft` and passing its `--check`. The six pairs are in `examples/pairs/`.
+`examples/candidates/` is gone. **The writer's cached instructions changed:
+32,899 characters to 52,252** (examples block about 4,960 words, pairs block
+about 2,860), read from the cache on every writer call after the first
+([writer-savings]); the first call after a deploy writes the larger block.
+`docs/story_shapes.md` names the example for the comparison shape, and
+[examples-lever] has a Current note.
+
+**Not measured.** Whether thirteen examples and six pairs change what the
+writer produces. §527 is the method: `tools/editor_eval.py` on the frozen
+questions with `TEACHING_PAIRS=0` and `=1`. The pairs' facts are a day old
+already and are not kept current; the writer is told never to borrow them.
+
+**One test assumed the folder was empty.**
+`test_no_examples_leaves_the_prompt_untouched` emptied the examples and
+expected the bare prompt; it now empties the pairs too, which is what it
+was about.
+
+**Build 1: `.claude/skills/fam-method/SKILL.md`.** The list's first item
+was a file in which the stronger model writes down how it works, for a
+weaker one to follow later. Here that is a project skill, loaded by any
+later session: how to find a rule's full text and its history before
+changing what it covers, how to find the tool that already exists, the
+order in which to suspect a weak episode's causes, the procedure that made
+§625's pairs, what to verify and how to say what was not, how to spend the
+owner's key, and what the ship loop's rules leave out. **It restates no
+rule**: it cites rule IDs, and says a rule always wins. Its examples are
+what happened in this session, including the two mistakes caught (a wrong
+date claim in the draft example, and details the grader called
+unsupported in three first rewrites).
+
+Tests: `tests/test_examples_adopted_626.py` (every committed pair is shown
+and no more than six; each is one the code prefers, no longer than its
+draft, with a reason line; no rewrite says what it does not have; an
+example at every whole minute, the three-minute one filed under health)
+replaces §625's candidates test. `tests/test_skill_fam_method_626.py`
+(the skill's frontmatter; every rule ID it cites exists in `docs/claude/`;
+every file and tool it names exists; it defers to the rules and stays
+short). **Not verified here:** that a later session on another model
+follows the skill, beyond the one trial noted with this change.
+
+## 627. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16)
+
+The owner: "Run the comparison and start on build 6."
+
+**The tool** (`tools/editor_eval.py`). Two arms beside `none`:
+`none_unpaired` (`TEACHING_PAIRS` off) and `none_before_625` (that, and the
+example §626 added hidden - the writer's instructions as they were before
+§625). `--compare a,b` prints the paired difference by question on the
+grader's mean of six, each metric, unsupported claims and the ear score,
+with a 95% bootstrap interval over questions and better / worse / level
+counts. **The questions a pair was made from are left out** and reported
+apart (`seen_questions`, read from `examples/pairs/`, never a list): the
+writer has been shown their answers, so they would flatter the pairs.
+
+**The skill, tried.** `.claude/skills/fam-method` was given to a session on
+Opus 5.5 with a real task, read-only: "The writer keeps saying things like
+'I don't have a confirmed result' in episodes. Fix it." It did not add a
+line to the prompt; it read §94 and §288, found `OpeningGuard` and
+`MaterialGuard`, and diagnosed why they miss (§628). It also corrected the
+skill in three places, all checked and taken:
+- §625 and the skill said three of 36 drafts speak about their own
+  material. **It is four drafts and seven sentences** (the Nvidia draft at
+  low effort has three); three of the four are the low-effort arm and three
+  are about a moving price. §625's count came from one narrow pattern.
+- the skill named [missed-not-absent] as what forbids it; the wording is
+  the writer's own instructions, from §288;
+- the skill never said two checks for it already exist. It now says: find
+  the check that exists and ask why it missed.
+
+**Also stale, and not changed:** [ci-python] says this container runs
+Python 3.11; it runs 3.13.
+
+Tests: `tests/test_eval_findings_527.py` (each arm's instructions hold what
+they should and are taken back after; a comparison leaves out the questions
+the pairs were made from and gives the paired difference).
+
+## 628. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16)
+
+The owner, on §627's finding: "Widen the guard."
+
+**Three causes, all in `script_generator.py`.**
+1. *The plural.* §288's review narrowed `_MATERIAL_PHRASES` to the writer's
+   own "I", "me" or "my" because it had been eating reporting. The writer
+   now says "the latest price we have", "the reporting we have", "we don't
+   have a figure for this morning's trading".
+2. *The singular, late.* "I don't have a confirmed result" is in
+   `OpeningGuard`'s list, and that check stops after six sentences. It was
+   sentence 14.
+3. *Apostrophes as quote marks.* `_QUOTED`, which sets quoted speech aside
+   before either check, took any two apostrophes for a pair. "I don't have
+   anything reliable on the Dodgers' opener" - §94's own sentence - lost
+   everything between them and matched nothing. A single quote now opens
+   only where no letter comes before it and closes only where none follows.
+
+**Added to the material check**, so they are dropped anywhere in the piece:
+the writer's own "I don't / can't / couldn't have, confirm, verify, tell
+you, say, establish, find" (lower case after the "I", so "I Can't Tell You
+Why" is still a song); "nothing I can establish"; "the latest / most recent
+/ last ... price, score, result, update, reading we have"; "the reporting
+we have"; "we don't have a figure / price / number / result ...".
+Deliberately not bare "we have": "the best evidence we have suggests", "the
+oldest records we have", "the latest figures we have from the census" and
+"what we do know is that the universe is expanding" are the world, and are
+tests. **So one of the seven sentences still passes**: "What we do know is
+that the last price established is...".
+
+**The opening check sees them first** (`_ScriptReader.feed` / `finish` ask
+`OpeningGuard` before `MaterialGuard`, and `OpeningGuard` counts a material
+sentence as a disclaimer). Otherwise the sentence leaning on a dropped one
+("That would be worse than useless if you're about to repeat it...") was
+spoken alone - `test_the_pipeline_never_sees_the_dropped_sentences` caught
+that. A script that is nothing else is still spoken, never silence.
+
+**Replayed over 1,393 frozen sentences** (§625's 36 drafts and the first of
+§627's): six caught, the six intended, nothing else; no house example or
+pair rewrite trips either check.
+
+**What a drop costs, measured on the four drafts.** Nothing is said in a
+dropped sentence's place ([no-filler]). Three lose nothing: the figure is
+said again beside it. **The bitcoin draft loses its opening**, which
+carried the price, and now begins "Earlier that Sunday it had touched
+sixty-two thousand and eighty-six." The owner was told this trade before
+choosing. Each drop is an "opening check" or "material check" notice on
+/admin's errors, which is now the measure of how often it happens.
+
+**Not done:** the writer's instructions still say "the newest information
+you can establish", which these sentences echo almost word for word.
+Rewording it changes every episode ([writer-savings]) and is the owner's to
+read first. **Not verified here:** production's own rate; a title with two
+apostrophes inside the first six sentences is now read by the opening check
+as a title with one always was.
+
+Tests: `tests/test_material_guard_628.py` (the eight leaks caught; thirteen
+look-alikes about the world pass; an apostrophe inside a word is not a
+quote mark and quoted speech is still set aside; a late one is dropped with
+nothing in its place; a script of nothing else is spoken; at the opening
+the sentence leaning on it goes too; no example or pair rewrite trips
+either check). `tests/test_examples_adopted_626.py` now asks the check
+itself, not a list of phrases.
+
+## 629. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16)
+
+§627's run, on the owner's key: all 50 fixed questions researched today into
+`~/.fam/editor_eval_620/`, each written three ways by the same writer
+(Haiku 5.5, high effort, no editor, 1.5 minutes) from the same packet, and
+graded blind by Opus 5.5. 150 scripts, no grade failures (one grade came
+back with no marks). The six questions a pair was made from are left out;
+44 remain.
+
+| Opus, mean over 44 | before §625 | + the example | + example and pairs |
+|---|---|---|---|
+| information | 3.18 | 3.19 | 3.34 |
+| flow | 3.23 | 3.21 | 3.14 |
+| depth | 3.34 | 3.40 | 3.27 |
+| repetition | 3.00 | 3.09 | 2.95 |
+| hook | 3.75 | 3.65 | 3.55 |
+| storytelling | 2.27 | 1.98 | 1.86 |
+| **mean of six** | **3.13** | **3.09** | **3.02** |
+| unsupported claims a script | 2.82 | 2.64 | 2.55 |
+| words | 269 | 268 | 263 |
+
+Paired by question, 95% bootstrap:
+
+| | mean of six | better / worse | storytelling | hook |
+|---|---|---|---|---|
+| example and pairs - before | -0.11 [-0.23, +0.01] | 10 / 25 | **-0.41 [-0.77, -0.05]** | -0.21 [-0.41, 0.00] |
+| example alone - before | -0.04 [-0.17, +0.08] | 18 / 17 | -0.30 [-0.61, 0.00] | -0.09 [-0.30, +0.12] |
+| pairs on top of the example | -0.06 [-0.19, +0.06] | 11 / 21 | -0.09 [-0.42, +0.26] | -0.12 [-0.33, +0.07] |
+
+- **Nothing improved past zero.** Information (+0.16) and unsupported
+  claims (-0.27 a script) lean the right way; neither interval clears zero.
+- **Storytelling is lower with both in, and the interval clears zero.**
+  Hook is at the edge the same way. The mean of six leans down, 25
+  questions worse to 10 better.
+- By kind of question (mean of six, both in, small counts): news -0.19
+  (17), evergreen -0.12 (10), sports +0.03 (5), money +0.28 (3).
+- On the six questions the pairs were made from the mean of six did not
+  move (0.00, six questions, wide interval): being shown the answer did not
+  help either.
+- The code's own measures barely differ (flow 0.60 / 0.68 / 0.62, ear 0.93
+  in all three): the pairs were chosen and gated by those measures and the
+  grader's mean, and neither predicted this.
+
+**Why, as inference, not measured:** the six rewrites are short, plain
+recaps with one figure to a sentence - what the code's checks reward - and
+half of the pairs block is drafts going wrong. A writer shown 2,860 words
+of that may be writing flatter. The example is an explainer; an explainer
+taught at editions of news may cost the same thing.
+
+**What this does not show.** The grader is not calibrated against the
+owner ([episode-quality]: a grade is trusted once it agrees with a person).
+One script per question per arm, so the run-to-run noise of the writer is
+inside these intervals, not measured apart. Editions at high effort only -
+not searchFAM at low effort, not three minutes, where the example's length
+is meant to teach. Every arm is marked far below §527's (3.1 against ~3.6;
+unsupported claims 2.6-2.8 a script against 0.4-0.6): today's packets and
+the grader's drift are not told apart, so only the differences within this
+run are read.
+
+**Not changed yet.** By §527's precedent - matched examples cost repetition
+and were switched off - the measured choice is to take both back out. The
+owner adopted them and decides.
+
+**Cost: $9.08, about double the estimate given.** Writing $0.58 and
+grading $8.15, both measured; research about $0.35, estimated. The
+estimate used §527's $0.025 a grade; these cost $0.054.
+
+## 630. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16)
+
+The owner, on §629's table and §628's "not done": "Take both back out and
+apply the rewording."
+
+**Taken back out.** `3-virus-and-bacteria.txt`, its worked plan and the six
+pairs are in `examples/candidates/` again, unloaded; its facet is out of
+`facets.json`. **The writer's cached instructions are what they were before
+§625 but for one phrase** (32,898 characters; twelve examples, no pairs).
+`examples/candidates/README.md` now says what the measurement found and
+what to run before anything there is moved in. [examples-lever] has a
+Current note: a candidate that passes the gates is not yet a gain.
+`tools/editor_eval.py` keeps its two arms and `--compare`; with nothing
+adopted they write as `none` does.
+
+**The rewording**, read by the owner first (three places in
+`script_generator.py`):
+- the request, beside the current time: "Prefer the newest information you
+  can establish" is now "Prefer the newest information the sources date.
+  Anything that moves - a price, a score, a count - is said with its own
+  time, as a fact about the world: "it closed Friday at ninety-five", never
+  "the latest price we have".";
+- the house rules: "Give the newest information you can establish" is "Give
+  the newest information the sources date" - one character shorter, so the
+  7,800 bound holds without a pass (7,793);
+- the evidence block's list of things never said about the sources gains
+  "the latest we have".
+§628's leaks echoed "you can establish" nearly word for word, and nothing
+told the writer the honest form of what it was reaching for. **Unmeasured**:
+whether the leaks fall. The four packets that leaked, written at low effort
+with and without, would say for about ten cents; the /admin "material
+check" notices will say in production.
+
+**The skill** (`.claude/skills/fam-method`) now carries the two lessons:
+measure before proposing an adoption, and price a run from a few scripts of
+its own.
+
+**The full check.** One run on this branch finished with 1 failure in 7,627:
+`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one` reads
+`script_generator.py`'s source by line number, and the file was edited while
+the run was going. It passes alone. Runs now happen in a separate checkout
+(`git worktree`), so an edit cannot move a file under a test.
+
+Tests: `tests/test_example_candidates_630.py` (no candidate reaches the
+writer, has a facet or a loaded plan; no pair is committed where the writer
+reads it; the example is about its length; each pair is still one the code
+prefers and trips no check; the folder says what the measurement found)
+replaces §626's adopted-state test. `tests/test_writer_time_wording_630.py`
+(the echoed phrase is gone from both places; the request gives a moving
+figure its own time; the instruction's bad example is one the check drops;
+the evidence block names the plural). `tests/test_eval_findings_527.py`
+puts the example and pairs in for the length of the test to check the two
+arms hide them.
+
+## 631. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16)
+
+The owner: "stop spending money. Test the rewording on the four packets for
+as cheap as you can (or free)."
+
+**How, with no API spend.** The exact prompts the writer gets - cached
+instructions and request - were built in code for the four packets (oil,
+Nvidia, bitcoin, Starship), once as §630 left them and once with its three
+edits reversed. Sixteen Haiku runs inside the coding session, two a packet a
+wording, each told only to follow the file. **A stand-in, not the
+production call**: no effort setting, the session's own wrapper around the
+model, and it counts against the plan's usage (about 110,000 tokens a run,
+far more than the prompt itself). It reproduced the leak under the old
+wording, which is what makes it worth reading.
+
+**Read by hand** (sentences about what the writer has or can see):
+
+| | scripts that leak | leaking sentences | "establish" echoed |
+|---|---|---|---|
+| old wording | 5 of 8 | 12 | 4 times |
+| new wording | 2 of 8 | 4 | never |
+
+Under the new wording the price comes with its time as a fact in most
+scripts ("At a quarter past ten on Sunday morning, Eastern time, bitcoin was
+trading at..."; "that Friday close is the newest settled figure there is").
+Starship did not leak under either. Eight scripts a side is a direction, not
+a rate.
+
+**The check (§628) caught none of the sixteen leaking sentences.** They are
+in forms it does not list: "the newest price we can establish", "the last
+price we can date", "the last figure we can stand behind", "the last price
+we can put a time on", "not something we can see", "is not something we
+have", "not a figure I can give you". A first scan by pattern reported no
+leaks in either wording; reading the openings found them. Not widened here:
+"the oldest fossils we can date" is the world, so the new forms need tying
+to a price or figure, and that is a change to what episodes lose.
+
+**Also seen:** two new-wording scripts end by telling the listener how to
+take the number ("treat ninety-five forty-five as a reading from ten
+fifty-nine, not a live price"; "where prices stand this afternoon is not
+known yet") - not about the writer, but a gap said aloud
+([missed-not-absent]).
+
+## 632. The material check extended to what the writer "can" do with a figure (2026-11-16)
+
+The owner, on §631: "Extend the guard."
+
+**Added to `_MATERIAL_PHRASES`** (`script_generator.py`), each dropped
+anywhere in the piece:
+- "the newest / latest / last ... price, score, result, reading, figure,
+  number we can date, establish, confirm, see, stand behind, put a time
+  on, give you";
+- "where / what ... is not something (or a figure, a price) we, I or this
+  can ... / have" - only when the clause is about a thing in time (now,
+  this afternoon, where it stands, trading);
+- "nothing we can establish" and "what we can date / establish is" -
+  "establish" being the instruction's own old word (§630).
+
+Tied to a figure or to a moment on purpose. These pass and are tests: "the
+oldest fossils we can date", "the earliest eclipse we can date", "dark
+matter is not something we can see", "what dark matter is made of is not
+something we can see directly", "nothing we can find in the fossil record",
+"where the market stands today is not something anyone can know", the same
+words inside quotation marks, and the honest forms §630 asked for ("that
+Friday close is the newest settled figure there is").
+
+**Replayed.** §631's sixteen scripts: 16 of their 17 leaking sentences
+caught (reading found twelve under the old wording; the check found a
+thirteenth), none else in 233 sentences. **Still passing:** "The last
+figure we have is from that Sunday morning" - left alone because "the
+latest figures we have from the census are from 2020" is the world, and the
+two cannot be told apart by their words. Every frozen draft from §625 and
+§629, 2,868 sentences: nine caught, all nine about the writer's own access
+- §628's six, and three in §629's drafts that nobody had counted ("where
+the stock stands at this minute is not something I have"; "where they're
+trading this afternoon, I can't tell you"; "I can't tell you what the
+judges said ..., so I won't pretend to").
+
+**The cost is the same as §628's**: a dropped sentence takes its figure
+with it, and nothing is said in its place. Each drop is on /admin's errors.
+
+Tests: `tests/test_material_guard_628.py` (twelve more leaks caught, ten
+more look-alikes pass).
+
+## 633. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16)
+
+The owner: "Double check all changes that have been made in this branch,
+and let me know what else needs to be done." A pass of my own over the
+diff, then an independent review that ran the code beside Main's and
+replayed the 186 stored scripts and a 20,000-script fuzz. Every confirmed
+finding is fixed; the sections above are as they were written, and this
+one says where they were wrong.
+
+**The guard (§628, §632) - found by the review, all reproduced:**
+- *A dropped opening took the facts after it, and could be said again at
+  the end.* §628 had the opening check count "the latest price we have" as
+  a disclaimer, so "It was three to one, Dodgers" after it was dropped as
+  leaning on one - and when the opening window ran out with nothing
+  counted as spoken, `rescue()` spoke all six dropped sentences as the
+  episode's last line. That last fault was on Main too (six disclaimers,
+  then the episode). Now: only a real disclaimer starts that run; a
+  sentence the material check drops is un-counted (`OpeningGuard.retract`)
+  and starts none; past the window a sentence counts as spoken; and
+  `finish` asks for a rescue only when nothing at all was said.
+- *The middle of a quotation was dropped.* Sentences are split inside
+  quotation marks, so "I don't have an explanation for the second
+  quarter." between `"We got lucky.` and `We will fix it."` carried no
+  mark and matched. `MaterialGuard` now carries an open double quote from
+  one sentence to the next, and forgets a stray mark after four.
+- *History and science told with "we" were dropped* - "we don't have an
+  exact figure for the death toll at Pompeii", "the last reading we have
+  from Voyager 2", "what is happening now is not something we have seen
+  since 1929", "what we can establish is that Richard was in the Tower".
+  The plural patterns are narrower: a price, a score or an update "we
+  have"; "in / from the reporting we have"; "we don't have a figure" only
+  in a sentence about now; "where it stands ... is not something we can
+  see" only about where a thing stands or trades. "Nothing we can
+  establish" and "what we can date is" are gone - they echoed a word the
+  instructions no longer use (§630).
+- *Speech reported without quotation marks was dropped* ("I can't say
+  enough about this defense, Sirianni told reporters"; "one admission: I do
+  not have the answer"; a lyric after "sings"). The singular pattern stands
+  aside for those.
+- *Leaks that still passed* and are caught now: "the latest price I have",
+  "that is the latest we have" (the instructions' own bad example, which
+  the check did not match), "isn't something we can see", "I can't yet
+  confirm", "we can't tell you". An elision ("the '90s", "'em") no longer
+  opens a quotation that hid a leak to the next possessive; a quotation
+  may run to 600 characters.
+- Mine, before the review: "what happened this morning is not something we
+  can ignore" was dropped as the writer's access.
+
+**After the fixes:** the stored drafts, 2,868 sentences - ten dropped, all
+ten the writer's own access, order kept, nothing said twice. §631's sixteen
+scripts - 14 of the 17 leaking sentences caught (the three that pass are
+the two "establish" echoes and "the last figure we have is from that
+Sunday morning"). A 20,000-script fuzz - never silent, never out of order.
+**Still passing on purpose or for want of a safe pattern:** "the latest
+figure / number / data we have", "we have no figure for this morning",
+"we don't have this morning's figure", "I have no confirmed result", "what
+we can say is that...". **Still dropped wrongly, constructed not seen:** a
+sentence-case title ("...closed the set with I can't tell you why").
+
+**The comparison tool (§627):**
+- more unsupported claims was counted as "better" (the differences in §629
+  were right; that row's labels were not);
+- "mean of six" averaged whatever marks a grade had left, and the rows
+  were taken from the first script - a script short of a mark is now left
+  out, and every row is always printed (§629's numbers stand: its one
+  short grade was short of all six);
+- the candidates guide told the owner to compare `none` with
+  `none_before_625`, which have been identical since §630. A new arm,
+  `none_candidates`, puts `examples/candidates/` in front of the writer for
+  that arm only - in file-name order, no more pairs than it is shown - so
+  a candidate can be measured **before** it is adopted;
+- a results folder re-used across a change of instructions compared the
+  wrong things under the right names: each result now records a mark of
+  the instructions it was written from, and `--run` says when they differ;
+- `_Settings` left its swap in place when it failed part-way.
+
+**Tests:** four were pinned to the faulty behaviour or passed whatever the
+code did (an interval tested on identical differences; an assertion true
+on Main's pattern too; counts fixed at six; `TEACHING_PAIRS == []`). They
+are rewritten around the reviewer's sentences, exercise the interval, the
+failure path and the stale-result notice, and skip, not fail, when the
+candidates are legitimately moved. The wording test now builds a
+researched request, which is where the evidence and timing blocks are.
+
+**/admin** had no words for a "material check" notice; it has
+(`pipeline_errors.EXPLAIN`).
+
+**Costs, corrected.** §625 said about $0.80; its twenty grades were priced
+at 2.5 cents and cost about 5.4, so it was nearer $1.40. With §629's $9.08,
+the day's spend on the owner's key was about $10.50. Nothing since §629 has
+spent on it: §631's sixteen runs and both reviews ran inside the session.
+
+**Main merged** (its §619, the waitlist sign-in): this branch's sections
+are §625-§633, and the tests and the arm named after them moved with them.
+
+**Not changed, for the owner:**
+- the request's timing rules still say "the answer is that we do not have
+  it" (`script_generator.py`, the order-of-sources bullet), in every
+  researched episode - the phrase the guard drops. A rewording is a change
+  to every episode;
+- [no-api-key] and [ci-python] are out of date (keys are set here; Python
+  is 3.13);
+- whether the rewording (§630) lowers the leak in production is unmeasured
+  beyond §631's sixteen scripts; /admin's notices will show it.
+
+## 634. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16)
+
+The owner, on §633's list: "Do 3, 4, and 5. Don't do 6, 7, 8. Do 9, not 10
+and 11."
+
+**3. The order-of-sources rule** in every researched request
+(`script_generator.py`) ended "Where the top of that order is silent on
+something, the answer is that we do not have it - not that the one below it
+is promoted." It now ends "leave it out - the one below it is not
+promoted." Same rule, without the phrase the material check drops. With
+§630's three edits, nothing in the writer's instructions speaks of what
+"we have" any more except as an example of what not to say - a test holds
+that on a researched request.
+
+**4. Two rules described another machine.** `CLAUDE.md` said "No API key
+here" and "this container 3.11". It says the keys may be set and spending
+needs the owner's yes, and 3.13. Their full text in
+`docs/claude/workflow.md` has Current notes: how to check, that each spend
+is asked for with an estimate (the day's runs cost about $10.50, double
+what was first quoted), and that time to first audio and the production
+voice are still unverified from here. `CLAUDE.md` is 39,996 bytes of its
+40,000.
+
+**5.** `app.notion.com` and `www.notion.so`, allowed on the Default
+environment to read the list this work began from, are removed.
+
+**Not done, at the owner's direction:** measuring the rewording in
+production (§633's list, 6), the leaks with no safe pattern (7), the
+candidates at three minutes and on search (8), the list's other builds
+(10), and a pull request (11).
+
+Tests: `tests/test_writer_time_wording_630.py` (the instructions never
+speak of what "we have" outside their own bad examples).
+
+**The final instructions tried on the four packets, again for nothing**
+(eight Haiku runs inside the session, two a packet, read by hand; the
+first attempt stopped at the plan's five-hour usage limit and was run again
+once it lifted). Every one of the eight opens on the figure with its time,
+as a fact. Two scripts leak, one sentence each, both on Nvidia ("where the
+shares are trading on Monday is not something this can tell you yet"; "...
+is not a figure I can give you") - and **the check drops both**, so none
+reaches a listener. Against §631: 13 leaking sentences in 5 of 8 scripts
+under the old wording, 4 in 2 of 8 after §630, 2 in 2 of 8 now. Eight
+scripts is a direction, not a rate.
+
+## 635. The plan for 2027, from an interview with the owner (2026-11-16)
+
+The last item taken from the list this work began with (§625): an
+interview that pushes back, ending in a month-by-month plan. Fourteen
+questions, one at a time. `docs/PLAN_2027.md` is the result, and holds what
+the owner said; the owner chose to keep it in the repository.
+
+**Two things the interview found in the code:**
+- **Nothing counts a returning listener.** The event log has every play;
+  no number anywhere says how many people listened this week and also
+  last. It is the number the plan is stated in, so it is the plan's first
+  item. A sign-up does not record which channel it came from either.
+- **[op-voice] is out of date**: it says nobody has heard an episode in the
+  production voice. The owner has heard about thirty in two weeks and
+  stopped none early. The rule's wording is the owner's to change.
+
+**Derived in the plan, not said by the owner:** the monthly targets between
+the owner's own numbers, and when the runway ends.
+
+No code changed. Not run: the full check, on a commit that adds a document,
+a log entry and a line to an index.
+
+## 636. CLAUDE.md trimmed, not its budget raised (2026-11-16)
+
+The owner asked why the core is held to 40,000 bytes and whether to raise
+it; it was at 39,996, so the next rule would not have fitted. Chosen:
+trim. **The 132 bare section references in the core - " (§190)",
+" (§282/§285)" - are out**, 1,149 bytes. Each is history, which §168 puts
+in the topic files, and every one of those sections is cited in
+`docs/claude/` at the rule the line's ID points to. No rule, ID or word of
+a rule changed; references that are part of a sentence ("§499, reversing
+§171 there") stay. The core is 38,847 bytes.
+
+## 637. Motion, round three: the shared picks (2026-11-16)
 
 Every animation in the app was reviewed against the `charles-ux-animation`
 skill, page by page, with three options each, and the owner picked one per
@@ -37418,7 +38554,7 @@ theme change switches transitions off and nothing is left behind).
 the plain curve), and the edge swipe with a real finger - only a mouse in
 Chromium.
 
-## 620. Motion, round three: dailyFAM (2026-11-17)
+## 638. Motion, round three: dailyFAM (2026-11-17)
 
 The second of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks
 in `dailyfam.json` - the rails screen (`screen-myfam`), View more

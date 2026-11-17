@@ -267,3 +267,188 @@ def test_the_link_picture_fits_under_whatsapps_limit():
     noisy.save(buf, format="PNG")
     data = link_preview.draw(buf.getvalue(), "Title", 3)
     assert data and len(data) <= link_preview.MAX_BYTES
+
+
+# --- §621: the wide card for Facebook, and a link's own picture or none -----
+
+FACEBOOK = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+
+
+def test_facebooks_crawler_is_named_the_wide_card_and_nobody_else(client, shared, monkeypatch):
+    """Facebook crops a square picture to a 1.91:1 strip, which cut the logo
+    and the play button off; its crawler is named a picture drawn at that
+    shape. Messages and the rest keep the square (§559)."""
+    _public(monkeypatch)
+    theirs = client.get(f"/s/{shared}", headers={"user-agent": FACEBOOK})
+    assert f"/api/share/{shared}/wide.jpg" in theirs.text
+    assert 'og:image:height" content="630"' in theirs.text
+    assert "preview.jpg" not in theirs.text
+    assert "User-Agent" in theirs.headers.get("vary", "")
+    ours = client.get(f"/s/{shared}", headers={"user-agent": "WhatsApp/2.23"})
+    assert f"/api/share/{shared}/preview.jpg" in ours.text
+    assert "wide.jpg" not in ours.text
+    assert 'og:image:height" content="1200"' in ours.text
+
+
+def test_the_wide_card_is_1200_by_630(client, shared):
+    import io
+
+    from PIL import Image
+
+    got = client.get(f"/api/share/{shared}/wide.jpg")
+    assert got.status_code == 200
+    assert got.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(got.content)).size == (1200, 630)
+    assert client.get("/api/share/nope/wide.jpg").status_code == 404
+
+
+def test_the_wide_card_is_the_picture_beside_the_title():
+    """The owner's pick of two layouts: the picture, untouched, is the left
+    square; the words are on FAM's ground to the right of it."""
+    import io
+
+    from PIL import Image, ImageChops
+
+    import link_preview
+
+    src = io.BytesIO()
+    Image.new("RGB", (1600, 900), (200, 30, 30)).save(src, format="PNG")
+    a = Image.open(io.BytesIO(link_preview.wide(src.getvalue(), "Brain implants", 1.5)))
+    b = Image.open(io.BytesIO(link_preview.wide(src.getvalue(), "Zebra crossing", 1.5)))
+    diff = ImageChops.difference(a.convert("L"), b.convert("L")).point(lambda v: 255 if v > 40 else 0)
+    box = diff.getbbox()
+    assert box is not None
+    w, h = link_preview.WIDE
+    assert box[0] >= h + link_preview.WIDE_MARGIN - 6
+    assert box[2] <= w - link_preview.WIDE_MARGIN + 6
+    for point in ((40, 40), (h // 2, h // 2), (h - 40, h - 40)):
+        r, g, bl = a.convert("RGB").getpixel(point)
+        assert r > 150 and g < 80 and bl < 80, point
+
+
+def test_the_wide_card_cuts_a_long_title_with_an_ellipsis(monkeypatch):
+    """The owner on a long title set small enough to fit: "way too much
+    text". Here, and only here, a title is cut (§615 holds elsewhere)."""
+    import io
+
+    from PIL import Image
+
+    import link_preview
+
+    drawn = []
+    real = link_preview._wrap
+
+    def spy(d, text, font, width, most=0):
+        lines = real(d, text, font, width, most)
+        drawn.append(lines)
+        return lines
+
+    monkeypatch.setattr(link_preview, "_wrap", spy)
+    title = "why the central bank held rates and what three governors said " * 3
+    src = io.BytesIO()
+    Image.new("RGB", (800, 800), (20, 90, 160)).save(src, format="PNG")
+    for picture, most in ((src.getvalue(), link_preview.WIDE_LINES),
+                          (None, link_preview.WIDE_COVER_LINES)):
+        drawn.clear()
+        data = link_preview.wide(picture, title, 3)
+        assert Image.open(io.BytesIO(data)).size == link_preview.WIDE
+        assert len(drawn[-1]) == most and drawn[-1][-1].endswith("…")
+        assert len(data) <= link_preview.MAX_BYTES
+    # A title that fits is drawn whole.
+    drawn.clear()
+    link_preview.wide(src.getvalue(), "Brain Implants Giving Paralyzed Patients a Voice", 1.5)
+    assert " ".join(drawn[-1]) == "Brain Implants Giving Paralyzed Patients a Voice"
+
+
+def test_a_link_never_wears_a_borrowed_picture(monkeypatch):
+    """A brain-implant story went to a Facebook group under the science
+    facet's observatory. The player may borrow; a link draws the episode's
+    own picture or the title cover."""
+    import app as appmod
+    import thumbnails
+
+    class Store:
+        def image(self, row):
+            return (b"bytes", "image/png")
+
+    monkeypatch.setattr(thumbnails, "_exists", lambda: True)
+    monkeypatch.setattr(thumbnails, "store", lambda: Store())
+    record = {"query": "brain implants", "title": "A Voice", "minutes": 2}
+    monkeypatch.setattr(appmod, "_player_picture", lambda *a, **k: {
+        "node": "science", "fallback": True})
+    assert appmod._preview_picture(record) == ("", None)
+    monkeypatch.setattr(appmod, "_player_picture", lambda *a, **k: {
+        "node": "neuroscience", "fallback": False})
+    assert appmod._preview_picture(record) == ("neuroscience", b"bytes")
+
+
+def test_the_wide_card_is_public_behind_the_waitlist():
+    """Facebook's crawler has no account: the gate lets the picture through
+    with the other three (§575)."""
+    import pathlib
+
+    source = (pathlib.Path(__file__).resolve().parent.parent / "app.py").read_text()
+    assert '"/preview.jpg", "/wide.jpg", "/sticker.png"' in source
+
+
+# --- §622: the episode as a photo for a native post -------------------------
+
+def test_the_post_photo_is_a_4_by_5_jpeg_and_saves_as_a_file(client, shared):
+    """Facebook holds back a post that links out; a photo is not. The photo
+    is public like the link, and `?download=1` saves it."""
+    import io
+
+    from PIL import Image
+
+    got = client.get(f"/api/share/{shared}/post.jpg")
+    assert got.status_code == 200 and got.headers["content-type"] == "image/jpeg"
+    assert Image.open(io.BytesIO(got.content)).size == (1080, 1350)
+    assert "content-disposition" not in got.headers
+    saved = client.get(f"/api/share/{shared}/post.jpg?download=1")
+    assert saved.headers["content-disposition"].startswith("attachment; filename=\"fam-")
+    assert client.get("/api/share/nope/post.jpg").status_code == 404
+
+
+def test_a_share_names_its_post_photo(client):
+    made = client.post("/api/share", json={
+        "query": "why is the sky blue", "minutes": 2, "title": "Sky"}).json()
+    assert made["post"].endswith(f"/api/share/{made['share']['id']}/post.jpg")
+
+
+def test_the_post_photo_draws_the_picture_the_title_and_the_hook():
+    """The picture is the top; the hook changes only the words under it; a
+    long title and a long hook are cut, never run into the foot."""
+    import io
+
+    from PIL import Image, ImageChops
+
+    import link_preview
+
+    src = io.BytesIO()
+    Image.new("RGB", (1600, 900), (200, 30, 30)).save(src, format="PNG")
+    plain = Image.open(io.BytesIO(link_preview.post(src.getvalue(), "Title", "", 2)))
+    hooked = Image.open(io.BytesIO(link_preview.post(
+        src.getvalue(), "Title", "A chip the size of a coin reads speech.", 2)))
+    r, g, b = plain.convert("RGB").getpixel((540, 300))
+    assert r > 150 and g < 80 and b < 80
+    box = ImageChops.difference(plain.convert("L"), hooked.convert("L")).point(
+        lambda v: 255 if v > 40 else 0).getbbox()
+    assert box and box[1] > link_preview.POST_PICTURE
+    w, h = link_preview.POST
+    long = Image.open(io.BytesIO(link_preview.post(
+        src.getvalue(), "why the bank held rates again " * 12, "and what was said " * 40, 3)))
+    foot = ImageChops.difference(plain.convert("L"), long.convert("L")).point(
+        lambda v: 255 if v > 40 else 0).crop((0, h - 190, w, h)).getbbox()
+    assert foot is None
+    assert link_preview.post(None, "Title", "A hook.", 1.5)
+    assert link_preview.post(b"not a picture", "Title", "", 1.5)
+
+
+def test_the_outreach_card_offers_the_photo_and_says_why():
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    page = (root / "admin_ui" / "groups.html").read_text()
+    assert "Photo for a post" in page and "post.jpg?download=1" in page
+    assert "link to put in the first comment" in page
+    assert '"/story.jpg", "/post.jpg"' in (root / "app.py").read_text()

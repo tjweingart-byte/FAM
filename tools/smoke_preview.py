@@ -2369,7 +2369,7 @@ def main() -> int:
             page.evaluate("closeSheet(); QUEUE = []; drawMixSkip(false)")
 
         def round_three_motion_holds_nothing():
-            """§619: the shared round-three picks. Curves and times are the
+            """§637: the shared round-three picks. Curves and times are the
             named tokens, read alike by CSS and script; a tab change leaves
             nothing of the old tab on its first frame; a sheet closes as a
             transition, inert while it goes, and is gone after; a drag from
@@ -2451,7 +2451,7 @@ def main() -> int:
             page.wait_for_timeout(300)
 
         def dailyfam_motion_holds_nothing():
-            """§620: dailyFAM's round-three picks. A tapped tile's picture
+            """§638: dailyFAM's round-three picks. A tapped tile's picture
             grows into the loader and the loader's picture flies on into the
             player - never a second copy of the tile while the loader is up;
             View more opens on the rail's own tiles; Refresh does not flash

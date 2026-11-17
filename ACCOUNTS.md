@@ -163,12 +163,43 @@ the inbox, not just the address. Around that:
   (wrong, expired, spent, no such account) gets one sentence;
 * a reset ends every session, like a password change, and emails the owner
   "Your FAM password was changed";
-* `_rate_limit` paces both endpoints per client as it does log-in.
+* `_rate_limit` paces both endpoints per session, which a client that
+  keeps no cookie is not held to (§620); what bounds a reset is the
+  per-account count above.
 
 Delivery is `mail.py`: plain SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
 `SMTP_PASSWORD` through `credentials`, `MAIL_FROM`), so Resend, Postmark, SES
 or Gmail is a dashboard choice. Failures are logged and counted in
 `/api/health` (`mail`). Staging never sends.
+
+### Wrong passwords are counted against the address (§620)
+
+`_rate_limit` paces a client by its session, and a sign-in has no client to
+pace: a request with no cookie is minted a fresh session, so a script that
+never sends one was never refused. Wrong passwords are therefore counted
+against the **address being tried**, whoever sends them (`app._auth_attempt`):
+five tries are free, the fifth starts a one-minute wait and each try after it
+doubles the wait, up to fifteen minutes. An hour without a try forgets the
+count; the right password clears it. The app's sign-in, `/api/admin/login`
+and the waitlist form's admin preview share one count.
+
+Two properties worth keeping:
+
+* **The lock says nothing about who is registered** - an address with no
+  account locks the same way, with the same sentence.
+* **A lock is something a stranger can cause**, so a request already
+  signed in to that account passes it, and "Forgot password?" signs a
+  browser in and is bounded by its own code. **That is a way round for an
+  email account where mail is configured, and not for everybody**: a
+  phone-only account has no reset, so somebody who keeps trying its number
+  (four requests an hour) keeps a *new* device out of it. Telling that
+  person from the owner needs the listener's real address from the proxy,
+  which is the open item in PROBLEMS.md §620.
+* An account with an email and a number has a count on each.
+
+Both cookies are `Secure` whenever the listener's side was https, read from
+`X-Forwarded-Proto` behind Render's router (`_over_https`), and an account's
+old address is emailed when its email is changed.
 
 ### Verifying a provider token
 

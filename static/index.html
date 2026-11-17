@@ -84,7 +84,7 @@
   /* The status bar's height, read by everything drawn beneath it. */
   :root{ --sb-h:38px; }
 
-  /* -------- Motion tokens (round three, §619; tokens: A) --------
+  /* -------- Motion tokens (round three, §637; tokens: A) --------
      Every curve and duration in the app's movement, named once and read by
      the CSS here and by the `Motion` module (which reads these same
      properties at start), so like things move alike. The skill's three
@@ -116,7 +116,7 @@
     --dur-nextup:280ms;
     --dur-step:260ms; --dur-roll:300ms;
     --dur-tour:340ms;
-    /* dailyFAM (round three, §620): the rails screen, its loader and the
+    /* dailyFAM (round three, §638): the rails screen, its loader and the
        story viewer. The develop and the friends' flight are the owner's
        loader looks (§592), which are a wait, not a movement; everything
        else is 450 ms or less. */
@@ -137,7 +137,7 @@
     --dur-fold:220ms; --dur-gap:240ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
-       colour from the palette (§619). */
+       colour from the palette (§637). */
     --pic-placeholder:var(--surface-2);
   }
   /* Browsers without `linear()` get the plain curve in place of a spring. */
@@ -243,7 +243,7 @@
      says what each one is. The overlay takes every tap while it is up, so
      nothing underneath is touched by accident; Skip is on every card.
      The hole and the card glide on one clock, drawn with transforms
-     (tour: A, §619): each is laid out where it is going and moved there
+     (tour: A, §637): each is laid out where it is going and moved there
      from where it was, 340 ms in-out; the track fills by scaleX. With
      reduced motion each step appears in place. */
   .fam-tour{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0;
@@ -644,7 +644,7 @@
      inside the picture; this icon is not artwork. */
   .seed-thumb .seed-act svg{ position:static; inset:auto; width:13px; height:13px; }
   .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
-  /* Saved is a filled bookmark as well as the colour (tile-save: B, §620):
+  /* Saved is a filled bookmark as well as the colour (tile-save: B, §638):
      both icons sit in the chip's one cell, so it never changes size, and
      only a tap swaps them on the icon spring - a page painted to match
      the server does not. */
@@ -1499,7 +1499,7 @@
   .captions-panel.on .cc-copybtn{ border-color:rgba(244,239,228,0.22); color:var(--paper); opacity:0.85; }
   .captions-panel.on .cc-text{ font-size:12px; color:var(--paper); line-height:1.55; }
   .captions-panel.on .cc-text mark{ background:var(--copper); color:var(--ink); border-radius:3px; padding:0 3px; }
-  /* Highlight only (captions: B, §619): the sentence before stays where it
+  /* Highlight only (captions: B, §637): the sentence before stays where it
      is and dims; the one being spoken is in full colour. Colour is the only
      thing that changes - 150 ms - and nothing under the eyes moves, with or
      without reduced motion. `@starting-style` gives each its first colour. */
@@ -1957,7 +1957,7 @@
     border:none; border-radius:50%; background:transparent; color:var(--text-muted);
     display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:1; }
   .gd-x:active{ background:rgba(var(--fg-rgb),0.08); }
-  /* 44 x 44 to press (§620): the card's corner, which has no neighbour. */
+  /* 44 x 44 to press (§638): the card's corner, which has no neighbour. */
   .gd-x::after{ content:""; position:absolute; top:-4px; right:-4px; width:44px; height:44px; }
   .gd-card-title{ padding-right:14px; }
   /* flex:none matters. Without it the column shrinks the title below the
@@ -1979,10 +1979,10 @@
   .gd-bar{ position:absolute; left:0; right:0; bottom:0; height:3px;
     background:var(--border-strong); }
   /* Scaled from its left edge, never sized, so it can fill on from where
-     it was (changed-since: B, §620). */
+     it was (changed-since: B, §638). */
   .gd-bar span{ display:block; height:100%; width:100%; transform-origin:0 50%; background:var(--copper); }
   .gd-card-meta, .seed-live{ font-variant-numeric:tabular-nums; }
-  /* Lists that move (§620): a copy leaving is laid over the list it left. */
+  /* Lists that move (§638): a copy leaving is laid over the list it left. */
   .feed-rail, .sec-grid, .gd-grid, #goDeeperBlock{ position:relative; }
   .motion-leave{ position:absolute !important; margin:0 !important; z-index:2; pointer-events:none; }
   /* A digit that changed rolls in its own one-digit window. */
@@ -2022,7 +2022,7 @@
      chip so it reads over any picture, in the same face as before. */
   .seed-thumb .seed-img{ position:absolute; inset:0; width:100%; height:100%;
     object-fit:cover; display:block; }
-  /* Colour first (pictures: B, §619): a tile waiting for its picture shows
+  /* Colour first (pictures: B, §637): a tile waiting for its picture shows
      a colour at once, over the drawing, and the picture fades in over the
      colour when it lands. The drawing comes back if the picture fails
      (seedImgFailed takes `has-img` off). */
@@ -2143,7 +2143,7 @@
   /* The icons with some life in them (10.11 packet): the same symbols,
      larger, each with a soft tint inside its shape, sitting in a copper
      pill - rather than thin lines in a dot. The pill no longer springs up
-     when a tab is chosen (tabs: C, §619): nothing bounces on navigation. */
+     when a tab is chosen (tabs: C, §637): nothing bounces on navigation. */
   .tabbar .tab .dot{ width:44px; height:28px; border-radius:14px; display:flex;
     align-items:center; justify-content:center; color:var(--text-muted);
     transition:background 200ms ease, color 200ms ease; }
@@ -2170,7 +2170,7 @@
   .motion-ghost{ position:absolute; z-index:60; pointer-events:none;
     background:var(--paper) center / cover no-repeat; }
   /* "SAVED", "VIBED", "LIKED": said beside the control that was just lit,
-     while its icon swaps (burst: A, §619 - the ring and sparks are gone). */
+     while its icon swaps (burst: A, §637 - the ring and sparks are gone). */
   .motion-lab{ position:absolute; z-index:61; pointer-events:none; white-space:nowrap;
     font-family:'Geist Mono', monospace; font-size:9px; font-weight:600; letter-spacing:0.08em;
     padding:4px 7px; border-radius:999px; background:var(--copper); color:var(--ink); }
@@ -2214,7 +2214,7 @@
     font-weight:inherit; color:var(--copper); overflow:hidden; vertical-align:bottom;
     font-variant-numeric:tabular-nums; }
 
-  /* -------- Sheets and modals (sheets: A, §619) --------
+  /* -------- Sheets and modals (sheets: A, §637) --------
      Transitions, never keyframes, so one closed half open turns round from
      where it is. A bottom sheet slides all the way up from the bottom edge
      (280 ms in, 200 ms out, back down to the edge); a centred popup grows
@@ -2413,7 +2413,7 @@
   .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
     background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
   .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
-  /* Two speeds (picture-develop: B, §620): a ready tile - written and
+  /* Two speeds (picture-develop: B, §638): a ready tile - written and
      voiced ahead, so its audio is a few hundred ms away - is sharp in
      420 ms, before the loader can leave, so the last frame of it is the
      picture itself; an unwritten one keeps the owner's slow develop. No
@@ -2439,7 +2439,7 @@
   .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
     animation:famLdUp .3s .7s both; }
   .fam-dev-names b{ color:var(--text); font-weight:600; }
-  /* A ready tile's friends are already there (friends-gather: C, §620):
+  /* A ready tile's friends are already there (friends-gather: C, §638):
      the flight is kept for a tile with time for it, and a ready one's
      loader leaves before a face could land. */
   .fam-dev.ready .fam-dev-faces .src-mark, .fam-dev.ready + .fam-dev-names{ animation:none; }
@@ -2484,7 +2484,7 @@
   /* Motion is decoration here; the words are the information. Anyone who has
      asked for less of it still gets the full status line. Nothing moves;
      but a frozen loader reads as a hang, so the marks that say work is
-     still happening keep a gentle opacity pulse (reduced: A, §619). */
+     still happening keep a gentle opacity pulse (reduced: A, §637). */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
     .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
@@ -2539,7 +2539,7 @@
     font-family:'Geist', sans-serif; font-size:13.5px; font-weight:500; line-height:1.35;
     opacity:0; transform:translateY(16px); pointer-events:none;
     transition:opacity var(--dur-toast-out) var(--ease-in), transform var(--dur-toast-out) var(--ease-in); }
-  /* The skill's toast (bottom-line: B, §619): rises 16 px as it fades in,
+  /* The skill's toast (bottom-line: B, §637): rises 16 px as it fades in,
      leaves the same way a little faster; the copper dot lands a beat after
      the line and settles on a soft spring - a part, never the words. */
   .toast::before, .snack::before{ content:""; flex:none; width:7px; height:7px; border-radius:50%;
@@ -2977,7 +2977,7 @@
     box-shadow:0 30px 60px -20px rgba(0,0,0,0.6); }
   /* The card used to appear instantly at the moment the voice stopped,
      which reads as an interruption rather than as the episode handing over.
-     Now one soft rise (nextup: B, §619): 8 px up, a 2 px blur clearing, on
+     Now one soft rise (nextup: B, §637): 8 px up, a 2 px blur clearing, on
      the arrival curve - the calmest arrival in the app, at the end people
      remember. `--nextup-fade` is set from NEXT_UP_FADE_MS in the script, so
      the two timings cannot drift apart. The countdown is the lead tile's
@@ -3360,7 +3360,7 @@
   .story-bars{ display:flex; gap:4px; }
   .story-bar{ flex:1; height:2.5px; border-radius:2px; background:rgba(244,239,228,0.25); overflow:hidden; }
   /* Filled by scale from the left edge, not width (story-progress-hold: A,
-     §620): the compositor's, on a screen that also turns and grows. Kept
+     §638): the compositor's, on a screen that also turns and grows. Kept
      under reduced motion - it is the story's progress. */
   .story-bar i{ display:block; height:100%; width:100%; transform:scaleX(0); transform-origin:0 50%;
     background:#F4EFE4; }
@@ -3395,7 +3395,7 @@
   .story.composed .story-main{ display:none; }
   .story.composed .story-card{ margin-top:auto; }
   /* Held, the chrome goes quickly (150 ms `in`) and comes back gently
-     (200 ms `out`); with reduced motion, at once (§620). */
+     (200 ms `out`); with reduced motion, at once (§638). */
   .story .story-head, .story .story-card, .story .story-bars{
     transition:opacity var(--dur-story-show) var(--ease-out); }
   .story.held .story-head, .story.held .story-card, .story.held .story-bars{ opacity:0;
@@ -3403,7 +3403,7 @@
   @media (prefers-reduced-motion: reduce){
     .story .story-head, .story .story-card, .story .story-bars{ transition:none; }
   }
-  /* A face of the cube darkening as it turns side-on (§620). */
+  /* A face of the cube darkening as it turns side-on (§638). */
   .motion-shade{ position:absolute; inset:0; z-index:10; background:#000; opacity:0; pointer-events:none;
     border-radius:inherit; }
   /* The gold a ring had, fading under the face once the story is back in it. */
@@ -4136,6 +4136,7 @@
                          oninput="formatPhoneInput(this)">
                 </div>
               </div>
+              <p class="entry-note" id="authLetInNote" hidden>Just off the waitlist? Leave the password empty &mdash; you&rsquo;ll set one next.</p>
               <p class="auth-error" id="authError" role="alert" hidden></p>
               <button class="entry-btn primary" id="authSubmit" type="submit">Create account</button>
               <p class="entry-note" id="authNote">Password reset isn&rsquo;t set up on this server yet, so keep your password somewhere safe.</p>
@@ -4274,7 +4275,7 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0;">
             <div class="entry-h">You&rsquo;re in. Set your password</div>
-            <p class="entry-lede" id="passwordFirstLede">You joined the waitlist with just your email. Choose a password so you can sign in on any device.</p>
+            <p class="entry-lede" id="passwordFirstLede">You joined the waitlist with just your email. Choose a password and type it twice, so you can sign in on any device.</p>
             <form id="passwordFirstForm" onsubmit="event.preventDefault(); submitPasswordFirst();" novalidate>
               <input type="email" id="passwordFirstEmail" autocomplete="username" hidden readonly>
               <div class="auth-field">
@@ -4284,8 +4285,22 @@
                          autocomplete="new-password" maxlength="1024"
                          placeholder="at least 8 characters" style="margin-bottom:0;"
                          oninput="passwordFirstError('')">
-                  <button class="pw-eye" type="button"
+                  <button class="pw-eye" type="button" id="passwordFirstEye"
                           onclick="togglePasswordShown('passwordFirstInput', this)" aria-label="Show password"
+                          aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+                </div>
+              </div>
+              <!-- Typed twice (§619): a mistyped first password is the one
+                   nobody can sign back in with. Its own eye, as the first. -->
+              <div class="auth-field">
+                <div class="auth-label">Confirm password</div>
+                <div class="pw-row">
+                  <input class="modal-input" id="passwordFirstConfirm" type="password"
+                         autocomplete="new-password" maxlength="1024"
+                         placeholder="type it again" style="margin-bottom:0;"
+                         oninput="passwordFirstError('')">
+                  <button class="pw-eye" type="button" id="passwordFirstConfirmEye"
+                          onclick="togglePasswordShown('passwordFirstConfirm', this)" aria-label="Show password"
                           aria-pressed="false"><svg class="pw-eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a9.9 9.9 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
                 </div>
               </div>
@@ -6035,7 +6050,7 @@
     if(typeof paintLengthControls === "function") paintLengthControls();
   });
 
-  // ---------------- Motion (§292, §298, §619) ----------------
+  // ---------------- Motion (§292, §298, §637) ----------------
   //
   // The app snapped from one state to the next; the owner chose, area by
   // area, how each change should move (the motion options pages, 10.20,
@@ -6052,7 +6067,7 @@
   // its first frame, audio starts on the tap, and every movement is 450 ms
   // or less. The search's five loading steps are untouched: they are an
   // honest wait. Reduced motion turns every one of these off, fades
-  // included (§619); only loading indicators keep a gentle pulse.
+  // included (§637); only loading indicators keep a gentle pulse.
   //
   // Every curve and duration is a named token on :root (`--ease-*`,
   // `--dur-*`, `--spring-*`), read here once, so the script and the CSS
@@ -6088,7 +6103,7 @@
       label: msToken("--dur-label", 900),
       step: msToken("--dur-step", 260), roll: msToken("--dur-roll", 300),
       tour: msToken("--dur-tour", 340),
-      // dailyFAM (§620)
+      // dailyFAM (§638)
       loaderIn: msToken("--dur-loader-in", 300), loaderBg: msToken("--dur-loader-bg", 150),
       loaderOut: msToken("--dur-loader-out", 340), loaderTextOut: msToken("--dur-loader-text-out", 150),
       loaderBgOut: msToken("--dur-loader-bg-out", 200),
@@ -6132,7 +6147,7 @@
       page: spring(500, 0),     // a drag let go: .5 s, no bounce
       soft: spring(500, 0.15),  // follow-through: the part that settles a beat late
       icon: spring(350, 0),     // icon swaps: .35 s, no bounce
-      story: spring(DUR.storySpring, 0)  // a story let go: .4 s, no bounce (§620)
+      story: spring(DUR.storySpring, 0)  // a story let go: .4 s, no bounce (§638)
     };
     // The tab bar's order, left to right, so a tab change knows its side.
     var TAB_ORDER = ["myfam", "playfam", "home", "messages", "profile"];
@@ -6287,7 +6302,7 @@
     var stillUntil = 0;
     function still(){ stillUntil = Date.now() + 100; }
     // Until when a tab change's nudge is moving the new tab's content:
-    // anything that arrives inside it rides in with it (§620).
+    // anything that arrives inside it rides in with it (§638).
     var tabUntil = 0;
     function moving(el){
       var s = el && el.closest ? el.closest(".screen") : null;
@@ -6304,7 +6319,7 @@
       if(Date.now() < stillUntil){ stillUntil = 0; return; }
       // Reduced motion: every screen change is instant (reduced: A).
       if(!how || !from || from === to || !on()) return;
-      // dailyFAM's loader is over everything (tile-to-player: A, §620): the
+      // dailyFAM's loader is over everything (tile-to-player: A, §638): the
       // player opens under it at once, and its picture is the one that
       // flies there when the loader hands over (`handOff`) - never a second
       // copy of the tile's crossing it.
@@ -6651,7 +6666,7 @@
         if(!seen(el) || !el.closest(".screen.active")) return;
         var icon = el.querySelector("svg");
         var r = box(icon || el);
-        // `quiet`: the control swaps its own icons (a tile's save, §620).
+        // `quiet`: the control swaps its own icons (a tile's save, §638).
         if(icon && on() && !quiet) iconIn(icon);
         var lab = document.createElement("span");
         lab.className = "motion-lab";
@@ -6703,7 +6718,7 @@
       });
     }
 
-    // ---- rails: new tiles arrive (rails-arrive: B, §620) ----
+    // ---- rails: new tiles arrive (rails-arrive: B, §638) ----
     // The skill's softest entrance: up 8 px out of a 2 px blur while it
     // fades in. Painted at opacity 0 only during its own delay
     // (`backwards`), and tappable throughout.
@@ -6961,7 +6976,7 @@
       if(!pressed.el || !pressed.el.isConnected || Date.now() - pressed.at > 1500) return null;
       var face = pressed.el.closest ? (pressed.el.closest('button, [onclick], [role="button"]') || pressed.el) : null;
       if(!face || !seen(face) || face.closest(".story")) return null;
-      // The face itself, not the button round it and its name (§620).
+      // The face itself, not the button round it and its name (§638).
       var ring = face.querySelector ? face.querySelector(".yf-ring") : null;
       var r = box(ring && seen(ring) ? ring : face);
       return { x: r.x + r.w / 2, y: r.y + r.h / 2, r: Math.max(8, Math.min(r.w, r.h) / 2) };
@@ -6972,7 +6987,7 @@
     }
     // Opened out of the face that was tapped, and closed back into it: the
     // grow on `out`, the way back - a move to a place, not an exit - on
-    // `in-out` (story-open-close: B, §620).
+    // `in-out` (story-open-close: B, §638).
     function growStory(ov){
       ov._from = pressedCircle();
       if(!on() || !ov._from || !seen(ov)) return;
@@ -7001,7 +7016,7 @@
     }
     // A ring that was gold is grey on the first frame; a copy of the gold
     // under the face fades out once the story has shrunk back into it,
-    // 200 ms (§620). `toggle` repaints the ring.
+    // 200 ms (§638). `toggle` repaints the ring.
     function ringFade(ring, toggle, delay){
       var was = !!(ring && ring.classList.contains("fresh")), cs = was ? getComputedStyle(ring) : null;
       var img = cs ? cs.backgroundImage : "", edge = cs ? cs.borderTopColor : "", bw = cs ? parseFloat(cs.borderTopWidth) || 0 : 0;
@@ -7020,7 +7035,7 @@
         .finished.then(done, done);
     }
     // A story pulled down and let go short of closing springs home, as does
-    // one pulled past the first or last friend (§620).
+    // one pulled past the first or last friend (§638).
     function storyHome(ov){
       var t = ov.style.transform;
       ov.style.transform = "";
@@ -7278,7 +7293,7 @@
       });
     }
 
-    // ---- dailyFAM's loader (tile-to-player: A, §620) ----
+    // ---- dailyFAM's loader (tile-to-player: A, §638) ----
     // One picture, both ways: the tile's picture grows into the loader's
     // frame, develops there, and flies on into the player's.
     function dailyLoader(){
@@ -7640,7 +7655,7 @@
   // seen, or how to undo it - or nothing. The bar sits on whatever is lowest
   // on screen that it must not cover: the mini player, else the tabs.
   var SNACK_ACTION_MS = 5000;
-  // `action.done` (§620): what an Undo would take back is only done for
+  // `action.done` (§638): what an Undo would take back is only done for
   // real once the line has gone without it - its five seconds are up,
   // another line replaced it, or the page was left.
   var snackCommit = null;
@@ -7673,7 +7688,7 @@
     bar.classList.add("show");
     clearTimeout(bar._timer);
     // A line with something to do in it (Undo, Open) stays at least five
-    // seconds (bottom-line: B, §619): long enough to read and reach it.
+    // seconds (bottom-line: B, §637): long enough to read and reach it.
     bar._timer = setTimeout(hideSnack, action ? SNACK_ACTION_MS : 2400);
   }
   // Just above whatever is lowest on screen that it must not cover: the
@@ -8282,7 +8297,7 @@
     genHideTimer = setTimeout(handOffGenOverlay, GEN_MIN_VISIBLE_MS - held);
   }
   // The loader goes because the audio is here: DailyFAM's leaves as its
-  // picture flies into the player's (tile-to-player: A, §620). Taken down
+  // picture flies into the player's (tile-to-player: A, §638). Taken down
   // at once all the same - what leaves is a copy.
   function handOffGenOverlay(){
     genHideTimer = null;
@@ -8518,7 +8533,7 @@
         .filter(Boolean).slice(0, LOADING_FACES);
       var thumb = tile.thumb || "";
       html = '<div class="fam-ld-kick">DailyFAM' + (heading ? ' \u00b7 <b>' + escapeHtml(String(heading).replace(/\n/g, " ")) + '</b>' : '') + '</div>'
-        // A ready tile develops fast and its friends are already there (§620).
+        // A ready tile develops fast and its friends are already there (§638).
         + '<div class="fam-dev ' + (faces.length ? 'friends' : 'develop') + (tile.cached ? ' ready' : '') + '" aria-hidden="true">'
         + '<div class="fam-dev-pic">' + (thumb ? '<img src="' + escapeHtml(thumb) + '" alt="" decoding="async" onerror="this.remove()">' : '') + '</div>'
         + (faces.length ? '<div class="fam-dev-faces">' + faces.map(friendFaceHtml).join("") + '</div>' : '')
@@ -8578,7 +8593,7 @@
     alt._for = t;
     el.classList.add("alt");
     // A friend's face already on the device is drawn, not faded up from
-    // its initials (§620).
+    // its initials (§638).
     alt.querySelectorAll(".src-mark img").forEach(function(img){
       if(img.complete && img.naturalWidth) img.style.opacity = 1;
     });
@@ -8610,7 +8625,7 @@
       return;
     }
     // The player first, under the loader, so the loader's picture has
-    // somewhere to fly when it hands over (tile-to-player: A, §620).
+    // somewhere to fly when it hands over (tile-to-player: A, §638).
     if(activeId !== "screen-player"){ navigate("player"); }
     finishGenOverlay();
   }
@@ -9929,7 +9944,7 @@
     }
     var here = captionIndexNow();
     // **The sentence being spoken, after the one before it** (captions: B,
-    // §619, the owner's pick over §127's one sentence at a time). The one
+    // §637, the owner's pick over §127's one sentence at a time). The one
     // before stays put and dims; the one being read is in full colour.
     // Only colour changes - nothing moves under the eyes. Redrawn only when
     // the sentence changes, so the change happens once per sentence rather
@@ -11266,12 +11281,12 @@
   // down (`topics.NOT_INTERESTED`, `not_wanted`). A guest's choice is
   // dropped by the server like every guest event (§127), so for a guest the
   // tile only leaves this page.
-  //: Tiles waved off whose Undo is still on the line, by topic id (§620).
+  //: Tiles waved off whose Undo is still on the line, by topic id (§638).
   var notInterestedPending = {};
   function tileNotInterested(topicId){
     var tile = myFamTopics[topicId];
     if(!tile) return;
-    // **Undo** (remove-tile: B, §620): it is read over the whole history,
+    // **Undo** (remove-tile: B, §638): it is read over the whole history,
     // so the line offers Undo for five seconds and the event is recorded
     // only when the line closes. The tile leaves the page now all the same.
     notInterestedPending[topicId] = true;
@@ -12412,7 +12427,7 @@
   function setTheme(theme){
     var light = theme === "light";
     // Transitions off for the two frames the colours change in (reduced: A,
-    // the theme-switch recipe, §619), so the page turns all at once rather
+    // the theme-switch recipe, §637), so the page turns all at once rather
     // than each part at its own speed.
     var root = document.documentElement;
     root.classList.add("theme-switching");
@@ -16459,7 +16474,7 @@
       + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
       + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
       + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')">'
-      // An outline, and a filled one once saved (§620).
+      // An outline, and a filled one once saved (§638).
       + '<svg class="ts-off" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg>'
       + '<svg class="ts-on" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
       // The three dots (§190): the player's menu, for this tile.
@@ -16505,7 +16520,7 @@
     }
     var key = tileSaveKey(t);
     var on = !!savedTileQueries[key];
-    // On the tap (tile-save: B, §620): it almost never fails, so the chip
+    // On the tap (tile-save: B, §638): it almost never fails, so the chip
     // changes now - the icon swapping on its spring, and the app's SAVED
     // beside it when it is turned on - and is put back, with the line
     // saying so, if the server refuses.
@@ -16550,7 +16565,7 @@
   var feedTopicsShown = {};
   var feedHtmlDrawn = "", feedFirstDrawn = null;
   // A friend's face whose picture is already on the device is drawn at
-  // once rather than faded up from its initials on every redraw (§620).
+  // once rather than faded up from its initials on every redraw (§638).
   function settleFaces(root){
     if(!root) return;
     root.querySelectorAll(".src-mark img").forEach(function(img){
@@ -16558,7 +16573,7 @@
     });
   }
   // A game's line that moved since the page was last drawn rolls the
-  // digits that changed and warms for a moment (changed-since: B, §620).
+  // digits that changed and warms for a moment (changed-since: B, §638).
   // By topic id; a tile seen for the first time moves nothing.
   var liveLinesShown = {};
   function markLiveChanges(root){
@@ -16663,7 +16678,7 @@
     var feed = document.getElementById("myfamFeed");
     // Every open of the tab redraws the page. One that would draw exactly
     // what is there leaves it alone, and one that changes keeps each rail
-    // where it had been scrolled to (§620: they snapped back to the start).
+    // where it had been scrolled to (§638: they snapped back to the start).
     if(html !== feedHtmlDrawn || !feed.firstChild || feed.firstChild !== feedFirstDrawn){
       var scrolled = {};
       feed.querySelectorAll(".feed-rail[data-section]").forEach(function(r){
@@ -16781,7 +16796,7 @@
                      head: head };
     // The tiles just seen are on the device: the screen opens on them and
     // they ride in with the push; the rest of the rail arrives below them
-    // when the answer lands (view-more-grid: A, §620).
+    // when the answer lands (view-more-grid: A, §638).
     var shown = (railTiles[key] || []).filter(function(t){ return t && t.id; });
     if(shown.length) renderSection({ key: key, topics: shown, preview: true });
     navigate("section");
@@ -16800,7 +16815,7 @@
     var size = Math.max(1, SECTION_PAGE - head.length);
     var seen = sectionState.seen.concat(head.map(function(t){ return t.id; }));
     sectionState.busy = true;
-    // The async button (§620): the press turns the arrow once; it spins
+    // The async button (§638): the press turns the arrow once; it spins
     // only once the answer has taken 300 ms, and then for at least 500 ms,
     // so a quick answer never flashes it.
     if(how === "deal") Motion.turnIcon(btn.querySelector("svg"));
@@ -16874,7 +16889,7 @@
     var refresh = document.getElementById("sectionRefresh");
     topics = topics.filter(function(t){ return !(t && notInterestedPending[t.id]); });
     // What was on the grid before this draw, by id, so only what is new
-    // arrives (view-more-grid: A, §620).
+    // arrives (view-more-grid: A, §638).
     var had = {};
     grid.querySelectorAll("[data-topic]").forEach(function(c){ had[c.getAttribute("data-topic")] = true; });
     var arriving = function(){
@@ -16960,7 +16975,7 @@
           + (g.yours ? '<small>Where you are</small>' : '')
           + '</div>' + g.topics.filter(function(t){ return !(t && notInterestedPending[t.id]); }).map(card).join("");
       }).join("");
-      // Trending's grid arrives and lights its saves like the others (§620).
+      // Trending's grid arrives and lights its saves like the others (§638).
       arriving();
       return;
     }
@@ -17305,7 +17320,7 @@
       .catch(function(){ if(!goDeeperCardCache.length) renderGoDeeper({}); });
   }
 
-  // **The rows above the rails, as last seen** (late-sections: B, §620).
+  // **The rows above the rails, as last seen** (late-sections: B, §638).
   // Pick up and the faces row are answered after the rails, and each landed
   // above them in one frame, shoving the tile under a thumb down the page.
   // The last answer of each is kept for this account on this device (like
@@ -17377,7 +17392,7 @@
     o = o || {};
     goDeeperData = d || {};
     // A card dismissed a moment ago, whose Undo is still on the line, stays
-    // off whatever the server says (§620).
+    // off whatever the server says (§638).
     var pending = goDeeperDismissing;
     var cards = goDeeperCards({
       resume: (goDeeperData.resume || []).filter(function(r){ return !pending[(r.query || "").toLowerCase()]; }),
@@ -17456,7 +17471,7 @@
   // the list, so it holds on every device). What was behind it - the next
   // part-heard episode or Go Deeper prompt from this week - moves up into the
   // gap, and when nothing else qualifies the section is simply one shorter.
-  // **Undo** (remove-tile: B, §620): it is for good, from a small target
+  // **Undo** (remove-tile: B, §638): it is for good, from a small target
   // beside the card's own play, so the line offers Undo for five seconds
   // and the server is told only when the line closes (or the page is
   // left). The card folds away and the rest close in; Undo opens the gap
@@ -17529,7 +17544,7 @@
         + '<div class="feed-rail"><div class="feed-skeleton"></div>'
         + '<div class="feed-skeleton"></div><div class="feed-skeleton"></div></div></div>';
     }
-    // Pick up and the faces as last seen, on this first frame (§620).
+    // Pick up and the faces as last seen, on this first frame (§638).
     paintRememberedLateRows();
     // The browse length rides along, because whether a tile is already
     // written depends on the length it would be written at - asking the cache
@@ -18078,11 +18093,14 @@
   }
   function submitPasswordFirst(){
     var input = document.getElementById("passwordFirstInput");
+    var again = document.getElementById("passwordFirstConfirm");
     var btn = document.getElementById("passwordFirstSubmit");
     var pw = input.value;
     if(!pw) return passwordFirstError("Enter your password.");
     if(pw.length < 8) return passwordFirstError("Use at least 8 characters for your password.");
     if(pw.length > 1024) return passwordFirstError("That password is too long.");
+    if(!again.value) return passwordFirstError("Type your password again to confirm it.");
+    if(again.value !== pw) return passwordFirstError("Those passwords don\u2019t match.");
     btn.disabled = true;
     fetch("/api/auth/password/set", {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -18092,7 +18110,9 @@
         if(!r.ok) throw new Error(d.error || d.detail || "That did not work. Try again.");
       });
     }).then(function(){
-      input.value = "";
+      input.value = ""; again.value = "";
+      togglePasswordShown("passwordFirstInput", document.getElementById("passwordFirstEye"), false);
+      togglePasswordShown("passwordFirstConfirm", document.getElementById("passwordFirstConfirmEye"), false);
       toast("Password set");
       return refreshAuth();
     }).then(function(){
@@ -18857,7 +18877,7 @@
     if(!yfCircle.length && !yfMe){ el.innerHTML = ""; el.hidden = true; return; }
     el.hidden = false;
     // The same row as is drawn is left alone, and a changed one keeps its
-    // sideways scroll (§620: every open snapped it back to the start and
+    // sideways scroll (§638: every open snapped it back to the start and
     // faded every face up from its initials again).
     var html = circleRowHTML(), row = el.querySelector(".yf-friends");
     if(row && el._drawn === html) return;
@@ -19126,7 +19146,7 @@
   //: How long a press is before it is a hold rather than a tap.
   var STORY_HOLD_MS = 220;
   //: A story pulled down past this, or flicked down faster than
-  //: STORY_FLICK px/ms, closes into the face (story-open-close: B, §620).
+  //: STORY_FLICK px/ms, closes into the face (story-open-close: B, §638).
   var STORY_CLOSE_PX = 80, STORY_FLICK = 0.1;
   (function(){
     var el = document.getElementById("storyOverlay");
@@ -19137,7 +19157,7 @@
     function onReply(e){ return !!(e.target.closest && e.target.closest(".story-reply")); }
     // A drag under way: "down" (closing), "side" (the cube turning to the
     // next friend under the finger) or "band" (pulled past the first or
-    // last friend: it gives, and comes back) - story-next-friend: B, §620.
+    // last friend: it gives, and comes back) - story-next-friend: B, §638.
     var drag = null;
     function startDrag(e, dx, dy){
       if(dy > 10 && dy > Math.abs(dx) * 1.2){
@@ -19286,14 +19306,14 @@
     clearTimeout(storyHoldTimer);
     storyHeld = false;
     // Back into the face it came out of (§298) - from wherever a drag
-    // down had taken it (§620).
+    // down had taken it (§638).
     var ov = document.getElementById("storyOverlay");
     var back = Motion.shrinkStory(ov);
     ov.hidden = true;
     ov.style.transform = "";
     ov.classList.remove("paused", "held");
     // The rings reflect what was just watched: grey at once, the gold
-    // fading under the face once the story is back in it (§620).
+    // fading under the face once the story is back in it (§638).
     document.querySelectorAll(".yf-friends .yf-friend[data-i]").forEach(function(btn){
       var ring = btn.querySelector(".yf-ring");
       var person = yfCircle[+btn.getAttribute("data-i")];
@@ -19393,7 +19413,7 @@
     var input = document.getElementById("storyReplyInput");
     var text = (input.value || "").trim();
     if(!v || !person || !text) return;
-    // The words rise out of the box as it empties (story-reply-send: A, §620).
+    // The words rise out of the box as it empties (story-reply-send: A, §638).
     Motion.sendWords(input, text);
     input.value = "";
     input.blur();
@@ -24213,6 +24233,7 @@
     document.getElementById("authSub").textContent = mode === "login"
       ? "Welcome back." : "Takes ten seconds. Listening stays free either way.";
     document.getElementById("authNote").hidden = mode === "login";
+    document.getElementById("authLetInNote").hidden = mode !== "login";
     document.getElementById("authTermsField").hidden = mode === "login";
     document.getElementById("authTerms").checked = false;
     document.getElementById("authSwitch").innerHTML = mode === "login"
@@ -24495,7 +24516,10 @@
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
       showAuthError("That email address doesn\u2019t look right."); return;
     }
-    if(!password){ showAuthError("Enter your password."); return; }
+    // Logging in, an empty password is sent (§619): an account let in off
+    // the waitlist has none yet, and the server signs it in by its email to
+    // set one first. Any other account is told "do not match" by the server.
+    if(!password && authMode === "signup"){ showAuthError("Enter your password."); return; }
     if(authMode === "signup" && password.length < 8){
       showAuthError("Use at least 8 characters for your password."); return;
     }
@@ -24520,6 +24544,9 @@
         btn.textContent = label;
         if(!AUTH.authenticated) return;    // the error is under the fields
         document.getElementById("authPassword").value = "";
+        // Let in off the waitlist, signed in by the email alone (§619): the
+        // password comes before anything else, as it does on opening.
+        if(AUTH.password_needed){ authReturn = ""; openPasswordFirst(); return; }
         // Anything chosen before signing up is theirs now, so it is written
         // through rather than left stranded in this browser.
         var local = localPrefs();
@@ -25390,7 +25417,7 @@
                                     { duration: Motion.DUR.step, easing: Motion.EASE.OUT });
         return;
       }
-      // Reduced motion: each step appears in place (tour: A, §619).
+      // Reduced motion: each step appears in place (tour: A, §637).
       if(!card.animate || reduced()){ swap(); return; }
       var out = card.animate([{ opacity: 1 }, { opacity: 0 }],
                              { duration: Motion.DUR.handOver, easing: Motion.EASE.IN, fill: "forwards" });
@@ -25408,7 +25435,7 @@
     }
 
     // The hole and the card glide to where place() has just laid them out
-    // (tour: A, §619): FLIP - measured where they were, including any glide
+    // (tour: A, §637): FLIP - measured where they were, including any glide
     // still under way, laid out where they go, then moved from the one to
     // the other by transform alone, both on one clock. The card only
     // translates; scaling it would stretch its words.
@@ -25598,7 +25625,7 @@
   // and still short enough that putting the phone down keeps the audio going,
   // which is the point of a countdown at all.
   var NEXT_UP_SECONDS = 15;
-  // The card's soft rise (nextup: B, §619). It used to arrive in 180ms,
+  // The card's soft rise (nextup: B, §637). It used to arrive in 180ms,
   // which reads as an interruption rather than as the episode handing over.
   var NEXT_UP_FADE_MS = 280;
 
@@ -26396,7 +26423,7 @@
 
   // Swipe up to dismiss (§127). The banner follows the finger upward, and a
   // pull past `NOTIF_SWIPE_PX`, or a flick upward faster than 0.1 px/ms
-  // however short (bottom-line: B, §619), sends it away; anything less
+  // however short (bottom-line: B, §637), sends it away; anything less
   // springs back.
   // The hide timer is held while a finger is on it, so it cannot vanish out
   // from under a thumb, and a swipe never also counts as a tap.

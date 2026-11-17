@@ -190,7 +190,7 @@
   .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
     background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
   .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
-  /* Two speeds (picture-develop: B, §620): a ready tile - written and
+  /* Two speeds (picture-develop: B, §638): a ready tile - written and
      voiced ahead, so its audio is a few hundred ms away - is sharp in
      420 ms, before the loader can leave, so the last frame of it is the
      picture itself; an unwritten one keeps the owner's slow develop. No
@@ -216,7 +216,7 @@
   .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
     animation:famLdUp .3s .7s both; }
   .fam-dev-names b{ color:var(--text); font-weight:600; }
-  /* A ready tile's friends are already there (friends-gather: C, §620):
+  /* A ready tile's friends are already there (friends-gather: C, §638):
      the flight is kept for a tile with time for it, and a ready one's
      loader leaves before a face could land. */
   .fam-dev.ready .fam-dev-faces .src-mark, .fam-dev.ready + .fam-dev-names{ animation:none; }
@@ -261,7 +261,7 @@
   /* Motion is decoration here; the words are the information. Anyone who has
      asked for less of it still gets the full status line. Nothing moves;
      but a frozen loader reads as a hang, so the marks that say work is
-     still happening keep a gentle opacity pulse (reduced: A, §619). */
+     still happening keep a gentle opacity pulse (reduced: A, §637). */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
     .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }

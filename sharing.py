@@ -813,8 +813,25 @@ DATA_MARKER = "<!--FAM_SHARE_DATA-->"
 JOIN_PATH = "/waitlist"
 
 
+#: Facebook's link crawler, by the names Meta documents for it. It is the
+#: one previewer named, and deliberately: it crops a square picture to a
+#: 1.91:1 strip (§621), so it is given a picture drawn at that shape. This
+#: is not §76's user-agent list - that one decided what was *counted*, and
+#: a crawler it missed was a wrong number. A crawler this misses gets the
+#: square every previewer got before, so there is no entry it needs next.
+WIDE_AGENTS = ("facebookexternalhit", "facebot")
+
+
+def wants_wide(agent: str) -> bool:
+    """Whether the page's reader draws link pictures wide (Facebook, and
+    the Messenger and Instagram previews the same crawler feeds)."""
+    low = (agent or "").lower()
+    return any(name in low for name in WIDE_AGENTS)
+
+
 def landing_payload(share: dict, *, url: str, card_url: str = "",
-                    app_store: str = "", image_url: str = "") -> dict:
+                    app_store: str = "", image_url: str = "",
+                    wide: bool = False) -> dict:
     """Everything the landing page is allowed to know.
 
     Note what is absent: `user_id`. A share link is public by construction -
@@ -842,6 +859,9 @@ def landing_payload(share: dict, *, url: str, card_url: str = "",
         # Messages and the rest draw in the bubble. The story card above is
         # 9:16 SVG, which they skip.
         "image": image_url or "",
+        # True when that picture is the wide card (`link_preview.wide`,
+        # §621), which only Facebook's crawler is named: see `wants_wide`.
+        "image_wide": bool(image_url) and bool(wide),
         "app_store": app_store or "",
         # Whether the App Store is where the doors go. False means there is
         # no app to send anybody to - see `join` for where they go instead.
@@ -928,8 +948,11 @@ def landing_head(payload: dict) -> str:
         # album art. The story card stays for Instagram and Snapchat.
         tags.append(f'<meta property="og:image" content="{esc(image)}">')
         tags.append('<meta property="og:image:type" content="image/jpeg">')
+        # ... or the wide card, for the one crawler that crops (§621).
+        height = 630 if payload.get("image_wide") else 1200
         tags.append('<meta property="og:image:width" content="1200">')
-        tags.append('<meta property="og:image:height" content="1200">')
+        tags.append(f'<meta property="og:image:height" content="{height}">')
+        tags.append(f'<meta property="og:image:alt" content="{title}">')
         tags.append('<meta name="twitter:card" content="summary_large_image">')
         tags.append(f'<meta name="twitter:image" content="{esc(image)}">')
     elif is_public_link(card):

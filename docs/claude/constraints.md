@@ -404,6 +404,7 @@
   is standing - who, what, when, in particulars - and it is required. History
   earns its place by explaining the present rather than preceding it.
 <!-- rule:opening-last -->
+> **Current (PROBLEMS.md §628, §630, §632):** the check behind this rule is wider. `MaterialGuard` drops the writer's talk of its own access anywhere in the piece - "the latest price we have", "the last price we can date", a late "I don't have a confirmed result" - while sentences about the world ("the best evidence we have suggests") pass and are tests; `OpeningGuard` is asked first and counts such a sentence as a disclaimer; an apostrophe inside a word is no longer read as a quote mark. The writer is told to give a moving figure its own time as a fact ("it closed Friday at ninety-five"); "the newest information you can establish" is gone from its instructions.
 > **Current (PROBLEMS.md §194):** `_ScriptReader.opening` speaks the local gap sentence before the writer's first word, outside `OpeningGuard`, which still drops every disclaimer the writer produces.
 > **Current (PROBLEMS.md §270, at the owner's direction):** a plan of the piece is made before the evidence - the brief's third part (`EI_OUTLINE=1`), from the question alone: beats, what the first two sentences must pin down as slots ("the team", "the day it was played"), and what the ending lands on. It states no fact (a line with a digit is dropped in code) and the writer is told it is a shape to check against the evidence, not evidence. **The opening is still decided last**, by the writer, from the evidence; the plan only names what it has to situate.
 - **The opening is written last in the order that matters: nothing is spoken
@@ -1491,6 +1492,7 @@
   time: a second sign-up form left standing is one somebody wires a new gate
   to by accident.
 <!-- rule:waitlist-gate -->
+> **Current (PROBLEMS.md §619, the owner 16/11, narrowing §606's "typing the email alone never sets the password"):** let in, **the email alone signs in** - no link, no inbox. `/api/auth/login` with the email of a `_password_needed` account (let in, no password, no Google or Apple) signs it in whatever was typed as the password (`accounts.signed_in_by_email`) and answers `password_needed`; the app's first screen is then **You're in. Set your password**, which asks it **twice** (Password, Confirm password; "Those passwords don't match." before any request), **each box with its own show/hide eye** - web `#passwordFirstConfirm`, iOS `FirstPasswordFields`. Log in sends an empty password and says "Just off the waitlist? Leave the password empty - you'll set one next." (`#authLetInNote`). The owner chose this over a code or the link, knowing the trade: until the password is set, anyone who knows a let-in address can sign in as it. **Never an admin account** (`FAM_ADMIN_ACCOUNTS`): it keeps the link or Forgot password?. Once set, the email alone is "do not match" again; still waiting, a Google/Apple account and a phone sign-in are told how they get in. The let-in email and text say to sign in with the email; the link still claims the month (and still signs in, as before). Below, §606's link as the other device's way in, and "typing the email alone never sets the password", are superseded.
 > **Current (PROBLEMS.md §606, the owner 13/11, reversing §571's password):** joining is **the email and the Terms box, nothing else** - on `/waitlist`, the app's Sign Up and iOS's join (which sends `password` empty); the owner: "a user should only have to put their email in ... you should not need to create a password for the waitlist". The status page's "Set a password" card is gone. **Let in, the account is recognised and its first step is setting a password:** `/api/auth/me` (and `/api/account`) `password_needed` is true for an account the app is open to (`active`, or any once `WAITLIST=0` - launch day) with no password and no Google or Apple (`app._password_needed`), and the app's first screen is **You're in. Set your password** (`#screen-password-first`, iOS `PasswordFirstView`; before the first run, no X, no skip). Another device gets in by the let-in link: `/claim/<code>` signs a `_password_needed` account in (a fresh session, 303 to `/`) - it reached their own address or number, as a reset code would - and once a password is set the link only claims the month again, never a standing way in. The let-in email and text say the link sets the password (`notice_view` `can_sign_in`: a password, or Google/Apple, which keep "sign in the way you joined"; the text still one segment). The date-of-birth activation card waits behind it. Typing the email at a sign-in is recognised, not "do not match" (`accounts.NoPasswordYet`, `_no_password_words`): waiting, "You're on the waitlist, so there's no password yet..."; let in, "Open the link we sent you when you were let in..." (plus Forgot password? when mail exists); a Google/Apple account is named. A join that still sends a password (§571's web page, iOS builds 6-7) is set in the INSERT as before (`old-clients`). Below, §571's "email, a password and the Terms box" and its status-page card describe a join no current client makes.
 > **Current (PROBLEMS.md §571, the owner 11.12, reversing §296's email alone):** joining asks for the **email, a password and the Terms box, in one step** - on `/waitlist`, the app's Sign Up (which goes there) and iOS's join form. The password is the app's own rule (`accounts.check_password`, `MIN_PASSWORD` 8, "Use at least 8 characters for your password." on the page) and is stored in the INSERT that makes the account, so a refused password makes nothing. `/api/waitlist/join` still takes a join with **no** password (`old-clients`: an installed app from §296's weeks), made passwordless exactly as before. An account with none - those joins, Google, Apple - is offered the first one where it looks: the status page's card **Set a password so you can sign back in** (`details.has_password`), and Settings' row reads **Set a password** (not Change password) from `/api/auth/me` `has_password`, opening `/api/auth/password/set` directly. "Already registered" still opens the sign-in, now with the typed password carried. `/admin` shows whether "Forgot password?" exists (`mail.status()`: on, or off and why), since without mail the card is the only way back. Below, §296's "email alone" and "another device gets in by Forgot password?" describe a join no current client makes.
 > **Current (PROBLEMS.md §302, the owner 10.22):** the status page (`/waitlist/me`) plays the same three sign-up samples, above the place card - the landing's section, moved there by `showStatus` - so somebody in line hears FAM, not only reads about it (App Review 2.1/2.2: a waiting person still gets the app's core). The gate already let a waitlisted account's sample replay through; nothing on the server changed.
@@ -1716,6 +1718,107 @@
   > A pasted link's preview is no longer the story card (§559): `og:image`
   > is a square JPEG of the episode's picture with a play button
   > (`link_preview`), because the SVG card was skipped by Messages.
+<!-- rule:link-picture -->
+- **A link's picture is the episode's own or the title cover, and Facebook
+  is named a wide one with the title on it** (§621, the owner's pick of two
+  from five options, after a Facebook group's admin posted a FAM link that
+  reached 168 people with no clicks). Two things, both in what a stranger
+  sees before any word of the episode:
+  **(1) `link_preview.wide`**, 1200x630, the shape Facebook draws a link's
+  picture at. Facebook crops the square preview (§559) to that strip, which
+  cut the logo and the play button off and left a picture with nothing
+  saying it is audio. The wide card is **the picture beside the words**
+  (the owner's pick of two drawn layouts): the picture, square and
+  untouched, on the left; the logo, the length, the title and the play
+  button on FAM's ground on the right. **A long title is cut with an
+  ellipsis here** (four lines; three on the no-picture card) - the owner
+  on one set small enough to fit: "way too much text". The drawings made for a feed (this, the
+  photo and the clip) are the exceptions to §615; Facebook prints the
+  whole title under the card. It is named only in the head
+  served to Facebook's crawler (`sharing.wants_wide`, `WIDE_AGENTS`), and
+  the page says `Vary: User-Agent`. Messages, WhatsApp, X and the rest keep
+  the wordless square the owner picked in §559. This is not the user-agent
+  list §76 settled against: that list decided what was *counted*, so a
+  crawler it missed was a wrong number; a crawler this one misses gets the
+  square every previewer got before. Do not widen it to make another site
+  look better without asking - each previewer's shape is its own question.
+  **(2) No borrowed picture on anything a share draws**
+  (`app._preview_picture`: the square, the wide card, the sticker, the
+  story). The player borrows up the branch and then the facet
+  ([player-layout]) because one episode at a time should never play over a
+  blank screen; a link is the opposite case, and a brain-implant story went
+  out under the science facet's observatory. `fallback` from
+  `thumbnails.pick_for_player` means borrowed, and a borrowed picture is
+  replaced by the title cover. The owner was asked whether a no-picture
+  episode should borrow again and did not say; it does not.
+<!-- rule:post-photo -->
+- **An episode can be had as a photo to post natively, and a person posts
+  it** (§622, the owner's third pick from §621's five options).
+  Facebook holds back a post that links out, whatever the link looks like -
+  the group admin's link post reached 168 people where his posts reach
+  thousands - so the better card of [link-picture] can raise clicks but not
+  reach. `link_preview.post` is the episode as a photo, 1080x1350: the
+  picture on top (its own or none, [link-picture]), then the length, the
+  title (cut at three lines), the episode's one line (the cached summary a
+  card draws, `app._share_hook`; never generated, omitted when there is
+  none) and "Listen to the full episode / <host>", because the photo
+  carries no link. `GET /api/share/<id>/post.jpg` (public behind the
+  waitlist; `?download=1` saves it), named as `post` by `/api/share`. On
+  `/admin/groups` a card with a link heard has **Photo for a post** and
+  says why: send the admin the photo to post and the link for the first
+  comment. **FAM still posts nothing** ([no-social-posting]): it is a
+  file. Not built: the in-app share sheet does not offer it. The clip and
+  the per-community link came after ([post-clip], [post-kit]).
+  Whether a photo post actually restores reach is **unmeasured** - it is
+  the test this was built to run.
+<!-- rule:post-clip -->
+- **An episode's opening can be had as a captioned video clip, cut from
+  kept audio, and a person posts it** (§623, the owner's fourth pick from
+  §621's options; the group admin's own request: "a quick 15-30 second
+  audiogram/video clip (with captions and visuals) to post natively").
+  `clip.py` -> MP4 (H.264/AAC through PyAV, already the Opus codec's
+  dependency; 1080x1350, 10 fps): the picture ([link-picture]), the title,
+  the words on screen as spoken, a bar that fills, then a 2.5s card saying
+  where the whole episode is. Three things are settled:
+  **(1) Nothing is voiced, written or guessed for it.** It reads
+  `SCRIPT_CACHE.get_audio` and the sentence timings measured when that
+  audio was voiced (`StoredAudio.starts`). No kept audio, or audio without
+  timings, is a 409 that says so - never captions placed by estimate.
+  Within a sentence the pieces share its measured span by their letters;
+  no piece leaves its sentence's time.
+  **(2) The opening, in whole sentences** (`clip.opening`): the last
+  sentence that ends inside 30 seconds. No model picks an excerpt - the
+  first sentences are the hook by the writing rules ([situate],
+  [opening-last]). It may run under 15 seconds rather than stop mid-word;
+  a first sentence longer than 30 is no clip.
+  **(3) Admin only** (`GET /api/admin/share/<id>/clip.mp4`), where the
+  photo ([post-photo]) is public: a clip is seconds of one core, so a
+  stranger's request may not start one; one renders at a time and four
+  are remembered. `/admin/groups` has **Video clip for a post**. FAM posts
+  nothing ([no-social-posting]). Not built: the app's share sheet.
+  Unmeasured: whether a clip
+  post restores reach, and how the production voice sounds in one.
+<!-- rule:post-kit -->
+- **Each community has its own share link, so its opens are its own**
+  (§624, the last of §621's five options). `/admin/groups` made one share
+  owned by `communities.SHARER` for an episode, and a share is one row per
+  (owner, question, length) - so every group offered the same episode got
+  the same link, and "0 link clicks" was known only because an admin said
+  so. `communities.sharer_for(lead)` owns one share per lead: same
+  question and length, so **the same cached episode and no extra spend**,
+  a different id. `opens` is the link's own count - reported by the page,
+  never the serve ([share-link]), so a crawler is not an open - and the
+  list says `own_link`; a link made before this is shared, and the card
+  says its count is every group's together and that Listen again makes
+  the community its own. **The kit** (`GET /api/admin/groups/kit`, admin,
+  read only): that link, the photo ([post-photo]), the clip ([post-clip]),
+  a suggested caption and the first comment. The caption is composed in
+  code (`communities.caption_for`: title, the cached one line, "Link in
+  the first comment") and **never contains the link** - a post that links
+  out is held back; the link is the first comment. A person sends all of
+  it; nothing here sends or posts ([community-outreach]). Opens are
+  counted; plays, reach and anything Facebook knows are not - reach is
+  still the admin's to report.
 <!-- rule:no-social-posting -->
 - **FAM posts nothing to anybody's social account, and holds no token.**
   *(SHARING.md.)* Every external destination is reached from the phone: the
@@ -1912,7 +2015,7 @@
   *The bottom message (§299):* what an action did is a plain line - text
   under a short copper rule just above the mini player or the tabs, no box,
   no shadow - for both the old pill and the old Undo bar.
-  > **Current:** round three (PROBLEMS.md §619, the owner's picks of 11.16
+  > **Current:** round three (PROBLEMS.md §637, the owner's picks of 11.16
   > for what every page shares) changes several of these, still inside the
   > rule above - nothing held, 450 ms or less, the change made first.
   > Every curve and time is a named token (`--ease-out` .32,.72,0,1,
@@ -1936,7 +2039,7 @@
   > are instant - and only loading indicators keep a gentle opacity pulse.**
   > A theme change turns every transition off for two frames. The press and
   > the opening intro are unchanged.
-  > **Current:** dailyFAM's picks (PROBLEMS.md §620, the owner's 14 of
+  > **Current:** dailyFAM's picks (PROBLEMS.md §638, the owner's 14 of
   > 11.16), on the same terms. **One picture from tile to player:** the
   > tapped tile's picture grows into DailyFAM's loader (300 ms) and the
   > loader's picture - not a second copy of the tile - flies on into the

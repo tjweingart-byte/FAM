@@ -39,6 +39,7 @@
   .go { background:var(--amber); color:#1b1408; border:0; border-radius:8px; padding:7px 14px; font-weight:600; }
   .go:disabled { opacity:.5; cursor:default; }
   .ghost { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px; font-size:12px; color:var(--muted); }
+  a.ghost { text-decoration:none; display:inline-block; }
   .ghost.on { color:var(--ink); border-color:var(--amber); }
   .plat { font-size:12.5px; color:var(--muted); display:flex; gap:4px; align-items:center; }
   .note { font-size:12.5px; color:var(--muted); }
@@ -135,7 +136,17 @@
   var $ = function (id) { return document.getElementById(id); };
   var tab = "new", ptab = "", data = null, edits = {};
 
-  function esc(s) {
+  // The share link's photo for a native post (§622): /s/<id> ->
+  // /api/share/<id>/post.jpg, saved as a file.
+  function postPhoto(link) {
+    return String(link || "").replace(/\/s\/([^\/?#]+).*$/, "/api/share/$1/post.jpg?download=1");
+  }
+function clipVideo(link) {
+    // A path on this page's own origin: the link may name another host
+    // (PUBLIC_BASE_URL), and the admin's session is only sent to this one.
+    return String(link || "").replace(/^.*\/s\/([^\/?#]+).*$/, "/api/admin/share/$1/clip.mp4");
+  }
+    function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
@@ -255,7 +266,16 @@
           + '<div class="acts" style="margin-top:6px"><button class="ghost" data-act="listen" data-id="' + esc(k.id) + '">'
           + (k.listened_at ? "Listen again" : "Listen first") + '</button>'
           + (k.share_url ? '<button class="ghost" data-act="copylink" data-id="' + esc(k.id) + '">Copy the link</button>' : '')
-          + '</div></div>' : '')
+          + (k.share_url ? '<a class="ghost" href="' + esc(postPhoto(k.share_url)) + '" download>Photo for a post</a>' : '')
+          + (k.share_url ? '<button class="ghost" data-act="clip" data-id="' + esc(k.id) + '">Video clip for a post</button>' : '')
+          + (k.share_url ? '<button class="ghost" data-act="caption" data-id="' + esc(k.id) + '">Copy caption</button>' : '')
+          + (k.share_url ? '<button class="ghost" data-act="comment" data-id="' + esc(k.id) + '">Copy first comment</button>' : '')
+          + '</div>'
+          + (k.share_url ? '<span class="note">On Facebook a post that links out is shown to few people. Send the admin the photo or the 15-30 second captioned clip to post, and the link to put in the first comment.</span>' : '')
+          + (k.share_url ? '<span class="note">' + (k.own_link
+              ? 'Opened ' + (k.opens || 0) + (k.opens === 1 ? ' time' : ' times') + ' from this community’s own link.'
+              : 'This link was made before each community had its own, so its ' + (k.opens || 0) + ' opens are every group’s together. Listen again to give this community its own link.') + '</span>' : '')
+          + '</div>' : '')
       + '<div class="label">First message</div>'
       + '<textarea data-edit="' + esc(k.id) + '">' + esc(msg) + '</textarea>'
       + '<div class="acts"><button class="ghost" data-act="copy" data-id="' + esc(k.id) + '">Copy message</button>'
@@ -343,6 +363,35 @@
     }
     if (act === "claude") {
       copyLong(claudePrompt(k), b);
+      return;
+    }
+    if (act === "caption" || act === "comment") {
+      // The post kit (§624): words to go with the photo or the clip.
+      fetch("/api/admin/groups/kit?id=" + encodeURIComponent(id), { credentials: "same-origin" }).then(function (r) {
+        return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || j.detail || ("HTTP " + r.status)); return j; });
+      }).then(function (kit) {
+        var text = act === "caption" ? kit.caption : kit.first_comment;
+        return copy(text).then(function () { b.textContent = "Copied"; }, function () { prompt("Copy:", text); });
+      }).catch(function (e) { alert(e.message); });
+      return;
+    }
+    if (act === "clip") {
+      // Made on request, from the audio kept when the episode was heard.
+      var was = b.textContent;
+      b.disabled = true; b.textContent = "Making the clip…";
+      fetch(clipVideo(k.share_url), { credentials: "same-origin" }).then(function (r) {
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || j.detail || ("HTTP " + r.status)); },
+                                        function () { throw new Error("HTTP " + r.status); });
+        return r.blob();
+      }).then(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "fam-clip.mp4";
+        document.body.appendChild(a); a.click(); a.remove();
+        b.disabled = false; b.textContent = was;
+      }).catch(function (e) {
+        b.disabled = false; b.textContent = was;
+        alert(e.message);
+      });
       return;
     }
     if (act === "copylink") {

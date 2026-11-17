@@ -1387,7 +1387,8 @@
      "specShort": "360 / 280ms io · iris from bubble"
     }
    ],
-   "picked": "B"
+   "picked": "dropped",
+   "dropNote": "Dropped by the owner (11.17): the 11.16 notes made Private search a lock and the page no longer turns charcoal, so there is no blind to draw. The lock's open/shut change uses the icon-swap recipe (shared play-pause: A)."
   },
   {
    "id": "which-one",

@@ -610,5 +610,23 @@ and `limit` = Lines.
 | 37163 | 110 | 616. The owner's 11.14 notes: mixes best first as stacked decks, a cleaner "Which one do you mean?", the iPhone tour and message box their own height, Return submits (2026-11-14) |
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
-| 37339 | 82 | 619. Motion, round three: the shared picks (2026-11-16) |
-| 37421 | 59 | 620. Motion, round three: dailyFAM (2026-11-17) |
+| 37339 | 56 | 619. Let in, the email alone signs in; the first password is typed twice (2026-11-16) |
+| 37395 | 302 | 620. The security audit: sign-in, sessions and what every response says (2026-11-16) |
+| 37697 | 52 | 621. A link on Facebook: a wide card with the title on it, and never a borrowed picture (2026-11-16) |
+| 37749 | 30 | 622. The episode as a photo to post, the link in the first comment (2026-11-17) |
+| 37779 | 40 | 623. The episode's opening as a captioned clip to post (2026-11-17) |
+| 37819 | 33 | 624. The post kit: a link per community, its opens counted (2026-11-17) |
+| 37852 | 87 | 625. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16) |
+| 37939 | 48 | 626. The owner adopted every candidate, and a project skill for how to work here (2026-11-16) |
+| 37987 | 36 | 627. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16) |
+| 38023 | 64 | 628. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16) |
+| 38087 | 67 | 629. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16) |
+| 38154 | 54 | 630. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16) |
+| 38208 | 43 | 631. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16) |
+| 38251 | 41 | 632. The material check extended to what the writer "can" do with a figure (2026-11-16) |
+| 38292 | 105 | 633. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16) |
+| 38397 | 45 | 634. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16) |
+| 38442 | 22 | 635. The plan for 2027, from an interview with the owner (2026-11-16) |
+| 38464 | 11 | 636. CLAUDE.md trimmed, not its budget raised (2026-11-16) |
+| 38475 | 82 | 637. Motion, round three: the shared picks (2026-11-16) |
+| 38557 | 59 | 638. Motion, round three: dailyFAM (2026-11-17) |

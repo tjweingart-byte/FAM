@@ -1,4 +1,4 @@
-"""Motion, round three: dailyFAM's picks (PROBLEMS.md §620).
+"""Motion, round three: dailyFAM's picks (PROBLEMS.md §638).
 
 Read off the shipped page rather than a browser: the smoke run's "dailyFAM's
 round-three motion holds nothing and leaves nothing behind" drives the same
