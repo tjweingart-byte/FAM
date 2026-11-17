@@ -311,7 +311,15 @@ final class SocialModel: ObservableObject {
         do {
             let page = try await api.inbox()
             let gone = threadsGone
-            threads = page.threads.filter { !gone.contains($0.with) }
+            let next = page.threads.filter { !gone.contains($0.with) }
+            // A chat moving to the top glides there while the ones it
+            // passes slide down a row (round three, §643 `chat-to-top` A:
+            // 280 ms on `--ease-in-out`); the first draw just appears.
+            if !threads.isEmpty && next.map(\.with) != threads.map(\.with) {
+                withAnimation(Motion.anim(Motion.easeInOut(0.28))) { threads = next }
+            } else {
+                threads = next
+            }
             // A chat read on the tap stays read only while it is the one on
             // screen; elsewhere the server's count stands.
             readOnTap = readOnTap.filter { $0 == chatOnScreen }

@@ -367,6 +367,11 @@ struct StoryViewer: View {
     @State private var pullingDown = false
     @State private var dragY: CGFloat = 0
     @State private var reply = ""
+    /// The words just sent, rising out of the box as it empties (round
+    /// three, §641 `story-reply-send` A: 24 pt up as they fade, 220 ms on
+    /// `--ease-in`). Reduce Motion: none.
+    @State private var sentCopy: String?
+    @State private var sentGone = false
     @State private var liked: [String: Bool] = [:]
     @State private var reporting = false
     /// The story's ⋯ (`openStoryMenu`), and what it opens.
@@ -708,6 +713,20 @@ struct StoryViewer: View {
             .frame(minHeight: 44)
             .background(Color.black.opacity(0.18), in: Capsule())
             .overlay(Capsule().stroke(typing ? Self.paper : Self.paper.opacity(0.55)))
+            .overlay(alignment: .leading) {
+                if let sentCopy {
+                    Text(sentCopy)
+                        .font(FAMFont.body(14))
+                        .foregroundStyle(Self.paper)
+                        .lineLimit(1)
+                        .padding(.leading, 18)
+                        .padding(.trailing, 44)
+                        .offset(y: sentGone ? -24 : 0)
+                        .opacity(sentGone ? 0 : 1)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
             Button { like() } label: {
                 ZStack {
                     if on {
@@ -1085,6 +1104,16 @@ struct StoryViewer: View {
         let name = firstName
         reply = ""
         typing = false
+        if !Motion.reduced {
+            sentGone = false
+            sentCopy = text
+            DispatchQueue.main.async {
+                withAnimation(Motion.easeIn(Motion.Dur.reply)) { sentGone = true }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.reply + 0.05) {
+                if sentCopy == text { sentCopy = nil }
+            }
+        }
         Task {
             do {
                 try await model.api.reply(to: to, text: text, story: s)

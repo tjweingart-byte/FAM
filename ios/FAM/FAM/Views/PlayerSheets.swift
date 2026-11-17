@@ -825,6 +825,9 @@ struct ShareSheet: View {
     /// The rows' own height, so the card is as tall as they are and
     /// scrolls past 500 pt (one copy of the rows: a picked friend is kept).
     @State private var rowsHeight: CGFloat = 0
+    /// A face picked above: the bottom row is its Share (`share-pick` C).
+    @State private var choice: ShareChoice?
+    @State private var choiceSending = false
     /// What a tile's or a story's ⋯ shares; nil for the episode playing.
     let subject: ShareSubject?
 
@@ -859,8 +862,24 @@ struct ShareSheet: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(max(rowsHeight, 60), 500))
-            ModalButton(label: "Cancel", wide: true) { dismiss() }
-                .padding(.top, 16)
+            // One cell: Cancel, or Cancel | Share with @x, crossing over
+            // 150 ms; nothing above it moves.
+            ZStack {
+                ModalButton(label: "Cancel", wide: true) { dismiss() }
+                    .opacity(choice == nil ? 1 : 0)
+                    .allowsHitTesting(choice == nil)
+                    .accessibilityHidden(choice != nil)
+                HStack(spacing: 8) {
+                    ModalButton(label: "Cancel") { choice = nil }
+                    ModalButton(label: choiceSending ? "Sending\u{2026}" : (choice?.button ?? ""),
+                                primary: true, wide: true, enabled: !choiceSending) { shareChoice() }
+                }
+                .opacity(choice == nil ? 0 : 1)
+                .allowsHitTesting(choice != nil)
+                .accessibilityHidden(choice == nil)
+            }
+            .animation(Motion.anim(Motion.easeOut(0.15)), value: choice)
+            .padding(.top, 16)
         }
         .environmentObject(model.social)
         // The toast over the sheet: a send's refusal in the server's words
@@ -876,7 +895,7 @@ struct ShareSheet: View {
     private var shareRows: some View {
         VStack(alignment: .leading, spacing: 0) {
             SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
-                          sent: { dismiss() })
+                          sent: { dismiss() }, choice: $choice)
             Text("Anywhere else").monoLabel(9.5, tracking: 0.76)
                 .padding(.top, 20)
                 .padding(.bottom, 4)
@@ -892,6 +911,20 @@ struct ShareSheet: View {
                     .font(FAMFont.body(12))
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(.vertical, 10)
+            }
+        }
+    }
+
+    /// The bottom row's Share: sent, the sheet goes; refused, it stays.
+    private func shareChoice() {
+        guard let pick = choice, !choiceSending else { return }
+        choiceSending = true
+        Task {
+            let ok = await sendInside(to: pick.to, label: pick.label)
+            choiceSending = false
+            if ok {
+                choice = nil
+                dismiss()
             }
         }
     }

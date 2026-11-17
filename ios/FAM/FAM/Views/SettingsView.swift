@@ -85,7 +85,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "You", first: true)
             SetRow(label: "Name and handle", value: you.name.isEmpty ? "Not set" : you.name) { editing = true }
-            SetRow(label: "Profile picture", value: you.avatar.isEmpty ? "None" : "Set") {
+            SetRow(label: "Profile picture",
+                   value: you.checkingPhoto ? "Checking photo\u{2026}"
+                       : ((you.pendingAvatar ?? you.avatar).isEmpty ? "None" : "Set")) {
                 flow.start(hasPicture: !you.avatar.isEmpty)
             }
             SetRow(label: "Where you are", value: you.placeLabel) { locating = true }
@@ -498,10 +500,20 @@ struct SettingsView: View {
             editing = true
             return
         }
+        // Shown at once - here and on yourFAM - with "Checking photo…"
+        // until the image check answers (§645's changes-land B).
+        you.pendingAvatar = url
+        you.checkingPhoto = true
         Task {
             if let refusal = await you.saveAvatar(url, name: name, handle: handle) {
+                you.pendingAvatar = nil
+                you.checkingPhoto = false
                 model.nowPlaying.say(refusal)
             } else {
+                you.checkingPhoto = false
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { you.pendingAvatar = nil }
                 model.nowPlaying.say("Picture saved")
             }
         }

@@ -283,8 +283,9 @@ struct ChatScreen: View {
                 }
                 .padding(.horizontal, 13)
                 .padding(.vertical, 14)
-                .animation(popReady ? .easeOut(duration: 0.26) : nil, value: chat.rows.map(\.id))
-                .animation(.easeOut(duration: 0.2), value: chat.typing)
+                .animation(popReady && !reduceMotion ? Motion.easeOut(Motion.Dur.column) : nil,
+                           value: chat.rows.map(\.id))
+                .animation(reduceMotion ? nil : Motion.easeOut(0.2), value: chat.typing)
                 .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: chat.sendingShown)
             }
             .coordinateSpace(name: "chatScroll")
@@ -363,8 +364,11 @@ struct ChatScreen: View {
                              save: { save(line.row.message) },
                              report: { reportMessage(line.row.message) },
                              retry: { chat.retry(line.row.id) })
-                    .transition(.scale(scale: 0.6, anchor: line.row.message.mine == true ? .bottomTrailing : .bottomLeading)
-                        .combined(with: .opacity))
+                    // Round three (§643 `chat-bubbles` A): the column
+                    // slides up by the new message's height and the bubble
+                    // rises from behind the box, fully opaque - no pop,
+                    // no fade (220 ms on `--ease-out`).
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom))
             }
         }
         if chat.sendingShown {

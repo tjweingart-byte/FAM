@@ -846,11 +846,10 @@ struct MixView: View {
                     Capsule().fill(on ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
                     Circle().fill(on ? FAMColor.ink : FAMColor.textMuted)
                         .frame(width: 18, height: 18)
-                        .overlay(IconSwap(key: on) {
-                            Image(systemName: on ? "lock.open" : "lock")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(on ? FAMColor.copper : FAMColor.surface)
-                        })
+                        // One lock rides the knob; its shackle opens or
+                        // clicks shut just after the knob lands (round
+                        // three, §642 `visibility-switch` B).
+                        .overlay(KnobLock(open: on, color: on ? FAMColor.copper : FAMColor.surface))
                         .padding(3)
                 }
                 .animation(reduceMotion ? nil : Motion.easeInOut(Motion.Dur.knob), value: on)
@@ -1471,3 +1470,43 @@ struct PlayTriangle: Shape {
     }
 }
 
+
+/// The Public / Private knob's lock: its shackle lifts 3 pt and turns 20°
+/// open (180 ms on `--ease-out`, once the knob's 220 ms move has landed)
+/// and drops back shut. Reduce Motion: at once.
+private struct KnobLock: View {
+    let open: Bool
+    let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            KnobShackle()
+                .stroke(color, style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                .frame(width: 5, height: 5)
+                .rotationEffect(.degrees(open ? -20 : 0), anchor: .bottomTrailing)
+                .offset(y: open ? -5.5 : -2.5)
+            RoundedRectangle(cornerRadius: 1.2)
+                .fill(color)
+                .frame(width: 8, height: 6)
+                .offset(y: 2)
+        }
+        .frame(width: 10, height: 12)
+        .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.shackle).delay(Motion.Dur.knob), value: open)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The shackle: two legs and the arc over them.
+private struct KnobShackle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let r = rect.width / 2
+        p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addArc(center: CGPoint(x: rect.midX, y: rect.minY + r), radius: r,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return p
+    }
+}

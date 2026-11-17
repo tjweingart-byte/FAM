@@ -61,6 +61,13 @@ struct YouView: View {
 
     // MARK: - The page
 
+    /// The hub's sections already drawn this session.
+    private static let built = ArrivalBook()
+
+    private static func arrive(_ n: Int) -> ArriveOnce {
+        ArriveOnce(key: "hub:\(n)", delay: Double(n) * 0.08, book: built, blur: 2, duration: 0.3)
+    }
+
     private var hub: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -88,12 +95,16 @@ struct YouView: View {
 
     @ViewBuilder private func content(_ proxy: ScrollViewProxy) -> some View {
         if let p = you.profile {
-            hero(p)
-            stats(p, proxy: proxy)
-            buttons(p)
-            interests(p)
-            tabs.id("shelf")
-            grid(p)
+            // The first draw of a session builds top down (round three,
+            // §645 `hub-arrival` A): photo, numbers, buttons, interests,
+            // the shelf - 8 pt up out of a 2 pt blur, 300 ms on
+            // `--ease-out`, 80 ms apart. Later opens move nothing.
+            hero(p).modifier(Self.arrive(0))
+            stats(p, proxy: proxy).modifier(Self.arrive(1))
+            buttons(p).modifier(Self.arrive(2))
+            interests(p).modifier(Self.arrive(3))
+            tabs.id("shelf").modifier(Self.arrive(4))
+            grid(p).modifier(Self.arrive(5))
         } else if you.profileState == .failed {
             // The web clears the header and offers nothing (Q2): here the
             // gear stays and the page can be asked again.
@@ -131,6 +142,13 @@ struct YouView: View {
     private func hero(_ p: MyProfile) -> some View {
         VStack(spacing: 0) {
             photo(p)
+                .opacity(you.checkingPhoto ? 0.6 : 1)
+                .animation(Motion.anim(.easeOut(duration: 0.15)), value: you.checkingPhoto)
+            if you.checkingPhoto {
+                Text("Checking photo\u{2026}")
+                    .monoLabel(9, color: FAMColor.textFaint, tracking: 0.72)
+                    .padding(.top, 6)
+            }
             // Both wrap, centred, rather than being cut (`large-text`).
             Text(nameLine(p))
                 .font(FAMFont.heading(24, .semibold))
@@ -171,7 +189,9 @@ struct YouView: View {
         let mine = p.stories ?? []
         let name = p.name ?? ""
         let handle = p.handle ?? ""
-        let avatar = p.avatar ?? ""
+        // A photo changed in Settings shows at once, faint while it is
+        // checked (§649).
+        let avatar = you.pendingAvatar ?? p.avatar ?? ""
         let account = model.listener?.authenticated == true
         return ZStack(alignment: .bottomTrailing) {
             if mine.isEmpty && !account {
