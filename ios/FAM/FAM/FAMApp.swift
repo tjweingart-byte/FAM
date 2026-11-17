@@ -10,10 +10,9 @@ struct FAMApp: App {
     /// dark unless it says light (§546).
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 
-    /// The window's scheme is dark: the theme, private search's charcoal
-    /// or the shared screen.
+    /// The window's scheme is dark: the theme, or the shared screen.
     private var chromeDark: Bool {
-        model.darkChrome || model.sharedListenShown || FAMTheme.isDark(theme)
+        model.sharedListenShown || FAMTheme.isDark(theme)
     }
 
     init() {
@@ -44,10 +43,8 @@ struct FAMApp: App {
                 // whatever the window's scheme is...
                 .famThemed()
                 // ...and the window's - the status bar, the keyboard, the
-                // system's sheets - is that theme, or dark over private
-                // search's charcoal while that screen shows, which holds in
-                // either theme (`#screen-home.private-search`), and over the
-                // shared screen's own dark page (listen.html).
+                // system's sheets - is that theme, or dark over the shared
+                // screen's own dark page (listen.html).
                 .preferredColorScheme(chromeDark ? .dark : FAMTheme.scheme(theme))
                 // The staging ribbon's window follows it, so it never holds
                 // the status bar to the theme it was drawn in.
@@ -139,8 +136,7 @@ struct RootView: View {
             .onChange(of: model.stage) { _, _ in model.stageSettled() }
             // A staging server's ribbon over every screen (`.env-ribbon`).
             .onChange(of: model.envRibbon) { _, words in
-                EnvRibbonWindow.show(words, dark: model.darkChrome || model.sharedListenShown
-                                     || FAMTheme.isDark(theme))
+                EnvRibbonWindow.show(words, dark: model.sharedListenShown || FAMTheme.isDark(theme))
             }
             .onChange(of: model.entry) { _, step in
                 if model.stage == .waiting && step == .interests { model.entry = nil }
@@ -474,13 +470,7 @@ struct MainTabs: View {
                     arriveOnTab(.messages)
                 }, onYou: {
                     arriveOnTab(.you)
-                }, dark: tab == .search && model.privateSearch)
-                // The bar is the foot of the search screen's blind: the
-                // charcoal reaches it last as it falls, and leaves it first
-                // as it lifts (`Motion.dimDown`, 320 / 260 ms).
-                .animation(model.privateSearch ? Animation.linear(duration: 0.05).delay(0.27)
-                                               : Animation.linear(duration: 0.05),
-                           value: model.privateSearch)
+                })
             }
         }
         // The bar rises from behind the tabs (260 ms) and drops (200 ms).
@@ -698,12 +688,6 @@ struct TabBar: View {
     var onMyFAM: () -> Void = {}
     var onMessages: () -> Void = {}
     var onYou: () -> Void = {}
-    /// Private search's charcoal: the search screen includes its tab bar
-    /// (`#screen-home.private-search`), so the bar goes dark with it.
-    var dark = false
-
-    private var palette: SearchPalette { SearchPalette.of(dark) }
-
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -721,14 +705,14 @@ struct TabBar: View {
         .padding(.horizontal, 8)
         .padding(.top, 10)
         .padding(.bottom, 4)
-        .background(palette.background.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) { Rectangle().fill(palette.border).frame(height: 1) }
+        .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
     }
 
     private func item(_ which: Tab, _ label: String, _ icon: Path, tone: Path? = nil,
                       badge: Int = 0, dot: Bool = false) -> some View {
         let on = tab == which
-        let color = on ? palette.copper : palette.textMuted
+        let color = on ? FAMColor.copper : FAMColor.textMuted
         return Button {
             if which == .daily { onDaily() }
             if which == .myfam { onMyFAM() }
@@ -750,7 +734,7 @@ struct TabBar: View {
                 }
                 .tabIconPop(on)
                 .frame(width: 44, height: 28)
-                .background(on ? palette.copper.opacity(0.18) : Color.clear, in: Capsule())
+                .background(on ? FAMColor.copper.opacity(0.18) : Color.clear, in: Capsule())
                 // The dot's wash and colour change over 200 ms
                 // (`.tabbar .tab .dot`, `.tone`).
                 .animation(.easeInOut(duration: 0.2), value: on)
@@ -774,10 +758,10 @@ struct TabBar: View {
                     // number, ringed 2 pt in the bar's colour, top -2 right -4.
                     if dot {
                         Circle()
-                            .fill(palette.copper)
+                            .fill(FAMColor.copper)
                             .frame(width: 9, height: 9)
                             .padding(2)
-                            .background(palette.background, in: Circle())
+                            .background(FAMColor.background, in: Circle())
                             .offset(x: 4 + 2, y: -2 - 2)
                             .accessibilityHidden(true)
                     }
@@ -788,7 +772,7 @@ struct TabBar: View {
                 // shows the tab large instead (the Large Content Viewer).
                 Text(label)
                     .font(FAMFont.mono(8.5, bold: on))
-                    .foregroundStyle(on ? palette.copper : palette.textMuted)
+                    .foregroundStyle(on ? FAMColor.copper : FAMColor.textMuted)
                     .animation(.easeInOut(duration: 0.16), value: on)
                     .lineLimit(1)
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -811,7 +795,7 @@ struct TabBar: View {
     /// The round search button, raised out of the bar; copper when it is on.
     private var centre: some View {
         let on = tab == .search
-        let color = on ? FAMColor.ink : palette.text
+        let color = on ? FAMColor.ink : FAMColor.text
         return Button { tab = .search } label: {
             ZStack {
                 Glyph(path: Icons.searchTone, box: CGRect(x: 0, y: 0, width: 24, height: 24))
@@ -821,8 +805,8 @@ struct TabBar: View {
                     .foregroundStyle(color)
             }
                 .frame(width: 50, height: 50)
-                .background(on ? palette.copper : palette.surface, in: Circle())
-                .overlay(Circle().stroke(on ? palette.copper : palette.borderStrong))
+                .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
+                .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
                 // `.tabbar .tab.centre .dot`: 140 ms; none with Reduce Motion.
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.14), value: on)
                 .shadow(color: .black.opacity(0.18), radius: 9, y: 6)

@@ -3593,6 +3593,21 @@ def _mutual(me: str, other: str) -> bool:
                 and SOCIAL.is_following(me, other) and SOCIAL.is_following(other, me))
 
 
+def _follows(me: str, other: str) -> bool:
+    """Whether `me` follows `other` - what opens their vibes and interests
+    to `me` (§638, `profile-followers-only`)."""
+    return bool(me and other and me != other and SOCIAL.is_following(me, other))
+
+
+def _listening_shown(user_ids) -> list[str]:
+    """These listeners, without anybody in private mode (§638): the ones
+    whose plays may be shown to another person - a face on a card, a place
+    on the friends rail. Order kept. One read for all of them."""
+    ids = [u for u in user_ids if u]
+    private = PREFS.private_among(ids)
+    return [u for u in ids if u not in private]
+
+
 def _reachable(me: str, other: str) -> bool:
     """Whether `me` may find or open `other` (WAITLIST.md §4).
 
@@ -3823,6 +3838,14 @@ async def person_profile(request: Request,
         shown = [{"id": tag, "label": topics_mod.TAG_LABELS[tag], "kind": "facet"}
                  for tag in topics_mod.facets_only(prefs.public_interests)
                  ][:topics_mod.PROFILE_INTEREST_SLOTS]
+    # **Vibes and interests are for the people who follow them** (§638, the
+    # owner's direction): somebody who does not follow gets the page - name,
+    # face, place, numbers, public mixes - with both lists empty and
+    # `locked` saying why, so the client can say "Follow to see" rather than
+    # draw a page that reads as somebody who has vibed nothing.
+    locked = not _follows(me, target)
+    if locked:
+        shown = []
     interests = [row["id"] for row in shown]
     added_mixes = MIXES.added_from(me) if me and _has_account(request) else set()
     return {
@@ -3850,7 +3873,8 @@ async def person_profile(request: Request,
         "vibes": [dict(e.as_dict(person["name"], person["handle"]),
                        topic=_topic_label(e.query, e.title),
                        thumb=_picture_url(e.query, e.title, e.minutes))
-                  for e in SOCIAL.echoes_by(target, limit=12, viewer=me)],
+                  for e in ([] if locked else
+                            SOCIAL.echoes_by(target, limit=12, viewer=me))],
         "vibe_count": len(SOCIAL.echoes_by(target, limit=200, viewer=me)),
         "interests": interests,
         "interest_labels": [row["label"] for row in shown],
@@ -3858,6 +3882,11 @@ async def person_profile(request: Request,
         # owner): a place they put on their profile is something they chose
         # to show, as typed - city, state, country, whichever they gave.
         "location": prefs.location.label,
+        # True when this listener does not follow them, so `vibes` and
+        # `interests` above are withheld rather than empty (§638).
+        "locked": locked,
+        # Whether they are in private mode: the page says so (§638).
+        "private": prefs.private_mode,
         "follows": SOCIAL.follow_counts(target),
         **_person_friends(me, target),
     }
@@ -8886,6 +8915,8 @@ class PreferenceRequest(BaseModel):
     private_search: Optional[bool] = None
     #: §594: the first run's tour finished or skipped.
     tour_done: Optional[bool] = None
+    #: §638: private mode - their listening shown to nobody.
+    private_mode: Optional[bool] = None
 
 
 def _interests_for(request: Request, given: str = "") -> tuple[str, ...]:
@@ -9219,7 +9250,8 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                            weekly_recap=req.weekly_recap, intro_done=req.intro_done,
                            searches_public=req.searches_public,
                            private_search=req.private_search,
-                           tour_done=req.tour_done)
+                           tour_done=req.tour_done,
+                           private_mode=req.private_mode)
     except prefs_mod.PreferenceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # Saved topics are also *picks*, and the log is what the ranker reads.
@@ -9600,7 +9632,7 @@ async def myfam_section(request: Request,
     written = _written_probe(minutes, shared)
     try:
         place = _place_for(request)
-        circle = SOCIAL.circle_of(user)
+        circle = _listening_shown(SOCIAL.circle_of(user))
         body = topics_mod.build_section(
             EVENTS, user, key, interests=_interests_for(request, interests),
             circle=circle, written=written,
@@ -9671,6 +9703,9 @@ def _mark_friends_listened(user: str, tiles: list[dict],
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
+        # Nobody in private mode (§638): their listening is shown to no one.
+        open_ = set(_listening_shown(people))
+        people = {uid: p for uid, p in people.items() if uid in open_}
         untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
                    if public_searches_only else None)
         listened = topics_mod.friends_who_listened(EVENTS, list(people), tiles,
@@ -10082,7 +10117,9 @@ async def episode_card(request: Request,
             author = entry.get("author") or ""
             if author and author in apart:
                 break
-            if author and author != listener and PREFS.get(author).searches_public:
+            shows = PREFS.get(author) if author and author != listener else None
+            # Private mode outranks the older switch (§638).
+            if shows and shows.searches_public and not shows.private_mode:
                 handle = SOCIAL.person(author).get("handle") or ""
                 searcher = "@" + handle if handle else ""
             break
@@ -10822,7 +10859,7 @@ def _draw_myfam(request: Request, user: str, minutes: int, interests: str,
     shared = _FeedProbe(minutes)
     written = _written_probe(minutes, shared)
     place = _place_for(request)
-    circle = SOCIAL.circle_of(user)
+    circle = _listening_shown(SOCIAL.circle_of(user))
     feed = topics_mod.build_feed(
         EVENTS, user, interests=_interests_for(request, interests),
         circle=circle, written=written,
@@ -11325,7 +11362,7 @@ def _vibe_post_owner(request: Request, handle: str) -> str:
     if target == me:
         return me
     if not _reachable(me, target) or MODERATION.is_apart(me, target) \
-            or MODERATION.is_suspended(target):
+            or MODERATION.is_suspended(target) or not _follows(me, target):
         return ""
     return target
 
@@ -11338,7 +11375,7 @@ def _visible_vibe(request: Request, echo_id: int) -> dict:
     if row and row["user_id"] != me:
         owner = row["user_id"]
         if (not _reachable(me, owner) or MODERATION.is_apart(me, owner)
-                or MODERATION.is_suspended(owner)
+                or MODERATION.is_suspended(owner) or not _follows(me, owner)
                 or (row.get("audience") and me not in SOCIAL.close_friends(owner))):
             row = None
     if not row:
@@ -12207,7 +12244,7 @@ def _explore_rail_entries(request: Request, listener: str, feed: str,
             tiles = topics_mod.guest_section(key)["topics"]
         else:
             place = _place_for(request)
-            circle = SOCIAL.circle_of(listener)
+            circle = _listening_shown(SOCIAL.circle_of(listener))
             shared = _FeedProbe(BROWSE_MINUTES)
             tiles = topics_mod.build_section(
                 EVENTS, listener, key,

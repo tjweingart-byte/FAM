@@ -2446,6 +2446,11 @@ class Event:
     algo: str = ""
 
 
+def heard_day(at: float) -> int:
+    """The UTC day a listen was heard on, as days since 1970 (§639)."""
+    return int(float(at) // 86400)
+
+
 class EventStore:
     """Append-only interaction log. SQLite for the same reasons as the cache:
     no new dependency, survives restarts, shared by every worker."""
@@ -2497,6 +2502,22 @@ class EventStore:
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS heard_listens_at ON heard_listens(at)")
+            # Which days each listener heard something (§639), one row a
+            # listener a day. `heard_listens` keeps only the *latest* time a
+            # question was heard, so somebody who hears the same mix every
+            # morning leaves no trace of last week - and "listened this week
+            # and also last week" is the number FAM is planned around. Never
+            # read for taste or a crowd row; /admin counts from it.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS heard_days (
+                       user_id TEXT NOT NULL,
+                       day     INTEGER NOT NULL,
+                       PRIMARY KEY (user_id, day)
+                   )"""
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS heard_days_day ON heard_days(day)")
+            self._backfill_heard_days(conn)
             # The fitted ranking order (`learned_rank`, §131). One row, in
             # this database rather than a file of its own, because it is
             # *derived from* this log: it lives where the log lives, is on
@@ -2962,6 +2983,22 @@ class EventStore:
             return False
         return self.mark_heard(user_id, query, now)
 
+    def _backfill_heard_days(self, conn) -> None:
+        """Once, when `heard_days` is first made: the days `heard_listens`
+        still remembers. Best effort - a question heard again since has
+        only its latest day - and never worth failing to start over."""
+        try:
+            if conn.execute("SELECT 1 FROM heard_days LIMIT 1").fetchone():
+                return
+            rows = conn.execute("SELECT user_id, at FROM heard_listens").fetchall()
+            for user_id, at in rows:
+                conn.execute(
+                    "INSERT INTO heard_days (user_id, day) VALUES (?, ?)"
+                    " ON CONFLICT(user_id, day) DO NOTHING",
+                    (user_id, heard_day(at)))
+        except Exception:
+            log.exception("could not fill heard_days from heard_listens")
+
     def mark_heard(self, user_id: str, query: str, at: float,
                    topic_id: str = "") -> bool:
         """Keep one heard listen. `note_progress` is the only caller on a
@@ -2979,6 +3016,12 @@ class EventStore:
                 "INSERT INTO heard_listens (user_id, question, at) VALUES (?, ?, ?)"
                 " ON CONFLICT(user_id, question) DO UPDATE SET at = excluded.at",
                 (user_id[:64], norm[:300], float(at)))
+            # The day it was heard on, kept apart (§639): the row above is
+            # overwritten the next time this question is heard.
+            self._conn().execute(
+                "INSERT INTO heard_days (user_id, day) VALUES (?, ?)"
+                " ON CONFLICT(user_id, day) DO NOTHING",
+                (user_id[:64], heard_day(at)))
         except Exception:
             log.exception("could not keep a heard listen")
             return False
@@ -3262,6 +3305,7 @@ class EventStore:
         # what goes with the log it was measured against.
         try:
             self._conn().execute("DELETE FROM heard_listens")
+            self._conn().execute("DELETE FROM heard_days")
         except Exception:
             log.exception("could not clear the heard listens")
         finally:
@@ -3287,7 +3331,7 @@ class EventStore:
         than that it tried.
         """
         removed = 0
-        for table in ('events', 'heard_listens'):
+        for table in ('events', 'heard_listens', 'heard_days'):
             try:
                 cur = self._conn().execute(
                     f"DELETE FROM {table} WHERE user_id = ?", (user_id,))

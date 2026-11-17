@@ -8,9 +8,9 @@ import UIKit
 //   mix's own cover in its corner, ringed in the signal's colour; the name
 //   and one line naming the topic and the story; a "Trending" or "Major
 //   update" pill where the arrow was.
-// * Q5 inside the mix: the changed topic's row outlined, the episode last
-//   heard and today's as two bubbles joined by an arrow (`mixBubblesHTML`),
-//   "Start with what changed" and "or play all N from the top".
+// * Q5 inside the mix: the changed topic's row outlined and tagged, "Start
+//   with what changed" and "or play all N from the top". The two bubbles
+//   under the row ("Sat: ...", "Today: ...") are gone (11.16 notes).
 // * A picture on every topic row (`mixTopicPicHTML`): the one the player
 //   will draw for it, else the subject's icon on paper.
 //
@@ -288,126 +288,6 @@ struct MixSignalTag: View {
         let words = Text(signal.label + " \u{00B7} since you last listened")
             .foregroundColor(color)
         return icon + words
-    }
-}
-
-/// Q5's bubbles (`mixBubblesHTML`): what was last heard, then "→ Today:"
-/// in the signal's outline. One bubble when they have never heard it. The
-/// arrow opens the "Today" bubble so on a narrow row the two stack.
-struct MixBubbles: View {
-    let since: MixSince
-    let color: Color
-
-    var body: some View {
-        BubbleFlow(spacing: 5) {
-            if let then = since.then {
-                thenBubble(then)
-                nowBubble(arrow: true)
-            } else {
-                nowBubble(arrow: false)
-            }
-        }
-    }
-
-    private func thenBubble(_ then: MixSinceSide) -> some View {
-        let day = then.day.isEmpty ? "Before" : then.day
-        return Text(day + ": " + then.title)
-            .font(FAMFont.body(11))
-            .foregroundStyle(FAMColor.textMuted)
-            .lineSpacing(1)
-            .multilineTextAlignment(.leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 9))
-    }
-
-    private func nowBubble(arrow: Bool) -> some View {
-        let title = since.now?.title ?? ""
-        let today: Text
-        if arrow {
-            let mark = Text("\u{2192}")
-                .font(FAMFont.body(12, .bold))
-                .foregroundColor(color)
-            today = mark + Text(" Today: " + title).foregroundColor(FAMColor.text)
-        } else {
-            today = Text("Today: " + title).foregroundColor(FAMColor.text)
-        }
-        return today
-            .font(FAMFont.body(11))
-            .lineSpacing(1)
-            .multilineTextAlignment(.leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(color, lineWidth: 1))
-    }
-}
-
-/// `.mix-bubbles`: a row that wraps (`flex-wrap: wrap; gap: 5px;
-/// align-items: center`), each bubble offered the whole width so a long
-/// one wraps inside itself rather than running off the row.
-struct BubbleFlow: Layout {
-    var spacing: CGFloat = 5
-
-    private struct Placed {
-        let index: Int
-        let size: CGSize
-    }
-
-    private func lines(width: CGFloat, subviews: Subviews) -> [[Placed]] {
-        var out: [[Placed]] = []
-        var current: [Placed] = []
-        var x: CGFloat = 0
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil))
-            let needed = current.isEmpty ? size.width : x + spacing + size.width
-            if !current.isEmpty && needed > width {
-                out.append(current)
-                current = []
-                x = 0
-            }
-            x = current.isEmpty ? size.width : x + spacing + size.width
-            current.append(Placed(index: index, size: size))
-        }
-        if !current.isEmpty { out.append(current) }
-        return out
-    }
-
-    private func lineHeight(_ line: [Placed]) -> CGFloat {
-        var tallest: CGFloat = 0
-        for placed in line { tallest = max(tallest, placed.size.height) }
-        return tallest
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 10_000
-        let all = lines(width: width, subviews: subviews)
-        var height: CGFloat = 0
-        var widest: CGFloat = 0
-        for (n, line) in all.enumerated() {
-            if n > 0 { height += spacing }
-            height += lineHeight(line)
-            var x: CGFloat = 0
-            for (i, placed) in line.enumerated() {
-                x += placed.size.width + (i > 0 ? spacing : 0)
-            }
-            widest = max(widest, x)
-        }
-        return CGSize(width: min(widest, width), height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let all = lines(width: bounds.width, subviews: subviews)
-        var y = bounds.minY
-        for line in all {
-            let tall = lineHeight(line)
-            var x = bounds.minX
-            for placed in line {
-                let top = y + (tall - placed.size.height) / 2
-                subviews[placed.index].place(at: CGPoint(x: x, y: top), proposal: ProposedViewSize(placed.size))
-                x += placed.size.width + spacing
-            }
-            y += tall + spacing
-        }
     }
 }
 

@@ -1,68 +1,6 @@
 import FAMSafety
 import SwiftUI
 
-// MARK: - The two palettes of searchFAM
-
-/// searchFAM's colours: the theme's own (`light` is the app's tokens, which
-/// follow Settings' "Dark mode"), or the private charcoal
-/// (`#screen-home.private-search`, index.html:219-228), which holds in either
-/// theme and covers only the search screen and its tab bar - never the
-/// player, the sheets or the voice search screen (shots 11, 37).
-struct SearchPalette: Equatable {
-    let background: Color
-    let surface: Color
-    let surface2: Color
-    let copper: Color
-    let text: Color
-    let textMuted: Color
-    let textFaint: Color
-    let border: Color
-    let borderStrong: Color
-
-    static let light = SearchPalette(
-        background: FAMColor.background, surface: FAMColor.surface, surface2: FAMColor.surface2,
-        copper: FAMColor.copper, text: FAMColor.text, textMuted: FAMColor.textMuted,
-        textFaint: FAMColor.textFaint, border: FAMColor.border, borderStrong: FAMColor.borderStrong)
-
-    /// `--bg` #161519, `--surface` #232129, `--surface-2` #2C2A33, the gold
-    /// #E0B563, `--text` #F1EEF4, muted #A7A2B3, faint #7F7A8B, the borders
-    /// at .12 and .22 of the text colour.
-    static let charcoal = SearchPalette(
-        background: Color(hex: 0x161519), surface: Color(hex: 0x232129), surface2: Color(hex: 0x2C2A33),
-        copper: Color(hex: 0xE0B563), text: Color(hex: 0xF1EEF4), textMuted: Color(hex: 0xA7A2B3),
-        textFaint: Color(hex: 0x7F7A8B),
-        border: Color(red: 241 / 255, green: 238 / 255, blue: 244 / 255).opacity(0.12),
-        borderStrong: Color(red: 241 / 255, green: 238 / 255, blue: 244 / 255).opacity(0.22))
-
-    static func of(_ privateOn: Bool) -> SearchPalette { privateOn ? charcoal : light }
-}
-
-// MARK: - The private blind (`Motion.dimDown`)
-
-/// What is left of the page as it was while the new one is revealed: the
-/// web's `clip-path: inset(h 0 0 0)` (the charcoal falling, `fromTop`) or
-/// `inset(0 0 h 0)` (lifting). It reaches up past the view so the status
-/// bar's strip, drawn by the page's background, goes with it.
-struct BlindClip: Shape {
-    var hidden: CGFloat
-    let fromTop: Bool
-
-    var animatableData: CGFloat {
-        get { hidden }
-        set { hidden = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let full = CGRect(x: rect.minX - 50, y: rect.minY - 100,
-                          width: rect.width + 100, height: rect.height + 100)
-        let gone = full.height * min(max(hidden, 0), 1)
-        let kept = fromTop
-            ? CGRect(x: full.minX, y: full.minY + gone, width: full.width, height: full.height - gone)
-            : CGRect(x: full.minX, y: full.minY, width: full.width, height: full.height - gone)
-        return Path(kept)
-    }
-}
-
 // MARK: - The bar's and the bubbles' icons, path for path (spec 1.7)
 
 enum SearchIcons {
@@ -124,24 +62,18 @@ enum SearchIcons {
         return p
     }()
 
-    /// Private: the hat and the glasses.
-    static let incognito: Path = {
+    /// Private search off (`.lock-open`, 11.16 notes): the padlock with its
+    /// shackle swung open - `M8 11V7.5a4 4 0 0 1 7.6-1.7`.
+    static let lockOpen: Path = {
         var p = Path()
-        p.move(to: CGPoint(x: 3, y: 11)); p.addLine(to: CGPoint(x: 21, y: 11))
-        p.move(to: CGPoint(x: 5.5, y: 11)); p.addLine(to: CGPoint(x: 7.2, y: 5.4))
-        p.addQuadCurve(to: CGPoint(x: 8.6, y: 4.3), control: CGPoint(x: 7.5, y: 4.3))
-        p.addLine(to: CGPoint(x: 15.4, y: 4.3))
-        p.addQuadCurve(to: CGPoint(x: 16.8, y: 5.4), control: CGPoint(x: 16.5, y: 4.3))
-        p.addLine(to: CGPoint(x: 18.5, y: 11))
-        p.addEllipse(in: CGRect(x: 4.7, y: 13.7, width: 5.6, height: 5.6))
-        p.addEllipse(in: CGRect(x: 13.7, y: 13.7, width: 5.6, height: 5.6))
-        p.move(to: CGPoint(x: 10.3, y: 16.3))
-        p.addCurve(to: CGPoint(x: 13.7, y: 16.3), control1: CGPoint(x: 11.4, y: 15.7),
-                   control2: CGPoint(x: 12.6, y: 15.7))
+        p.addRoundedRect(in: CGRect(x: 5, y: 11, width: 14, height: 10), cornerSize: CGSize(width: 2, height: 2))
+        p.move(to: CGPoint(x: 8, y: 11)); p.addLine(to: CGPoint(x: 8, y: 7.5))
+        p.addArc(center: CGPoint(x: 12, y: 7.5), radius: 4, startAngle: .degrees(180),
+                 endAngle: .degrees(334.7), clockwise: false)
         return p
     }()
 
-    /// The private note's lock.
+    /// Private search on (`.lock-shut`): the closed padlock.
     static let lock: Path = {
         var p = Path()
         p.addRoundedRect(in: CGRect(x: 5, y: 11, width: 14, height: 10), cornerSize: CGSize(width: 2, height: 2))
@@ -225,13 +157,12 @@ struct ChipFlow: Layout {
 /// the ×; 0.6 while reading; coral once failed.
 struct AttachChip: View {
     let slot: AttachSlot
-    let palette: SearchPalette
     let remove: () -> Void
 
     var body: some View {
         let failed = !slot.error.isEmpty
-        let ink = failed ? FAMColor.coral : palette.text
-        let soft = failed ? FAMColor.coral : palette.textMuted
+        let ink = failed ? FAMColor.coral : FAMColor.text
+        let soft = failed ? FAMColor.coral : FAMColor.textMuted
         return HStack(spacing: 7) {
             Text(slot.name.isEmpty ? "attachment" : slot.name)
                 .font(FAMFont.body(11))
@@ -260,8 +191,8 @@ struct AttachChip: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .frame(minHeight: 28)
-        .background(palette.surface, in: RoundedRectangle(cornerRadius: 9))
-        .overlay(RoundedRectangle(cornerRadius: 9).stroke(failed ? FAMColor.coral : palette.borderStrong))
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(failed ? FAMColor.coral : FAMColor.borderStrong))
         .opacity(slot.pending ? 0.6 : 1)
     }
 }

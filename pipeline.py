@@ -119,6 +119,12 @@ OPENER_HEADROOM_TARGET = 8.0
 MAX_OPENER_FILLS = 12
 # Residual gap after the last top-up, closed with room tone rather than a cut.
 MAX_TAIL_SILENCE = 6.0
+# A chunk whose speech lasts this many times what its words take at the
+# planned rate is reported on /admin (`_note_if_said_twice`): the voice has
+# no check of its own against saying a short chunk again, and the first chunk
+# is one sentence on its own. Report only; never under this many words.
+SAID_TWICE_RATIO = 1.6
+SAID_TWICE_MIN_WORDS = 4
 
 
 @dataclass
@@ -300,6 +306,8 @@ class GenerationStats:
     min_headroom: float = 999.0
     #: True if the stream ever fell behind realtime.
     starved: bool = False
+    #: True once a chunk that ran about twice its length was reported.
+    said_twice: bool = False
     #: Voiced ahead of any tap, with nobody listening (§610).
     ahead: bool = False
     #: Wall clock at which the first audio left the pipeline.
@@ -769,6 +777,7 @@ class PodcastPipeline:
         if not pcm:
             return
         pcm = self._level_pace(pcm, voiced, stats)
+        self._note_if_said_twice(voiced, pcm, chunk.index, stats)
 
         audio_seconds = pcm_duration(len(pcm), self.engine.sample_rate)
         stats.marks.add_chunk(fit.text, len(fit.spoken),
@@ -850,6 +859,44 @@ class PodcastPipeline:
             if spare <= 0:
                 return
             await asyncio.sleep(min(spare, 1.0))
+
+    def _note_if_said_twice(self, voiced: str, pcm: bytes, index: int,
+                            stats: "GenerationStats") -> None:
+        """A chunk the voice took about twice as long over as its words
+        need, on /admin's errors - once an episode. Report only.
+
+        The owner (2026-11-16) heard an episode's first sentence twice in a
+        row. The first chunk is that sentence alone (`speech_assembly`), and
+        Chatterbox's English model has no check against reading a short text
+        again (`chatterbox_speed`), so a voice that did is one way to hear
+        exactly that - with the script and the captions showing it once.
+        Nothing here could tell: this measures the speech in the chunk
+        (silence at either end not counted) against its words at the planned
+        rate. Only a production voice; never raises; changes no audio."""
+        if stats.said_twice or not getattr(self.engine, "keeps_audio", False):
+            return
+        try:
+            words = count_words(voiced)
+            rate = float(settings.target_wpm or 0)
+            if words < SAID_TWICE_MIN_WORDS or rate <= 0:
+                return
+            import pace_level
+
+            expected = words * 60.0 / rate
+            heard = pace_level.voiced_seconds(pcm, self.engine.sample_rate)
+            if heard < expected * SAID_TWICE_RATIO:
+                return
+            stats.said_twice = True
+            which = "the first chunk" if index == 0 else f"chunk {index + 1}"
+            log.warning("the voice spoke %.1fs for %d words in %s (about %.1fs "
+                        "expected): %r", heard, words, which, expected, voiced[:120])
+            pipeline_errors.record(
+                "voice", "a chunk ran twice its length",
+                f"{heard:.1f}s of speech for {words} words in {which} (about "
+                f"{expected:.1f}s expected): {voiced[:200]}",
+                stats.query or stats.title, pipeline_errors.NOTICE)
+        except Exception:  # noqa: BLE001 - a report, never the episode
+            log.debug("could not measure a chunk's length", exc_info=True)
 
     def _level_pace(self, pcm: bytes, voiced: str, stats: "GenerationStats") -> bytes:
         """The chunk at the episode's own pace (`pace_level`): only for an

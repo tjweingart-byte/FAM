@@ -5,11 +5,13 @@ import UIKit
 /// searchFAM, Google's shape (`search-bar`, spec 1.2): the bookshelf top
 /// left, the FAM mark a quarter of the way down, the rounded bar with the
 /// mic, attach and the copper go inside its right, the chips of what is
-/// attached, the Length / Voice / Private bubbles (which never print the
-/// choice), the private note, and the five trending searches.
+/// attached, the Length / Voice bubbles (which never print the choice),
+/// private search's lock, and the five trending searches.
 ///
-/// Private search turns this screen and its tab bar charcoal; the player,
-/// the sheets and voice search stay in the chosen theme, as on the web. Length goes back
+/// Private search is a lock and nothing more (11.16 notes): open while it
+/// is off, closed and copper while it is on. The page keeps its colours -
+/// it used to go charcoal behind a falling blind (§282, §298), with a note
+/// under the bubbles. Length goes back
 /// to 1.5 whenever the app returns. "Hey FAM" (§158) is Settings' row; when
 /// it hears the phrase it opens voice search over this screen.
 struct SearchView: View {
@@ -59,15 +61,9 @@ struct SearchView: View {
     @State private var pauseTask: Task<Void, Never>?
     /// The app went to the background since it was last in front.
     @State private var wasAway = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// At the accessibility sizes the three bubbles stack, each the full
     /// width, so none of their words is cut (`large-text`).
     @Environment(\.dynamicTypeSize) private var typeSize
-    /// The private blind: the switch's state being wiped away, how much of
-    /// it is gone, and which wipe is the latest.
-    @State private var veil: Bool?
-    @State private var veilHidden: CGFloat = 0
-    @State private var veilToken = 0
 
     /// `DEFAULT_LENGTH_MINUTES`.
     static let defaultMinutes = 1.5
@@ -76,37 +72,14 @@ struct SearchView: View {
     static let trendRefetch: TimeInterval = 60
     static let trendShown = 5
 
-    static let privateNote = "Private search is on until you turn it off. Your searches and Go Deeper episodes won\u{2019}t appear in the episode library, on your friends\u{2019} DailyFAM, in your listening history, or teach your feed."
-
     private var blank: Bool { words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var goShown: Bool { !blank || !attach.isEmpty }
     private var trendingShown: Bool { blank && attach.isEmpty && !trending.isEmpty }
 
-    /// The system's chrome (the status bar, the keyboard) goes dark with the
-    /// charcoal (`color-scheme: dark`) only while this screen is what shows.
-    private var chromeDark: Bool {
-        model.privateSearch && tab == .search && !library && !linkOpen && !photoPicking
-            && !filePicking && !model.showPlayer && !voice.isOpen && !loading.visible
-    }
-
     var body: some View {
         GeometryReader { geo in
-            ZStack {
-                page(model.privateSearch, live: true, geo: geo)
-                // `Motion.dimDown` (§298): the page as it was lies over the
-                // new one and is wiped away - from the top when the charcoal
-                // falls (320 ms), from the bottom when it lifts (260 ms).
-                if let was = veil {
-                    page(was, live: false, geo: geo)
-                        .clipShape(BlindClip(hidden: veilHidden, fromTop: !was))
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-            }
+            page(geo: geo)
         }
-        // Without the blind (reduced motion), `transition: background .25s`.
-        .animation(reduceMotion ? Animation.easeInOut(duration: 0.25) : nil, value: model.privateSearch)
-        .onChange(of: model.privateSearch) { old, now in dropBlind(from: old, turningOn: now) }
         // Search DailyFAM comes back once the episode it played is closed
         // or given up (`playMyFamSearch` keeps the list under the player).
         .onChange(of: model.showPlayer) { _, _ in catalogBack() }
@@ -162,7 +135,6 @@ struct SearchView: View {
             if minutes != value { minutes = value }
         }
         .onAppear { if minutes != model.searchLength { minutes = model.searchLength } }
-        .onChange(of: chromeDark) { _, dark in model.darkChrome = dark }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             photoItem = nil
@@ -207,79 +179,40 @@ struct SearchView: View {
 
     // MARK: - The page
 
-    /// The whole screen in one state of the switch: `live` is the one in
-    /// use; the other is the blind's still copy of the page as it was.
-    private func page(_ privateOn: Bool, live: Bool, geo: GeometryProxy) -> some View {
-        let pal = SearchPalette.of(privateOn)
-        return ScrollView {
-            content(pal, privateOn: privateOn, live: live, height: geo.size.height, width: geo.size.width)
+    private func page(geo: GeometryProxy) -> some View {
+        ScrollView {
+            content(height: geo.size.height, width: geo.size.width)
         }
         .scrollDismissesKeyboard(.interactively)
-        .scrollDisabled(!live)
-        .overlay(alignment: .topLeading) { bookshelf(pal, live: live) }
-        .background(pal.background.ignoresSafeArea())
+        .overlay(alignment: .topLeading) { bookshelf }
+        .background(FAMColor.background.ignoresSafeArea())
     }
 
-    /// The blind runs only where it is seen: on this screen, in front, with
-    /// motion allowed; anywhere else the switch is painted as it is.
-    private func dropBlind(from old: Bool, turningOn: Bool) {
-        veilToken += 1
-        let mine = veilToken
-        guard old != turningOn, tab == .search, !reduceMotion, scenePhase == .active,
-              !library, !model.showPlayer, !loading.visible, !voice.isOpen else {
-            veil = nil
-            return
-        }
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) {
-            veil = old
-            veilHidden = 0
-        }
-        Task { @MainActor in
-            // A frame with the old page drawn over the new, then the wipe.
-            try? await Task.sleep(nanoseconds: 16_000_000)
-            guard mine == veilToken else { return }
-            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: turningOn ? 0.32 : 0.26)) {
-                veilHidden = 1
-            } completion: {
-                if mine == veilToken { veil = nil }
-            }
-        }
-    }
-
-    private func content(_ pal: SearchPalette, privateOn: Bool, live: Bool,
-                         height: CGFloat, width: CGFloat) -> some View {
+    private func content(height: CGFloat, width: CGFloat) -> some View {
         VStack(spacing: 0) {
             // The web's spacer (`flex: 0 0 25%`): the mark and the bar sit a
             // quarter of the way down the screen.
             Color.clear.frame(height: max(0, (height - 20) * 0.25))
-            FAMLetters(capHeight: 21.3, color: pal.copper)
+            FAMLetters(capHeight: 21.3, color: FAMColor.copper)
                 .frame(height: 33)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 22)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("FAM")
-            bar(pal, live: live, width: width - 36)
+            bar(width: width - 36)
             if !attach.isEmpty {
                 ChipFlow(spacing: 6) {
                     ForEach(attach.items) { slot in
-                        AttachChip(slot: slot, palette: pal) { attach.remove(slot) }
+                        AttachChip(slot: slot) { attach.remove(slot) }
                     }
                 }
                 .padding(.top, 9)
                 .padding(.horizontal, 2)
             }
-            bubbles(pal, privateOn: privateOn)
+            bubbles
                 .padding(.top, 12)
-            if privateOn {
-                privateNote(pal)
-                    .padding(.top, 12)
-                    .padding(.horizontal, 4)
-                    .transition(.opacity)
-            }
             if trendingShown {
-                trendingList(pal)
+                trendingList
                     .padding(.top, 16)
             }
         }
@@ -288,13 +221,13 @@ struct SearchView: View {
         .padding(.bottom, 18)
     }
 
-    private func bookshelf(_ pal: SearchPalette, live: Bool) -> some View {
+    private var bookshelf: some View {
         Button { library = true } label: {
             // The web's own bookshelf (index.html:3927), 19 pt at 1.8.
             WebIcon(path: Icons.bookshelf, size: 19, line: 1.8)
-                .foregroundStyle(pal.text)
+                .foregroundStyle(FAMColor.text)
                 .frame(width: 34, height: 34)
-                .overlay(Circle().stroke(pal.borderStrong))
+                .overlay(Circle().stroke(FAMColor.borderStrong))
                 .contentShape(Circle())
         }
         .buttonStyle(.press)
@@ -309,51 +242,36 @@ struct SearchView: View {
     /// in that shape; then the words take the bar's width and the three
     /// buttons drop to a row of their own, on the right (`.tall`). One
     /// layout either way, so the field keeps its focus as it changes.
-    private func bar(_ pal: SearchPalette, live: Bool, width: CGFloat) -> some View {
+    private func bar(width: CGFloat) -> some View {
         let tall = isTall(barWidth: width)
         let layout = tall
             ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 0))
             : AnyLayout(HStackLayout(alignment: .bottom, spacing: 6))
         let radius: CGFloat = tall ? 22 : 26
         return layout {
-            boxText(pal, live: live)
+            field
                 .padding(.trailing, tall ? 12 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            buttons(pal)
+            buttons
         }
         .padding(.leading, 18)
         .padding(.trailing, 6)
         .padding(.top, tall ? 8 : 6)
         .padding(.bottom, 6)
         .frame(minHeight: 52)
-        .background(pal.surface, in: RoundedRectangle(cornerRadius: radius))
-        .overlay(RoundedRectangle(cornerRadius: radius).stroke(pal.border))
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: radius))
+        .overlay(RoundedRectangle(cornerRadius: radius).stroke(FAMColor.border))
         // `#searchBar`: the tour's "Ask anything".
-        .tourTarget(live ? .searchBar : nil)
+        .tourTarget(.searchBar)
     }
 
-    /// The box itself, or - in the blind's still copy - its words as text.
-    @ViewBuilder
-    private func boxText(_ pal: SearchPalette, live: Bool) -> some View {
-        if live {
-            field(pal)
-        } else {
-            Text(words.isEmpty ? "FAMiliarize me about\u{2026}" : words)
-                .font(FAMFont.body(15))
-                .foregroundStyle(words.isEmpty ? pal.textMuted.opacity(0.8) : pal.text)
-                .lineSpacing(3)
-                .lineLimit(1...5)
-                .padding(.vertical, 9)
-        }
-    }
-
-    private func field(_ pal: SearchPalette) -> some View {
+    private var field: some View {
         TextField("", text: $words,
-                  prompt: Text("FAMiliarize me about\u{2026}").foregroundColor(pal.textMuted.opacity(0.8)),
+                  prompt: Text("FAMiliarize me about\u{2026}").foregroundColor(FAMColor.textMuted.opacity(0.8)),
                   axis: .vertical)
             .font(FAMFont.body(15))
-            .foregroundStyle(pal.text)
-            .tint(pal.copper)
+            .foregroundStyle(FAMColor.text)
+            .tint(FAMColor.copper)
             .lineSpacing(3)
             .lineLimit(1...5)
             .textInputAutocapitalization(.sentences)
@@ -367,20 +285,20 @@ struct SearchView: View {
             }
     }
 
-    private func buttons(_ pal: SearchPalette) -> some View {
+    private var buttons: some View {
         HStack(spacing: 2) {
             if VoiceSearchModel.available {
-                barIcon(SearchIcons.mic, pal, label: "Search by voice") { openVoice() }
+                barIcon(SearchIcons.mic, label: "Search by voice") { openVoice() }
             }
             // Always drawn (`#attachBtn`); past what one search can carry a
             // tap says so instead of opening the menu.
-            barIcon(SearchIcons.attach, pal, label: "Add a document, photo or link") { openAttach() }
+            barIcon(SearchIcons.attach, label: "Add a document, photo or link") { openAttach() }
             if goShown {
                 Button { go(words) } label: {
                     GoArrow(size: 13)
                         .foregroundStyle(FAMColor.ink)
                         .frame(width: 36, height: 36)
-                        .background(pal.copper, in: Circle())
+                        .background(FAMColor.copper, in: Circle())
                         .contentShape(Circle())
                 }
                 .buttonStyle(.press)
@@ -390,11 +308,11 @@ struct SearchView: View {
         }
     }
 
-    private func barIcon(_ path: Path, _ pal: SearchPalette, label: String,
+    private func barIcon(_ path: Path, label: String,
                          action: @escaping () -> Void) -> some View {
         Button(action: action) {
             WebIcon(path: path, size: 18, line: 2)
-                .foregroundStyle(pal.textMuted)
+                .foregroundStyle(FAMColor.textMuted)
                 .frame(width: 40, height: 40)
                 .contentShape(Circle())
         }
@@ -424,69 +342,69 @@ struct SearchView: View {
 
     // MARK: - The bubbles (`.fam-controls`)
 
-    private func bubbles(_ pal: SearchPalette, privateOn: Bool) -> some View {
+    private var bubbles: some View {
         let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 8))
                                                   : AnyLayout(HStackLayout(spacing: 10))
         return layout {
-            bubble("Length", icon: SearchIcons.length, iconSize: 14, pal: pal, on: false,
+            bubble("Length", icon: SearchIcons.length, iconSize: 14,
                    label: "Episode length") { sheet = .length }
-            bubble("Voice", icon: SearchIcons.voice, iconSize: 14, pal: pal, on: false,
+            bubble("Voice", icon: SearchIcons.voice, iconSize: 14,
                    label: "Voice for your searches") { openVoiceMenu() }
-            bubble("Private", icon: SearchIcons.incognito, iconSize: 15, pal: pal, on: privateOn,
-                   label: "Private search") { model.setPrivateSearch(!model.privateSearch) }
+            privateLock
         }
     }
 
     /// `.search-bubble`: 44 tall, radius 22, surface, the border, Geist 14
-    /// semibold with a muted icon; the label never shows the choice. Private
-    /// when on is the pale bubble with charcoal words.
-    private func bubble(_ title: String, icon: Path, iconSize: CGFloat, pal: SearchPalette, on: Bool,
+    /// semibold with a muted icon; the label never shows the choice.
+    private func bubble(_ title: String, icon: Path, iconSize: CGFloat,
                         label: String, action: @escaping () -> Void) -> some View {
-        let onColor = Color(hex: 0xF1EEF4)
-        let ink = Color(hex: 0x161519)
-        return Button(action: action) {
+        Button(action: action) {
             HStack(spacing: 8) {
                 WebIcon(path: icon, size: iconSize, line: 2)
-                    .foregroundStyle(on ? ink : pal.textMuted)
+                    .foregroundStyle(FAMColor.textMuted)
                 Text(title)
                     .font(FAMFont.body(14, .semibold))
-                    .foregroundStyle(on ? ink : pal.text)
+                    .foregroundStyle(FAMColor.text)
                     .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.8)
             }
             .padding(.horizontal, 6)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(on ? onColor : pal.surface, in: Capsule())
-            .overlay(Capsule().stroke(on ? onColor : pal.border))
+            .background(FAMColor.surface, in: Capsule())
+            .overlay(Capsule().stroke(FAMColor.border))
             .contentShape(Capsule())
         }
         .buttonStyle(.press)
         .accessibilityLabel(label)
-        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
-    private func privateNote(_ pal: SearchPalette) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            WebIcon(path: SearchIcons.lock, size: 14, line: 2)
-                .foregroundStyle(pal.textMuted)
-                .padding(.top, 2)
-            Text(Self.privateNote)
-                .font(FAMFont.body(12.5))
-                .foregroundStyle(pal.textMuted)
-                .lineSpacing(5)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+    /// Private search (§282, §285) as a lock (`.private-bubble`, 11.16
+    /// notes): a 44 pt round button beside the bubbles, an open padlock
+    /// while it is off; closed, copper with an ink icon, while it is on.
+    /// What it does is said once, in the toast (`AppModel.setPrivateSearch`).
+    private var privateLock: some View {
+        let on = model.privateSearch
+        return Button { model.setPrivateSearch(!on) } label: {
+            WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
+                .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+                .frame(width: 44, height: 44)
+                .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
+                .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.border))
+                .contentShape(Circle())
         }
+        .buttonStyle(.press)
+        .accessibilityLabel(on ? "Private search is on" : "Private search")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     // MARK: - Trending searches (`.trend-searches`)
 
     /// One bubble a search, most searched first; a tap is a search that
     /// lands on an episode already written.
-    private func trendingList(_ pal: SearchPalette) -> some View {
+    private var trendingList: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Trending searches")
-                .monoLabel(9, color: pal.textMuted, tracking: 1.26)
+                .monoLabel(9, color: FAMColor.textMuted, tracking: 1.26)
                 .padding(.horizontal, 4)
                 .padding(.bottom, 1)
             ForEach(trending.prefix(Self.trendShown), id: \.self) { search in
@@ -496,12 +414,12 @@ struct SearchView: View {
                 } label: {
                     HStack(spacing: 8) {
                         WebIcon(path: Icons.trend, size: 13)
-                            .foregroundStyle(pal.textMuted)
+                            .foregroundStyle(FAMColor.textMuted)
                         // One line, an ellipsis past the width (`white-space:
                         // nowrap; text-overflow: ellipsis`).
                         Text(search.label)
                             .font(FAMFont.body(12, .medium))
-                            .foregroundStyle(pal.text)
+                            .foregroundStyle(FAMColor.text)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 0)
@@ -509,8 +427,8 @@ struct SearchView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .frame(minHeight: 32)
-                    .background(pal.surface, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(pal.border))
+                    .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(FAMColor.border))
                     .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.press)

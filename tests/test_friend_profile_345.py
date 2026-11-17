@@ -36,6 +36,7 @@ def test_a_friends_vibes_and_mixes_carry_a_picture_field(client):
         beth.post("/api/mixes", json={"name": "Morning", "topic_ids": ["fed-next-move"]})
     client.post("/api/auth/signup", json={"email": "ian@b.com", "password": "password12"})
     client.post("/api/me", json={"name": "Ian", "handle": "ian"})
+    client.post("/api/friends/follow", json={"handle": "beth"})  # §637
     body = client.get("/api/person?handle=beth").json()
     assert body["vibes"] and all(isinstance(v["thumb"], str) for v in body["vibes"])
     assert body["mixes"] and all(isinstance(m["thumb"], str) for m in body["mixes"])

@@ -162,7 +162,9 @@ def test_private_is_a_search_only_flag(searcher):
 
 def test_the_search_page_has_private_search():
     assert 'id="privateBubble"' in INDEX and "setPrivateSearch(" in INDEX
-    assert "#screen-home.private-search{" in INDEX
+    # A lock since the 11.16 notes: the page no longer turns charcoal.
+    assert "#screen-home.private-search{" not in INDEX
+    assert 'classList.toggle("private-search", privateSearch)' in INDEX
     assert "private: privateSearch" in INDEX
     # It plays as a search - the surface the server keeps private - and is
     # left out of history at the history call, never by changing its surface.

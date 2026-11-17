@@ -1006,6 +1006,7 @@
   point of this set.
 
 <!-- rule:heard-not-tapped -->
+> **Current (PROBLEMS.md §639):** a heard listen also keeps the **day** it was heard on (`heard_days`, one row a listener a day), because `heard_listens` holds only the latest time a question was heard. /admin's "Listeners who came back" counts from it: who heard something in the last seven days and also in the seven before. Never read for taste or a crowd row; cleared with the log and on account deletion.
 - **A listen is something heard, not a tap** *(§433, at the owner's
   direction; `topics.counts_as_heard`, `_heard_pairs`, `EventStore.note_progress`.)*
   The server writes a `play` the moment it begins sending audio - before a
@@ -2015,7 +2016,7 @@
   *The bottom message (§299):* what an action did is a plain line - text
   under a short copper rule just above the mini player or the tabs, no box,
   no shadow - for both the old pill and the old Undo bar.
-  > **Current:** round three (PROBLEMS.md §637, the owner's picks of 11.16
+  > **Current:** round three (PROBLEMS.md §640, the owner's picks of 11.16
   > for what every page shares) changes several of these, still inside the
   > rule above - nothing held, 450 ms or less, the change made first.
   > Every curve and time is a named token (`--ease-out` .32,.72,0,1,
@@ -2031,15 +2032,15 @@
   > icon on a spring and say "SAVED" for 900 ms - no ring, no sparks.** Play
   > and pause cross at the same moment; the writer's title rolls up 8 px
   > over the old one; **a tile shows a colour at once and its picture fades
-  > in over it (no blur)**; captions change colour only, the sentence before
-  > dimmed beside the one being spoken; the player's picture flies by
+  > in over it (no blur)**; captions change colour only, the sentences already
+  > spoken dimmed above the one being read (§637's stack); the player's picture flies by
   > transform (FLIP); a queued episode arcs and the count rolls; the bottom
   > line rises 16 px and an Undo stays five seconds. **With reduced motion
   > every one of these is off, fades included - a screen change and a sheet
   > are instant - and only loading indicators keep a gentle opacity pulse.**
   > A theme change turns every transition off for two frames. The press and
   > the opening intro are unchanged.
-  > **Current:** dailyFAM's picks (PROBLEMS.md §638, the owner's 14 of
+  > **Current:** dailyFAM's picks (PROBLEMS.md §641, the owner's 14 of
   > 11.16), on the same terms. **One picture from tile to player:** the
   > tapped tile's picture grows into DailyFAM's loader (300 ms) and the
   > loader's picture - not a second copy of the tile - flies on into the

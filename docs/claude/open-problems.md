@@ -396,7 +396,7 @@
   qualifies takes its place; nothing tops the section up.
 
 <!-- rule:no-not-interested -->
-> **Current (PROBLEMS.md §638, the owner's motion pick remove-tile: B):** the tile still leaves the page at once (it folds away and the rest close in), but the line under it offers **Undo for five seconds** and `not_interested` is recorded only when that line goes without it - its time is up, another line replaces it, or the page is hidden. A tile waiting on its Undo is kept off redraws (`notInterestedPending`). Pick up's X works the same way: the dismiss is sent when its Undo line goes, and the section is not asked for again after it.
+> **Current (PROBLEMS.md §641, the owner's motion pick remove-tile: B):** the tile still leaves the page at once (it folds away and the rest close in), but the line under it offers **Undo for five seconds** and `not_interested` is recorded only when that line goes without it - its time is up, another line replaces it, or the page is hidden. A tile waiting on its Undo is kept off redraws (`notInterestedPending`). Pick up's X works the same way: the dismiss is sent when its Undo line goes, and the section is not asked for again after it.
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet, reversing §171 for one place):** a DailyFAM tile's ⋯ menu ends in **Not interested**. It records `topics.NOT_INTERESTED` (`not_interested`, weight -1.5, three skips deep) with the tile's id and question; `EventStore.not_interested` reads every such choice and `not_wanted` keeps that tile - by id or by question, and a crowd rail's `ep-…` tile by its recorded id - off every rail, beside "no repeats" in `build_feed` and `build_section`; off Trending and its View more (the same personal exception as a heard story, §136 - nothing else of the listener reaches Trending's order); and off the post-episode grid (`rank_next_up`, its last-resort fill included), which starts its first tile by itself. The client also drops it from `railTiles`, so "See all" does not draw it again. It teaches no familiar word and mints no subject. The tile leaves the page at once; a guest's choice is dropped like every guest event (§127). Still no button on the card, and `hide` stays retired: its old rows are not revived, since they were choices made under a control that was then withdrawn.
 - **There is no "not interested"** *(PROBLEMS.md §171, at the owner's
   direction: "This button and function should not be a feature. The
@@ -670,6 +670,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §637, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
 > **Current (PROBLEMS.md §616, the owner 11.14):** a mix **plays in today's
 > order, best stories first** - "so you don't hear the same order every
 > day" - and its cover's tiles follow it. `mix_today.order` scores each item
@@ -836,6 +837,24 @@ friends and get none.
    taste model has was being thrown away by exactly the behaviour it should
    reward. A share rather than a number of seconds, because "the last thirty
    seconds" is most of a one-minute episode and nothing of a ten-minute one.
+<!-- rule:private-mode -->
+**Private mode, and a profile for followers** *(PROBLEMS.md §638, the
+owner's direction)*. A switch at the **top of Settings** (`private_mode`
+on the account's preferences, off by default): while it is on, **nobody
+sees what that listener plays or searches** - no face on a friend's card or
+the player (`_mark_friends_listened`), no place on the friends rail (the
+circle is passed through `_listening_shown` before `rank_friends` reads it),
+and never named as a searcher, **whatever `searches_public` says**. What
+they **vibe still reaches the people who follow them**: a vibe is the act of
+showing somebody an episode. `PreferenceStore.private_among` reads many at
+once and **fails closed** - a store that cannot be read counts everybody as
+private. Separately, for everybody: **a profile's vibes and interests are
+for its followers** - `/api/person` sends a listener who does not follow
+the person `vibes: []`, no interests and `locked: true` (name, face, place,
+counts and public mixes stay), and `/api/vibe/posts`, a vibe's likes and
+replies are 404 to them. Being followed by them is not enough; following is
+the door. `private` tells the page to say the account is private.
+
 <!-- rule:op-social-live -->
 > **Current (PROBLEMS.md §168):** New mixes are **public** by default since §153 - "Mixes are private by default" below is stale (see [op-dailyfam-mixes]).
 
@@ -1083,6 +1102,7 @@ friends and get none.
   down); the server still sends `starters` for installed clients.
 
 <!-- rule:friends-vibes-first -->
+> **Current (PROBLEMS.md §637, the owner's 11.16 sketch):** the Friends page is **two tabs, Friends | Following**, each with its count, in place of stacked groups under a line of three counts. Following lists everyone followed, friends included; somebody who follows the listener and is not followed back sits under Friends in a "Follows you" group, since following back is what makes them one.
 - **Friends with a vibe up come first, and their vibes play as stories**
   *(§184)*: the YourFAM row sorts friends whose vibes are up to the front,
   newest first, before it is cut to `CIRCLE_MAX`. In the viewer a tap steps

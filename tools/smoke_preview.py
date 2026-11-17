@@ -2150,12 +2150,13 @@ def main() -> int:
             chip = page.query_selector("#screen-home #voiceBubble")
             assert chip, "the search page has no voice control"
             # §190: bubbles under the bar, Length then Voice, and the
-            # choice is not printed on them; Private is the third (§282).
+            # choice is not printed on them; Private is the third (§282),
+            # a lock with no word on it since the 11.16 notes.
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
-                    .map(e => e.textContent.trim())""")
-            assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
+                    .map(e => e.textContent.trim() || e.getAttribute('aria-label'))""")
+            assert order == ["Length", "Voice", "Private search"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(
@@ -2369,7 +2370,7 @@ def main() -> int:
             page.evaluate("closeSheet(); QUEUE = []; drawMixSkip(false)")
 
         def round_three_motion_holds_nothing():
-            """§637: the shared round-three picks. Curves and times are the
+            """§640: the shared round-three picks. Curves and times are the
             named tokens, read alike by CSS and script; a tab change leaves
             nothing of the old tab on its first frame; a sheet closes as a
             transition, inert while it goes, and is gone after; a drag from
@@ -2451,7 +2452,7 @@ def main() -> int:
             page.wait_for_timeout(300)
 
         def dailyfam_motion_holds_nothing():
-            """§638: dailyFAM's round-three picks. A tapped tile's picture
+            """§641: dailyFAM's round-three picks. A tapped tile's picture
             grows into the loader and the loader's picture flies on into the
             player - never a second copy of the tile while the loader is up;
             View more opens on the rail's own tiles; Refresh does not flash
@@ -4810,6 +4811,103 @@ def main() -> int:
               forgot_password_is_two_steps_on_the_log_in_screen)
         check("Go Deeper keeps a playlist going; captions are a pill",
               go_deeper_keeps_the_mix_and_captions_are_a_pill)
+
+        def the_owners_1116_notes():
+            """§637, pressed rather than read: a mix's Edit topics takes a
+            topic out with an X; Friends is two tabs; captions keep what was
+            said, scroll back, and are off again on the next episode; Private
+            is a lock that leaves the page's colours alone."""
+            ensure_account()
+            # Private: the lock is pressed and nothing is repainted.
+            page.evaluate("setTab('home')")
+            page.wait_for_timeout(300)
+            ground = "getComputedStyle(document.getElementById('screen-home')).backgroundColor"
+            before = page.evaluate(ground)
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "true"
+            assert page.evaluate(ground) == before, "Private repainted the search page"
+            assert page.eval_on_selector("#privateBubble .lock-shut", "e => getComputedStyle(e).display") != "none"
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false"
+
+            # Friends: two tabs, and Following lists everyone followed.
+            page.evaluate("openFriends()")
+            page.wait_for_timeout(1200)
+            tabs = page.eval_on_selector_all("#friendsBody .fr-tabs .pf-tab", "e => e.map(t => t.textContent.trim())")
+            assert len(tabs) == 2 and tabs[0].startswith("Friends") and tabs[1].startswith("Following"), tabs
+            page.click("#friendsBody .fr-tabs .pf-tab:nth-child(2)")
+            page.wait_for_timeout(200)
+            rows = page.eval_on_selector_all("#friendsBody .fr-row", "e => e.length")
+            assert rows == page.evaluate("(friendsData.following || []).length"), \
+                "Following does not list everyone followed"
+            page.evaluate("showFriendsTab('friends'); goBack()")
+
+            # Captions: what was said stays above the sentence being read.
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+            page.evaluate("document.querySelectorAll('.gd-card')[0].click()")
+            page.wait_for_timeout(1200)
+            assert not page.evaluate("captionsOn()"), "captions were on as the episode started"
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(1500)
+            if page.evaluate("captionSentences.length") >= 4:
+                page.evaluate(
+                    "window.__ccNow = captionIndexNow;"
+                    " captionIndexNow = function(){ return captionSentences.length - 1; };"
+                    " renderCaptions()")
+                page.wait_for_timeout(200)
+                said = page.eval_on_selector_all("#cc-text .cc-said", "e => e.length")
+                assert said == page.evaluate("captionSentences.length - 1"), \
+                    f"{said} spoken sentences are kept in the captions"
+                assert page.evaluate("captionFollow"), "the captions stopped following the voice"
+                if page.evaluate("var b = document.getElementById('cc-text'); b.scrollHeight > b.clientHeight + 40"):
+                    page.evaluate("document.getElementById('cc-text').scrollTop = 0")
+                    page.wait_for_timeout(250)
+                    assert not page.evaluate("captionFollow"), \
+                        "scrolling back did not hold the captions where the listener put them"
+                page.evaluate("captionIndexNow = window.__ccNow")
+            # The next episode starts with them off, whatever this one had.
+            page.evaluate("document.querySelectorAll('.gd-card')[1].click()")
+            page.wait_for_timeout(1200)
+            assert not page.evaluate("captionsOn()"), "captions carried over to the next episode"
+            assert page.evaluate("localStorage.getItem('fam.captions')") is None
+            page.evaluate("stopSpeech(); clearGenOverlay()")
+
+            # Edit topics: an X on every topic, and one press removes it.
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            mix = page.evaluate(
+                "() => { var m = mixes.filter(function(x){ return (x.items || []).length >= 2; })[0];"
+                " return m ? m.id : ''; }")
+            if not mix:
+                page.evaluate("openMyFamTab()")
+                return
+            page.evaluate("id => openMix(id)", mix)
+            page.wait_for_timeout(400)
+            assert not page.query_selector("#mixBody .mix-bubbles"), "the day bubbles are back"
+            count = page.evaluate("mixById(currentMixId).items.length")
+            page.evaluate("openMixMenu()")
+            page.wait_for_timeout(300)
+            page.click("#sheetCard >> text=Edit topics")
+            page.wait_for_timeout(400)
+            xs = page.eval_on_selector_all("#mixOrder .mix-topic-x", "e => e.length")
+            assert xs == count, f"{xs} of {count} topics have an X"
+            assert not page.query_selector("#mixBody .mix-play"), "Play is offered while editing"
+            first = page.get_attribute("#mixOrder .mix-topic-x", "data-id")
+            page.click("#mixOrder .mix-topic-x")
+            page.wait_for_timeout(700)
+            left = page.evaluate("mixById(currentMixId).items.map(function(i){ return i.id; })")
+            assert len(left) == count - 1 and first not in left, f"the X did not remove {first}: {left}"
+            page.click("#mixBody .mix-edit-done")
+            page.wait_for_timeout(200)
+            assert not page.query_selector("#mixOrder .mix-topic-x"), "Done left the X's on"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        check("The 11.16 notes: edit topics, two friends tabs, captions that scroll, a lock",
+              the_owners_1116_notes)
 
         if errors:
             failures.append(f"page errors: {errors}")

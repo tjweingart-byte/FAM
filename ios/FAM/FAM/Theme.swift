@@ -58,10 +58,9 @@ enum FAMTheme {
 }
 
 /// Draws its content in the theme this device chose. The root carries it;
-/// a sheet or cover that can open while the window is dark for private
-/// search's charcoal (`AppModel.darkChrome`) carries it too, since a
-/// presentation takes its scheme from the window rather than the view that
-/// presents it.
+/// a sheet or cover that can open while the window is dark for the shared
+/// screen (`FAMApp.chromeDark`) carries it too, since a presentation takes
+/// its scheme from the window rather than the view that presents it.
 struct FAMThemed: ViewModifier {
     @AppStorage(FAMTheme.key) private var theme = FAMTheme.standard
 

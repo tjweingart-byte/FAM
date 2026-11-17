@@ -438,6 +438,12 @@ class Preferences:
     #: The first run's tour finished or skipped (§594): either way it is not
     #: offered again by itself. Settings starts it over on request.
     tour_done: bool = False
+    #: Private mode (§638): nothing this listener plays or searches is shown
+    #: to anybody else - no face on a friend's card, no place on the friends
+    #: rail, never named as a searcher whatever `searches_public` says. What
+    #: they vibe still reaches the people who follow them, because a vibe is
+    #: the act of showing somebody an episode. Off unless they turn it on.
+    private_mode: bool = False
 
     @property
     def public_interests(self) -> tuple[str, ...]:
@@ -461,6 +467,7 @@ class Preferences:
             "categories": list(self.categories),
             "private_search": self.private_search,
             "tour_done": self.tour_done,
+            "private_mode": self.private_mode,
         }
 
 
@@ -554,6 +561,12 @@ class PreferenceStore:
                              " tour_done INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # already there
+            # §638: off for every older row - nobody is made private for them.
+            try:
+                conn.execute("ALTER TABLE preferences ADD COLUMN"
+                             " private_mode INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
 
     def _conn(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -572,7 +585,8 @@ class PreferenceStore:
                 "SELECT interests, language, weekly_recap, recap_week,"
                 " intro_done, hidden_interests, topics, profile_interests,"
                 " city, region, country, searches_public, categories,"
-                " private_search, tour_done FROM preferences WHERE user_id = ?",
+                " private_search, tour_done, private_mode"
+                " FROM preferences WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
         except Exception:
@@ -597,7 +611,33 @@ class PreferenceStore:
             categories=tuple(t for t in (row[12] or "").split("\n") if t),
             private_search=bool(row[13]),
             tour_done=bool(row[14]),
+            private_mode=bool(row[15]),
         )
+
+    def private_among(self, user_ids: Iterable[str]) -> set[str]:
+        """Which of these listeners are in private mode (§638), in one read.
+
+        For the places that draw many people at once - a circle, the faces
+        on a page of cards. **Fails closed**: if the store cannot be read,
+        everybody asked about counts as private, because the mistake to
+        avoid is showing somebody's listening after they said not to.
+        """
+        ids = [u for u in dict.fromkeys(user_ids) if u]
+        if not ids:
+            return set()
+        found: set[str] = set()
+        try:
+            for start in range(0, len(ids), 400):
+                part = ids[start:start + 400]
+                marks = ",".join("?" * len(part))
+                found.update(r[0] for r in self._conn().execute(
+                    "SELECT user_id FROM preferences"
+                    f" WHERE private_mode = 1 AND user_id IN ({marks})",
+                    part).fetchall())
+        except Exception:
+            log.exception("could not read who is in private mode")
+            return set(ids)
+        return found
 
     def save(
         self,
@@ -617,6 +657,7 @@ class PreferenceStore:
         categories: Optional[Iterable[str]] = None,
         private_search: Optional[bool] = None,
         tour_done: Optional[bool] = None,
+        private_mode: Optional[bool] = None,
         at: float = 0.0,
     ) -> Preferences:
         """Write only the fields given. Raises PreferenceError on a bad value.
@@ -665,14 +706,16 @@ class PreferenceStore:
                             else current.private_search),
             tour_done=(bool(tour_done) if tour_done is not None
                        else current.tour_done),
+            private_mode=(bool(private_mode) if private_mode is not None
+                          else current.private_mode),
         )
         self._conn().execute(
             """INSERT INTO preferences
                    (user_id, interests, language, weekly_recap, recap_week,
                     intro_done, updated, hidden_interests, topics,
                     profile_interests, city, region, country, searches_public,
-                    categories, private_search, tour_done)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    categories, private_search, tour_done, private_mode)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(user_id) DO UPDATE SET
                    interests        = excluded.interests,
                    hidden_interests = excluded.hidden_interests,
@@ -689,6 +732,7 @@ class PreferenceStore:
                    categories   = excluded.categories,
                    private_search = excluded.private_search,
                    tour_done    = excluded.tour_done,
+                   private_mode = excluded.private_mode,
                    updated      = excluded.updated""",
             (user_id, ",".join(merged.interests), merged.language,
              int(merged.weekly_recap), merged.recap_week, int(merged.intro_done),
@@ -698,7 +742,7 @@ class PreferenceStore:
              merged.location.city, merged.location.region,
              merged.location.country, int(merged.searches_public),
              "\n".join(merged.categories), int(merged.private_search),
-             int(merged.tour_done)),
+             int(merged.tour_done), int(merged.private_mode)),
         )
         return merged
 

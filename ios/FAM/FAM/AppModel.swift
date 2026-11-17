@@ -242,9 +242,6 @@ final class AppModel: ObservableObject {
     /// The player was playing when voice search opened: it carries on if
     /// the listener closes it without searching.
     private var resumeAfterVoice = false
-    /// The status bar and keyboard over private search's charcoal
-    /// (`SearchView.chromeDark`); the chosen theme everywhere else.
-    @Published var darkChrome = false
     let speller: Speller
     let attachments: AttachModel
     let voiceSearch = VoiceSearchModel()
@@ -960,7 +957,6 @@ final class AppModel: ObservableObject {
         requestFailed = false
         isOffline = pathDown
         privateSearch = false
-        darkChrome = false
         voices = nil
         voicePicked = false
         attachments.clear()
@@ -974,8 +970,8 @@ final class AppModel: ObservableObject {
     /// The web's `forgetLocalPrefs` and the device half of
     /// `forgetOfflineCopies`: the speed and the pitch lock, "Hey FAM", the
     /// pinned time zone, the first run's "done" and the stories seen are
-    /// this listener's, not the phone's. The theme and captions stay (their
-    /// own keys on the web too).
+    /// this listener's, not the phone's. The theme stays (its own key on
+    /// the web too).
     private func forgetDevicePrefs() {
         player.setRate(1)
         player.setKeepsPitch(true)
@@ -1469,11 +1465,12 @@ final class AppModel: ObservableObject {
         if let page = try? await api.voices() { voices = page }
     }
 
-    /// The bubble or Settings (`setPrivateSearch`): painted at once, saved
-    /// with the account, "Could not save that" if it was not.
+    /// The lock or Settings (`setPrivateSearch`): painted at once, saved
+    /// with the account, "Could not save that" if it was not. The toast is
+    /// where what it does is said (11.16 notes: no note under the bubbles).
     func setPrivateSearch(_ on: Bool) {
         privateSearch = on
-        nowPlaying.say(on ? "Private search is on" : "Private search is off")
+        nowPlaying.say(on ? "Private search on \u{00B7} kept out of history and feeds" : "Private search off")
         Task {
             if !(await you.savePreference(["private_search": on])) {
                 nowPlaying.say("Could not save that")

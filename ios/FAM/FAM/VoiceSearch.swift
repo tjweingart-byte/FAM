@@ -530,7 +530,7 @@ final class VoiceSearchModel: ObservableObject {
 
 // MARK: - The voice search screen (`#voiceSearch`, shots 21-28)
 
-/// Full screen over the app, on the page's own white (never charcoal): the
+/// Full screen over the app, on the page's own white: the
 /// round X, the words, the orb with its rings, the line under it, and
 /// Search now with its X.
 struct VoiceSearchView: View {
