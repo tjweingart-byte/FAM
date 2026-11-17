@@ -292,9 +292,12 @@ def test_step_one_is_the_only_step():
 
 def test_step_two_is_gone():
     for gone in ('id="screen-mixpicker"', "function renderMixPicker", "function saveMixPicker",
-                 "function editMixTopics", "function focusPanelHTML", "pickerPayload",
+                 "function focusPanelHTML", "pickerPayload",
                  "Anything specific in "):
         assert gone not in INDEX, gone
+    # `editMixTopics` was the picker's too; the name is §621's now, and
+    # opens the mix page with an X on every topic, never a picker.
+    assert "navigate(" not in _fn("editMixTopics")
 
 
 def test_the_mix_page_is_spotifys():

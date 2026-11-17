@@ -21,11 +21,13 @@ def test_refresh_says_how_many_it_deals():
 
 
 def test_friends_counts_are_singular_at_one():
+    # The line of three counts this pinned ("1 friend", "1 follower") went
+    # with §621's two tabs, whose labels - Friends, Following - carry a
+    # number beside a heading and so have no singular to get wrong.
     body = PAGE[PAGE.index("function renderFriends()"):]
-    body = body[:body.index("</div>';") + 8]
+    body = body[:body.index("function showFriendsTab(")]
     assert "'</b> friends" not in body and "'</b> followers" not in body
-    assert 'plural(c.friends || 0, "friend")' in body
-    assert 'plural(c.followers || 0, "follower")' in body
+    assert 'tab("friends", "Friends", friends.length)' in body
 
 
 def test_no_count_on_the_page_prints_a_bare_plural():

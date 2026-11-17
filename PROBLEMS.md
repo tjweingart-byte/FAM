@@ -37780,6 +37780,47 @@ screen's content at about 600 points, centred - the player, the search bar
 viewer (type sized in 360ths of the width) all assume a phone's width. Adding
 iPad to a bundle id cannot be undone in a later version.
 
+**"The beginning of some of the episodes sometimes repeat the first
+sentence twice."** **No definite cause was found**, and that is the finding.
+What shapes it: the first chunk sent to the voice is always the first
+sentence alone (`speech_assembly`), so anything that doubles the first chunk,
+or the script's first sentence, is heard as exactly "X. X.". Ruled out with
+tests: writing an episode, replaying its script in another voice and voicing
+ahead (§610) each hand the opening to the voice once; `_ScriptReader` does
+not duplicate under any chunking of the writer's stream. Ruled out by
+reading: `/api/audio`'s primed chunks, the §614 queue, the Opus path,
+`put_audio`, `remote_voice`'s one retry, the batch-then-live fallback, the
+iPhone's reconnect (it skips the bytes it has) and the web (no reconnect).
+Two candidates are left, neither proven:
+
+1. *The voice reads the short first chunk twice.* Chatterbox's English model
+   has no check against reading a text again (`chatterbox_speed`), the first
+   chunk is the only routinely short one, and chunks are seeded from voice +
+   words (§176) with audio kept a week - so a bad reading would recur for
+   that episode and no other, which is "some of the episodes". The best fit.
+2. *The writer says its opening again* - a call that starts over, or the
+   tandem's second call (§456) restating what it was told had been spoken.
+   Before this change such a sentence went straight to the voice.
+
+What was built covers both without claiming either. `RepeatGuard`
+(`script_generator.py`), last in `_ScriptReader`, drops a sentence of four
+or more words that repeats, word for word, one already spoken, looking only
+at the first four sentences of each writer call; a drop is logged and on
+/admin as `writer / repeat check`. And `pipeline._note_if_said_twice`
+records `voice / a chunk ran twice its length` once an episode when a
+chunk's speech lasts 1.6 times its words at the planned rate - a report
+only, changing no audio; the 1.6 is not measured on the real voice.
+**The check that separates them is the owner's:** play an affected episode
+with captions on. The sentence once in the captions and twice in the voice
+is candidate 1, and the fix then belongs in the voice worker (re-draw an
+over-long reading), not built because it cannot be heard here. Twice in the
+captions is candidate 2, now guarded. An episode already kept with the
+repeat in it keeps it until it ages out. Found beside it on the iPhone and
+left, as inferred from code and not this symptom: a stall can replay up to
+half a second of a sentence's end (`Player.swift` `played()`), and the
+position can run ahead by the length of a stall.
+`tests/test_first_sentence_twice.py`.
+
 Tests: `tests/test_owner_notes_1116.py`; one smoke check pressing all of it
 in a browser ("The 11.16 notes ..."); the three tests that pinned the
 reversed behaviour say so. The iPhone compiled in `ios.yml` (run 90).
