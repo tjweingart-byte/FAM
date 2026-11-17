@@ -39355,3 +39355,117 @@ refused switch flips back; reduced motion moves no line; a tile's save
 holds" and the stronger Saved Undo in yourFAM's check. **Not verified
 here:** a real network reordering the DELETE and the logout (the probes
 delay one side in the page), and a real screen reader on the mix switch.
+
+## 648. The iPhone app catches up, part one (2026-11-17)
+
+Three readers audited the iPhone app against the web after §640-§647
+(95 gaps: rails and mixes, search and the player, social and yourFAM, each
+with the web's lines, the Swift's and a build spec). This is phase A:
+round three's motion foundations, which phase B builds on, and every gap
+that changes what the app *does* - the broken, the missing and the
+differing. Motion-only gaps are phase B. Nothing in `rule:motion` changed:
+the iPhone now follows its round-three text where phase A reaches.
+
+**Foundations (`Motion.swift`).** `enum Motion` holds the web's `:root`
+tokens as one copy - `easeOut` (.32,.72,0,1), `easeIn`, `easeInOut`,
+`easeSwap`, `springSoft` (.5 s, bounce .15), `springIcon` (.35 s, none),
+`Motion.Dur` with the `--dur-*` the app uses - and `Motion.anim`, which is
+no animation under Reduce Motion. The shared icon swap is `IconSwap` /
+`.iconSwap` (.3 and a 3 pt blur, both icons at once on the icon spring).
+**Reduced motion is all off**: the 120 ms crossfades on tabs, pushed
+screens, sheets and modals, the player and the tour are gone (instant);
+loading indicators keep going (the chat's typing dots became an opacity
+wave, no bob, left to right). Tabs: the old page is gone on the first
+frame and the new one nudges 12 pt in over 160 ms; the tab icon's pop is a
+no-op. Screens push 340 ms and go back 260 ms on `--ease-out`.
+
+**The Undo line (`NowPlayingModel.undoLine`).** A line with an action
+stays 5 s. An Undo line holds its request until the line goes - time up,
+replaced by another line, the app to the background (`scenePhase`, under a
+background task, the web's `keepalive`), or sign-out and account deletion
+(waited for at most 1.5 s, the line hidden). Undo before then sends
+nothing; a refusal is the commit's to roll back and say. Used by Not
+interested (the card back where it was; a feed read inside the five
+seconds leaves it off), Pick up's X (now a 44 pt zone; no reload after),
+Delete chat and Leave group (no question; off the list and out of memory
+at once, back to the list; `threadsGone` keeps re-reads from bringing it
+back), Saved for Later's X and My Vibes' take-back (`savedPendingRemove`,
+`vibePendingRemove`).
+
+**Optimistic, with rollback.** Ten Settings rows are real switches
+(`SetSwitchRow`, `FAMSwitch`): flipped on the tap, the saved state drawn
+after, a refusal flipping back - Private mode included (§647's bug cannot
+happen: the row shows the tap only until the saved value agrees or the
+answer refuses). "Send my questions to AI" asks first and moves on the
+answer. Private search's refusal now flips the lock back too, unless a
+later tap moved it. A mix's Public / Private (last tap wins), Add topics'
++ / ✓ (`MixesModel.setTopic`), Recommended (+), Follow on a category
+(`followShown`; the list read back afterwards, not waited for), a tile's
+save (`tileSaveSeq`, `tileSavePending`, as §647), Follow / Following
+everywhere (`SocialModel.followShown`, one `FollowPill`: copper Follow,
+outlined Following with its tick; no "Following" / "Unfollowed" lines),
+and the follower popup's Follow back (closes on the tap).
+
+**Search and the player.** Cancel - on the loading screen or "Which one
+do you mean?" - puts the question and its attachments back in the bar
+(`searchAsked`, cleared by a heard word, any other episode or a failure).
+The loading screen opens on the press (`LoadingModel.openEarly`) once the
+AI question is answered and no file is reading; the speller runs under
+step one; a cancel meanwhile drops the send (`cancelSeq`); the five
+steps' timing is untouched (`search-no-cover`) and the first step's
+0.5 s counts from the request. Go Deeper sends what the chip showed at
+touch-down and holds a new line while a finger is on it and 300 ms
+after. The mic and go share one slot; the bar's edge is copper on focus.
+Search now drains instead of snapping full; a chip being read has its
+moving copper line; a caption warms from the dimmed colour.
+
+**Messages.** No dim while sending; "Sending…" past a second; a refused
+send stays, faded, "Not sent · Tap to retry" (said too when off screen);
+a vibe's like is a heart on the card's corner; banners say "Liked your
+vibe · …" / "Replied to your vibe: …"; a group's count only once known;
+the inbox is read at the notifications' first call and whenever the count
+moves; chats are kept in memory (`SocialModel.chat(for:)`) and reopen at
+once; read on the tap; a new message moves the chat only if the reader
+was at the bottom; a chat opened from a banner inside a chat replaces it.
+
+**Also:** Pick up and the faces row are kept on the phone as last drawn
+(`rememberRow`, raw `pickUpData` / `circleData`) and an identical answer
+draws nothing; View more opens on the rail's own tiles and arrives only
+new cards (six, 30 ms apart, Trending's groups too); the story viewer
+pulls down to close (1:1, .85 at 300 pt, past 80 pt or a 0.1 pt/ms flick,
+else a 400 ms spring home) and its chrome hides 150 / returns 200 ms; a
+failed reply puts its words back; a category's last panel stays, inert,
+while the next loads; Create new mix keeps its room; the identity
+screen's new photo develops with "Checking photo…" until the check
+answers.
+
+**Where a gap needed a judgement.** The Public / Private lock swaps SF
+Symbols' two locks on the icon spring rather than lifting a drawn
+shackle. Recommended (+) takes the suggestion off at once and puts it back
+on a refusal, but the mix's own list gains the row when the server
+answers (no stand-in item: `MixItem` is the server's). A Settings switch
+whose model updates late (Hey FAM's microphone question) holds the tap's
+state until the model agrees or three seconds pass. The chat's "at the
+bottom" is measured from the bottom marker's frame in the scroller
+(within 40 pt).
+
+**Skipped, with reasons.** Voice search and a typed Go Deeper still wait
+on the speller before the loader: both close their own sheet first, and
+moving the open under them is phase B's voice-sheet work. The hub's hero
+still waits for the photo check when the picture is changed from Settings
+(the identity screen has it). The pending stand-in "Still adding that"
+for a topic played before its save answers is not built (no stand-in
+item, above).
+
+**PARITY.md.** The committed conflict markers are resolved (both the
+Private mode row and Main's ACCOUNT SETTINGS row kept); every row the
+audit found wrong is corrected for what was built; motion rows are
+Partial pending phase B; a "Motion, round three" row lists what is built
+and what phase B owes.
+
+Tests: `tests/test_ios_app_contract.py` (the new
+`test_the_iphone_catches_up_part_one_648`; the mix test reads the
+operations from `setTopic`), `tests/test_private_mode_638.py` reads
+`SetSwitchRow`. **Not verified here:** none of it has been compiled - no
+Swift toolchain on this machine; the Mac build (`.github/workflows/ios.yml`)
+is the first compile - nor run on a phone.
