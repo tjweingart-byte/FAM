@@ -71,8 +71,3 @@ def test_private_search_is_a_lock_and_the_page_keeps_its_colours():
     assert "dimDown" not in INDEX
     assert 'id="privateNote"' not in INDEX
     assert "#0F0E12" not in INDEX      # the charcoal ground
-
-
-def test_one_mix_alone_takes_the_width():
-    assert ".mix-a-grid.solo{ grid-template-columns:minmax(0, 1fr); }" in INDEX
-    assert "(mixes.length === 1 ? \" solo\" : \"\")" in INDEX

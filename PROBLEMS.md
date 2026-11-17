@@ -37744,12 +37744,12 @@ scrolls back and again once they are within a line of the end. Nothing ahead
 of the voice is drawn (§127's reason for one sentence at a time still holds
 for what has not been said).
 
-**The mix cards.** Read as: a listener with one mix saw one card in the left
-half of the page with nothing beside it. An only mix now takes the whole
-width (name 26, headline 13); two or more stay two to a row (§616). The grid
-already had equal margins and filled its columns. **This is an
-interpretation** - the screenshot was a crop of one card - and wants the
-owner's yes.
+**The mix cards: nothing changed.** "Confirm that the my FAM cards are
+centered and fill the screen", with a crop of one card. It was first read as
+a lone mix sitting in the left half of the page, and an only mix was given
+the whole width on both clients; the owner said that reading was wrong and
+to undo it, so the cards are exactly §616's again (two to a row, every
+count). What the note does mean is still to be asked.
 
 **Private search.** A 44-point round lock beside Length and Voice: open
 while off, closed and copper while on. The page no longer turns charcoal in

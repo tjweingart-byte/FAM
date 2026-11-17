@@ -807,11 +807,6 @@
      bottom, and today's headline under the card. With a photo of its own,
      the photo fills the square and the stack steps aside to a corner. */
   .mix-a-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 11px; }
-  /* One mix alone (11.16 notes): the card takes the whole width, centred,
-     rather than the left half of the page with nothing beside it. */
-  .mix-a-grid.solo{ grid-template-columns:minmax(0, 1fr); }
-  .mix-a-grid.solo .mix-a-name{ font-size:26px; bottom:16px; }
-  .mix-a-grid.solo .mix-a-line{ font-size:13px; }
   .mix-a{ min-width:0; cursor:pointer; }
   .mix-a-cover{ position:relative; aspect-ratio:1; border-radius:18px; overflow:hidden;
     background:var(--mix-hue, var(--surface-2)) center/cover no-repeat; }
@@ -12487,7 +12482,7 @@
   }
   // Drawn like a listener's own mix card (option A, §616).
   function sampleMixCardHTML(m){
-    return '<div class="mix-a-grid solo">' + mixCardAHTML(m, "openMix('sample')") + '</div>';
+    return '<div class="mix-a-grid">' + mixCardAHTML(m, "openMix('sample')") + '</div>';
   }
 
 
@@ -12606,7 +12601,7 @@
     // of six on 11.14, after §544's picture-name-arrow row and §545's R5).
     // Two to a row; everything else about the mix is on its own page.
     if(mixes.length){
-      html += '<div class="mix-a-grid' + (mixes.length === 1 ? " solo" : "") + '">' + mixes.map(function(m){
+      html += '<div class="mix-a-grid">' + mixes.map(function(m){
         return mixCardAHTML(m, "openMix('" + m.id + "')");
       }).join("") + '</div>';
     }

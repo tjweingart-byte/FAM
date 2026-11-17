@@ -669,7 +669,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
-> **Current (PROBLEMS.md §621, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay. **A listener's only mix takes the whole width** of the list; two or more stay two to a row (§616).
+> **Current (PROBLEMS.md §621, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
 > **Current (PROBLEMS.md §616, the owner 11.14):** a mix **plays in today's
 > order, best stories first** - "so you don't hear the same order every
 > day" - and its cover's tiles follow it. `mix_today.order` scores each item
