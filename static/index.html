@@ -271,25 +271,17 @@
     color:var(--text); font-family:'Geist',sans-serif; font-size:14px; font-weight:600;
     cursor:pointer; }
   .search-bubble svg{ color:var(--text-muted); }
-  /* Private search (10.15 packet, §282): searchFAM's incognito. While it is
-     on, the search page is charcoal in either theme - dark's palette on a
-     near-black ground - and goes back once the search is sent. */
-  #screen-home.private-search{
-    --page-bg:#0F0E12; --bg:#161519; --surface:#232129; --surface-2:#2C2A33;
-    --copper:#E0B563; --gold:#E0B563;
-    --text:#F1EEF4; --text-muted:#A7A2B3; --text-faint:#7F7A8B;
-    --border:rgba(241,238,244,0.12); --border-strong:rgba(241,238,244,0.22);
-    --muted:rgba(241,238,244,0.56); --ink-muted:#A7A2B3;
-    --fg-rgb:241,238,244; --bg-rgb:22,21,25;
-    color-scheme:dark; background:var(--bg); color:var(--text);
-    transition:background .25s;
-  }
-  .search-bubble.private-bubble[aria-pressed="true"]{ background:#F1EEF4; color:#161519; border-color:#F1EEF4; }
-  .search-bubble.private-bubble[aria-pressed="true"] svg{ color:#161519; }
-  .private-note{ margin:12px 4px 0; font-size:12.5px; line-height:1.45; color:var(--text-muted);
-    display:flex; gap:8px; align-items:flex-start; }
-  .private-note[hidden]{ display:none; }
-  .private-note svg{ flex:none; margin-top:1px; }
+  /* Private search (§282, §285) is a lock (11.16 notes): open while it is
+     off, closed and copper while it is on. The page itself does not change -
+     it used to go charcoal in either theme, which the owner found too much.
+     `#screen-home.private-search` is still set, as the state other code and
+     the smoke run read; it paints nothing. */
+  .search-bubble.private-bubble{ flex:none; width:44px; padding:0; }
+  .private-bubble .lock-shut{ display:none; }
+  .private-bubble[aria-pressed="true"] .lock-open{ display:none; }
+  .private-bubble[aria-pressed="true"] .lock-shut{ display:block; }
+  .search-bubble.private-bubble[aria-pressed="true"]{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .search-bubble.private-bubble[aria-pressed="true"] svg{ color:var(--ink); }
   /* Attachments. The chip carries the file's name because "1 attachment" is
      not enough to notice you attached the wrong thing. */
   .attach-btn{ width:40px; height:40px; border-radius:50%; background:none;
@@ -777,8 +769,8 @@
 
   /* Friends. Follows are one-way and a friend is the mutual case, so this
      shows the three lists rather than one blended "connections". */
-  .fr-counts{ font-size:12.5px; color:var(--text-muted); padding:2px 0 6px; }
-  .fr-counts b{ color:var(--text); font-weight:700; }
+  .fr-tabs{ margin:0 0 6px; position:sticky; top:0; z-index:2; background:var(--bg); }
+  .fr-tabs em{ font-style:normal; font-weight:500; color:var(--text-muted); margin-left:3px; }
   .fr-row{ display:flex; align-items:center; gap:12px; padding:10px 2px;
     cursor:pointer; }
   .fr-av{ flex:0 0 40px; height:40px; border-radius:50%; background:var(--paper);
@@ -902,11 +894,6 @@
   .mix-topic.has-sig .mix-topic-pic{ overflow:visible; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--sig-c); }
   .mix-topic.has-sig .mix-topic-pic img{ border-radius:10px; }
   .mix-sig-tag{ font-size:11px; font-weight:700; color:var(--sig-c); margin-bottom:2px; }
-  .mix-bubbles{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin-top:7px; }
-  .mix-bub{ font-size:11px; line-height:1.3; padding:4px 8px; border-radius:9px;
-    background:var(--bg); color:var(--text-muted); overflow-wrap:anywhere; }
-  .mix-bub.now{ background:transparent; color:var(--text); border:1px solid var(--sig-c); }
-  .mix-bub-arrow{ color:var(--sig-c); font-weight:700; font-size:12px; }
   .mix-play-all{ display:block; width:100%; margin:-4px 0 12px; padding:6px; border:0; background:none;
     color:var(--text-muted); font-family:'Geist',sans-serif; font-size:12px; font-weight:600;
     text-align:center; cursor:pointer; }
@@ -986,6 +973,14 @@
   .mix-topic-act{ flex:none; width:30px; height:30px; border-radius:50%; display:flex;
     align-items:center; justify-content:center; border:1px solid var(--border-strong);
     background:transparent; color:var(--text); cursor:pointer; font-size:15px; }
+  /* Edit topics (11.16 notes): the play button becomes an X. */
+  .mix-topic-x{ color:var(--text-muted); }
+  .mix-topic-x:active{ background:var(--coral); border-color:var(--coral); color:#fff; }
+  .mix-edit-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin:0 0 14px; padding:10px 10px 10px 14px; border-radius:12px; background:var(--surface);
+    border:1px solid var(--border-strong); font-size:11.5px; color:var(--text-muted); line-height:1.35; }
+  .mix-edit-done{ flex:none; padding:8px 16px; border-radius:999px; border:none; background:var(--copper);
+    color:var(--ink); font-family:'Geist',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
   .mix-topic.chosen{ border-color:var(--copper); }
   .mix-topic.chosen .mix-topic-act{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
   .mix-play{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
@@ -1417,20 +1412,16 @@
   .captions-panel.on .cc-copybtn{ border-color:rgba(244,239,228,0.22); color:var(--paper); opacity:0.85; }
   .captions-panel.on .cc-text{ font-size:12px; color:var(--paper); line-height:1.55; }
   .captions-panel.on .cc-text mark{ background:var(--copper); color:var(--ink); border-radius:3px; padding:0 3px; }
-  /* One sentence at a time (§127): the leaving one and the arriving one share
-     a grid cell and cross-fade, so the panel never jumps in height between
-     them and never shows two sentences at rest. */
-  .captions-panel.on .cc-text{ display:grid; }
-  .captions-panel.on .cc-text .cc-line{ grid-area:1 / 1; }
+  /* Everything said so far, newest last (11.16 notes): the spoken sentences
+     stack, dimmed, above the one being read, and the box scrolls. */
+  .captions-panel.on .cc-text .cc-line{ display:block; }
+  .captions-panel.on .cc-text .cc-said{ opacity:0.5; margin-bottom:0.55em; }
   .captions-panel.on .cc-text mark.cc-now{ background:none; color:var(--paper);
     padding:0; font-size:13px; animation:ccIn .32s ease both; }
-  .captions-panel.on .cc-text .cc-leaving{ color:var(--paper);
-    animation:ccOut .32s ease both; pointer-events:none; }
+  .captions-panel.on .cc-text mark.cc-now.cc-still{ animation:none; }
   @keyframes ccIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
-  @keyframes ccOut{ from{ opacity:1; } to{ opacity:0; transform:translateY(-4px); } }
   @media (prefers-reduced-motion: reduce){
-    .captions-panel.on .cc-text mark.cc-now, .captions-panel.on .cc-text .cc-leaving{ animation:none; }
-    .captions-panel.on .cc-text .cc-leaving{ display:none; }
+    .captions-panel.on .cc-text mark.cc-now{ animation:none; }
   }
 
   /* Where this episode's facts came from. Collapsed by default: it is a thing
@@ -1638,13 +1629,17 @@
     border:1px solid rgba(244,239,228,0.25); background:rgba(244,239,228,0.08); color:#F4EFE4;
     display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; opacity:1; }
   #screen-player .captions-panel.on .cc-text{ flex:1; min-height:0; overflow-y:auto;
-    display:grid; align-content:center; color:#F4EFE4; }
+    display:block; color:#F4EFE4; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    touch-action:pan-y; }
+  /* The first sentence sits in the middle of the box, as the one sentence
+     always did; once there is more than the box holds, it scrolls. */
+  #screen-player .captions-panel.on .cc-text::before{ content:""; display:block; height:30%; }
   #screen-player .captions-panel.on .cc-text,
   #screen-player .captions-panel.on .cc-text mark.cc-now{
     font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:24px;
     line-height:1.28; letter-spacing:-0.01em; color:#F4EFE4; }
-  #screen-player .captions-panel.on .cc-text .cc-leaving{ font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:600; font-size:24px; line-height:1.28; color:rgba(244,239,228,0.45); }
+  #screen-player .captions-panel.on .cc-text .cc-said{ font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:600; font-size:24px; line-height:1.28; color:#F4EFE4; }
   @media (prefers-reduced-motion: reduce){
     #screen-player .captions-panel{ transition:none; }
   }
@@ -4519,10 +4514,10 @@
             <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Voice</button>
             <!-- Private search (10.15 packet, §282): Google's incognito, left
                  on until turned off (§285), Go Deeper included. In no episode library, on no friend's DailyFAM,
-                 in nobody's history; the page goes charcoal while it is on. -->
-            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="setPrivateSearch(!privateSearch)" aria-label="Private search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5.5 11l1.7-5.6A1.5 1.5 0 0 1 8.6 4.3h6.8a1.5 1.5 0 0 1 1.4 1.1L18.5 11"/><circle cx="7.5" cy="16.5" r="2.8"/><circle cx="16.5" cy="16.5" r="2.8"/><path d="M10.3 16.3c1.1-.6 2.3-.6 3.4 0"/></svg>Private</button>
+                 in nobody's history. A lock and nothing more (11.16 notes):
+                 open while off, closed while on; the page keeps its colours. -->
+            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="setPrivateSearch(!privateSearch)" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
           </div>
-          <p class="private-note" id="privateNote" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Private search is on until you turn it off. Your searches and Go Deeper episodes won&rsquo;t appear in the episode library, on your friends&rsquo; DailyFAM, in your listening history, or teach your feed.</span></p>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
                of the last two hours, in order, each one an episode already
                written and still current (`/api/searches/trending`). -->
@@ -4815,7 +4810,7 @@
                had to be slid up, and when it was up it covered the transport. -->
           <div class="captions-panel off" id="ccPanel" aria-live="polite">
             <div class="cc-toprow"><span class="cc-label">Captions</span><button type="button" class="cc-copybtn" onclick="copyTranscript()" aria-label="Copy the transcript"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><button type="button" class="cc-close" onclick="toggleCC()" aria-label="Turn captions off"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-            <div class="cc-text" id="cc-text">Displayed here when captions are turned on.</div>
+            <div class="cc-text" id="cc-text" onscroll="captionScrolled(this)">Displayed here when captions are turned on.</div>
           </div>
         </div>
         <div class="p-titlerow">
@@ -6538,38 +6533,6 @@
       }
     }
 
-    // Private search: the charcoal falls from the top like a blind and lifts
-    // when it goes. The page is repainted at once; a copy of how it looked
-    // is drawn over it and cut away - from the top turning on, from the
-    // bottom turning off. The copy keeps the page's ids for its look and
-    // comes after it, so a lookup by id still finds the real page.
-    function dimDown(screen, turningOn, paint){
-      if(!on() || !screen || !screen.classList.contains("active") || !seen(screen)){ paint(); return; }
-      settle();
-      var veil = screen.cloneNode(true);
-      veil.classList.remove("active", "arriving");
-      veil.classList.add("leaving", "on-top");
-      veil.setAttribute("aria-hidden", "true");
-      veil.inert = true;
-      var typed = screen.querySelectorAll("input, textarea"), copied = veil.querySelectorAll("input, textarea");
-      for(var i = 0; i < typed.length && i < copied.length; i++) copied[i].value = typed[i].value;
-      screen.parentNode.insertBefore(veil, screen.nextSibling);
-      // The page's own background fade would show through the blind.
-      screen.style.transition = "none";
-      paint();
-      var a = run(veil, turningOn
-        ? [{ clipPath: "inset(0% 0 0 0)" }, { clipPath: "inset(100% 0 0 0)" }]
-        : [{ clipPath: "inset(0 0 0% 0)" }, { clipPath: "inset(0 0 100% 0)" }],
-        turningOn ? 320 : 260, { easing: EASE_IO });
-      var done = function(){ veil.remove(); screen.style.transition = ""; };
-      finishing.push(done);
-      a.finished.then(function(){
-        var at = finishing.indexOf(done);
-        if(at >= 0) finishing.splice(at, 1);
-        done();
-      }, function(){});
-    }
-
     // Follow and unfollow change the button on the tap - a tick draws in and
     // the button takes its new width - and are put back if the server says no.
     var TICK = '<svg class="motion-tick" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
@@ -6640,7 +6603,7 @@
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
              growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory, popMessages: popMessages,
-             badge: badge, dimDown: dimDown, follow: follow, removeRow: removeRow, steps: steps,
+             badge: badge, follow: follow, removeRow: removeRow, steps: steps,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
   Motion.watchOverlays();
@@ -7061,9 +7024,9 @@
   // guest; the server honours the stored one whatever a client sends.
   var privateSearch = false;
   function setPrivateSearch(on){
-    // The charcoal falls like a blind, and lifts when it goes (§298).
-    Motion.dimDown(document.getElementById("screen-home"), !!on,
-                   function(){ paintPrivateSearch(on); });
+    // The lock closes or opens, and that is all (11.16 notes): the page no
+    // longer turns charcoal behind a falling blind (§282, §298).
+    paintPrivateSearch(on);
     if(AUTH.authenticated){
       savePreferences({ private_search: privateSearch }).then(function(saved){
         if(saved && PREF_CHOICES) PREF_CHOICES.private_search = !!saved.private_search;
@@ -7074,7 +7037,7 @@
       saveLocalPrefs({ private_search: privateSearch });
       refreshSettingsIfOpen();
     }
-    toast(privateSearch ? "Private search is on" : "Private search is off");
+    toast(privateSearch ? "Private search on \u00b7 kept out of history and feeds" : "Private search off");
   }
   // Drawing only: what the page shows for the switch, with nothing saved.
   function paintPrivateSearch(on){
@@ -7083,8 +7046,10 @@
     if(screen) screen.classList.toggle("private-search", privateSearch);
     var bubble = document.getElementById("privateBubble");
     if(bubble) bubble.setAttribute("aria-pressed", privateSearch ? "true" : "false");
-    var note = document.getElementById("privateNote");
-    if(note) note.hidden = !privateSearch;
+    if(bubble){
+      bubble.setAttribute("aria-label", privateSearch ? "Private search is on" : "Private search");
+      bubble.title = privateSearch ? "Private search is on" : "Private search";
+    }
   }
   function runSearch(){
     if(searchSending) return;
@@ -8880,6 +8845,7 @@
     captionSentences = [];
     captionStarts = [];
     captionShown = -1;
+    captionFollow = true;
     captionStamp = "";
     captionDone = false;
     captionTick = 0;
@@ -8998,21 +8964,39 @@
       return;
     }
     var here = captionIndexNow();
-    // **One sentence: the one being spoken** (§127, at the owner's
-    // direction). It was a window of four with the current one marked, which
-    // is a transcript with a highlighter on it. Now the sentence being read
-    // is the only thing on screen, the one before fades out as it goes and
-    // the next fades in as it arrives. Redrawn only when the sentence
-    // changes, so the fade happens once per sentence rather than every tick.
+    // **Everything said so far, the sentence being spoken last** (11.16
+    // notes). §127 drew the one sentence being read and nothing else, so a
+    // listener who looked up a moment late had no way back to what was just
+    // said. The spoken sentences now stay above it, dimmed, and the box
+    // scrolls: it follows the voice until the listener scrolls up, and
+    // follows again once they are back at the bottom. Nothing ahead of the
+    // voice is drawn. Redrawn only when the sentence changes.
     if(here === captionShown && box.querySelector("mark.cc-now")) return;
-    var leaving = captionShown >= 0 && captionShown !== here
-      ? String(captionSentences[captionShown] || "").trim() : "";
+    var grew = here > captionShown;
     captionShown = here;
-    var text = escapeHtml(String(captionSentences[here] || "").trim());
-    box.innerHTML = (leaving
-        ? '<span class="cc-line cc-leaving" aria-hidden="true">' + escapeHtml(leaving) + '</span>'
-        : '')
-      + '<mark class="cc-line cc-now">' + text + '</mark>';
+    var html = "";
+    for(var i = 0; i < here; i++){
+      html += '<span class="cc-line cc-said">'
+        + escapeHtml(String(captionSentences[i] || "").trim()) + '</span>';
+    }
+    box.innerHTML = html + '<mark class="cc-line cc-now' + (grew ? "" : " cc-still") + '">'
+      + escapeHtml(String(captionSentences[here] || "").trim()) + '</mark>';
+    if(captionFollow) captionToVoice(box);
+  }
+
+  // Whether the captions follow the voice. False from the moment the
+  // listener scrolls back, true again when they return to the newest line.
+  var captionFollow = true;
+  var captionScrolling = false;
+  function captionToVoice(box){
+    captionScrolling = true;
+    box.scrollTop = box.scrollHeight;
+    setTimeout(function(){ captionScrolling = false; }, 80);
+  }
+  function captionScrolled(box){
+    // Our own scroll to the newest line is not the listener reading back.
+    if(captionScrolling) return;
+    captionFollow = box.scrollHeight - box.scrollTop - box.clientHeight < 28;
   }
 
   // Runs only while the panel is open. A timer redrawing a hidden element on
@@ -10942,8 +10926,9 @@
     panel.dataset.key = key;
     document.getElementById("ccIcon").classList.remove("on");
     document.getElementById("ccIcon").setAttribute("aria-pressed", "false");
-    // Turned on again if that is how the listener left them (§519).
-    if(captionsWanted()) setTimeout(function(){ if(!captionsOn()) toggleCC(); }, 0);
+    // Off at the start of every episode, however the last one was heard
+    // (11.16 notes, reversing §519's remembered setting).
+    forgetCaptionsSetting();
     // reset play state to "playing"
     setPlayState(true);
 
@@ -11023,14 +11008,12 @@
     }, { passive: true });
   })();
 
-  // Captions stay as the listener left them, episode to episode and visit
-  // to visit (§519): somebody who reads along should not have to turn them
-  // on again for every episode. Per device, a convenience - nothing else.
-  function rememberCaptions(on){
-    try { localStorage.setItem("fam.captions", on ? "1" : "0"); } catch(e){}
-  }
-  function captionsWanted(){
-    try { return localStorage.getItem("fam.captions") === "1"; } catch(e){ return false; }
+  // Captions are off at the start of every episode (11.16 notes). §519
+  // kept them as the listener left them, in `fam.captions` on the device;
+  // the owner asked for the opposite, so nothing is kept and the old key is
+  // removed where it was written.
+  function forgetCaptionsSetting(){
+    try { localStorage.removeItem("fam.captions"); } catch(e){}
   }
   function toggleCC(){
     var panel = document.getElementById("ccPanel");
@@ -11046,13 +11029,12 @@
       renderCaptions();
       icon.classList.remove("on");
       icon.setAttribute("aria-pressed", "false");
-      rememberCaptions(false);
       return;
     }
     panel.classList.remove("off"); panel.classList.add("on");
     icon.classList.add("on");
     icon.setAttribute("aria-pressed", "true");
-    rememberCaptions(true);
+    captionFollow = true;
     // Ask immediately, then keep asking until it lands. The script is written
     // far faster than it is spoken, so this usually resolves on the first try
     // even when captions are turned on during the opening sentence.
@@ -12999,6 +12981,7 @@
     var m = mixById(id);
     if(!m) return;
     currentMixId = id;
+    mixEditing = false;
     document.getElementById("mixTitle").textContent = m.name;
     if(m.sample){
       renderSampleMixBody(m);
@@ -13120,11 +13103,20 @@
         + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         + '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M19 8v6M16 11h6"/></svg></button>' : '')
       + '</div>';
-    html += '<button class="mix-add-topics" onclick="openAddTopics()">'
-      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-      + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
+    // "Edit topics" (11.16 notes): the same page, every topic with an X.
+    var editing = mixEditing && items.length > 0;
+    if(editing){
+      html += '<div class="mix-edit-bar"><span>Tap \u00d7 to remove a topic from this mix</span>'
+        + '<button class="mix-edit-done" onclick="doneEditingTopics()">Done</button></div>';
+    } else {
+      html += '<button class="mix-add-topics" onclick="openAddTopics()">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
+    }
     var changed = items.filter(function(t){ return t.since; });
-    if(items.length && changed.length){
+    if(editing){
+      // Nothing plays from the page while it is being edited.
+    } else if(items.length && changed.length){
       // Q5 (§545): something changed since this listener last heard the mix,
       // so the one button starts there; the whole mix is a link under it.
       html += '<button class="mix-play" onclick="playWhatChanged()">'
@@ -13167,15 +13159,23 @@
           // from under it; the topic's name alone until it is written.
           + '<div class="mix-topic-title">' + escapeHtml(t.episode_title || t.title) + '</div>'
           + '<div class="mix-topic-sub">' + escapeHtml(mixTopicSub(t, by)) + '</div>'
-          + (sig ? mixBubblesHTML(t.since) : '')
+          // The "Sat: ..." and "Today: ..." bubbles that sat here (§545's
+          // Q5) are gone at the owner's direction (11.16 notes); the tag
+          // above the title and the row's outline still say what changed.
           + '</div>'
           // By data attribute, not inside the handler: a followed item's id
           // carries the specific the listener typed, and "O'Brien" in a
           // quoted onclick argument is a button that throws.
-          + '<button class="mix-topic-act" title="Play this one" data-id="' + escapeHtml(t.id) + '" '
-          + 'onclick="event.stopPropagation(); playMixFrom(this.dataset.id)">'
-          + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
-          + '<path d="M8 5v14l11-7z"/></svg></button>'
+          + (editing
+            ? '<button class="mix-topic-act mix-topic-x" aria-label="Remove '
+              + escapeHtml(t.title || t.episode_title || "this topic") + ' from this mix" data-id="' + escapeHtml(t.id) + '" '
+              + 'onclick="event.stopPropagation(); removeMixTopic(this.dataset.id)">'
+              + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+              + 'stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+            : '<button class="mix-topic-act" title="Play this one" data-id="' + escapeHtml(t.id) + '" '
+              + 'onclick="event.stopPropagation(); playMixFrom(this.dataset.id)">'
+              + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
+              + '<path d="M8 5v14l11-7z"/></svg></button>')
           + '</div>';
       }).join("") + '</div>';
     } else {
@@ -13544,18 +13544,45 @@
     return '<span class="mix-topic-pic">' + inner + '</span>';
   }
 
-  // Q5 (§545): what the listener last heard of this topic and what is true
-  // today, as two bubbles joined by an arrow. One bubble when they have
-  // never heard it - never an invented "before".
-  function mixBubblesHTML(since){
-    // The arrow opens the "Today" bubble, so on a narrow row the two stack
-    // without leaving it stranded between them.
-    if(!since.then) return '<div class="mix-bubbles"><span class="mix-bub now">Today: '
-      + escapeHtml(since.now.title) + '</span></div>';
-    return '<div class="mix-bubbles"><span class="mix-bub">' + escapeHtml(since.then.day || "Before")
-      + ': ' + escapeHtml(since.then.title) + '</span>'
-      + '<span class="mix-bub now"><span class="mix-bub-arrow" aria-hidden="true">\u2192</span> Today: '
-      + escapeHtml(since.now.title) + '</span></div>';
+  // ---------------- Edit topics (11.16 notes) ----------------
+  // The mix's three dots open the mix page with an X on every topic; an X
+  // takes that topic out of the mix. A member of a joint mix may too
+  // (`joint-mixes`: members edit topics). Leaving the page, or Done, ends it.
+  var mixEditing = false;
+  var mixRemoving = false;
+  function editMixTopics(){
+    var m = mixById(currentMixId);
+    if(!m || m.sample) return;
+    if(!(m.items || []).length){ toast("Nothing in this mix to remove yet"); return; }
+    mixEditing = true;
+    rerenderMixKeepScroll(m);
+    var list = document.getElementById("mixOrder");
+    if(list && list.scrollIntoView) list.scrollIntoView({ block: "nearest" });
+  }
+  function doneEditingTopics(){
+    mixEditing = false;
+    var m = mixById(currentMixId);
+    if(m) rerenderMixKeepScroll(m);
+  }
+  function removeMixTopic(id){
+    var m = mixById(currentMixId);
+    if(!m) return;
+    var gone = null;
+    var payload = (m.items || []).filter(function(i){
+      if(i.id === id){ gone = i; return false; }
+      return true;
+    }).map(function(i){ return i.custom ? { query: i.query, title: i.title } : i.id; });
+    // One at a time: a second X pressed before the first is answered would
+    // send a list that still held the first topic, and put it back.
+    if(!gone || mixRemoving) return;
+    mixRemoving = true;
+    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
+      mixRemoving = false;
+      // The last one out ends the edit: there is nothing left to remove.
+      if(!(saved.items || []).length) mixEditing = false;
+      rerenderMixKeepScroll(saved);
+      toast("Removed " + (gone.title || "that") + " from " + (saved.name || "this mix"));
+    }, function(){ mixRemoving = false; });
   }
 
   // "Start with what changed": the changed topics first, then the rest,
@@ -13858,6 +13885,7 @@
     if(m.role === "member"){
       showActionSheet([
         { label: "Add topics to mix", action: openAddTopics },
+        { label: "Edit topics", action: editMixTopics },
         { label: "Who’s in this mix", action: openMixPeople },
         { label: "Leave this mix", danger: true, action: leaveMix }
       ]);
@@ -13868,6 +13896,7 @@
       { label: "Rename", action: renameMix },
       { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
       { label: "Add topics to mix", action: openAddTopics },
+      { label: "Edit topics", action: editMixTopics },
       { label: "Invite collaborators", action: inviteCollaborators }
     ];
     if(m.joint) rows.push({ label: "Make it yours alone", action: stopJointMix });
@@ -18929,51 +18958,64 @@
 
   function renderFriends(){
     var el = document.getElementById("friendsBody");
-    var c = friendsData.counts || {};
-    // "1 friend", "1 follower" (decision 7); "following" has no plural.
-    var html = '<div class="fr-counts"><b>' + (c.friends || 0) + '</b> '
-      + plural(c.friends || 0, "friend") + ' · <b>'
-      + (c.following || 0) + '</b> following · <b>'
-      + (c.followers || 0) + '</b> ' + plural(c.followers || 0, "follower") + '</div>';
-
-    // Three groups, and nobody in two of them. A friend is by definition in
-    // all three lists the server returns, so printing them raw put the same
-    // person on screen three times - which reads as a bug rather than as the
-    // graph being asymmetric.
-    var isFriend = {};
-    (friendsData.friends || []).forEach(function(f){ isFriend[f.user_id] = true; });
-    var notFriends = function(list){
-      return (list || []).filter(function(person){ return !isFriend[person.user_id]; });
-    };
-    var groups = [
-      ["Friends", friendsData.friends || [],
-       "Mutual follows. Nothing to accept — you are friends when you both follow."],
-      ["Following", notFriends(friendsData.following),
-       "One-way, for now. They are friends the moment they follow back."],
-      ["Follows you", notFriends(friendsData.followers),
-       "Following back makes you friends."]
-    ];
-    var anything = false;
-    groups.forEach(function(g){
-      if(!g[1].length) return;
-      anything = true;
-      html += '<div class="pf-rail">' + g[0] + ' <em>' + g[1].length + '</em></div>';
-      if(g[2]) html += '<div class="fr-note">' + g[2] + '</div>';
-      html += g[1].map(function(person){
-        var following = (friendsData.following || []).some(function(f){
-          return f.user_id === person.user_id;
-        });
-        return personRow(person,
-          following
-            ? 'unfollowPerson(\'' + person.user_id + '\')'
-            : 'followPerson(\'' + person.user_id + '\')',
-          following ? "Following" : "Follow");
-      }).join("");
+    // **Two tabs, Friends | Following** (11.16 notes, the owner's sketch).
+    // It was one page of stacked groups under a line of three counts, and
+    // the Following group sat below every friend. A friend is a mutual
+    // follow, so Following holds friends too, as Instagram's does: the two
+    // tabs are two questions, not one list cut in two. Somebody who follows
+    // this listener and is not followed back is under Friends, where
+    // following back would put them.
+    var friends = friendsData.friends || [];
+    var following = friendsData.following || [];
+    var isFollowed = {}, isFriend = {};
+    following.forEach(function(f){ isFollowed[f.user_id] = true; });
+    friends.forEach(function(f){ isFriend[f.user_id] = true; });
+    var followsYou = (friendsData.followers || []).filter(function(person){
+      return !isFriend[person.user_id] && !isFollowed[person.user_id];
     });
-    if(!anything){
-      html += '<div class="pf-empty">Nobody yet. Search a @handle above. When someone follows you back, you\u2019re friends.</div>';
+    // Nobody to show under Friends but people followed: open on those.
+    if(friendsTab !== "following" && !friends.length && !followsYou.length && following.length){
+      friendsTab = "following";
+    }
+    var onFollowing = friendsTab === "following";
+    var row = function(person){
+      return personRow(person,
+        isFollowed[person.user_id]
+          ? 'unfollowPerson(\'' + person.user_id + '\')'
+          : 'followPerson(\'' + person.user_id + '\')',
+        isFollowed[person.user_id] ? "Following" : "Follow");
+    };
+    var tab = function(id, label, n){
+      var on = (id === "following") === onFollowing;
+      return '<button class="pf-tab' + (on ? " on" : "") + '" role="tab" aria-selected="' + on
+        + '" onclick="showFriendsTab(\'' + id + '\')">' + label + ' <em>' + n + '</em></button>';
+    };
+    var html = '<div class="pf-tabs fr-tabs" role="tablist" aria-label="Friends">'
+      + tab("friends", "Friends", friends.length)
+      + tab("following", "Following", following.length) + '</div>';
+    if(onFollowing){
+      html += following.length
+        ? following.map(row).join("")
+        : '<div class="pf-empty">You are not following anybody yet. Search a @handle above.</div>';
+    } else {
+      html += friends.map(row).join("");
+      if(followsYou.length){
+        html += '<div class="pf-rail">Follows you <em>' + followsYou.length + '</em></div>'
+          + '<div class="fr-note">Following back makes you friends.</div>'
+          + followsYou.map(row).join("");
+      }
+      if(!friends.length && !followsYou.length){
+        html += '<div class="pf-empty">Nobody yet. Search a @handle above. When someone follows you back, you\u2019re friends.</div>';
+      }
     }
     el.innerHTML = html;
+  }
+  var friendsTab = "friends";
+  function showFriendsTab(which){
+    friendsTab = which === "following" ? "following" : "friends";
+    var body = document.getElementById("friendsBody");
+    renderFriends();
+    if(body) body.scrollTop = 0;
   }
 
   var peopleSearchTimer = null;

@@ -81,7 +81,7 @@ enum EnvRibbonWindow {
         window = shown
     }
 
-    /// The theme, private search's charcoal or the shared screen changed the
+    /// The theme or the shared screen changed the
     /// app's scheme: a window this high decides the status bar, so it is
     /// told at once rather than keeping the one it was drawn in.
     static func restyle(dark: Bool) {

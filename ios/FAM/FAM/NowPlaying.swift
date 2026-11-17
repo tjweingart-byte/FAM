@@ -91,8 +91,9 @@ final class NowPlayingModel: ObservableObject {
     static let resumeEvery: TimeInterval = 15 // RESUME_EVERY_MS
     static let skipAfter: Double = 5          // a skip counts after 5 s
     static let nextUpSeconds = 15
-    /// `localStorage["fam.captions"]` on the web: "1" on, "0" off.
-    static let captionsKey = "fam.captions"
+    /// Where §519 remembered captions on this device ("1" on, "0" off).
+    /// Nothing is kept any more (11.16 notes); the old value is removed.
+    private static let oldCaptionsKey = "fam.captions"
 
     @Published private(set) var episode: Episode?
     @Published private(set) var title = ""
@@ -107,8 +108,8 @@ final class NowPlayingModel: ObservableObject {
     /// the listener turns one on, never when painted from the server.
     @Published private(set) var savedBurst = 0
     @Published private(set) var vibedBurst = 0
-    /// The captions card (§519): off for each new episode unless this device
-    /// remembers it on (`fam.captions`, `captionsWanted`).
+    /// The captions card (§519): off at the start of every episode,
+    /// however the last one was heard (11.16 notes).
     @Published private(set) var captionsOn = false
     @Published private(set) var sentences: [String] = []
     @Published private(set) var captionStarts: [Double]?
@@ -296,8 +297,10 @@ final class NowPlayingModel: ObservableObject {
         Task { await askSources(mine) }
         Task { await askFriends(ep, mine) }
         Task { await watch(mine) }
-        // Turned on again if that is how the listener left them (§519).
-        if Self.captionsRemembered { showCaptions(true) }
+        // Off at the start of every episode, however the last one was heard
+        // (11.16 notes, reversing §519's remembered setting); the key §519
+        // wrote is removed (`forgetCaptionsSetting`).
+        UserDefaults.standard.removeObject(forKey: Self.oldCaptionsKey)
     }
 
     /// The episode played to its end.
@@ -650,18 +653,10 @@ final class NowPlayingModel: ObservableObject {
 
     private var captionTask: Task<Void, Never>?
 
-    static var captionsRemembered: Bool {
-        UserDefaults.standard.string(forKey: captionsKey) == "1"
-    }
-
     /// The listener's toggle - the Captions pill, the card's X, a swipe
-    /// down, the menu row: remembered on this device every time (`toggleCC`).
+    /// down, the menu row - for this episode only: nothing is remembered
+    /// (`toggleCC`, 11.16 notes).
     func setCaptions(_ on: Bool) {
-        UserDefaults.standard.set(on ? "1" : "0", forKey: Self.captionsKey)
-        showCaptions(on)
-    }
-
-    private func showCaptions(_ on: Bool) {
         guard on != captionsOn else { return }
         captionsOn = on
         if on { startCaptions() } else { stopCaptions() }

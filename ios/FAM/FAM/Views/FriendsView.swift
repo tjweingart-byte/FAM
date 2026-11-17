@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// Friends (`#screen-friends`, shots 28-32): find someone by handle,
-/// Invite new users +, the counts, then three groups - nobody twice:
-/// FRIENDS (mutual follows, `op-follow-graph`), FOLLOWING (one-way) and
-/// FOLLOWS YOU. Opening it is what clears "new followers"
+/// Invite new users +, then two tabs, Friends | Following (11.16 notes, the
+/// owner's sketch; `renderFriends`). Friends are mutual follows
+/// (`op-follow-graph`); Following is everyone followed, friends included,
+/// as Instagram's is. Somebody who follows this listener and is not
+/// followed back sits under Friends in a FOLLOWS YOU group, where following
+/// back would put them. Opening the page is what clears "new followers"
 /// (`POST /api/friends/seen`) - never the popup. Rows open the profile;
 /// Follow flips to "✓ Following" at once, the tick drawing in; Following
 /// unfollows in one tap, flipping back at once (the owner's decision 7).
@@ -16,6 +19,8 @@ struct FriendsView: View {
     /// Unfollowed on the tap, before the server has answered (`Motion.follow`).
     @State private var unflipping: Set<String> = []
     @State private var invite: [Any]?
+    /// The tab asked for (`friendsTab`); `shownTab` is the one drawn.
+    @State private var tab: FriendsTab = .friends
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -38,6 +43,12 @@ struct FriendsView: View {
             .buttonStyle(.press)
             .padding(.horizontal, 18)
             .padding(.top, 10)
+            // Above the list, so the tabs stay put while it scrolls
+            // (`.fr-tabs{ position:sticky }`); not over a handle search.
+            if found == nil, let g = social.graph {
+                FriendsTabs(tab: shownTab(g), friends: g.friends.count, following: g.following.count) { tab = $0 }
+                    .padding(.top, 12)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let found {
@@ -50,6 +61,8 @@ struct FriendsView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 18)
             }
+            // A tab opens at its top (`showFriendsTab`: `scrollTop = 0`).
+            .id(tab)
             .refreshable { await social.loadGraph() }
         }
         .background(FAMColor.background)
@@ -68,49 +81,44 @@ struct FriendsView: View {
 
     // MARK: The graph
 
+    /// Followers this listener does not follow back (`followsYou`).
+    private func followsYou(_ g: FriendsPage) -> [FollowPerson] {
+        let friendIDs = Set(g.friends.map(\.userId))
+        let followedIDs = Set(g.following.map(\.userId))
+        return g.followers.filter { !friendIDs.contains($0.userId) && !followedIDs.contains($0.userId) }
+    }
+
+    /// The tab drawn: the one asked for - but with nobody to show under
+    /// Friends and somebody followed, Following (`renderFriends`).
+    private func shownTab(_ g: FriendsPage) -> FriendsTab {
+        if tab == .following { return .following }
+        if g.friends.isEmpty && followsYou(g).isEmpty && !g.following.isEmpty { return .following }
+        return .friends
+    }
+
     @ViewBuilder private var graphView: some View {
         if let g = social.graph {
-            counts(g)
-            let friendIDs = Set(g.friends.map(\.userId))
-            let following = g.following.filter { !friendIDs.contains($0.userId) }
-            let followers = g.followers.filter { !friendIDs.contains($0.userId) }
-            if g.friends.isEmpty && following.isEmpty && followers.isEmpty {
-                SocialNote(text: "Nobody yet. Search a @handle above. When someone follows you back, you\u{2019}re friends.")
-            }
-            if !g.friends.isEmpty {
-                group("Friends", g.friends,
-                      note: "Mutual follows. Nothing to accept \u{2014} you are friends when you both follow.")
-            }
-            if !following.isEmpty {
-                group("Following", following,
-                      note: "One-way, for now. They are friends the moment they follow back.")
-            }
-            if !followers.isEmpty {
-                group("Follows you", followers, note: "Following back makes you friends.")
+            if shownTab(g) == .following {
+                if g.following.isEmpty {
+                    SocialNote(text: "You are not following anybody yet. Search a @handle above.")
+                } else {
+                    ForEach(g.following) { p in row(p) }
+                }
+            } else {
+                let waiting = followsYou(g)
+                ForEach(g.friends) { p in row(p) }
+                if !waiting.isEmpty {
+                    group("Follows you", waiting, note: "Following back makes you friends.")
+                }
+                if g.friends.isEmpty && waiting.isEmpty {
+                    SocialNote(text: "Nobody yet. Search a @handle above. When someone follows you back, you\u{2019}re friends.")
+                }
             }
         } else if social.graphState == .failed {
             SocialNote(text: "Could not load your friends list.")
         } else {
             SocialNote(text: "Loading\u{2026}")
         }
-    }
-
-    /// "2 friends · 3 following · 3 followers", the numbers bold.
-    private func counts(_ g: FriendsPage) -> some View {
-        let friends = g.counts?.friends ?? g.friends.count
-        let following = g.counts?.following ?? g.following.count
-        let followers = g.counts?.followers ?? g.followers.count
-        let line = Text("\(friends)").font(FAMFont.body(12.5, .bold)).foregroundColor(FAMColor.text)
-            + Text(friends == 1 ? " friend \u{00B7} " : " friends \u{00B7} ")
-            + Text("\(following)").font(FAMFont.body(12.5, .bold)).foregroundColor(FAMColor.text)
-            + Text(" following \u{00B7} ")
-            + Text("\(followers)").font(FAMFont.body(12.5, .bold)).foregroundColor(FAMColor.text)
-            + Text(followers == 1 ? " follower" : " followers")
-        return line
-            .font(FAMFont.body(12.5))
-            .foregroundStyle(FAMColor.textMuted)
-            .padding(.top, 2)
-            .padding(.bottom, 6)
     }
 
     /// `.pf-rail` heading with its count, the muted sentence, the rows.
@@ -272,5 +280,63 @@ struct FriendsView: View {
     private func inviteNewUsers() {
         let handle = social.myHandle.isEmpty ? (model.circle?.me?.handle ?? "") : social.myHandle
         invite = model.inviteItems(handle: handle)
+    }
+}
+
+/// The Friends page's two tabs (`friendsTab`).
+enum FriendsTab {
+    case friends, following
+}
+
+/// Friends | Following (`.pf-tabs.fr-tabs`): two equal tabs, a copper rule
+/// under the one that is on and each with its count, drawn as myFAM's
+/// Mixes | Categories are (`PlayfamTabs`).
+struct FriendsTabs: View {
+    let tab: FriendsTab
+    let friends: Int
+    let following: Int
+    let pick: (FriendsTab) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            button(.friends, "Friends", friends)
+            button(.following, "Following", following)
+        }
+        // The hairline under both; the copper rule of the one on is drawn
+        // over it (`margin-bottom:-1px`).
+        .background(alignment: .bottom) {
+            Rectangle().fill(FAMColor.border).frame(height: 1)
+        }
+        .padding(.horizontal, 18)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Friends")
+    }
+
+    private func button(_ which: FriendsTab, _ label: String, _ count: Int) -> some View {
+        let on = tab == which
+        return Button { pick(which) } label: {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(FAMFont.body(15, .semibold))
+                    .foregroundStyle(on ? FAMColor.text : FAMColor.textMuted)
+                // `.fr-tabs em`: the count, lighter and muted.
+                Text("\(count)")
+                    .font(FAMFont.body(15, .medium))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            .lineLimit(1)
+            .padding(.top, 8)
+            .padding(.bottom, 9 + 2.5)
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(on ? FAMColor.copper : Color.clear)
+                    .frame(height: 2.5)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel("\(label), \(count)")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
