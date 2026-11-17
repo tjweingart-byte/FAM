@@ -167,7 +167,8 @@ def test_delete_and_leave_go_with_undo_and_send_on_the_line_going():
     assert "Motion.landed(takeLeavingRow)" in _fn("renderThreadRows")
     assert "Motion.removeRow(row, redraw, \"#threadList .thread-row\", Motion.DUR.rowOut)" in _fn("takeLeavingRow")
     assert "!threadsGone[t[\"with\"]]" in _fn("fetchInbox")
-    assert "flushSnackCommit();" in _fn("logOut")
+    # §646: the line goes with the commit (hideSnack flushes it).
+    assert "hideSnack();" in _fn("logOut")
 
 
 def test_share_pick_turns_the_bottom_row():

@@ -97,7 +97,6 @@
     --ease-out:cubic-bezier(.32,.72,0,1);
     --ease-in:cubic-bezier(.55,0,1,.45);
     --ease-in-out:cubic-bezier(.77,0,.175,1);
-    --spring-page:linear(0, 0.0477, 0.1531, 0.2784, 0.4028, 0.5162, 0.6144, 0.6965, 0.7636, 0.8174, 0.86, 0.8932, 0.919, 0.9389, 0.954, 0.9656, 0.9743, 0.9808, 0.9858, 0.9894, 0.9922, 0.9942, 0.9958, 0.9969, 1);
     --spring-soft:linear(0, 0.039, 0.1312, 0.2485, 0.3724, 0.4913, 0.5987, 0.6915, 0.7689, 0.8317, 0.8812, 0.9192, 0.9477, 0.9684, 0.983, 0.9929, 0.9994, 1.0032, 1.0053, 1.0062, 1.0062, 1.0058, 1.0052, 1.0044, 1);
     --spring-icon:linear(0, 0.0575, 0.1802, 0.3206, 0.4549, 0.5727, 0.6709, 0.7499, 0.812, 0.86, 0.8965, 0.9239, 0.9444, 0.9596, 0.9707, 0.9789, 0.9848, 0.9891, 0.9922, 0.9944, 0.996, 0.9972, 0.998, 0.9986, 1);
     --dur-press-down:90ms; --dur-press-up:220ms;
@@ -206,7 +205,7 @@
   }
   /* Browsers without `linear()` get the plain curve in place of a spring. */
   @supports not (transition-timing-function: linear(0, 1)){
-    :root{ --spring-page:var(--ease-out); --spring-soft:var(--ease-out); --spring-icon:var(--ease-out); }
+    :root{ --spring-soft:var(--ease-out); --spring-icon:var(--ease-out); }
   }
   /* Changing the theme (reduced: A, the theme-switch recipe): every
      transition is off for the two frames the colours change in, so the
@@ -1697,9 +1696,11 @@
   .captions-panel.on .cc-text .cc-line{ display:block; }
   .captions-panel.on .cc-text .cc-said{ color:rgba(244,239,228,0.5); margin-bottom:0.55em; }
   .captions-panel.on .cc-text mark.cc-now{ background:none; color:var(--paper);
-    padding:0; font-size:13px; animation:ccIn var(--dur-colour) var(--ease-out) both; }
+    padding:0; font-size:13px; animation:ccIn var(--dur-colour) var(--ease-out) backwards; }
   .captions-panel.on .cc-text mark.cc-now.cc-still{ animation:none; }
-  @keyframes ccIn{ from{ color:rgba(244,239,228,0.5); } to{ color:var(--paper); } }
+  /* No `to`: it warms to the line's own colour - the player's is not
+     --paper (§646). */
+  @keyframes ccIn{ from{ color:rgba(244,239,228,0.5); } }
   @media (prefers-reduced-motion: reduce){
     .captions-panel.on .cc-text mark.cc-now{ animation:none; }
   }
@@ -1918,8 +1919,10 @@
   #screen-player .captions-panel.on .cc-text mark.cc-now{
     font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:24px;
     line-height:1.28; letter-spacing:-0.01em; color:#F4EFE4; }
+  /* Said is dimmed here too (§646: the merge's colour-only dim was undone
+     by this rule's full colour). */
   #screen-player .captions-panel.on .cc-text .cc-said{ font-family:'Bricolage Grotesque', sans-serif;
-    font-weight:600; font-size:24px; line-height:1.28; color:#F4EFE4; }
+    font-weight:600; font-size:24px; line-height:1.28; color:rgba(244,239,228,0.5); }
   @media (prefers-reduced-motion: reduce){
     #screen-player .captions-panel{ transition:none; }
   }
@@ -2401,6 +2404,10 @@
      leaves over the new one in the same place. */
   .motion-roll{ display:inline-block; }
   .motion-roll-old{ position:absolute; left:0; right:0; top:0; text-align:center; pointer-events:none; }
+  /* The outgoing number is drawn, not held as text (§646): the element's
+     textContent stays the current number mid-roll, so a second roll (or a
+     caller reading it) never sees the two glued together. */
+  .motion-roll-old::before{ content:attr(data-n); }
   /* The old title rising out over the new one (title-wipe: C). */
   .motion-title{ position:absolute !important; margin:0 !important; pointer-events:none; }
   /* A removed row leaving over the rows that have already closed up. */
@@ -6786,6 +6793,9 @@
     // on from there instead of starting again.
     var swiped = null;
     function screen(from, to, how){
+      // Something else changed the screen under an edge drag (§646): the
+      // drag ends here, so letting go cannot press the new screen's back.
+      if(edge){ if(edge.engaged) undrag(edge); edge = null; }
       // Search's loader is over everything (loader-to-player: C, §643): the
       // player opens under it with no movement of its own, and whatever is
       // moving on the loader - its arrival, its rings - carries on.
@@ -7072,7 +7082,8 @@
       var v = 0, a = s.last[0], b = s.last[s.last.length - 1];
       if(a && b && b.t > a.t) v = (b.x - a.x) / (b.t - a.t);
       var p = s.x / s.width;
-      var go = e && e.type !== "pointercancel" && v > -FLICK && (v > FLICK || p > 0.5);
+      var go = e && e.type !== "pointercancel" && v > -FLICK && (v > FLICK || p > 0.5)
+               && s.screen.classList.contains("active");
       if(go){
         undrag(s);
         swiped = { p: p, v: Math.max(0, v), at: Date.now() };
@@ -7298,7 +7309,7 @@
       var dir = (parseFloat(now) || 0) >= (parseFloat(before) || 0) ? 1 : -1;
       var nu = document.createElement("span"), old = document.createElement("span");
       nu.className = "motion-roll"; nu.textContent = now;
-      old.className = "motion-roll motion-roll-old"; old.textContent = String(before);
+      old.className = "motion-roll motion-roll-old"; old.setAttribute("data-n", String(before));
       old.setAttribute("aria-hidden", "true");
       el.textContent = "";
       el.appendChild(nu); el.appendChild(old);
@@ -7471,6 +7482,9 @@
     // the first frame until it has loaded - it could not be shown before
     // that anyway - then faded in. Given up after eight seconds.
     function picture(el, url){
+      // A fade still waiting on the last picture is not this one's (§646):
+      // it held the next, already-loaded picture at opacity 0.
+      if(el && el._picFade){ el._picFade(); }
       if(!el || !url || !on()) return;
       var im = new Image();
       im.src = url;
@@ -7478,7 +7492,9 @@
       var a = run(el, [{ opacity: 0 }, { opacity: 1 }], DUR.picture);
       a.pause();
       var giveUp = setTimeout(function(){ a.cancel(); }, 8000);
+      el._picFade = function(){ el._picFade = null; clearTimeout(giveUp); im.onload = im.onerror = null; a.cancel(); };
       im.onload = function(){
+        el._picFade = null;
         clearTimeout(giveUp);
         if((el.style.backgroundImage || "").indexOf(url) < 0){ a.cancel(); return; }
         a.play();
@@ -7618,6 +7634,7 @@
         if(i >= 0) finishing.splice(i, 1);
         if(done) done();
       };
+      c.fin = fin;
       finishing.push(fin);
       Promise.all(anims.map(function(x){ return x.finished; })).then(fin, function(){});
     }
@@ -7634,6 +7651,13 @@
       var c = cubeOpen(ov, dir, draw);
       cubeSet(c, 0);
       return c;
+    }
+    // A cube that must not outlive its viewer (§646): one turning ends
+    // where it was going at once, one under the finger is taken down.
+    function cubeEnd(c){
+      if(!c) return;
+      if(c.fin) c.fin();
+      else cubeClose(c);
     }
     function cubeLetGo(c, on_, speed, done){
       var to = on_ ? 1 : 0, left = Math.abs(to - c.p) || 1;
@@ -7675,7 +7699,11 @@
     // rows alone rise by their own height. `skip` is a row that has its own
     // entrance (the dots growing into it).
     function column(body, h, carry, skip){
-      body._column = null;
+      // The last rise is folded into `carry`: it stops here rather than
+      // adding under the new one on rows that were kept (§646).
+      var was = body && body._column;
+      if(was) was.anims.forEach(function(a){ try { a.cancel(); } catch(e){} });
+      if(body) body._column = null;
       if(!on() || !body || !onActive(body)) return;
       var kids = Array.prototype.filter.call(body.children, function(el){
         return !/\bmotion-/.test(el.className) && el !== skip;
@@ -7811,8 +7839,11 @@
     // with…" (360 ms `in-out`), shrinking to its size; the slot it lands in
     // is opened as it goes (the words beside it glide over, 200 ms). The
     // stack's face is in the page from the tap, shown when the copy lands.
-    function gather(face, item){
-      if(!on() || !face || !item || !onActive(face) || !seen(item)) return;
+    // `current` (§646) finds the stack's item as it is when the copy lands:
+    // a repaint meanwhile replaces it. Returns the copy, so a pick undone
+    // mid-arc can take it back from where it is.
+    function gather(face, item, current){
+      if(!on() || !face || !item || !onActive(face) || !seen(item)) return null;
       var s = box(face), e = box(item), g = inertCopy(face);
       g.classList.add("motion-face");
       g.style.left = s.x + "px"; g.style.top = s.y + "px";
@@ -7821,14 +7852,22 @@
       item.style.visibility = "hidden";
       var k = e.w / (s.w || 1);
       var frames = arcFrames(e.x - s.x, e.y - s.y, 0.15, function(t){ return { transform: "scale(" + (1 + (k - 1) * t) + ")" }; });
-      var land = function(){ item.style.visibility = ""; g.remove(); };
+      var land = function(){
+        // Taken back mid-arc: what it was flying to is no longer its own.
+        if(!g.isConnected){ if(g._landed) g._landed(); return; }
+        var cur = (current && current()) || item;
+        cur.style.visibility = ""; item.style.visibility = ""; g.remove();
+        if(g._landed) g._landed();
+      };
       run(g, frames, DUR.arc, { easing: EASE_IO }).finished.then(land, land);
+      return g;
     }
     // And back to its face when unpicked: a copy leaves the stack (already
     // closed up) and returns, growing and fading as it lands (240 ms).
     function ungather(r, face, item){
       if(!on() || !r || !face || !item || !onActive(face)) return;
       var e = box(face), g = inertCopy(item);
+      g.style.visibility = "";
       g.classList.add("motion-face");
       g.style.left = r.x + "px"; g.style.top = r.y + "px";
       g.style.width = r.w + "px"; g.style.height = r.h + "px";
@@ -7958,7 +7997,10 @@
                      DUR.follow, { fill: "none" });
       run(paint, [{ backgroundColor: bg0, borderColor: bc0 }, { backgroundColor: bg1, borderColor: bc1 }],
           DUR.colour, { fill: "none" });
-      var done = function(){ paint.remove(); btn.classList.remove("motion-following"); };
+      // Only the latest paint takes the class away (§646): a second tap
+      // inside the first's 260 ms left the newer paint unpositioned.
+      btn._paint = paint;
+      var done = function(){ paint.remove(); if(btn._paint === paint){ btn._paint = null; btn.classList.remove("motion-following"); } };
       grow.finished.then(done, done);
       row.forEach(function(c, i){ slideFrom(c, places[i], DUR.follow); });
       var tick = btn.querySelector(".motion-tick path");
@@ -9392,7 +9434,7 @@
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
              growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory,
-             ringFade: ringFade, storyHome: storyHome, cubeDrag: cubeDrag, cubeSet: cubeSet, cubeLetGo: cubeLetGo,
+             ringFade: ringFade, storyHome: storyHome, cubeDrag: cubeDrag, cubeSet: cubeSet, cubeLetGo: cubeLetGo, cubeEnd: cubeEnd,
              sendWords: sendWords, intoLoader: intoLoader, handOff: handOff, layout: layout, relist: relist,
              changed: changed, fillBar: fillBar, deal: deal, turnIcon: turnIcon, moving: moving,
              badge: badge, follow: follow, removeRow: removeRow, steps: steps,
@@ -9522,18 +9564,33 @@
   // real once the line has gone without it - its five seconds are up,
   // another line replaced it, or the page was left.
   var snackCommit = null;
-  function flushSnackCommit(){
+  // A commit that goes early (the page hidden or left, log-out) takes its
+  // line with it (§646): an Undo whose request has already gone would put
+  // back on screen what the server no longer has. `keepLine` is snack()'s,
+  // which draws the next line over this one at once.
+  function flushSnackCommit(keepLine){
     var f = snackCommit;
     snackCommit = null;
-    if(f) f();
+    if(!f) return;
+    if(keepLine !== true) endSnackLine();
+    f();
+  }
+  function endSnackLine(){
+    var bar = document.getElementById("snack");
+    var btn = document.getElementById("snackAct");
+    var up = bar && bar.classList.contains("show");
+    if(bar){ bar.classList.remove("show"); clearTimeout(bar._timer); }
+    // Disarmed always; taken out at once only from a line still up (one
+    // already fading keeps its word as it goes).
+    if(btn){ btn.onclick = null; if(up) btn.hidden = true; }
   }
   document.addEventListener("visibilitychange", function(){ if(document.hidden) flushSnackCommit(); });
-  window.addEventListener("pagehide", flushSnackCommit);
+  window.addEventListener("pagehide", function(){ flushSnackCommit(); });
   function snack(msg, action){
     var bar = document.getElementById("snack");
     var btn = document.getElementById("snackAct");
     var commit = action && action.done;
-    flushSnackCommit();
+    flushSnackCommit(true);
     if(!bar || !btn){ toast(msg); if(commit) commit(); return; }
     snackCommit = commit || null;
     document.getElementById("snackText").textContent = msg;
@@ -9541,6 +9598,8 @@
     btn.textContent = action ? action.label : "";
     btn.onclick = action ? function(ev){
       ev.stopPropagation();
+      // Its request has already gone: there is nothing left to take back.
+      if(commit && snackCommit !== commit){ endSnackLine(); return; }
       snackCommit = null;
       hideSnack();
       action.run();
@@ -9904,7 +9963,9 @@
     if(!typed){ sendSearch("", ""); return; }
     var fixed = acCorrectQuestion(typed);
     if(!fixed.then){ sendSearch(fixed.query, fixed.title); return; }
-    searchSending = true;
+    // This send's own mark: a cancel clears it and a newer press sets its
+    // own, which this one's late answer must not clear (§646).
+    var sending = searchSending = {};
     var box = document.getElementById("searchInput");
     var raw = box.value;
     // Where the send started: voice search ("hey FAM") sends from any tab.
@@ -9922,7 +9983,7 @@
     var opened = !!(AI_CONSENT && AI_CONSENT.given) && !ATTACHED.some(function(a){ return a.pending; })
                  && openGenOverlayNow();
     fixed.then(function(r){
-      searchSending = false;
+      if(searchSending === sending) searchSending = false;
       // Cancelled under the loader: nothing is sent.
       if(seq !== genCancelSeq) return;
       // Not if, during the wait, they kept typing (that text would be sent
@@ -10213,6 +10274,8 @@
     if(genHideTimer){ clearTimeout(genHideTimer); genHideTimer = null; }
     stopGenSteps();
     genEarly = false;
+    // The voice sheet under it goes now, not after it has shown again (§646).
+    if(typeof VOICE !== "undefined" && VOICE.underHide) VOICE.underHide();
     var el = famLoadingEl();
     if(el) el.classList.remove("active", "stepped", "alt");
     if(el) Motion.stepRing(el);
@@ -10611,6 +10674,9 @@
 
   function cancelGeneration(){
     genCancelSeq++;
+    // A send still waiting on the speller is cancelled with it; the next
+    // press is a new send, not lost to the old one (§646).
+    searchSending = false;
     pendingResumeSeek = null;
     var onPlayer = document.getElementById("screen-player")
                      .classList.contains("active");
@@ -10664,6 +10730,9 @@
       askAiConsent(retry ? function(){ generate(retry.key, retry.albumContext); } : null);
       return;
     }
+    // Failed for good (not asked again below): its words stay out of the bar
+    // on a later, unrelated Cancel (§646).
+    searchAsked = null;
     // An allowance running out is not a failure to generate, and a toast is
     // the wrong shape for it: it vanishes, it cannot be acted on, and it does
     // not say when the allowance comes back. Everything else still toasts.
@@ -11307,6 +11376,7 @@
   var lastGenerate = null;   // for a retry after the consent question
   function generate(key, albumContext){
     lastGenerate = { key: key, albumContext: albumContext };
+    if(key !== "_custom") searchAsked = null;   // not the search's Cancel (§646)
     // Something started on its own: whatever an ended episode held for the
     // vibe editor is not "next" any more (§550).
     heldForVibe = null;
@@ -13034,7 +13104,8 @@
       var before = bg.style.backgroundImage;
       bg.style.backgroundImage = url ? 'url("' + String(url).replace(/"/g, "%22") + '")' : "";
       bg.classList.toggle("has-img", !!url);
-      if(url && bg.style.backgroundImage !== before) Motion.picture(bg, String(url));
+      // No picture: still asked, so a fade waiting on the last one ends.
+      if(bg.style.backgroundImage !== before) Motion.picture(bg, url ? String(url) : "");
     }
     if(nowBarState) paintNowThumb();
   }
@@ -13420,9 +13491,12 @@
       run: function(){
         delete notInterestedPending[topicId];
         Object.keys(was).forEach(function(k){ railTiles[k] = was[k]; });
-        // Back where it was: the gap opens and it rises into it.
+        // Back where it was: the gap opens and it rises into it. A rail
+        // redrawn while the line was up is gone from the page: the rails
+        // are drawn again from what they last were, with it back (§646).
+        var redrawn = false;
         gone.forEach(function(g){
-          if(!g.list.isConnected) return;
+          if(!g.list.isConnected){ redrawn = true; return; }
           var before = Motion.layout(g.list, ":scope > *", keyOf);
           g.nodes.forEach(function(el, i){
             var next = g.at[i];
@@ -13430,6 +13504,7 @@
           });
           Motion.relist(before, g.list, ":scope > *", keyOf);
         });
+        if(redrawn && feedSectionsLast) renderMyFamFeed(feedSectionsLast);
       },
       done: function(){
         delete notInterestedPending[topicId];
@@ -14839,6 +14914,8 @@
     }
     var box = document.getElementById("voiceSearch");
     stopWake();
+    // A hide still pending from the last send is not this sheet's (§646).
+    if(VOICE.underHide) VOICE.underHide();
     VOICE.before = ""; VOICE.interim = ""; VOICE.error = ""; VOICE.editing = false;
     // Whatever followed "hey FAM" in the same breath is the start of the
     // question, so it is on screen already and listening adds to it.
@@ -14916,8 +14993,12 @@
       var loader = famLoadingEl();
       if(loader) loader.classList.remove("over-voice");
     };
-    if(how === "under" && Motion.on()) setTimeout(hide, Motion.DUR.loaderFade);
-    else {
+    if(how === "under" && Motion.on()){
+      // Kept, so a loader gone before it fires (its X) takes the sheet down
+      // with it rather than showing it again for the rest (§646).
+      var timer = setTimeout(function(){ VOICE.underHide = null; hide(); }, Motion.DUR.loaderFade);
+      VOICE.underHide = function(){ clearTimeout(timer); VOICE.underHide = null; hide(); };
+    } else {
       if(how !== "under" && how !== "quiet") Motion.voiceClose(box);
       hide();
     }
@@ -16017,8 +16098,18 @@
     renderCategoryChips(true);
     loadCategoryEpisodes();
   }
+  // The panel kept on screen while the next one loads is the last
+  // category's: it says it is busy and takes no tap meanwhile (§646) - its
+  // Play all, hero and Follow would act on the category now asked for.
+  function catPanelIdle(el){
+    el = el || document.getElementById("catPanel");
+    if(!el) return;
+    el.removeAttribute("aria-busy");
+    el.inert = false;
+  }
   function clearCategory(tapped){
     catReq++;
+    catPanelIdle();
     catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
     showCategoryPanel(false);
     renderCategoryChips(tapped === true, true);
@@ -16034,7 +16125,7 @@
   // a list built from the same stale copy.
   var catFollowBusy = false;
   function toggleFollowCategory(){
-    if(!catData || catFollowBusy) return;
+    if(!catData || catFollowBusy || catPage.loading) return;
     if(!catData.saved){ openAuth("signup"); return; }
     catFollowBusy = true;
     var ids = catData.mine.map(function(c){ return c.id; });
@@ -16090,6 +16181,7 @@
     // loading line comes only once the answer has taken 300 ms, and then
     // stays at least 500 ms.
     el.setAttribute("aria-busy", "true");
+    el.inert = true;
     var shownAt = 0;
     var wait = setTimeout(function(){
       if(req !== catReq) return;
@@ -16099,7 +16191,7 @@
     var landed = function(draw){
       clearTimeout(wait);
       var hold = shownAt ? Math.max(0, shownAt + Motion.DUR.spinnerMin - Date.now()) : 0;
-      var go = function(){ if(req !== catReq) return; el.removeAttribute("aria-busy"); draw(); };
+      var go = function(){ if(req !== catReq) return; catPanelIdle(el); draw(); };
       if(hold) setTimeout(go, hold); else go();
     };
     fetch("/api/categories/episodes?id=" + encodeURIComponent(node) + "&sort=popular")
@@ -16174,6 +16266,7 @@
   // the box keeps its focus while typing.
   function openCategoryFind(){
     catReq++;
+    catPanelIdle();
     catPage = { root: "", node: "", episodes: [], subs: [], finding: true };
     showCategoryPanel(true);
     renderCategoryChips();
@@ -16239,6 +16332,8 @@
     playCategoryList(eps.slice(i));
   }
   function playCategoryAll(){
+    // The panel on screen is the last category's while the next loads (§646).
+    if(catPage.loading) return;
     if(!catPage.episodes.length){ toast("Nothing has been made in this category today yet"); return; }
     playCategoryList(catPage.episodes);
   }
@@ -16528,6 +16623,8 @@
   var mixDrag = null;
   function startMixDrag(e, handle){
     var row = handle.closest(".mix-topic"), list = handle.closest(".mix-list");
+    // A drag whose row a redraw took away is over (§646), not a lock.
+    if(mixDrag && !mixDrag.row.isConnected) mixDrag = null;
     if(!row || !list || mixDrag) return;
     e.preventDefault();
     var rows = Array.prototype.slice.call(list.children);
@@ -16563,6 +16660,8 @@
   function tiltMixDrag(now){
     var d = mixDrag;
     if(!d || !d.tilt) return;
+    // Its row redrawn away: the drag is over, and so is this loop (§646).
+    if(!d.row.isConnected){ mixDrag = null; return; }
     if(now - d.at > 50) d.v *= 0.8;
     var want = Math.max(-1, Math.min(1, d.v / 0.5)) * 2;
     d.rot += (want - d.rot) * Math.min(1, 16 / (Motion.DUR.lift / 3));
@@ -16652,6 +16751,13 @@
   function settleMixBody(m){
     var wait = Math.max(0, mixBodyCalmAt - Date.now());
     setTimeout(function(){
+      // Never under a finger (§646): a row being carried is kept until it
+      // is let go, and the answer drawn once it has settled.
+      if(mixDrag && mixDrag.row.isConnected){
+        mixBodyCalmAt = Math.max(mixBodyCalmAt, Date.now() + Motion.DUR.drop);
+        settleMixBody(m);
+        return;
+      }
       var again = mixById(m.id);
       if(again && currentMixId === m.id && document.getElementById("screen-mixdetail").classList.contains("active"))
         rerenderMixKeepScroll(again);
@@ -16889,7 +16995,9 @@
     if(!m || mixItemIds(m)[id]) return;
     var c = followById(id), was = recState.shown.indexOf(id);
     var body = document.getElementById("mixBody");
-    var item = { id: id, title: c ? c.label : id, icon: c ? c.icon : "", subtitle: "" };
+    // `pending` until the server's item (with its prompt) replaces it:
+    // played before, it would be asked as its bare title (§646).
+    var item = { id: id, title: c ? c.label : id, icon: c ? c.icon : "", subtitle: "", pending: true };
     m.items = (m.items || []).concat([item]);
     recState.shown = recState.shown.filter(function(x){ return x !== id; });
     mixBodyCalmAt = Date.now() + Motion.DUR.recExit + Motion.DUR.recSlot + Motion.DUR.recEdge;
@@ -17009,7 +17117,10 @@
     var m = mixById(currentMixId);
     if(!m) return;
     for(var i = 0; i < m.items.length; i++){
-      if(m.items[i].id === itemId){ startMixQueue(m, itemId); return; }
+      if(m.items[i].id === itemId){
+        if(m.items[i].pending){ toast("Still adding that — a moment"); return; }
+        startMixQueue(m, itemId); return;
+      }
     }
   }
 
@@ -17028,7 +17139,8 @@
   // could not order, plays in the owner's order as before.
   function todayOrder(m){
     var ids = (m && m.today_order) || [];
-    var items = (m && m.items) || [];
+    // A topic still being added has no prompt yet; it plays once saved.
+    var items = ((m && m.items) || []).filter(function(t){ return !t.pending; });
     if(!ids.length) return items.slice();
     var left = {};
     items.forEach(function(t){ left[t.id] = t; });
@@ -17041,7 +17153,8 @@
   // `start` is an item id (play from that one), else an index into the
   // order; `listed` plays the owner's order ("or play all from the top").
   function startMixQueue(m, start, listed){
-    var items = listed ? m.items.slice() : todayOrder(m);
+    var items = listed ? m.items.filter(function(t){ return !t.pending; }) : todayOrder(m);
+    if(!items.length){ toast("Still adding that — a moment"); return; }
     var at = 0;
     if(typeof start === "string"){
       for(var i = 0; i < items.length; i++){ if(items[i].id === start){ at = i; break; } }
@@ -17644,19 +17757,37 @@
   // On the tap (visibility-switch: B, §642): the switch, its words and the
   // line under the name change in place - the knob that is there slides -
   // and are put back, sliding, if the server says no.
+  // Taps faster than the server (§646): only the answer to the last tap
+  // paints; an earlier one only says what the server now has, which is
+  // where a refused last tap goes back to.
+  var mixVisSeq = {}, mixVisSure = {}, mixVisWant = {};
   function toggleMixVisibility(){
     var m = mixById(currentMixId);
     if(!m) return;
     var next = !m.public, id = m.id;
+    if(!(id in mixVisSure)) mixVisSure[id] = !next;
+    var seq = mixVisSeq[id] = (mixVisSeq[id] || 0) + 1;
+    mixVisWant[id] = next;
     m.public = next;
     paintMixVisibility(next);
     saveMix("PATCH", "/api/mixes/" + id, { public: next }, function(saved){
+      if(seq !== mixVisSeq[id]){
+        mixVisSure[id] = saved.public;
+        // keepMix took the earlier answer as the mix: the last tap stands.
+        var now = mixById(id);
+        if(now){ now.public = mixVisWant[id]; renderMixList(); }
+        return;
+      }
+      delete mixVisSure[id];
       if(currentMixId === saved.id) paintMixVisibility(saved.public);
       toast(saved.public ? "On your profile now" : "Private again");
     }, function(){
+      if(seq !== mixVisSeq[id]) return;
+      var back = mixVisSure[id];
+      delete mixVisSure[id];
       var was = mixById(id);
-      if(was) was.public = !next;
-      if(currentMixId === id) paintMixVisibility(!next);
+      if(was) was.public = back;
+      if(currentMixId === id) paintMixVisibility(back);
     });
   }
   function paintMixVisibility(pub){
@@ -17773,10 +17904,13 @@
   // Both states of an add button in one cell (public-mix-add: A, §642):
   // the CSS shows the one its `on` says, so the button is changed in
   // place and the change cross-fades. `words` adds the labels.
-  function addFacesHTML(words){
+  // Both faces are drawn for the cross-fade; the one not on is hidden
+  // from screen readers (§646), as the Public/Private words are.
+  function addFacesHTML(words, on){
+    var off = ' aria-hidden="true"';
     return '<span class="ab-faces">'
-      + '<span class="ab-face ab-idle">' + addIconSVG(false) + (words ? "Add to myFAM" : "") + '</span>'
-      + '<span class="ab-face ab-added">' + addIconSVG(true) + (words ? "In your myFAM" : "") + '</span></span>';
+      + '<span class="ab-face ab-idle"' + (on ? off : '') + '>' + addIconSVG(false) + (words ? "Add to myFAM" : "") + '</span>'
+      + '<span class="ab-face ab-added"' + (on ? '' : off) + '>' + addIconSVG(true) + (words ? "In your myFAM" : "") + '</span></span>';
   }
   function addIconSVG(on){
     return on
@@ -17792,7 +17926,7 @@
       + ' data-name="' + escapeHtml(m.name) + '"'
       + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your myFAM" : "Add " + escapeHtml(m.name) + " to your myFAM") + '"'
       + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
-      + addFacesHTML(false) + '</button>';
+      + addFacesHTML(false, !!m.added) + '</button>';
   }
 
   function publicMixCardHTML(m, i){
@@ -17874,7 +18008,7 @@
       html += '<div class="mix-meta" style="margin:0 0 11px;">This is one of your mixes</div>';
     } else {
       html += '<button class="pub-add-btn async-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
-        + ' data-name="' + escapeHtml(m.name) + '" onclick="addMixFrom(\'view\', 0)">' + addFacesHTML(true) + '</button>';
+        + ' data-name="' + escapeHtml(m.name) + '" onclick="addMixFrom(\'view\', 0)">' + addFacesHTML(true, !!m.added) + '</button>';
     }
     if(items.length){
       html += '<button class="mix-play" onclick="playPublicMix()">'
@@ -18012,6 +18146,10 @@
     // button's cross-fade short.
     document.querySelectorAll('[data-add-mix="' + id + '"]').forEach(function(b){
       b.classList.toggle("on", on);
+      b.querySelectorAll(".ab-face").forEach(function(f){
+        if(f.classList.contains("ab-added") === on) f.removeAttribute("aria-hidden");
+        else f.setAttribute("aria-hidden", "true");
+      });
       var name = b.getAttribute("data-name") || "this mix";
       if(b.classList.contains("mix-add"))
         b.setAttribute("aria-label", on ? "Remove " + name + " from your myFAM" : "Add " + name + " to your myFAM");
@@ -18429,13 +18567,19 @@
     // row(s) for it flipped in place - never the list redrawn, which would
     // cut the swap short. A refusal flips it back with the server's words.
     var removed = null;
-    if(adding) m.items = (m.items || []).concat([{ id: id, title: label }]);
+    if(adding) m.items = (m.items || []).concat([{ id: id, title: label, pending: true }]);
     else removed = m.items.splice(at, 1)[0];
     markAddTopicRows(id, adding);
     // An operation, not the whole list (§498): merged into the mix as the
     // server holds it, so a second quick tap - or somebody else in a joint
     // mix - is never undone by this one.
     saveMix("PATCH", "/api/mixes/" + m.id, adding ? { add: [id] } : { remove: [id] }, function(saved){
+      // The mix's own page, under this one, drawn from the server's items
+      // (§646): Back no longer finds the bare stand-in row.
+      if(currentMixId === saved.id && !document.getElementById("screen-mixdetail").classList.contains("active")){
+        var kept = mixById(saved.id);
+        if(kept) rerenderMixKeepScroll(kept);
+      }
       toast((adding ? "Added " : "Removed ") + label + (adding ? " to " : " from ") + saved.name);
     }, function(){
       var now = mixById(addTopicsMixId);
@@ -18531,6 +18675,7 @@
   var mfsReq = 0;
   function openMyFamSearch(){
     navigate("myfamsearch");
+    document.getElementById("mfsBody").classList.remove("is-searching");
     var box = document.getElementById("mfsInput");
     box.value = "";
     mfsResults = [];
@@ -18566,6 +18711,9 @@
   function runMyFamSearch(){
     var q = document.getElementById("mfsInput").value.trim();
     var req = ++mfsReq;
+    // A search given up (the box emptied) is not left dimming the list;
+    // a new one dims it again (§646).
+    document.getElementById("mfsBody").classList.remove("is-searching");
     if(!q){ mfsResults = []; drawMyFamSearch(""); if(mfsCatalog === null) loadMyFamCatalog(); return; }
     // What was there stays, dimmed, and "Searching..." only after 300 ms -
     // a quick answer no longer flashes it (lists-arrive: A, §643).
@@ -19152,7 +19300,11 @@
     });
     Object.keys(now).forEach(function(id){ liveLinesShown[id] = now[id]; });
   }
+  var feedSectionsLast = null;
   function renderMyFamFeed(sections){
+    // What it was asked to draw, before the filter below, so an Undo after
+    // a redraw can draw it again with the tile back in (§646).
+    feedSectionsLast = sections;
     // A tile waved off a moment ago stays off while its Undo is offered.
     sections = sections.map(function(sec){
       return Object.assign({}, sec, { topics: (sec.topics || []).filter(function(t){
@@ -19310,7 +19462,12 @@
         var atEnd = room <= 8 || rail.scrollLeft >= room - 8;
         rail.classList.toggle("at-end", atEnd);
       };
-      rail.addEventListener("scroll", mark, { passive: true });
+      // A rail kept through an unchanged redraw (§641) is watched once
+      // (§646), not once more per draw.
+      if(!rail._endsWatched){
+        rail._endsWatched = true;
+        rail.addEventListener("scroll", mark, { passive: true });
+      }
       mark();
     });
   }
@@ -20198,10 +20355,12 @@
         if(heard.minutes) body.minutes = heard.minutes;
         if(heard.episode) body.episode = String(heard.episode).slice(0, 80);
       }
+      // keepalive: an Undo's commit can go as the page closes (§646).
       fetch("/api/event", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        keepalive: true
       }).catch(function(){});
     } catch(e){}
   }
@@ -20394,7 +20553,18 @@
         if(d.authenticated) preloadSettings();
         return d;
       })
-      .catch(function(){ return AUTH; });
+      .catch(function(){
+        // No answer it could read (offline, or a 502's HTML page): known
+        // all the same, as unreachable, and an open Profile drawn from that
+        // - it waited on `authKnown` and stayed blank for good (§646).
+        if(!authKnown || authUnreachable){
+          authKnown = true;
+          authUnreachable = true;
+          var here = document.getElementById("screen-profile");
+          if(here && here.classList.contains("active")){ try { loadProfile(); } catch(e){} }
+        }
+        return AUTH;
+      });
   }
 
   // The free month somebody let off the waitlist may claim (§593), from
@@ -20529,8 +20699,10 @@
 
   function logOut(){
     // A delete or a leave waiting on its Undo (§644) is this account's: it
-    // goes now, under this session, not later under the next one's.
-    flushSnackCommit();
+    // goes now, under this session, not later under the next one's - and
+    // its line with it, whatever it offered (§646).
+    hideSnack();
+    endSnackLine();
     showSplash(LOGOUT_SPLASH_MS);
     fetch("/api/auth/logout", { method: "POST" })
       .then(function(){ return refreshAuth(); })
@@ -21781,7 +21953,11 @@
   }
   function openMyStory(){
     if(!hasStories(myStoryPerson)) return;
-    storyList = [myStoryPerson];
+    // The ring's stand-in for a story just posted (markMyStoryUp) is not a
+    // story to open (§646): the viewer waits for the hub's own answer.
+    var real = myStoryPerson.stories.filter(function(v){ return !v.local; });
+    if(!real.length) return;
+    storyList = [Object.assign({}, myStoryPerson, { stories: real })];
     openStoryAt(0);
   }
   function openStoryAt(i){
@@ -21953,7 +22129,29 @@
     // A drag under way: "down" (closing), "side" (the cube turning to the
     // next friend under the finger) or "band" (pulled past the first or
     // last friend: it gives, and comes back) - story-next-friend: B, §641.
-    var drag = null;
+    var drag = null, turning = null, ending = false;
+    // Whatever a drag left up, ended (§646): a drag still under the finger
+    // goes back to the friend it started on, a cube still turning ends.
+    storyDragEnd = function(){
+      ending = true;
+      try {
+        var d = drag;
+        drag = null;
+        storySwipe = null;
+        if(d && d.mode === "side"){
+          Motion.cubeEnd(d.cube);
+          restoreSeen(d.saved);
+          storyAt = d.saved.at;
+        }
+        if(turning){ var t = turning; turning = null; Motion.cubeEnd(t); }
+      } finally { ending = false; }
+    };
+    function restoreSeen(saved){
+      try {
+        if(saved.seen == null) localStorage.removeItem("famStoriesSeen");
+        else localStorage.setItem("famStoriesSeen", saved.seen);
+      } catch(err){}
+    }
     function startDrag(e, dx, dy){
       if(dy > 10 && dy > Math.abs(dx) * 1.2){
         clearTimeout(storyHoldTimer);
@@ -22006,15 +22204,16 @@
       }
       var p = d.cube.p, speed = -vx * d.dir / d.width * 1000;
       var go = !cancelled && (p > 1 / 3 || -vx * d.dir > STORY_FLICK);
+      turning = d.cube;
       Motion.cubeLetGo(d.cube, go, go ? speed : -speed, function(){
-        if(go){ resumeStory(); return; }
+        if(turning === d.cube) turning = null;
+        if(go){ if(!ending) resumeStory(); return; }
         // Turned back: the friend it was, the vibe it was on, where its
         // bar had got to - and the next friend's not marked as watched.
-        try {
-          if(d.saved.seen == null) localStorage.removeItem("famStoriesSeen");
-          else localStorage.setItem("famStoriesSeen", d.saved.seen);
-        } catch(err){}
+        restoreSeen(d.saved);
         storyAt = d.saved.at;
+        // Closed meanwhile (§646): nothing runs on a viewer not shown.
+        if(ending || el.hidden) return;
         showStory();
         var bar = document.querySelector("#storyBars .story-bar.on i");
         var fill = bar && bar.getAnimations ? bar.getAnimations()[0] : null;
@@ -22025,8 +22224,9 @@
     }
     el.addEventListener("pointerdown", function(e){
       var now = Date.now();
+      // A drag the last pointer never let go of ends where it is (§646).
+      if(drag){ storySwipe = null; endDrag(0, 0, 0, 0, true); }
       storySwipe = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, lt: now, vx: 0, vy: 0 };
-      drag = null;
       clearTimeout(storyHoldTimer);
       if(!onControl(e)) storyHoldTimer = setTimeout(function(){
         pauseStory();
@@ -22043,7 +22243,14 @@
       storySwipe.lx = e.clientX; storySwipe.ly = e.clientY; storySwipe.lt = now;
       // A finger that is travelling is a swipe, not a hold.
       if(Math.abs(dx) > 12) clearTimeout(storyHoldTimer);
-      if(!drag && !storyHeld && !onReply(e) && !(e.buttons === 0 && e.pointerType === "mouse")) startDrag(e, dx, dy);
+      if(!drag && !storyHeld && !onReply(e) && !(e.buttons === 0 && e.pointerType === "mouse")){
+        startDrag(e, dx, dy);
+        // A drag is its own until it lets go (§646), as every other drag
+        // here is: a mouse let go over the turning copy, or off the frame,
+        // still ends it. Taken only once it is a drag, so a tap's click
+        // still lands on the button it was on.
+        if(drag) try { el.setPointerCapture(e.pointerId); } catch(err){}
+      }
       if(drag) moveDrag(dx, dy);
     });
     el.addEventListener("pointerup", function(e){
@@ -22071,6 +22278,11 @@
       storySwipedAt = Date.now();
       storyFriend(dx < 0 ? 1 : -1);
     });
+    // Capture lost with no pointerup (the overlay hidden under it): the
+    // drag ends where it was rather than waiting for a finger that is gone.
+    el.addEventListener("lostpointercapture", function(){
+      if(drag){ storySwipe = null; endDrag(0, 0, 0, 0, true); }
+    });
     el.addEventListener("pointercancel", function(){
       clearTimeout(storyHoldTimer);
       if(drag){ endDrag(0, 0, 0, 0, true); storySwipe = null; return; }
@@ -22096,7 +22308,11 @@
     }
   });
 
+  // Set by the story's gestures: ends whatever a drag left up (§646).
+  // (Declared without a value: the gestures above set it first.)
+  var storyDragEnd;
   function closeStory(){
+    if(storyDragEnd) storyDragEnd();
     clearTimeout(storyTimer);
     clearTimeout(storyHoldTimer);
     storyHeld = false;
@@ -22517,6 +22733,13 @@
     row.setAttribute("aria-checked", on ? "true" : "false");
     var sw = row.querySelector(".mix-switch");
     if(sw) sw.classList.toggle("on", on);
+    // The row's action said what the switch was to become on the tap that
+    // drew it; a second tap before the save redraws the row must send the
+    // other value, not the same one again (§646). The tap running now
+    // keeps the action it started with.
+    var act = row.getAttribute("onclick") || "";
+    var next = act.replace(/\b(true|false)\)$/, function(m, b){ return (b === "true" ? "false" : "true") + ")"; });
+    if(next !== act) row.setAttribute("onclick", next);
   }
   // Settings reconciled with what is on screen: a row that is still there
   // keeps its element - its value cross-fades, its switch slides, its action
@@ -22945,13 +23168,30 @@
     var el = document.getElementById("myVibeBody");
     fetch("/api/vibes")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(renderMyVibe)
+      .then(function(d){
+        // As loadSaved: a vibe waiting on its Undo stays off (§646).
+        d.vibes = withoutPending(d.vibes, d.folders, vibePendingRemove, vibeKey);
+        renderMyVibe(d);
+      })
       .catch(function(){
         el.innerHTML = '<div class="pf-empty">Your vibes could not load. Try again in a moment.</div>';
       });
   }
 
   var myVibes = [];
+  // Rows taken off with an Undo still offered (§646), by key: kept off a
+  // reread of the shelf until the line goes and the DELETE answers.
+  var vibePendingRemove = {};
+  var savedPendingRemove = {};
+  function withoutPending(items, folders, pending, keyOf){
+    return (items || []).filter(function(x){
+      if(!pending[keyOf(x)]) return true;
+      (folders || []).forEach(function(f){
+        if(x.folder_id && f.id === x.folder_id) f.items = Math.max(0, (f.items || 0) - 1);
+      });
+      return false;
+    });
+  }
   function renderMyVibe(d){
     myVibes = d.vibes || [];
     shelfFolders.vibe = d.folders || [];
@@ -23008,11 +23248,16 @@
       countFolder("vibe", v.folder_id, -1);
       renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
     };
+    var key = vibeKey(v);
+    vibePendingRemove[key] = true;
     if(row) Motion.removeRow(row, take, "#myVibeBody .vibe-row", Motion.DUR.rowOut, "io");
     else take();
     snack("Vibe taken back", {
       label: "Undo",
       run: function(){
+        delete vibePendingRemove[key];
+        // Back only if it is not there already (§646).
+        if(myVibes.some(function(x){ return vibeKey(x) === key; })) return;
         var before = Motion.layout(el, "[data-key]", tileKey);
         myVibes.splice(Math.min(i, myVibes.length), 0, v);
         countFolder("vibe", v.folder_id, 1);
@@ -23021,9 +23266,9 @@
                       { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
       },
       done: function(){
-        fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes, { method: "DELETE" })
-          .then(function(r){ if(!r.ok) throw new Error(); refreshHub(); })
-          .catch(function(){ loadMyVibe(); toast("Could not take that back"); });
+        fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes, { method: "DELETE", keepalive: true })
+          .then(function(r){ if(!r.ok) throw new Error(); delete vibePendingRemove[key]; refreshHub(); })
+          .catch(function(){ delete vibePendingRemove[key]; loadMyVibe(); toast("Could not take that back"); });
       }
     });
   }
@@ -23384,6 +23629,10 @@
       user_id: known.user_id, handle: handle, name: known.name || "",
       avatar: known.avatar || "" } : null) || { handle: handle, name: "", user_id: "" };
     navigate("person");
+    // The last person's answer is not this one's (§646): their shelf said
+    // "Nothing vibed yet" before this person's had been asked.
+    personPublished = null;
+    personLocked = false;
     renderFriendProfile(viewingProfile);
     // Their standing comes from the graph, so the graph is asked if this
     // screen was opened before it had ever been loaded.
@@ -25408,8 +25657,8 @@
         // Undone, or opened again meanwhile: nothing to send.
         if(!threadsGone[id]) return;
         var req = how === "leave"
-          ? fetch("/api/messages/groups/" + encodeURIComponent(id), { method: "DELETE" })
-          : fetch("/api/messages/thread?with=" + encodeURIComponent(id), { method: "DELETE" });
+          ? fetch("/api/messages/groups/" + encodeURIComponent(id), { method: "DELETE", keepalive: true })
+          : fetch("/api/messages/thread?with=" + encodeURIComponent(id), { method: "DELETE", keepalive: true });
         req.then(function(r){
             return r.json().then(function(d){
               if(!r.ok) throw new Error(d.detail || d.error
@@ -25539,7 +25788,12 @@
       draft.why = (err && err.message) || "Could not send that";
       draft.justFailed = true;
       settleSending();
-      if(threadMessages.indexOf(draft) !== -1) renderThreadBody();
+      if(threadMessages.indexOf(draft) !== -1){ renderThreadBody(); return; }
+      // Its chat is no longer on screen (§646): the failure is kept with
+      // that chat, to be found there marked, and said now.
+      var mem = threadMemory[draft.to];
+      if(mem && mem.messages.indexOf(draft) === -1) mem.messages.push(draft);
+      toast("Not sent: " + draft.why);
     });
   }
 
@@ -26339,7 +26593,9 @@
       ? (n === 1 ? "Chat with " + names[0] : "Group with " + names.join(", "))
       : "";
     document.getElementById("newChatStack").innerHTML = newChatPicked.map(function(i){
-      return personAvHTML(newChatPeople[i]).replace('<div class="av', '<div data-pick="' + i + '" class="av');
+      return personAvHTML(newChatPeople[i]).replace('<div class="av', '<div data-pick="' + i + '"'
+        // Still arcing in (§646): the copy is it until it lands.
+        + (newChatFlying[i] ? ' style="visibility:hidden"' : '') + ' class="av');
     }).join("");
     var room = document.getElementById("newChatNameRoom");
     room.classList.toggle("open", n >= 2);
@@ -26355,6 +26611,8 @@
   // A tap picks or unpicks; nothing opens until Start chat. The face is
   // toggled, not redrawn - a redraw cut its press short - and a copy of it
   // travels into the stack, or back out of it (new-chat-pick: B, §644).
+  // A pick's copy still on its way into the stack, by pick (§646).
+  var newChatFlying = {};
   function startChatWith(i){
     if(!newChatPeople[i]) return;
     var at = newChatPicked.indexOf(i);
@@ -26363,6 +26621,13 @@
     var wordsWas = Motion.on() && words.textContent ? Motion.box(words) : null;
     var item = document.querySelector('#newChatStack [data-pick="' + i + '"]');
     var itemWas = item && Motion.on() ? Motion.box(item) : null;
+    // Unpicked mid-arc: it goes back from where its copy has got to.
+    var flying = newChatFlying[i];
+    if(flying){
+      delete newChatFlying[i];
+      if(flying.isConnected) itemWas = Motion.box(flying);
+      flying.remove();
+    }
     var stackWas = {};
     document.querySelectorAll("#newChatStack [data-pick]").forEach(function(el){
       stackWas[el.getAttribute("data-pick")] = Motion.box(el);
@@ -26377,7 +26642,12 @@
     paintNewChatPicked();
     var faceAv = face && face.querySelector(".av");
     if(at === -1){
-      Motion.gather(faceAv, document.querySelector('#newChatStack [data-pick="' + i + '"]'));
+      var find = function(){ return document.querySelector('#newChatStack [data-pick="' + i + '"]'); };
+      var g = Motion.gather(faceAv, find(), find);
+      if(g){
+        newChatFlying[i] = g;
+        g._landed = function(){ if(newChatFlying[i] === g) delete newChatFlying[i]; };
+      }
     } else {
       Motion.ungather(itemWas, faceAv, item);
     }
@@ -26518,6 +26788,10 @@
         return d;
       });
     }).then(function(d){
+      // A row waiting on its Undo is gone from here though the server still
+      // has it (§646): a reread inside the five seconds must not bring it
+      // back, nor count it in its folder.
+      d.items = withoutPending(d.items, d.folders, savedPendingRemove, function(i){ return i.id; });
       savedCache = d;
       renderSaved(d);
     }).catch(function(err){
@@ -26690,9 +26964,13 @@
     var n = folderId ? chipCount(folderId) : null;
     var landed = n ? n.textContent : "";
     if(n && shownBefore !== undefined) n.textContent = shownBefore;
+    // Refused before the flight lands: the shelf read again has the true
+    // count, and the flight must not write the hoped-for one over it (§646).
+    var refused = false;
     if(folderId && copy){
       var chip = body.querySelector('.shelf-chip[data-folder="' + cssAttr(folderId) + '"]');
       Motion.toFolder(copy, chip, function(){
+        if(refused) return;
         var c = chipCount(folderId);
         if(c){ var b4 = c.textContent; c.textContent = landed; Motion.roll(c, b4); }
       });
@@ -26703,7 +26981,7 @@
     return req.then(function(){
       var name = folderName(kind, folderId);
       toast(folderId ? "Moved to " + (name || "the folder") : "Taken out of the folder");
-    }).catch(function(e){ reloadShelf(kind); toast(e.message); });
+    }).catch(function(e){ refused = true; reloadShelf(kind); toast(e.message); });
   }
   function chooseFolderFor(kind, ref){
     var row = kind === "vibe" ? myVibes[ref] : savedItem(ref);
@@ -26744,6 +27022,7 @@
       countFolder("saved", item.folder_id, -1);
       renderSaved(savedCache);
     };
+    savedPendingRemove[id] = true;
     if(row) Motion.removeRow(row, take, "#svBody .sv-row", Motion.DUR.rowOut, "io");
     else take();
     // If the episode being unsaved is the one on the player, the icon goes
@@ -26754,18 +27033,21 @@
     snack("Removed", {
       label: "Undo",
       run: function(){
+        delete savedPendingRemove[id];
+        if(onPlayer) setSaved(true);
+        // Back only if it is not there already (§646).
+        if(savedItem(id)) return;
         var before = Motion.layout(document.getElementById("svBody"), "[data-key]", tileKey);
         savedCache.items.splice(Math.min(at, savedCache.items.length), 0, item);
         countFolder("saved", item.folder_id, 1);
         renderSaved(savedCache);
         Motion.relist(before, document.getElementById("svBody"), "[data-key]", tileKey,
                       { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
-        if(onPlayer) setSaved(true);
       },
       done: function(){
-        fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
-          .then(function(r){ if(!r.ok) throw new Error(); })
-          .catch(function(){ loadSaved(); toast("Could not remove that"); });
+        fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE", keepalive: true })
+          .then(function(r){ if(!r.ok) throw new Error(); delete savedPendingRemove[id]; })
+          .catch(function(){ delete savedPendingRemove[id]; loadSaved(); toast("Could not remove that"); });
       }
     });
   }
@@ -29017,6 +29299,7 @@
       shown = [];
       var wrap = $("famTour");
       wrap.hidden = false;
+      wrap.style.pointerEvents = "";
       wrap.classList.remove("paused");
       if(wrap.animate && !reduced()) wrap.animate([{ opacity: 0 }, { opacity: 1 }],
         { duration: Motion.DUR.fadeIn, easing: Motion.EASE.OUT });
@@ -29107,6 +29390,9 @@
       if(card.animate && !card._fresh){
         card._fresh = true;   // the first card arrives with the overlay
         swap();
+        // Its entrance is its movement: a glide from place() fighting it
+        // over transform made the card jump ~10 px (§646). The hole glides.
+        if(card._glide){ card._glide.cancel(); card._glide = null; }
         if(!reduced()) card.animate([{ opacity: 0, transform: "translateY(10px)" },
                                      { opacity: 1, transform: "none" }],
                                     { duration: Motion.DUR.step, easing: Motion.EASE.OUT });
@@ -29237,9 +29523,12 @@
       openScreen("myfam");
       var close = function(){
         wrap.hidden = true;
+        wrap.style.pointerEvents = "";
         wrap.classList.remove("paused");
         at = -1;
       };
+      // The app under it is live from the first frame of the fade (§646).
+      wrap.style.pointerEvents = "none";
       if(wrap.animate && !wrap.classList.contains("paused")){
         if(reduced()){ close(); return; }
         wrap.animate([{ opacity: 1 }, { opacity: 0 }],

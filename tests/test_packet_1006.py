@@ -83,7 +83,8 @@ def test_only_the_poster_can_take_a_story_down(store):
 def test_the_profile_picture_rings_and_plays_your_story():
     body = _fn("renderProfile")
     assert 'onclick="openMyStory()"' in body and "yf-photo-btn ring" in body
-    assert "storyList = [myStoryPerson]" in _fn("openMyStory")
+    # §646: the ring's stand-in for a just-posted story is left out.
+    assert "storyList = [Object.assign({}, myStoryPerson, { stories: real })]" in _fn("openMyStory")
 
 
 def test_the_story_menu_has_the_owners_five():

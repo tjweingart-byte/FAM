@@ -1751,6 +1751,30 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
+        def story_face():
+            """The selector of a face on DailyFAM's row with stories up.
+
+            The row's VIBE badge went in §297 (the ring says it now), and the
+            story checks gated on it skipped without a word until §646. The
+            fixture has Beth's two; the live build's database has nobody
+            else's, so two are drawn into the row there. Never a skip: with
+            no face the check fails."""
+            find = "() => yfCircle.findIndex(function(p){ return hasStories(p); })"
+            i = page.evaluate(find)
+            if i < 0:
+                page.evaluate("""() => { var now = Date.now() / 1000;
+                    yfCircle = [{ user_id: "u_smoke_story", name: "Sam Story", handle: "samstory", avatar: "",
+                      stories: [{ at: now - 600, title: "Why the tides turn", query: "why the tides turn", minutes: 1.5 },
+                                { at: now - 300, title: "How bees vote", query: "how bees vote", minutes: 1.5 }] }]
+                      .concat(yfCircle);
+                    paintMyFamCircle(); }""")
+                page.wait_for_timeout(200)
+                i = page.evaluate(find)
+            assert i >= 0, "no face on DailyFAM's row has stories to open"
+            sel = f'#myfamCircle .yf-friend[data-i="{i}"]'
+            assert page.query_selector(sel), f"the face with stories is not drawn: {sel}"
+            return sel
+
         def ensure_account():
             """Sign up unless this browser already has an account.
 
@@ -2561,9 +2585,10 @@ def main() -> int:
                 page.wait_for_timeout(500)
                 assert first in page.evaluate("goDeeperCardCache.map(c => c.title)"), "Undo did not bring the card back"
             # A story: pulled down it closes, pulled sideways it comes back.
-            if page.query_selector("#myfamCircle .yf-friend:has(.yf-vibe)"):
+            face = story_face()
+            if face:
                 def open_story():
-                    page.click("#myfamCircle .yf-friend:has(.yf-vibe)")
+                    page.click(face)
                     page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
                     page.wait_for_timeout(400)
                     return page.eval_on_selector("#storyOverlay", "e => { var r = e.getBoundingClientRect();"
@@ -2600,6 +2625,41 @@ def main() -> int:
                 page.wait_for_timeout(100)
                 assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), "a story pulled down did not close"
                 page.wait_for_timeout(600)
+                # §646: a mouse turned to the next friend's and let go off the
+                # story (over the turning copy, which takes no pointer) still
+                # ends the turn - it was left half-turned, paused, for good.
+                page.evaluate("""() => { var now = Date.now() / 1000, i = yfCircle.findIndex(hasStories);
+                    yfCircle.splice(i + 1, 0, { user_id: "u_smoke_next", name: "Nia Next", handle: "nianext", avatar: "",
+                      stories: [{ at: now - 120, title: "Why ice floats", query: "why ice floats", minutes: 1.5 }] });
+                    paintMyFamCircle(); }""")
+                at = open_story()
+                page.mouse.move(at["x"] + 120, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 40, at["y"], steps=5)
+                assert page.evaluate("document.querySelectorAll('.motion-story-back').length") == 1, \
+                    "a sideways drag toward the next friend did not turn the cube"
+                page.mouse.move(at["x"] - 150, at["y"] + 300, steps=5)
+                page.mouse.up()
+                page.wait_for_timeout(800)
+                turned = page.evaluate("""() => ({ t: document.getElementById('storyOverlay').style.transform,
+                    n: document.querySelectorAll('.motion-story-back, .motion-shade').length,
+                    held: storyHeld, open: !document.getElementById('storyOverlay').hidden })""")
+                assert not turned["t"] and not turned["n"] and not (turned["open"] and turned["held"]), \
+                    f"a mouse let go off the story left the turn stuck: {turned}"
+                # Closed mid-turn: nothing of the cube outlives the viewer.
+                if not page.eval_on_selector("#storyOverlay", "e => e.hidden"):
+                    page.evaluate("closeStory()")
+                    page.wait_for_timeout(500)
+                at = open_story()
+                page.mouse.move(at["x"] + 40, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 30, at["y"], steps=4)
+                page.evaluate("closeStory()")
+                page.mouse.up()
+                page.wait_for_timeout(600)
+                assert page.evaluate("document.querySelectorAll('.motion-story-back, .motion-shade, .story[aria-hidden=true]').length") == 0, \
+                    "a story closed mid-turn left its cube on screen"
+                page.evaluate("yfCircle = yfCircle.filter(function(p){ return p.user_id !== 'u_smoke_next'; }); paintMyFamCircle()")
             left = page.evaluate("""() => document.querySelectorAll('.motion-loader-pic, .motion-loader-out,'
                 + ' .motion-leave, .motion-words, .motion-shade, .motion-gold-was, .motion-dg, .motion-story-back,'
                 + ' .motion-ghost, .motion-lab').length""")
@@ -5083,18 +5143,18 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_selector("#screen-myfam.active", timeout=10000)
             page.wait_for_timeout(1200)
-            # The live build's database has one listener in it, so nobody's
-            # vibes are there to play; the fixture build has Beth's two.
-            if not page.query_selector("#myfamCircle .yf-friend .yf-vibe"):
-                assert page.evaluate("typeof openStory") == "function", \
-                    "the story viewer is missing"
-                return
-            page.click("#myfamCircle .yf-friend:has(.yf-vibe)")
+            # The fixture build has Beth's two; the live build's database has
+            # nobody's, so story_face draws two (§646: this returned early,
+            # unseen, from §297 on).
+            face = story_face()
+            page.click(face)
             page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
             bars = page.eval_on_selector_all("#storyBars .story-bar", "e => e.length")
             assert bars == 2, f"{bars} story bars for two vibes"
             first = page.text_content("#storyTitle").strip()
-            page.click("#storyOverlay .story-tap.right")
+            # The tap zone itself: a story drawn without a layout (the live
+            # build's, §646) lays its title over the zone's middle.
+            page.evaluate("document.querySelector('#storyOverlay .story-tap.right').click()")
             page.wait_for_timeout(200)
             second = page.text_content("#storyTitle").strip()
             assert first and second and first != second, "tapping right did not advance"
@@ -5122,7 +5182,7 @@ def main() -> int:
             assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), \
                 "the X did not close the stories"
             assert page.eval_on_selector(
-                "#myfamCircle .yf-friend:has(.yf-vibe) .yf-ring",
+                face + " .yf-ring",
                 "e => e.classList.contains('seen')"), "a watched ring did not go grey"
 
         def offline_fades_what_is_not_on_the_device():
@@ -5422,6 +5482,50 @@ def main() -> int:
               messages_motion_holds_nothing)
         check("yourFAM's round-three motion holds nothing and leaves nothing behind",
               yourfam_motion_holds_nothing)
+
+        def a_sent_undo_does_nothing():
+            """§646, the first audit's stale Undo: a commit sent early (the
+            page hidden) takes its line and its Undo with it; a shelf read
+            again while a removal's Undo is up does not draw the row back,
+            and Undo then puts back one row, not a second."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); setTab('home')")
+            r = page.evaluate("""() => { var log = [];
+                snack('Removed', { label: 'Undo', run: function(){ log.push('run'); },
+                                   done: function(){ log.push('done'); } });
+                Object.defineProperty(document, 'hidden', { configurable: true, get: function(){ return true; } });
+                document.dispatchEvent(new Event('visibilitychange'));
+                delete document.hidden;
+                var bar = document.getElementById('snack'), b = document.getElementById('snackAct');
+                var up = bar.classList.contains('show') && !b.hidden;
+                b.click();
+                return { log: log, up: up }; }""")
+            assert r == {"log": ["done"], "up": False}, f"an Undo outlived its sent request: {r}"
+            # Saved for Later, reopened inside the five seconds.
+            page.evaluate("openSaved()")
+            page.wait_for_timeout(900)
+            if not page.evaluate("(savedCache.items || []).length"):
+                page.evaluate("""() => fetch('/api/saved', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ query: 'why the sky is blue', minutes: 3, title: 'Why the sky is blue' }) })""")
+                page.evaluate("openSaved()")
+                page.wait_for_timeout(900)
+            sid = page.evaluate("savedCache.items[0].id")
+            page.evaluate("id => removeSaved(id)", sid)
+            page.wait_for_timeout(500)
+            page.evaluate("goBack()")
+            page.wait_for_timeout(400)
+            page.evaluate("openSaved()")
+            page.wait_for_timeout(900)
+            rows = "id => document.querySelectorAll('#svBody .sv-row[data-key=\"s:' + id + '\"]:not(.motion-row)').length"
+            assert page.evaluate(rows, sid) == 0, "a removed row came back when the shelf was read again"
+            assert page.evaluate("document.getElementById('snack').classList.contains('show')"), "the Undo line went"
+            page.click("#snackAct")
+            page.wait_for_timeout(500)
+            assert page.evaluate(rows, sid) == 1, "Undo after a reread drew the row twice, or not at all"
+            page.evaluate("hideSnack(); goBack()")
+            page.wait_for_timeout(300)
+
+        check("An Undo whose request has gone does nothing", a_sent_undo_does_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

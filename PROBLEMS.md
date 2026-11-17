@@ -39153,3 +39153,137 @@ interest flooding at the same width, a saved row going with Undo and no
 DELETE, the editor's drawer, a post into the ring with the line after,
 nothing left). **Not verified here:** a real finger, Safari's `clip-path`
 circle on a chip, and the preload's cost on a slow network at sign-in.
+
+## 646. Motion round three: the first audit (2026-11-17)
+
+Seven reviewers drove the six phases (§640-§645) in a browser and filed 37
+findings (`p1`-`p7`: 8 broken, the rest friction and polish). Every one was
+reproduced with the reviewer's own probe before it was fixed, and again
+after; all 37 are fixed, two of them in part (said below). Nothing in
+`rule:motion` changed: each fix is the existing pattern - the change made
+first, inert copies, rollback to what the server said.
+
+**The stale Undo (broken; p1, p5, p7, and p6's duplicate row).** A pending
+Undo's commit goes early when the page is hidden or left, and on log-out
+(§641, §644); the line stayed up and its Undo still ran `run()`, putting
+back on screen what the server had deleted - after log-out, the previous
+account's chat into the next account's memory. Now `flushSnackCommit`
+takes the line down and disarms the button whenever it sends a commit
+(`endSnackLine`; `snack()` keeps its own line as it draws the next), an
+Undo whose commit has gone does nothing, and `logOut` hides the line
+whatever it offered. The Saved and My Vibes shelves keep a removal's id
+while its Undo is up (`savedPendingRemove`, `vibePendingRemove`): a shelf
+read again inside the five seconds leaves the row (and its folder count)
+off, and Undo puts it back only if it is missing - it was drawn twice. A
+commit sent as the page closes is `keepalive` (`recordFamEvent`, the
+saved / vibe / chat DELETEs), or it was cancelled with the page. Not
+interested's Undo after the rails were redrawn (p2) draws the rails again
+from what they last were (`feedSectionsLast`) - it reinserted nodes into
+rails no longer on the page.
+
+**The other broken findings.**
+- *A story dragged with a mouse never finished* (p2): let go over the
+  turning copy or off the frame, the pointerup never reached the overlay, so
+  the cube stayed half-turned and paused and its copies outlived the viewer.
+  A drag now takes pointer capture once it is a drag (not on pointerdown, so
+  a tap's click still lands on its button), a leftover drag ends on the next
+  pointerdown or on `lostpointercapture`, and `closeStory` ends any drag or
+  turning cube first (`storyDragEnd`, `Motion.cubeEnd`). A turn back that
+  finishes after the viewer closed restores what was watched and stops.
+- *myFAM's sub-chip acted on the wrong category* (p3): the last category's
+  panel, kept while the next loads (§642), was live - Play all said nothing
+  was made, Follow followed the sub. It is `inert` while `aria-busy`
+  (`catPanelIdle` clears both, also where a load is abandoned), and Play all
+  and Follow do nothing while loading.
+- *A mix drag cut off by `settleMixBody`* (p3): the server's redraw replaced
+  the carried row, `mixDrag` stuck and the tilt loop ran for good. The redraw
+  waits while a row is carried; the tilt loop and the next drag end a drag
+  whose row is gone.
+- *The player's past captions not dimmed after the b3eacb33 merge* (p7):
+  the player's own `.cc-said` rule restored full colour. It is the dimmed
+  colour now, and `ccIn` has no `to` (fill `backwards`) so it warms to the
+  line's own colour - the player's is not `--paper`.
+
+**The smoke run's story checks skipped silently** (p2). Both were gated on
+the row's `.yf-vibe` badge, gone since §297, so §641's checks (and the
+27/09 one) never ran. `story_face()` finds a face with stories, draws two
+into the row on the live build (whose database has nobody's), and fails
+when there is none. The §641 check now also drags a mouse to the next
+friend's and lets go off the story, and closes one mid-turn (it fails on
+the old code). A new check, "An Undo whose request has gone does nothing",
+hides the page under a pending Undo and re-reads Saved under one. The
+27/09 check's "tap right" clicks the tap zone itself: the live build's
+stories have no layout, and their title lies over the zone's middle.
+
+**Friction.**
+- Not interested committed on page close: `keepalive` (above). Fixed.
+- Pick-up rails: an Undo after a redraw (above). Fixed.
+- A paused picture fade held the next picture at opacity 0 (p1):
+  `Motion.picture` ends the last one's fade first, and a cleared picture
+  ends it too. Fixed.
+- An edge-swipe that outlived a screen change pressed the new screen's back
+  (p1): `Motion.screen` ends a drag under way, and letting go presses back
+  only on the screen that was dragged. Fixed.
+- Public/Private tapped twice (p3): only the last tap's answer paints; an
+  earlier one records what the server has, which a refused last tap goes
+  back to. Fixed.
+- A topic played before its save answered was asked as its bare title (p3):
+  the stand-in item is `pending` and is not played (a row's play says "Still
+  adding that"); Add topics' save redraws the mix page beneath it. Fixed.
+- The public mix's Add button read both faces (p3): the face not on is
+  `aria-hidden`. Fixed.
+- Search DailyFAM left dimmed (p4): cleared on every search and open. Fixed.
+- A failed search's words put back by an unrelated Cancel (p4): any other
+  episode clears `searchAsked`, as does a failure not asked again. Fixed.
+- Go pressed again after cancelling under the speller was lost (p4): a
+  cancel frees the next press, and a late speller answer clears only its
+  own mark. Fixed.
+- A send that failed after switching chats vanished (p5): the failed draft
+  is kept with its chat's memory and the failure is said. Fixed.
+- Follow tapped twice inside 260 ms spread its paint over the screen (p6):
+  only the latest paint takes the class away. Fixed.
+- A settings switch tapped twice sent the same value twice (p6): the row's
+  action turns round with its switch. Fixed in part: a preload answering
+  mid-save still redraws the row once (it slides back and forth).
+- A refused folder move's flight wrote the hoped-for count (p6): it writes
+  nothing once refused. Fixed.
+- `authKnown` never set on a non-JSON `/api/auth/me` (p6): an answer it
+  cannot read counts as unreachable, and an open Profile is drawn from it.
+  Fixed.
+- A friend's page said "Nothing vibed yet" from the last person's answer
+  (p6): cleared before drawing. Fixed.
+- `Motion.roll` called again mid-roll ('43', p7 and p1): the outgoing
+  number is drawn by CSS (`::before{content:attr(data-n)}`), so the
+  element's text is always the current number. Fixed.
+
+**Polish.**
+- The tour's first card jumped as the glide and its entrance fought (p1):
+  the first card's glide is cancelled. Fixed.
+- The tour took taps through its fade (p1): `pointer-events:none` while it
+  fades. Fixed.
+- `watchRailEnds` stacked listeners on kept rails (p2): once per rail. Fixed.
+- A turn back finishing after close ran the story on (p2): above. Fixed.
+- `aria-busy` left on an abandoned category load (p3): above. Fixed.
+- The voice sheet shown again by a cancel inside 200 ms (p4): the pending
+  hide runs when the loader goes. Fixed.
+- The column's carry counted twice (p5): `Motion.column` stops the last
+  rise, already folded into `carry`. Fixed.
+- New message: a second pick mid-arc drew the first face twice, an unpick
+  mid-arc flew an invisible copy (p5): a flying pick's stack item stays
+  hidden through repaints and lands by its current element; unpicked, it
+  returns from where its copy had got to. Fixed.
+- The placeholder story could be opened (p6): `openMyStory` skips it.
+  Fixed in part: if the hub's re-read fails, `profileNow` keeps it for the
+  ring (nothing opens it).
+- `--spring-page` was read by nothing (p7): deleted (the page spring is
+  built in the script with the finger's speed). Fixed.
+
+**Skipped:** none. **Disagreed with:** p2's "setPointerCapture in
+pointerdown" - capture on pointerdown sends a tap's click to the overlay,
+not to the X or Like under it, so it is taken once the drag starts.
+
+Tests: `tests/test_motion_round_three_646.py`; §640's spring test drops
+`--spring-page`, §642's and §644's read the new rollback and log-out; the
+smoke run's "An Undo whose request has gone does nothing" and the story
+checks above. **Not verified here:** a real finger, iOS's suspended timer
+behind the stale Undo, and a page actually closed under a `keepalive` send.

@@ -61,7 +61,8 @@ def test_edits_change_on_the_tap_and_roll_back():
     assert "markAddTopicRows(id, !adding)" in toggle and "renderAddTopics()" not in toggle
     vis = _fn("toggleMixVisibility")
     assert vis.index("paintMixVisibility(next)") < vis.index("saveMix(")
-    assert "paintMixVisibility(!next)" in vis
+    # §646: a refused last tap goes back to what the server last said.
+    assert "paintMixVisibility(back)" in vis
     rec = _fn("addRecTopic")
     assert rec.index("Motion.joinRow(") < rec.index("saveMix(") and "Motion.putBack(" in rec
     follow = _fn("toggleFollowCategory")

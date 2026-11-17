@@ -29,7 +29,10 @@ def test_the_curves_are_the_skills_and_named_once():
 
 
 def test_every_spring_token_ends_at_rest_inside_the_ceiling():
-    for name in ("--spring-page", "--spring-soft", "--spring-icon"):
+    # --spring-page went in §646: the page spring is built in the script
+    # with the finger's speed, so nothing read the token.
+    assert "--spring-page" not in INDEX
+    for name in ("--spring-soft", "--spring-icon"):
         curve = re.search(name + r":linear\(([^)]*)\);", INDEX).group(1)
         points = [float(p) for p in curve.split(",")]
         assert points[0] == 0 and points[-1] == 1, name
