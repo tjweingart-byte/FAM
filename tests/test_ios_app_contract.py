@@ -1105,3 +1105,60 @@ def test_the_iphone_catches_up_part_one_648():
     assert "restoreAskedSearch()" in model
     sheets = (SWIFT / "Views" / "PlayerSheets.swift").read_text()
     assert "pressedLine ?? chipLine" in sheets
+
+
+def test_the_iphone_catches_up_part_two_649():
+    """§649: round three's motion on every page, read from the Swift source
+    (none of it compiled here: the Mac build is the first compile)."""
+    motion = (SWIFT / "Motion.swift").read_text()
+    views = SWIFT / "Views"
+    parts = (views / "PlayerParts.swift").read_text()
+    player = (views / "PlayerView.swift").read_text()
+    # Play / pause and the side buttons cross on the shared icon swap; the
+    # ring and the sparks are gone; the title rolls up.
+    glyph = parts[parts.index("struct PlayPauseGlyph"):][:1500]
+    assert "IconSwap(key: playing)" in glyph
+    assert "sparkOpacity" not in parts and "ringOpacity" not in parts
+    assert "Motion.easeOut(Motion.Dur.title)" in parts
+    assert "IconSwap(key: on)" in player
+    # Pictures land colour first: no blur-up left on a card or the player.
+    assert ".blur(radius: sharp ? 0 : 8)" not in player
+    assert ".blur(radius: sharp ? 0 : 8)" not in (views / "Shared.swift").read_text()
+    # The queue's arc: 360 ms, a 15 % bulge, the count rolling, no bump.
+    flight = (views / "QueueFlight.swift").read_text()
+    assert "Motion.easeInOut(Motion.Dur.flight)" in flight and "0.3 * d" in flight
+    assert "queueBump" not in player and ".numericText(value: Double(count))" in player
+    # The loader: rows rise, ticks draw with a thread, the heartbeat ring
+    # keeps pulsing under Reduce Motion, the iris into the player.
+    loading = (views / "LoadingView.swift").read_text()
+    assert ".trim(from: 0, to: done ? 1 : 0)" in loading
+    assert "struct RowRise" in loading and "static func beat(" in loading
+    assert "if reduced {" in loading and "0.35 + 0.65 * eased" in loading
+    assert "handedOff" in loading and "case none, grow, shrink, iris" in motion
+    # The five steps' timing is untouched.
+    assert "static let stepMin: TimeInterval = 2.0" in loading
+    assert "static let firstStepMin: TimeInterval = 0.5" in loading
+    # Rails arrive out of a blur, six tiles at most; Refresh deals.
+    assert "blur: 2, duration: Motion.Dur.arrive" in motion
+    daily = (views / "DailyView.swift").read_text()
+    assert "RollingText(" in daily and ".transition(.foldAway)" in daily
+    assert "dx: round > 1 ? 24 : 0" in daily
+    # Voice search grows from the mic, a ripple per word.
+    voice = (SWIFT / "VoiceSearch.swift").read_text()
+    assert "VoiceRipple()" in voice and "VoiceWaves(level:" not in voice
+    assert ".transition(.circleOut(from: centre))" in (SWIFT / "FAMApp.swift").read_text()
+    # Sheets slide from the bottom edge; modals grow from .97.
+    assert "Motion.Dur.sheetIn" in motion and "0.97" in motion
+    # The sliding underlines, the deck's deal, the drag's tilt.
+    assert "SlidingRule(" in (views / "CategoryViews.swift").read_text()
+    assert "SlidingRule(" in (views / "YouView.swift").read_text()
+    assert "fanned" in (views / "MixDeck.swift").read_text()
+    assert "dragTilt" in (views / "MixView.swift").read_text()
+    # A friend's story turns under the finger.
+    stories = (views / "Stories.swift").read_text()
+    assert "func followTurn(" in stories and "func endTurn(" in stories
+    # Page sheets and the edge swipe back.
+    assert "func pageSheetCover<" in motion and "struct EdgeSwipeBack" in motion
+    settings = (views / "SettingsView.swift").read_text()
+    assert ".pageSheetCover(isPresented: $editing)" in settings
+    assert "you.checkingPhoto = true" in settings

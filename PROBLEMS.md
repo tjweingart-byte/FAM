@@ -39469,3 +39469,95 @@ operations from `setTopic`), `tests/test_private_mode_638.py` reads
 `SetSwitchRow`. **Not verified here:** none of it has been compiled - no
 Swift toolchain on this machine; the Mac build (`.github/workflows/ios.yml`)
 is the first compile - nor run on a phone.
+
+## 649. The iPhone app catches up, part two: round-three motion (2026-11-17)
+
+Phase B of §648: the audit's motion gaps (58 across rails and mixes,
+search and the player, social and yourFAM), built on §648's `Motion`
+tokens, `Motion.anim` and `IconSwap`. Nothing in `rule:motion` changed;
+the iPhone now follows its round-three text on every page. The terms are
+the web's: nothing waits on a movement (state is live and tappable from
+the first frame, audio starts on the tap), every movement is 450 ms or
+less (the loading loops and the unwritten tile's 2.4 s develop excepted,
+as on the web), transforms and opacity only, Reduce Motion stills all of
+it but the loading indicators, and the five steps' timing is untouched
+(`GEN_STEP_*` in `LoadingModel` is not edited; a replay's five ticks are
+painted at once by `LoadingModel.instant`).
+
+**Shared pieces (`Motion.swift`).** `ArriveOnce` takes a rise, a sideways
+start, a blur and a duration; `arriving(_:index:rail:book:)` reckons the
+rails' order as the web's `arriveRails` does on a phone (headings 90 ms
+ahead, tiles 30 ms apart, six at most). `RollingText` (digits roll, the
+line warms to copper and back), `.foldAway` and `Animation.tileGap`,
+`SlidingRule` (one underline between equal tabs), `.tabSwap(forward:)`
+(the 18 pt nudge), `.dotPop`, `RoundHole` / `CircleReveal` /
+`.circleOut(from:)` (voice search out of the mic), `GrowsFromPress` (the
+story editor out of the (+) or face), `pageSheetCover` (a screen cover
+that rises from the bottom over a page receding to .97), the left-edge
+swipe on every screen cover and `EdgeSwipeBack` (iOS's own swipe back in
+the tabs' stacks, whose bars are hidden). The player's entrance gained the
+iris (`PlayerStage.iris`, a hole growing out of the loader's chevrons,
+which `PlayerMotion.chevrons` reports) and grows out of the DailyFAM
+wait's own picture when that wait hands over (`PlayerMotion.dial`,
+`LoadingModel.dialHandedOff`); its FLIP is 360 ms in-out both ways.
+Sheets slide all the way up from the bottom edge and modals grow from .97.
+
+**Page by page** - PARITY.md's "Motion, round three" row lists each with
+its numbers: the player (icon swaps, the quiet save word, the title's
+roll, colour-first pictures, the mini player's settle, the queue's arc and
+rolling count, What's next's blur rise); search (the loader's rows, drawn
+ticks and thread, the heartbeat ring - an opacity pulse under Reduce
+Motion, kept as a loading indicator - the iris, trending's arrival, the
+A to Z keeping its rows dimmed, Length and Voice acknowledging, the lock's
+swap, voice search out of the mic with a ripple per word, Which one's
+swap, Go Deeper's wipe); DailyFAM (rails out of a blur, Refresh's deal,
+live lines rolling, tiles folding away, the fast develop for a ready
+tile with its faces at rest); myFAM (the glide's hand-off with a moving
+pill, the sliding underline and nudge, the deck's deal, the drag's lift,
+tilt, dim and spring, Create's fade, the async (+), the finished mix's
+cards, the morning dot, the knob's shackle); messages and yourFAM (the
+bottom line, the rolling unread count, chats gliding to the top, the
+column's rise, the share sheet's bottom row, the reply's words rising,
+the story turning under the finger, the shelf underline, the hub's first
+draw, a friend's page reserving its rows, interest chips of one width,
+page sheets, the edge swipe, the story editor growing, sign-up's rolling
+step, the tour's one clock).
+
+**§648's leftovers.** A typed Go Deeper now opens the loader on the press
+(`NowPlayingModel.openLoaderEarly`, the player going down for it as the
+send would; a Cancel meanwhile drops the send by `cancelSeq`, as search's
+does). Voice search's send already reached `SearchView.go`, which opens
+the loader on the press (§648); its sheet now closes into the mic under
+the loader. A photo changed in Settings shows at once on yourFAM and the
+Settings row with "Checking photo…" until the check answers
+(`YouModel.pendingAvatar`, `checkingPhoto`). The Public / Private lock is a
+drawn lock riding the knob whose shackle lifts and turns open, or drops
+shut, once the knob has landed (`KnobLock`), no longer SF Symbols' two.
+
+**Where a gap needed a judgement.** The rails' "in view" test is reckoned
+rather than measured: the first two rails' first three tiles and the
+first three headings, which is what a phone shows at the top. The
+share sheet confirms in its own bottom row through a `ShareChoice`
+binding (the player's share card); a mix's share keeps its own bar. The
+interest chip's flood grows from the chip's middle, not the tap point (a
+`Button` does not say where it was touched). The story editor grows out
+of the press but leaves by iOS's own slide. The edge swipe on a screen
+cover is a 14 pt strip along the edge, so nothing pressable is under it;
+inside a social cover the swipe closes the cover, not one screen of its
+stack.
+
+**Skipped, with reasons** (PARITY.md lists them): the FAM mark gliding
+into the loader's wordmark (two layers; a cross-layer
+`matchedGeometryEffect` was not risked without a compiler); the tile's
+picture growing into the loader on the way in; the deck's reshuffle; dots
+becoming the message; New message's faces gathering into a stack;
+Friends regrouping by a glide; the folder flight; a posted story
+shrinking into your ring; Create's name flying to the hero; the reorder
+handle's 44 pt zone; the move gate on rail arrivals; a swipe sending the
+bottom line away.
+
+Tests: `tests/test_ios_app_contract.py` (the new
+`test_the_iphone_catches_up_part_two_649`; §584's motion test reads the
+fold's round-three curve). **Not verified here:** none of it has been
+compiled - no Swift toolchain on this machine; the Mac build
+(`.github/workflows/ios.yml`) is the first compile - nor run on a phone.

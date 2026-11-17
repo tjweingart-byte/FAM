@@ -901,7 +901,7 @@ private struct PushedScreen<Content: View>: View {
                 if x > 0 && (x > width / 2 || g.velocity.width > 100) {
                     close()
                 } else if state.shown < 1 {
-                    state.move(to: 1, reduceMotion ? nil : Animation.spring(duration: 0.5, bounce: 0))
+                    state.move(to: 1, reduceMotion ? nil : Animation.spring(duration: 0.4, bounce: 0))
                 }
             }
     }

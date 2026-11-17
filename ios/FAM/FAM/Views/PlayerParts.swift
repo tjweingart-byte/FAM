@@ -570,25 +570,37 @@ struct WipeText: View {
     var lines: Int = 1
     var lineSpacing: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Whether this change rolls (none from an empty title).
-    @State private var rolls = false
+    /// The title drawn: it follows `text`, rolling when there was one.
+    @State private var shown: String
+
+    init(text: String, font: Font, color: Color = FAMColor.text, lines: Int = 1, lineSpacing: CGFloat = 0) {
+        self.text = text
+        self.font = font
+        self.color = color
+        self.lines = lines
+        self.lineSpacing = lineSpacing
+        _shown = State(initialValue: text)
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {
-            Text(text)
+            Text(shown)
                 .font(font)
                 .foregroundStyle(color)
                 .lineSpacing(lineSpacing)
                 .lineLimit(lines)
-                .id(text)
-                .transition(rolls && !reduceMotion
-                            ? .asymmetric(insertion: AnyTransition.offset(y: 8).combined(with: .opacity),
-                                          removal: AnyTransition.offset(y: -8).combined(with: .opacity))
-                            : .identity)
+                .id(shown)
+                .transition(reduceMotion ? .identity
+                            : .asymmetric(insertion: AnyTransition.offset(y: 8).combined(with: .opacity),
+                                          removal: AnyTransition.offset(y: -8).combined(with: .opacity)))
         }
-        .clipped()
-        .animation(rolls && !reduceMotion ? Motion.easeOut(Motion.Dur.title) : nil, value: text)
-        .onChange(of: text) { old, _ in rolls = !old.isEmpty }
+        .onChange(of: text) { old, new in
+            if old.isEmpty || reduceMotion {
+                shown = new
+            } else {
+                withAnimation(Motion.easeOut(Motion.Dur.title)) { shown = new }
+            }
+        }
     }
 }
 
