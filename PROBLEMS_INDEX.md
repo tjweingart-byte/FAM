@@ -611,3 +611,4 @@ and `limit` = Lines.
 | 37273 | 44 | 617. iOS build 9: the audit of Main since build 8, and §612 on the iPhone (2026-11-14) |
 | 37317 | 22 | 618. "One more thing": Continue cut off at the bottom on Android web (2026-11-14) |
 | 37339 | 82 | 619. Motion, round three: the shared picks (2026-11-16) |
+| 37421 | 59 | 620. Motion, round three: dailyFAM (2026-11-17) |

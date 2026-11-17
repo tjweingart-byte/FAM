@@ -321,7 +321,9 @@ def test_a_swipe_goes_to_the_next_friends_vibes():
     assert 'onclick="storyTap(1)"' in INDEX and 'onclick="storyTap(-1)"' in INDEX
     assert "storySwipedAt" in _fn("storyTap")
     css = INDEX.split("  .story{", 1)[1].split("}", 1)[0]
-    assert "touch-action:pan-y" in css
+    # The story takes every drag itself since §620: down closes it and
+    # sideways turns the cube under the finger, so the browser pans neither.
+    assert "touch-action:none" in css
 
 
 # --- 3a. The picture is the way to the profile -----------------------------

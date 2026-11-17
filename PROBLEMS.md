@@ -37417,3 +37417,62 @@ theme change switches transitions off and nothing is left behind).
 `linear()` need Safari 17.5 / 17.2; older ones open sheets at once and use
 the plain curve), and the edge swipe with a real finger - only a mouse in
 Chromium.
+
+## 620. Motion, round three: dailyFAM (2026-11-17)
+
+The second of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks
+in `dailyfam.json` - the rails screen (`screen-myfam`), View more
+(`screen-section`), the faces row and the story viewer. Every time is a new
+named token on `:root` (`--dur-loader-*`, `--dur-arrive`, `--dur-deal-*`,
+`--dur-story-*`, `--dur-fold`, `--dur-gap` ...), read by `Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Tile to player | A: one picture, both ways | `Motion.intoLoader`: a copy of the loader's picture, laid out at the frame and drawn as the tapped tile (FLIP), grows there 300 ms `out` while the loader fades in 150 ms; it develops on the real picture's clock and hands back to it. `Motion.handOff` (from `finishGenOverlay`, whose 450 ms floor still decides when): the loader is taken down at once and a copy leaves - the picture flies to `#playerBg` 340 ms `in-out` (clearing any blur left), the words fade 150 ms and the background 200 ms, both `in`. The player now opens first (`onGenerationStarted`), under the loader, with no flight of its own (`screen` returns while `dailyLoader()` is up) - the double picture is gone, and so is the 8 s expiry of the tapped picture for this path |
+| Picture develops | B: two speeds | `.fam-dev.develop.ready` (the tile's `cached`) is sharp in 420 ms `out`; unwritten keeps 2.4 s on `--ease-develop`; the scale is gone; the sheen is 1.4 s linear |
+| Friends gather | C: keep, ready ones still | A ready tile's faces and names are drawn at rest; an unwritten one keeps the owner's 600 ms overshoot (tokenised as `--dur-faces`, `--ease-faces`). A face already on the device is drawn at once, not faded up from its initials |
+| Late sections | B: draw what was there | Pick up and the faces row are kept per account (`famLastPickUp`, `famLastCircle`, emptied on log-out) and painted on the first frame; when the answer lands, identical draws nothing, else `Motion.relist`: a new card rises 8 px (260 ms `out`), a gone one recedes as a copy (fade, .95, 150 ms `in`), the rest glide (200 ms `in-out`) |
+| Rails arrive | B: soft rise with blur | Rail by rail: heading (with Play all) first, its tiles 90 ms behind and 30 ms apart, 350 ms `out`, 8 px and a 2 px blur, six tiles at most; nothing below the fold, past the screen's edge or while the screen is moving (push or tab nudge) |
+| Story bar and hold | A: scaleX, quick fade | The bar is `scaleX` from the left, linear; held, the chrome hides 150 ms `in` and returns 200 ms `out`, both at once under reduced motion; the bar still fills |
+| View more | A: rail first | The rail's own tiles are drawn before the push and ride in with it; when the answer lands only cards that were not there rise, 30 ms apart, first six, never while the screen is arriving. Trending's grouped grid now arrives and lights its saves too (it returned before both) |
+| Refresh | B: deal the next page | Old cards on screen slip out as copies, -24 px and fading 160 ms `in`, 20 ms apart; the new come in from +24 px, 260 ms `out`, 30 ms apart; the scroll goes to the top under them. The arrow turns once on the press (400 ms); it spins only after 300 ms and then for at least 500 ms |
+| Tile save | B: the player's save | Lights on the tap and is put back with the line if refused; outline and filled bookmarks share the chip's cell and swap on the icon spring (only on a tap); `Motion.celebrate(..., "SAVED", true)` adds the word (phase 1 made the burst a quiet word) |
+| Changed since | B: roll and mark | `Motion.changed`: only the digits that changed roll in a one-digit window (320 ms `in-out`, up as the number grows), and the line warms to copper and back (600 ms) - a game's line by topic id, Pick up's time left; Pick up's bar is `scaleX` and fills on from its last value (300 ms), never backward; `tabular-nums` on both |
+| Story open and close | B: drag down to close | Grows from the `.yf-ring`'s centre, not the button's; a drag down follows 1:1, scaling to .85 over 300 px; past 80 px or a 0.1 px/ms flick it shrinks into the face from where it was, else springs home (400 ms, no bounce). The ring is grey at once and a copy of the gold fades under the face 200 ms after the shrink lands |
+| Next friend | B: turns under the finger | Past 12 px sideways the next friend's story is drawn and the cube follows the finger (`Motion.cubeDrag`); let go past a third or flicked, it springs on, else back - the old story, its vibe, its bar's place and the next friend's unwatched mark all restored. Each face shades to 30% black side-on, on the programmatic turn too. Past the first or last friend it rubber-bands (12 px dead zone, 64 px ceiling) |
+| Reply sent | A: words rise and go | A copy of the words rises 24 px and fades, 220 ms `in`, as the box empties; a failed send puts the words back |
+| Remove a tile | B: fold away | Not interested and Pick up's X: the tile is out at once; a copy tips back (rotateX 20deg at 700 px, .9, 220 ms `in`) while the rest close in (240 ms, the last 30 ms late); Not interested waits for the sheet's 200 ms exit. **Undo** on the line for 5 s; the event or dismiss is sent when the line goes (`action.done` on `snack`: time up, replaced, or the page hidden). Pick up's X is a 44 x 44 zone; the second redraw after a dismiss is gone |
+
+**Bugs fixed with them:** the double picture; the 8 s expiry (for DailyFAM);
+Trending's View more without arrive or saves; every open rewriting the rails
+and the faces row (an identical redraw is now skipped, and a changed one keeps
+each rail's and the row's sideways scroll); `dismissGoDeeper`'s second
+redraw; friends' faces flashing their initials when already loaded.
+
+**Where the pick needed a judgement.** The rails' B spec gives the rise and
+the stagger; the per-rail order, the in-view test and "not while moving"
+come from the review's notes. The deal is drawn with copies over the new
+grid, both at once (Replacements), not one after the other. The pull past
+the last friend still closes on release, and past the first still restarts
+that friend - as a swipe did - after the rubber band. A finger that stopped
+80 ms before letting go carries no speed. The story now takes every drag
+(`touch-action:none`, was `pan-y`; `test_packet_1001_third` updated). The
+faces row's late answer redraws the row whole when it changed: the per-card
+diff is Pick up's.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note for these) and
+`rule:no-not-interested` (the event waits for its Undo).
+
+**Not built:** findings outside the picks - the skeleton's size, the View
+more end card's cross-fade, offline greying, the free month's words, the
+story X/⋯ 44 px zones and the story heart's word (the lead's shared item).
+
+Tests: `tests/test_motion_round_three_620.py`; the smoke run's "dailyFAM's
+round-three motion holds nothing and leaves nothing behind" (no tile copy
+while the loader is up, the picture into and out of it, View more on the
+rail's tiles, no early spinner, a save lit on the tap, Not interested and
+Pick up gone at once with Undo and nothing sent before the line goes, a
+44 px X, a story's bar scaled, a short sideways drag turned back, a reply's
+words rising, a drag down closing, nothing left). **Not verified here:** a
+real finger on a phone (the drags are a mouse in Chromium), and how the
+2 px blur on six tiles costs on an older phone.

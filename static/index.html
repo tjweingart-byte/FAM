@@ -116,6 +116,25 @@
     --dur-nextup:280ms;
     --dur-step:260ms; --dur-roll:300ms;
     --dur-tour:340ms;
+    /* dailyFAM (round three, §620): the rails screen, its loader and the
+       story viewer. The develop and the friends' flight are the owner's
+       loader looks (§592), which are a wait, not a movement; everything
+       else is 450 ms or less. */
+    --dur-loader-in:300ms; --dur-loader-bg:150ms;
+    --dur-loader-out:340ms; --dur-loader-text-out:150ms; --dur-loader-bg-out:200ms;
+    --dur-develop:2400ms; --dur-develop-ready:420ms; --ease-develop:cubic-bezier(.2,.7,.2,1);
+    --dur-sheen:1400ms; --dur-sheen-delay:400ms;
+    --dur-faces:600ms; --ease-faces:cubic-bezier(.2,1.3,.4,1);
+    --dur-arrive:350ms; --dur-arrive-lead:90ms; --dur-stagger:30ms;
+    --dur-card-in:260ms; --dur-card-out:150ms; --dur-reflow:200ms;
+    --dur-deal-out:160ms; --dur-deal-out-stagger:20ms; --dur-deal-in:260ms; --dur-deal-turn:400ms;
+    --dur-spinner-after:300ms; --dur-spinner-min:500ms;
+    --dur-digit:320ms; --dur-mark:600ms; --dur-bar:300ms;
+    --dur-story-grow:300ms; --dur-story-shrink:240ms; --dur-ring:200ms;
+    --dur-story-hide:150ms; --dur-story-show:200ms;
+    --dur-story-turn:340ms; --dur-story-spring:400ms;
+    --dur-reply:220ms;
+    --dur-fold:220ms; --dur-gap:240ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
        colour from the palette (§619). */
@@ -625,6 +644,21 @@
      inside the picture; this icon is not artwork. */
   .seed-thumb .seed-act svg{ position:static; inset:auto; width:13px; height:13px; }
   .seed-act.saved-on{ background:var(--sage, #7FA37A); color:var(--ink); }
+  /* Saved is a filled bookmark as well as the colour (tile-save: B, §620):
+     both icons sit in the chip's one cell, so it never changes size, and
+     only a tap swaps them on the icon spring - a page painted to match
+     the server does not. */
+  .tile-save{ display:grid; place-items:center; }
+  .tile-save svg{ grid-area:1 / 1; }
+  .tile-save .ts-on{ opacity:0; transform:scale(.3); filter:blur(3px); }
+  .tile-save.saved-on .ts-on{ opacity:1; transform:none; filter:none; }
+  .tile-save.saved-on .ts-off{ opacity:0; transform:scale(.3); filter:blur(3px); }
+  .tile-save.swap{ transition:background-color var(--dur-colour) var(--ease-out); }
+  .tile-save.swap svg{ transition:opacity var(--dur-icon) var(--spring-icon),
+    transform var(--dur-icon) var(--spring-icon), filter var(--dur-icon) var(--spring-icon); }
+  @media (prefers-reduced-motion: reduce){
+    .tile-save.swap, .tile-save.swap svg{ transition:none; }
+  }
   .seed-card.has-acts .sec-ready{ right:auto; left:8px; }
   .sec-caught-up{ grid-column:1 / -1; text-align:center; padding:48px 16px; }
   .sec-caught-up h3{ margin:0 0 6px; font-family:'Bricolage Grotesque', sans-serif;
@@ -1923,6 +1957,8 @@
     border:none; border-radius:50%; background:transparent; color:var(--text-muted);
     display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:1; }
   .gd-x:active{ background:rgba(var(--fg-rgb),0.08); }
+  /* 44 x 44 to press (§620): the card's corner, which has no neighbour. */
+  .gd-x::after{ content:""; position:absolute; top:-4px; right:-4px; width:44px; height:44px; }
   .gd-card-title{ padding-right:14px; }
   /* flex:none matters. Without it the column shrinks the title below the
      lines the clamp allows, so text was cut with room still in the card -
@@ -1942,7 +1978,17 @@
   .gd-card.resume .gd-card-meta{ color:var(--text-muted); }
   .gd-bar{ position:absolute; left:0; right:0; bottom:0; height:3px;
     background:var(--border-strong); }
-  .gd-bar span{ display:block; height:100%; background:var(--copper); }
+  /* Scaled from its left edge, never sized, so it can fill on from where
+     it was (changed-since: B, §620). */
+  .gd-bar span{ display:block; height:100%; width:100%; transform-origin:0 50%; background:var(--copper); }
+  .gd-card-meta, .seed-live{ font-variant-numeric:tabular-nums; }
+  /* Lists that move (§620): a copy leaving is laid over the list it left. */
+  .feed-rail, .sec-grid, .gd-grid, #goDeeperBlock{ position:relative; }
+  .motion-leave{ position:absolute !important; margin:0 !important; z-index:2; pointer-events:none; }
+  /* A digit that changed rolls in its own one-digit window. */
+  .motion-dg{ display:inline-block; position:relative; overflow:hidden; vertical-align:bottom; }
+  .motion-dg-n{ display:inline-block; }
+  .motion-dg-o{ position:absolute; left:0; top:0; }
 
   /* A rail's heading and its Play all (11.11 note). The heading keeps at
      least 12em of the row - em, so larger phone text needs more - and Play
@@ -2367,17 +2413,24 @@
   .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
     background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
   .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
-  .fam-dev.develop .fam-dev-pic{ animation:famDevelop 2.4s cubic-bezier(.2,.7,.2,1) both; }
+  /* Two speeds (picture-develop: B, §620): a ready tile - written and
+     voiced ahead, so its audio is a few hundred ms away - is sharp in
+     420 ms, before the loader can leave, so the last frame of it is the
+     picture itself; an unwritten one keeps the owner's slow develop. No
+     scale (a 2.4 s movement); the blur and the colour carry it. The sheen
+     is time passing, so it is linear, like a spinner. */
+  .fam-dev.develop .fam-dev-pic{ animation:famDevelop var(--dur-develop) var(--ease-develop) both; }
+  .fam-dev.develop.ready .fam-dev-pic{ animation-duration:var(--dur-develop-ready);
+    animation-timing-function:var(--ease-out); }
   .fam-dev.develop .fam-dev-pic::after{ content:""; position:absolute; inset:0;
     background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.5) 50%, transparent 65%);
-    transform:translateX(-120%); animation:famDevSheen 1.6s .4s ease-in-out infinite; }
-  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); transform:scale(.94); }
-    to{ filter:none; transform:none; } }
+    transform:translateX(-120%); animation:famDevSheen var(--dur-sheen) var(--dur-sheen-delay) linear infinite; }
+  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); } to{ filter:none; } }
   @keyframes famDevSheen{ to{ transform:translateX(120%); } }
   .fam-dev.friends{ margin-bottom:16px; }
   .fam-dev-faces{ position:absolute; left:12px; bottom:-18px; display:flex; z-index:2; }
   .fam-dev-faces .src-mark{ width:44px; height:44px; font-size:14px; margin-left:-10px;
-    border:3px solid var(--bg); animation:famFaceIn .6s cubic-bezier(.2,1.3,.4,1) both; }
+    border:3px solid var(--bg); animation:famFaceIn var(--dur-faces) var(--ease-faces) both; }
   .fam-dev-faces .src-mark:first-child{ margin-left:0; --fx:-130px; --fy:-170px; animation-delay:.12s; }
   .fam-dev-faces .src-mark:nth-child(2){ --fx:40px; --fy:-230px; animation-delay:.28s; }
   .fam-dev-faces .src-mark:nth-child(3){ --fx:190px; --fy:-130px; animation-delay:.44s; }
@@ -2386,6 +2439,17 @@
   .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
     animation:famLdUp .3s .7s both; }
   .fam-dev-names b{ color:var(--text); font-weight:600; }
+  /* A ready tile's friends are already there (friends-gather: C, §620):
+     the flight is kept for a tile with time for it, and a ready one's
+     loader leaves before a face could land. */
+  .fam-dev.ready .fam-dev-faces .src-mark, .fam-dev.ready + .fam-dev-names{ animation:none; }
+  /* The tile's picture on its way into the loader's frame, and the loader
+     left behind as the picture flies on into the player (tile-to-player: A). */
+  .fam-dev.motion-loader-pic{ position:absolute; z-index:61; max-width:none; aspect-ratio:auto;
+    margin:0; pointer-events:none; transform-origin:0 0; }
+  .fam-loading.motion-loader-out{ pointer-events:none; }
+  .fam-loading.motion-loader-out *, .fam-loading.motion-loader-out *::before,
+  .fam-loading.motion-loader-out *::after{ animation:none !important; }
 
   /* Option 3, the mix gliding along: its episodes in order, the last one
      marked Heard, this one slid to the middle and lifted. */
@@ -3285,7 +3349,7 @@
   /* A friend's vibes as stories (27/09 packet). */
   .story{ position:absolute; inset:0; z-index:80; background:linear-gradient(180deg,#2A2233 0%,#16121C 100%);
     display:flex; flex-direction:column; padding:44px 16px 28px; color:#F4EFE4;
-    border-radius:inherit; overflow:hidden; touch-action:pan-y; user-select:none; }
+    border-radius:inherit; overflow:hidden; touch-action:none; user-select:none; }
   .story-main{ margin:auto 0; position:relative; z-index:2; display:flex; flex-direction:column;
     gap:10px; text-align:center; padding:0 8px; pointer-events:none; }
   /* The episode itself - its title here, its card on a composed story - is
@@ -3295,11 +3359,15 @@
   .story[hidden]{ display:none; }
   .story-bars{ display:flex; gap:4px; }
   .story-bar{ flex:1; height:2.5px; border-radius:2px; background:rgba(244,239,228,0.25); overflow:hidden; }
-  .story-bar i{ display:block; height:100%; width:0; background:#F4EFE4; }
-  .story-bar.done i{ width:100%; }
+  /* Filled by scale from the left edge, not width (story-progress-hold: A,
+     §620): the compositor's, on a screen that also turns and grows. Kept
+     under reduced motion - it is the story's progress. */
+  .story-bar i{ display:block; height:100%; width:100%; transform:scaleX(0); transform-origin:0 50%;
+    background:#F4EFE4; }
+  .story-bar.done i{ transform:none; }
   .story-bar.on i{ animation:storyFill var(--story-ms, 6000ms) linear forwards; }
   .story.paused .story-bar.on i{ animation-play-state:paused; }
-  @keyframes storyFill{ from{ width:0; } to{ width:100%; } }
+  @keyframes storyFill{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
   .story-head{ display:flex; align-items:center; gap:10px; margin-top:12px; position:relative; z-index:2; }
   .story-av .av{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center;
     justify-content:center; color:var(--ink); font-weight:700; font-size:13px; overflow:hidden; }
@@ -3326,7 +3394,24 @@
   .story-canvas-wrap .sc-post{ pointer-events:auto; cursor:pointer; }
   .story.composed .story-main{ display:none; }
   .story.composed .story-card{ margin-top:auto; }
-  .story.held .story-head, .story.held .story-card, .story.held .story-bars{ opacity:0; transition:opacity .2s; }
+  /* Held, the chrome goes quickly (150 ms `in`) and comes back gently
+     (200 ms `out`); with reduced motion, at once (§620). */
+  .story .story-head, .story .story-card, .story .story-bars{
+    transition:opacity var(--dur-story-show) var(--ease-out); }
+  .story.held .story-head, .story.held .story-card, .story.held .story-bars{ opacity:0;
+    transition:opacity var(--dur-story-hide) var(--ease-in); }
+  @media (prefers-reduced-motion: reduce){
+    .story .story-head, .story .story-card, .story .story-bars{ transition:none; }
+  }
+  /* A face of the cube darkening as it turns side-on (§620). */
+  .motion-shade{ position:absolute; inset:0; z-index:10; background:#000; opacity:0; pointer-events:none;
+    border-radius:inherit; }
+  /* The gold a ring had, fading under the face once the story is back in it. */
+  .motion-gold-fading{ isolation:isolate; }
+  .motion-gold-was{ position:absolute; inset:0; border-radius:50%; z-index:-1; pointer-events:none; }
+  /* A sent reply's words, rising out of the box. */
+  .motion-words{ position:absolute; z-index:81; pointer-events:none; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; }
 
   /* A vibe drawn as a story (10.6 packet #2): one renderer for the composer
      and the viewer, every position a fraction of the canvas, every size in
@@ -6002,7 +6087,25 @@
       title: msToken("--dur-title", 240), picture: msToken("--dur-picture", 240),
       label: msToken("--dur-label", 900),
       step: msToken("--dur-step", 260), roll: msToken("--dur-roll", 300),
-      tour: msToken("--dur-tour", 340)
+      tour: msToken("--dur-tour", 340),
+      // dailyFAM (§620)
+      loaderIn: msToken("--dur-loader-in", 300), loaderBg: msToken("--dur-loader-bg", 150),
+      loaderOut: msToken("--dur-loader-out", 340), loaderTextOut: msToken("--dur-loader-text-out", 150),
+      loaderBgOut: msToken("--dur-loader-bg-out", 200),
+      arrive: msToken("--dur-arrive", 350), arriveLead: msToken("--dur-arrive-lead", 90),
+      stagger: msToken("--dur-stagger", 30),
+      cardIn: msToken("--dur-card-in", 260), cardOut: msToken("--dur-card-out", 150),
+      reflow: msToken("--dur-reflow", 200),
+      dealOut: msToken("--dur-deal-out", 160), dealOutStagger: msToken("--dur-deal-out-stagger", 20),
+      dealIn: msToken("--dur-deal-in", 260), dealTurn: msToken("--dur-deal-turn", 400),
+      spinnerAfter: msToken("--dur-spinner-after", 300), spinnerMin: msToken("--dur-spinner-min", 500),
+      digit: msToken("--dur-digit", 320), mark: msToken("--dur-mark", 600), bar: msToken("--dur-bar", 300),
+      storyGrow: msToken("--dur-story-grow", 300), storyShrink: msToken("--dur-story-shrink", 240),
+      ring: msToken("--dur-ring", 200),
+      storyHide: msToken("--dur-story-hide", 150), storyShow: msToken("--dur-story-show", 200),
+      storyTurn: msToken("--dur-story-turn", 340), storySpring: msToken("--dur-story-spring", 400),
+      reply: msToken("--dur-reply", 220),
+      fold: msToken("--dur-fold", 220), gap: msToken("--dur-gap", 240)
     };
     // A spring as a `linear()` curve: a damped spring of the given duration
     // and bounce (the skill's form), with `v0` the speed it starts at, in
@@ -6028,7 +6131,8 @@
     var SPRING = {
       page: spring(500, 0),     // a drag let go: .5 s, no bounce
       soft: spring(500, 0.15),  // follow-through: the part that settles a beat late
-      icon: spring(350, 0)      // icon swaps: .35 s, no bounce
+      icon: spring(350, 0),     // icon swaps: .35 s, no bounce
+      story: spring(DUR.storySpring, 0)  // a story let go: .4 s, no bounce (§620)
     };
     // The tab bar's order, left to right, so a tab change knows its side.
     var TAB_ORDER = ["myfam", "playfam", "home", "messages", "profile"];
@@ -6182,6 +6286,13 @@
     // hand; the setTab it ends in must not animate them a second time.
     var stillUntil = 0;
     function still(){ stillUntil = Date.now() + 100; }
+    // Until when a tab change's nudge is moving the new tab's content:
+    // anything that arrives inside it rides in with it (§620).
+    var tabUntil = 0;
+    function moving(el){
+      var s = el && el.closest ? el.closest(".screen") : null;
+      return !s || s.classList.contains("arriving") || Date.now() < tabUntil;
+    }
     // A back that a drag from the left edge let go of (screens: B): how far
     // the page had already gone (0-1) and how fast (px/ms), so the pop goes
     // on from there instead of starting again.
@@ -6193,8 +6304,14 @@
       if(Date.now() < stillUntil){ stillUntil = 0; return; }
       // Reduced motion: every screen change is instant (reduced: A).
       if(!how || !from || from === to || !on()) return;
+      // dailyFAM's loader is over everything (tile-to-player: A, §620): the
+      // player opens under it at once, and its picture is the one that
+      // flies there when the loader hands over (`handOff`) - never a second
+      // copy of the tile's crossing it.
+      if(how === "player-open" && dailyLoader()) return;
       var anims = [], ghosts = [], hidden = [], flights = [];
       if(how === "tab"){
+        tabUntil = Date.now() + DUR.tab;
         // Tabs (tabs: C): the old tab's content is gone on the first frame;
         // the new tab's nudges 12 px in from the side the tab sits on. The
         // tab bar is the new screen's from the first frame, so it never moves.
@@ -6528,13 +6645,14 @@
     // the listener turns one on, never when a control is painted to match
     // what the server says (setSaved / setEchoed run for both). Turning one
     // off stays quiet. Under reduced motion the word still shows, still.
-    function celebrate(selector, label){
+    function celebrate(selector, label, quiet){
       if(!canAnimate) return;
       document.querySelectorAll(selector).forEach(function(el){
         if(!seen(el) || !el.closest(".screen.active")) return;
         var icon = el.querySelector("svg");
         var r = box(icon || el);
-        if(icon && on()) iconIn(icon);
+        // `quiet`: the control swaps its own icons (a tile's save, §620).
+        if(icon && on() && !quiet) iconIn(icon);
         var lab = document.createElement("span");
         lab.className = "motion-lab";
         lab.setAttribute("aria-hidden", "true");
@@ -6585,34 +6703,53 @@
       });
     }
 
-    // ---- rails: new tiles arrive one after another ----
+    // ---- rails: new tiles arrive (rails-arrive: B, §620) ----
+    // The skill's softest entrance: up 8 px out of a 2 px blur while it
+    // fades in. Painted at opacity 0 only during its own delay
+    // (`backwards`), and tappable throughout.
+    function rise(el, delay, ms, blur){
+      return [run(el, [{ transform: "translateY(8px)" }, { transform: "translateY(0px)" }], ms,
+                  { delay: delay, fill: "backwards", add: true }),
+              run(el, blur ? [{ opacity: 0, filter: "blur(2px)" }, { opacity: 1, filter: "blur(0px)" }]
+                           : [{ opacity: 0 }, { opacity: 1 }], ms, { delay: delay, fill: "backwards" })];
+    }
+    // Cards that were not there arrive (view-more-grid: A): the first six,
+    // 30 ms apart, 260 ms `out` - and none while their screen is still
+    // moving in, which they ride in with.
     function arrive(els){
       if(!on()) return;
-      els.forEach(function(el, i){
-        runAdd(el, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], 260,
-               { delay: Math.min(i, 8) * 40, fill: "backwards" });
+      els.filter(function(el){ return el && !moving(el); }).slice(0, 6).forEach(function(el, i){
+        rise(el, i * DUR.stagger, DUR.cardIn, false);
       });
     }
-    // The first few of each rail, in reading order: left to right along a
-    // rail, then the next rail down. Tiles past the screen's edge just appear.
-    // Only tiles that were not on the page before (`before`, by topic id), so
-    // a redraw - the server's answer after the cache's, a game's score moving
-    // - does not replay it; headings only on the page's first draw. Returns
-    // the ids now drawn, for the next call.
+    // Rail by rail, in reading order: a rail's heading (with its Play all)
+    // first, its tiles 90 ms behind it and 30 ms apart, 350 ms each; six
+    // tiles on the page at most. A rail below the fold, a tile past the
+    // screen's edge, or anything drawn while the screen is still moving in
+    // just appears. Only tiles that were not on the page before (`before`,
+    // by topic id), so a redraw - the server's answer after the cache's, a
+    // game's score moving - does not replay it; headings only on the page's
+    // first draw. Returns the ids now drawn, for the next call.
     function arriveRails(root, before){
       var now = {}, first = !before || !Object.keys(before).length, list = [];
       if(!root) return now;
+      var f = frameEl().getBoundingClientRect(), clock = 0, tiles = 0;
       root.querySelectorAll(".feed-section").forEach(function(sec){
-        var title = sec.querySelector(".feed-title");
-        if(title && first) list.push(title);
-        var tiles = sec.querySelectorAll(".feed-rail > [data-topic]");
-        Array.prototype.forEach.call(tiles, function(t, i){
+        var r = sec.getBoundingClientRect(), inView = r.height > 0 && r.top < f.bottom && r.bottom > f.top;
+        var head = first && inView ? (sec.querySelector(".feed-head") || sec.querySelector(".feed-title")) : null;
+        var at = clock, j = 0;
+        if(head){ list.push({ el: head, at: at }); at += DUR.arriveLead; }
+        sec.querySelectorAll(".feed-rail > [data-topic]").forEach(function(t){
           var id = t.getAttribute("data-topic");
           now[id] = true;
-          if(i < 3 && !(before && before[id])) list.push(t);
+          if(!inView || tiles >= 6 || (before && before[id])) return;
+          if(t.getBoundingClientRect().left >= f.right) return;
+          list.push({ el: t, at: at + j * DUR.stagger });
+          j++; tiles++;
         });
+        if(head || j) clock = at + j * DUR.stagger;
       });
-      if(on()) arrive(list);
+      if(on() && !moving(root)) list.forEach(function(x){ rise(x.el, x.at, DUR.arrive, true); });
       return now;
     }
 
@@ -6824,52 +6961,173 @@
       if(!pressed.el || !pressed.el.isConnected || Date.now() - pressed.at > 1500) return null;
       var face = pressed.el.closest ? (pressed.el.closest('button, [onclick], [role="button"]') || pressed.el) : null;
       if(!face || !seen(face) || face.closest(".story")) return null;
-      var r = box(face);
+      // The face itself, not the button round it and its name (§620).
+      var ring = face.querySelector ? face.querySelector(".yf-ring") : null;
+      var r = box(ring && seen(ring) ? ring : face);
       return { x: r.x + r.w / 2, y: r.y + r.h / 2, r: Math.max(8, Math.min(r.w, r.h) / 2) };
     }
     function circleIn(ov, o, grown){
       var b = box(ov), at = (o.x - b.x) + "px " + (o.y - b.y) + "px";
       return "circle(" + (grown ? Math.ceil(Math.hypot(b.w, b.h)) : o.r) + "px at " + at + ")";
     }
-    // Opened out of the face that was tapped, and closed back into it.
+    // Opened out of the face that was tapped, and closed back into it: the
+    // grow on `out`, the way back - a move to a place, not an exit - on
+    // `in-out` (story-open-close: B, §620).
     function growStory(ov){
       ov._from = pressedCircle();
       if(!on() || !ov._from || !seen(ov)) return;
-      run(ov, [{ clipPath: circleIn(ov, ov._from, false) }, { clipPath: circleIn(ov, ov._from, true) }], 300,
-          { fill: "none" });
+      run(ov, [{ clipPath: circleIn(ov, ov._from, false) }, { clipPath: circleIn(ov, ov._from, true) }],
+          DUR.storyGrow, { fill: "none" });
     }
     // Called before the story is hidden: a copy closes into the face while
-    // the real one is already gone.
+    // the real one is already gone. A story being dragged down closes from
+    // where the finger left it. Returns how long that takes (0 for none).
     function shrinkStory(ov){
       var o = ov._from;
       ov._from = null;
-      if(!on() || !o || ov.hidden || !seen(ov)) return;
+      if(!on() || !o || ov.hidden || !seen(ov)) return 0;
+      var t = ov.style.transform || "";
+      ov.style.transform = "";
+      var big = circleIn(ov, o, true), small = circleIn(ov, o, false);
       var g = inertCopy(ov);
+      g.style.transform = "";
       ov.parentNode.insertBefore(g, ov.nextSibling);
-      run(g, [{ clipPath: circleIn(ov, o, true), opacity: 1 }, { clipPath: circleIn(ov, o, false), opacity: 1, offset: 0.85 },
-              { clipPath: circleIn(ov, o, false), opacity: 0 }], 240, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+      var from = t || "translateY(0px) scale(1)";
+      run(g, [{ clipPath: big, opacity: 1, transform: from },
+              { clipPath: small, opacity: 1, transform: "translateY(0px) scale(1)", offset: 0.85 },
+              { clipPath: small, opacity: 0, transform: "translateY(0px) scale(1)" }],
+          DUR.storyShrink, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+      return DUR.storyShrink;
     }
+    // A ring that was gold is grey on the first frame; a copy of the gold
+    // under the face fades out once the story has shrunk back into it,
+    // 200 ms (§620). `toggle` repaints the ring.
+    function ringFade(ring, toggle, delay){
+      var was = !!(ring && ring.classList.contains("fresh")), cs = was ? getComputedStyle(ring) : null;
+      var img = cs ? cs.backgroundImage : "", edge = cs ? cs.borderTopColor : "", bw = cs ? parseFloat(cs.borderTopWidth) || 0 : 0;
+      toggle();
+      if(!was || ring.classList.contains("fresh") || !on() || !seen(ring)) return;
+      var layer = document.createElement("span");
+      layer.className = "motion-gold-was";
+      layer.setAttribute("aria-hidden", "true");
+      if(img && img !== "none") layer.style.backgroundImage = img;
+      else layer.style.boxShadow = "inset 0 0 0 " + bw + "px " + edge;
+      layer.style.inset = (-bw) + "px";
+      ring.classList.add("motion-gold-fading");
+      ring.insertBefore(layer, ring.firstChild);
+      var done = function(){ layer.remove(); ring.classList.remove("motion-gold-fading"); };
+      run(layer, [{ opacity: 1 }, { opacity: 0 }], DUR.ring, { easing: EASE_IO, delay: delay || 0 })
+        .finished.then(done, done);
+    }
+    // A story pulled down and let go short of closing springs home, as does
+    // one pulled past the first or last friend (§620).
+    function storyHome(ov){
+      var t = ov.style.transform;
+      ov.style.transform = "";
+      if(!on() || !t || !seen(ov)) return;
+      run(ov, [{ transform: t }, { transform: "translateY(0px) scale(1)" }], SPRING.story.duration,
+          { easing: SPRING.story.easing, fill: "none" });
+    }
+
     // To the next friend's: a cube turn (Instagram's). `draw` puts the next
     // friend's story in the real overlay; the last one turns away as a copy.
-    function turnStory(ov, dir, draw){
-      if(!on() || !seen(ov)){ draw(); return; }
+    // Each face darkens toward 30% as it turns side-on (story-next-friend: B,
+    // Solid drawing), and a drag turns it under the finger (`cubeDrag`).
+    var P3 = "perspective(900px) ";
+    function cubeAt(dir, p){
+      return { old: P3 + "translateX(" + (-100 * dir * p) + "%) rotateY(" + (-90 * dir * p) + "deg)",
+               nu: P3 + "translateX(" + (100 * dir * (1 - p)) + "%) rotateY(" + (90 * dir * (1 - p)) + "deg)",
+               oldShade: 0.3 * p, nuShade: 0.3 * (1 - p) };
+    }
+    function shadeOn(el){
+      var s = document.createElement("div");
+      s.className = "motion-shade";
+      s.setAttribute("aria-hidden", "true");
+      el.appendChild(s);
+      return s;
+    }
+    function cubeOpen(ov, dir, draw){
       var back = document.createElement("div"), g = inertCopy(ov);
       back.className = "story motion-story-back";
       back.setAttribute("aria-hidden", "true");
       ov.parentNode.insertBefore(back, ov);
       ov.parentNode.insertBefore(g, ov.nextSibling);
       draw();
-      var P = "perspective(900px) ";
       g.style.transformOrigin = dir > 0 ? "100% 50%" : "0% 50%";
       ov.style.transformOrigin = dir > 0 ? "0% 50%" : "100% 50%";
       g.style.backfaceVisibility = ov.style.backfaceVisibility = "hidden";
-      run(g, [{ transform: P + "translateX(0%) rotateY(0deg)" },
-              { transform: P + "translateX(" + (-100 * dir) + "%) rotateY(" + (-90 * dir) + "deg)" }], 340,
-          { easing: EASE_IO }).finished.then(gone(g), gone(g));
-      run(ov, [{ transform: P + "translateX(" + (100 * dir) + "%) rotateY(" + (90 * dir) + "deg)" },
-               { transform: P + "translateX(0%) rotateY(0deg)" }], 340, { easing: EASE_IO, fill: "none" })
-        .finished.then(function(){ back.remove(); ov.style.transformOrigin = ov.style.backfaceVisibility = ""; },
-                       function(){ back.remove(); ov.style.transformOrigin = ov.style.backfaceVisibility = ""; });
+      return { ov: ov, g: g, back: back, gs: shadeOn(g), os: shadeOn(ov), dir: dir, p: 0 };
+    }
+    function cubeClose(c){
+      c.back.remove(); c.g.remove(); c.os.remove();
+      c.ov.style.transform = c.ov.style.transformOrigin = c.ov.style.backfaceVisibility = "";
+    }
+    function cubeSet(c, p){
+      var f = cubeAt(c.dir, p);
+      c.p = p;
+      c.g.style.transform = f.old; c.ov.style.transform = f.nu;
+      c.gs.style.opacity = f.oldShade; c.os.style.opacity = f.nuShade;
+    }
+    function cubeRun(c, p0, p1, timing, done){
+      var a = cubeAt(c.dir, p0), b = cubeAt(c.dir, p1), o = { easing: timing.easing };
+      var anims = [run(c.g, [{ transform: a.old }, { transform: b.old }], timing.duration, o),
+                   run(c.ov, [{ transform: a.nu }, { transform: b.nu }], timing.duration, o),
+                   run(c.gs, [{ opacity: a.oldShade }, { opacity: b.oldShade }], timing.duration, o),
+                   run(c.os, [{ opacity: a.nuShade }, { opacity: b.nuShade }], timing.duration, o)];
+      var over = false;
+      var fin = function(){
+        if(over) return;
+        over = true;
+        anims.forEach(function(x){ try { x.cancel(); } catch(e){} });
+        cubeClose(c);
+        var i = finishing.indexOf(fin);
+        if(i >= 0) finishing.splice(i, 1);
+        if(done) done();
+      };
+      finishing.push(fin);
+      Promise.all(anims.map(function(x){ return x.finished; })).then(fin, function(){});
+    }
+    function turnStory(ov, dir, draw){
+      if(!on() || !seen(ov)){ draw(); return; }
+      cubeRun(cubeOpen(ov, dir, draw), 0, 1, { duration: DUR.storyTurn, easing: EASE_IO });
+    }
+    // A sideways drag: the next friend's story is drawn at once and the cube
+    // follows the finger (`cubeSet`); let go, it springs on to the end or
+    // back to the start carrying the finger's speed (progress per second),
+    // and `done` runs when it is there. Null under reduced motion.
+    function cubeDrag(ov, dir, draw){
+      if(!on() || !seen(ov)) return null;
+      var c = cubeOpen(ov, dir, draw);
+      cubeSet(c, 0);
+      return c;
+    }
+    function cubeLetGo(c, on_, speed, done){
+      var to = on_ ? 1 : 0, left = Math.abs(to - c.p) || 1;
+      var sp = spring(DUR.storySpring, 0, Math.max(0, speed) / left);
+      var p = c.p;
+      c.g.style.transform = ""; c.ov.style.transform = "";
+      c.gs.style.opacity = ""; c.os.style.opacity = "";
+      cubeRun(c, p, to, sp, done);
+    }
+
+    // A sent reply (story-reply-send: A): the box is empty on the same
+    // frame, and a copy of the words rises 24 px out of it as it fades,
+    // 220 ms `in` - an exit, toward where they went.
+    function sendWords(input, text){
+      if(!on() || !input || !text || !seen(input)) return;
+      var r = box(input), cs = getComputedStyle(input);
+      var w = document.createElement("span");
+      w.className = "motion-words";
+      w.setAttribute("aria-hidden", "true");
+      w.textContent = text;
+      var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+      w.style.left = (r.x + pl) + "px"; w.style.top = r.y + "px";
+      w.style.width = Math.max(0, r.w - pl - pr) + "px"; w.style.height = r.h + "px";
+      w.style.lineHeight = r.h + "px";
+      w.style.font = cs.font; w.style.color = cs.color; w.style.letterSpacing = cs.letterSpacing;
+      frameEl().appendChild(w);
+      run(w, [{ transform: "translateY(0px)", opacity: 1 }, { transform: "translateY(-24px)", opacity: 0 }],
+          DUR.reply, { easing: EASE_IN }).finished.then(gone(w), gone(w));
     }
 
     // Messages pop out of their bubble's tail corner.
@@ -7020,10 +7278,259 @@
       });
     }
 
+    // ---- dailyFAM's loader (tile-to-player: A, §620) ----
+    // One picture, both ways: the tile's picture grows into the loader's
+    // frame, develops there, and flies on into the player's.
+    function dailyLoader(){
+      var el = document.getElementById("famLoading");
+      return el && el.classList.contains("active") && el.querySelector(".fam-dev") ? el : null;
+    }
+    function cancelAll(list){ list.forEach(function(x){ try { x.cancel(); } catch(e){} }); }
+    // In: 300 ms `out`, from the tile to the frame, while the loader's
+    // background fades in under it in 150 ms. The loader is up, and its X
+    // pressable, from the first frame; what travels is a copy laid out at
+    // the frame and drawn as the tile (FLIP), developing on the same clock
+    // as the real picture, which shows again when it lands.
+    function intoLoader(loader){
+      var pic = loader && loader.querySelector(".fam-dev .fam-dev-pic");
+      if(!on() || !pic || !pic.querySelector("img") || !seen(pic)) return;
+      if(!tapped.el || !tapped.picture || !tapped.screen || Date.now() - tapped.at > 1500) return;
+      settle();
+      var from = seen(tapped.el) && tapped.screen.contains(tapped.el) ? box(tapped.el) : tapped.box;
+      var to = box(pic);
+      var g = document.createElement("div");
+      g.className = pic.parentNode.className + " motion-loader-pic";
+      g.setAttribute("aria-hidden", "true");
+      g.style.left = to.x + "px"; g.style.top = to.y + "px";
+      g.style.width = to.w + "px"; g.style.height = to.h + "px";
+      g.appendChild(inertCopy(pic));
+      frameEl().appendChild(g);
+      pic.style.visibility = "hidden";
+      var anims = [run(g, [asSmall(to, from, tapped.radius), FLAT], DUR.loaderIn, { easing: EASE }),
+                   run(loader, [{ opacity: 0 }, { opacity: 1 }], DUR.loaderBg, { fill: "backwards" })];
+      track(anims, function(){ cancelAll(anims); g.remove(); pic.style.visibility = ""; });
+    }
+    // Out: when the first audio is here the loader is taken down at once;
+    // a copy of it is left for its way out. The picture that was watched
+    // flies into the player's, 340 ms `in-out`, clearing whatever blur it
+    // still had; the loader's words go in 150 ms and its background in
+    // 200 ms, both `in`. With no picture the copy only fades.
+    function handOff(loader){
+      if(!on() || !loader || !loader.classList.contains("active") || !loader.querySelector(".fam-dev")) return;
+      settle();
+      var pic = loader.querySelector(".fam-dev .fam-dev-pic"), img = pic && pic.querySelector("img");
+      var bg = document.getElementById("playerBg");
+      var copy = inertCopy(loader);
+      copy.classList.add("motion-loader-out");
+      loader.parentNode.insertBefore(copy, loader.nextSibling);
+      var anims = [], g = null, flight = null;
+      if(img && seen(pic) && bg && seen(bg) && bg.closest(".screen.active")){
+        var a = box(pic), b = box(bg), blur = getComputedStyle(pic).filter;
+        var start = asSmall(b, a, "16px"), end = { transform: FLAT.transform, clipPath: FLAT.clipPath };
+        if(blur && blur !== "none"){ start.filter = blur; end.filter = "blur(0px)"; }
+        g = ghost('url("' + (img.currentSrc || img.src) + '")', b);
+        var cp = copy.querySelector(".fam-dev-pic");
+        if(cp) cp.style.visibility = "hidden";
+        bg.style.visibility = "hidden";
+        flight = run(g, [start, end], DUR.loaderOut, { easing: EASE_IO });
+        anims.push(flight);
+      }
+      copy.querySelectorAll(".fam-ld-kick, .fam-ld-title, .fam-ld-status, .fam-dev-faces, .fam-dev-names,"
+                            + " .fam-loading-wm, .fam-loading-x").forEach(function(el){
+        anims.push(run(el, [{ opacity: 1 }, { opacity: 0 }], DUR.loaderTextOut, { easing: EASE_IN }));
+      });
+      anims.push(run(copy, [{ opacity: 1 }, { opacity: 0 }], DUR.loaderBgOut, { easing: EASE_IN }));
+      var finish = function(){
+        cancelAll(anims);
+        copy.remove();
+        if(g) g.remove();
+        if(bg) bg.style.visibility = "";
+      };
+      finishing.push(finish);
+      Promise.all(anims.map(function(x){ return x.finished; })).then(function(){
+        var i = finishing.indexOf(finish);
+        if(i < 0) return;
+        finishing.splice(i, 1);
+        copy.remove();
+        if(bg) bg.style.visibility = "";
+        if(g){
+          // The landed picture hands over to the player's own.
+          try { flight.commitStyles(); } catch(e){}
+          var landed = g;
+          g = null;
+          run(landed, [{ opacity: 1 }, { opacity: 0 }], DUR.handOver).finished
+            .then(gone(landed), gone(landed));
+        }
+        finish();
+      }, function(){});
+    }
+
+    // ---- a list that changed (late-sections: B; remove-tile: B) ----
+    // Where each of a list's items is, by key, read before a change.
+    function layout(root, sel, keyOf){
+      var out = {};
+      if(!root) return out;
+      Array.prototype.forEach.call(root.querySelectorAll(sel), function(el){
+        if(el.classList.contains("motion-leave")) return;
+        var k = keyOf(el);
+        if(k == null || k === "" || out[k]) return;
+        out[k] = { el: el, b: box(el), shown: onActive(el) };
+      });
+      return out;
+    }
+    // A copy of something already taken out, put back where it was inside
+    // `host` (positioned) for as long as it takes to leave.
+    function leaveCopy(item, host){
+      if(!host || !host.isConnected) return null;
+      var hb = box(host), g = inertCopy(item.el);
+      [g].concat(Array.prototype.slice.call(g.querySelectorAll("*"))).forEach(function(n){
+        ["data-topic", "data-tile-save", "data-tile-more", "data-section"].forEach(function(a){ n.removeAttribute(a); });
+      });
+      g.classList.add("motion-leave");
+      g.style.left = (item.b.x - hb.x - host.clientLeft + host.scrollLeft) + "px";
+      g.style.top = (item.b.y - hb.y - host.clientTop + host.scrollTop) + "px";
+      g.style.width = item.b.w + "px"; g.style.height = item.b.h + "px";
+      host.appendChild(g);
+      return g;
+    }
+    // After the list was redrawn: what stayed glides from where it was
+    // (`moveMs`, default 200 ms `in-out`; with `followThrough` the last one
+    // settles 30 ms after the rest); what is new rises 8 px and fades in,
+    // 260 ms `out`; what went leaves as a copy - receding (fade, .95,
+    // 150 ms `in`) or, with `fold`, tipping back (rotateX 20deg at 700 px,
+    // .9, 220 ms `in`). `delay` holds the movement, never the change.
+    // Nothing moves on a list that was not on screen.
+    function relist(before, root, sel, keyOf, o){
+      o = o || {};
+      if(!on() || !root) return;
+      var after = layout(root, sel, keyOf), moved = [], delay = o.delay || 0;
+      Object.keys(after).forEach(function(k){
+        var a = after[k], b = before[k];
+        if(!a.shown || moving(a.el)) return;
+        if(!b){ if(o.rise !== false) rise(a.el, delay, DUR.cardIn, false); return; }
+        var dx = b.b.x - a.b.x, dy = b.b.y - a.b.y;
+        if(b.shown && (Math.abs(dx) >= 1 || Math.abs(dy) >= 1)) moved.push({ el: a.el, dx: dx, dy: dy });
+      });
+      moved.forEach(function(m, i){
+        var late = o.followThrough && moved.length > 1 && i === moved.length - 1 ? DUR.settleDelay : 0;
+        run(m.el, [{ transform: "translate(" + m.dx + "px, " + m.dy + "px)" }, { transform: "translate(0px, 0px)" }],
+            o.moveMs || DUR.reflow, { easing: EASE_IO, delay: delay + late, fill: "backwards", add: true });
+      });
+      Object.keys(before).forEach(function(k){
+        var b = before[k];
+        if(after[k] || !b.shown || !b.b.w || !b.b.h) return;
+        var g = leaveCopy(b, o.host ? o.host(b) : null);
+        if(!g) return;
+        var frames = o.fold
+          ? [{ transform: "perspective(700px) rotateX(0deg) scale(1)", opacity: 1 },
+             { transform: "perspective(700px) rotateX(20deg) scale(.9)", opacity: 0 }]
+          : [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.95)", opacity: 0 }];
+        if(o.fold) g.style.transformOrigin = "50% 100%";
+        run(g, frames, o.fold ? DUR.fold : DUR.cardOut, { easing: EASE_IN, delay: delay })
+          .finished.then(gone(g), gone(g));
+      });
+    }
+
+    // ---- what changed since it was last drawn (changed-since: B) ----
+    // A score or a time left that moved: only the digits that changed roll,
+    // in a one-digit window, 320 ms `in-out` - up as the number grows, down
+    // as it shrinks - and the line warms to copper and back over 600 ms.
+    // The new text is the element's from the first frame; the old digits
+    // are aria-hidden and gone when it lands. A first draw moves nothing.
+    function numberAt(s, i){
+      var j = i, k = i;
+      while(j > 0 && /\d/.test(s.charAt(j - 1))) j--;
+      while(k < s.length && /\d/.test(s.charAt(k))) k++;
+      return parseInt(s.slice(j, k), 10) || 0;
+    }
+    function changed(el, before){
+      if(!el || !on() || before == null || String(before) === el.textContent || !onActive(el)) return;
+      var a = String(before), b = el.textContent;
+      if(a.length === b.length){
+        var cols = [], any = false, parts = [];
+        for(var i = 0; i < b.length; i++){
+          var o = a.charAt(i), n = b.charAt(i);
+          if(o !== n && /\d/.test(o) && /\d/.test(n)){
+            any = true;
+            parts.push({ o: o, n: n, dir: numberAt(b, i) >= numberAt(a, i) ? 1 : -1 });
+          } else parts.push(n);
+        }
+        if(any){
+          el.textContent = "";
+          parts.forEach(function(p){
+            if(typeof p === "string"){ el.appendChild(document.createTextNode(p)); return; }
+            var w = document.createElement("span"), nu = document.createElement("span"), old = document.createElement("span");
+            w.className = "motion-dg"; nu.className = "motion-dg-n"; old.className = "motion-dg-o";
+            nu.textContent = p.n; old.textContent = p.o;
+            old.setAttribute("aria-hidden", "true");
+            w.appendChild(nu); w.appendChild(old); el.appendChild(w);
+            cols.push(run(nu, [{ transform: "translateY(" + (100 * p.dir) + "%)" }, { transform: "translateY(0%)" }],
+                          DUR.digit, { easing: EASE_IO }));
+            cols.push(run(old, [{ transform: "translateY(0%)" }, { transform: "translateY(" + (-100 * p.dir) + "%)" }],
+                          DUR.digit, { easing: EASE_IO }));
+          });
+          var put = function(){ if(el.querySelector(".motion-dg")) el.textContent = b; };
+          Promise.all(cols.map(function(x){ return x.finished; })).then(put, put);
+        }
+      }
+      var base = getComputedStyle(el).color;
+      var copper = getComputedStyle(document.documentElement).getPropertyValue("--copper").trim() || "#E0B563";
+      run(el, [{ color: base }, { color: copper, offset: 0.25 }, { color: base }], DUR.mark,
+          { easing: EASE_IO, fill: "none" });
+    }
+    // A Pick up card's bar fills on from where it was, 300 ms `in-out`;
+    // never backward (a restarted episode is simply drawn).
+    function fillBar(span, from, to){
+      if(!span || !on() || !(to > from) || !onActive(span)) return;
+      run(span, [{ transform: "scaleX(" + from + ")" }, { transform: "scaleX(" + to + ")" }], DUR.bar,
+          { easing: EASE_IO, fill: "none" });
+    }
+
+    // ---- View more's Refresh (section-refresh: B) ----
+    // The next page is dealt: the cards that were on screen slip 24 px to
+    // the left as they fade (160 ms `in`, 20 ms apart) while the new ones
+    // come in from 24 px to the right (260 ms `out`, 30 ms apart, the
+    // first six). `render` makes the change - the grid is the new page on
+    // the first frame - and the old cards are copies.
+    function deal(grid, scroller, render){
+      if(!on() || !grid || !scroller || !onActive(grid)){ render(); return; }
+      var s = scroller.getBoundingClientRect(), old = [];
+      Array.prototype.forEach.call(grid.children, function(c){
+        var r = c.getBoundingClientRect();
+        if(!r.width || r.bottom <= s.top || r.top >= s.bottom) return;
+        old.push({ el: c, b: box(c) });
+      });
+      render();
+      old.forEach(function(item, i){
+        var g = leaveCopy(item, grid);
+        if(!g) return;
+        run(g, [{ transform: "translateX(0px)", opacity: 1 }, { transform: "translateX(-24px)", opacity: 0 }],
+            DUR.dealOut, { easing: EASE_IN, delay: i * DUR.dealOutStagger }).finished.then(gone(g), gone(g));
+      });
+      var k = 0;
+      Array.prototype.forEach.call(grid.children, function(c){
+        if(k >= 6 || c.classList.contains("motion-leave")) return;
+        var r = c.getBoundingClientRect();
+        if(!r.width || r.top >= s.bottom) return;
+        runAdd(c, [{ opacity: 0, transform: "translateX(24px)" }, { opacity: 1, transform: "translateX(0px)" }],
+               DUR.dealIn, { delay: k * DUR.stagger, fill: "backwards" });
+        k++;
+      });
+    }
+    // Refresh's icon makes one full turn for the press, 400 ms `in-out`.
+    function turnIcon(el){
+      if(!el || !on()) return;
+      run(el, [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], DUR.dealTurn,
+          { easing: EASE_IO, fill: "none" });
+    }
+
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
              growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory, popMessages: popMessages,
+             ringFade: ringFade, storyHome: storyHome, cubeDrag: cubeDrag, cubeSet: cubeSet, cubeLetGo: cubeLetGo,
+             sendWords: sendWords, intoLoader: intoLoader, handOff: handOff, layout: layout, relist: relist,
+             changed: changed, fillBar: fillBar, deal: deal, turnIcon: turnIcon, moving: moving,
              badge: badge, dimDown: dimDown, follow: follow, removeRow: removeRow, steps: steps,
              EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO }, DUR: DUR, spring: spring,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
@@ -7133,15 +7640,30 @@
   // seen, or how to undo it - or nothing. The bar sits on whatever is lowest
   // on screen that it must not cover: the mini player, else the tabs.
   var SNACK_ACTION_MS = 5000;
+  // `action.done` (§620): what an Undo would take back is only done for
+  // real once the line has gone without it - its five seconds are up,
+  // another line replaced it, or the page was left.
+  var snackCommit = null;
+  function flushSnackCommit(){
+    var f = snackCommit;
+    snackCommit = null;
+    if(f) f();
+  }
+  document.addEventListener("visibilitychange", function(){ if(document.hidden) flushSnackCommit(); });
+  window.addEventListener("pagehide", flushSnackCommit);
   function snack(msg, action){
     var bar = document.getElementById("snack");
     var btn = document.getElementById("snackAct");
-    if(!bar || !btn){ toast(msg); return; }
+    var commit = action && action.done;
+    flushSnackCommit();
+    if(!bar || !btn){ toast(msg); if(commit) commit(); return; }
+    snackCommit = commit || null;
     document.getElementById("snackText").textContent = msg;
     btn.hidden = !action;
     btn.textContent = action ? action.label : "";
     btn.onclick = action ? function(ev){
       ev.stopPropagation();
+      snackCommit = null;
       hideSnack();
       action.run();
     } : null;
@@ -7171,6 +7693,7 @@
   function hideSnack(){
     var bar = document.getElementById("snack");
     if(bar) bar.classList.remove("show");
+    flushSnackCommit();
   }
 
   // ---------------- Instant feedback ----------------
@@ -7754,9 +8277,17 @@
     var el = famLoadingEl();
     if(!el || !el.classList.contains("active")){ clearGenOverlay(); return; }
     var held = Date.now() - genShownAt;
-    if(held >= GEN_MIN_VISIBLE_MS){ clearGenOverlay(); return; }
+    if(held >= GEN_MIN_VISIBLE_MS){ handOffGenOverlay(); return; }
     if(genHideTimer) clearTimeout(genHideTimer);
-    genHideTimer = setTimeout(clearGenOverlay, GEN_MIN_VISIBLE_MS - held);
+    genHideTimer = setTimeout(handOffGenOverlay, GEN_MIN_VISIBLE_MS - held);
+  }
+  // The loader goes because the audio is here: DailyFAM's leaves as its
+  // picture flies into the player's (tile-to-player: A, §620). Taken down
+  // at once all the same - what leaves is a copy.
+  function handOffGenOverlay(){
+    genHideTimer = null;
+    Motion.handOff(famLoadingEl());
+    clearGenOverlay();
   }
 
   // ---------------- The five steps of a written episode (§148) ----------------
@@ -7987,7 +8518,8 @@
         .filter(Boolean).slice(0, LOADING_FACES);
       var thumb = tile.thumb || "";
       html = '<div class="fam-ld-kick">DailyFAM' + (heading ? ' \u00b7 <b>' + escapeHtml(String(heading).replace(/\n/g, " ")) + '</b>' : '') + '</div>'
-        + '<div class="fam-dev ' + (faces.length ? 'friends' : 'develop') + '" aria-hidden="true">'
+        // A ready tile develops fast and its friends are already there (§620).
+        + '<div class="fam-dev ' + (faces.length ? 'friends' : 'develop') + (tile.cached ? ' ready' : '') + '" aria-hidden="true">'
         + '<div class="fam-dev-pic">' + (thumb ? '<img src="' + escapeHtml(thumb) + '" alt="" decoding="async" onerror="this.remove()">' : '') + '</div>'
         + (faces.length ? '<div class="fam-dev-faces">' + faces.map(friendFaceHtml).join("") + '</div>' : '')
         + '</div>'
@@ -8045,6 +8577,13 @@
     alt.innerHTML = html;
     alt._for = t;
     el.classList.add("alt");
+    // A friend's face already on the device is drawn, not faded up from
+    // its initials (§620).
+    alt.querySelectorAll(".src-mark img").forEach(function(img){
+      if(img.complete && img.naturalWidth) img.style.opacity = 1;
+    });
+    // The tapped tile's picture grows into the frame (tile-to-player: A).
+    if(kind === "daily") Motion.intoLoader(el);
     if(glide){
       // Centred by measuring, since the screen is a phone frame on a desktop
       // and the whole width on a phone.
@@ -8061,16 +8600,19 @@
   }
 
   function onGenerationStarted(){
-    finishGenOverlay();
     var activeId = document.querySelector(".screen.active") ? document.querySelector(".screen.active").id : "";
     // A vibe's post plays where it sits (§547): the mini bar carries it and
     // the post's own bar moves, so the full player does not open over it.
     var started = lastGenerate && TOPICS[lastGenerate.key];
     if(started && started.inPlace && activeId === "screen-vibeposts"){
+      finishGenOverlay();
       paintVibePostTransport();
       return;
     }
+    // The player first, under the loader, so the loader's picture has
+    // somewhere to fly when it hands over (tile-to-player: A, §620).
     if(activeId !== "screen-player"){ navigate("player"); }
+    finishGenOverlay();
   }
 
   // The X on the loading screen. Stops the request - which also stops the
@@ -10724,18 +11266,66 @@
   // down (`topics.NOT_INTERESTED`, `not_wanted`). A guest's choice is
   // dropped by the server like every guest event (§127), so for a guest the
   // tile only leaves this page.
+  //: Tiles waved off whose Undo is still on the line, by topic id (§620).
+  var notInterestedPending = {};
   function tileNotInterested(topicId){
     var tile = myFamTopics[topicId];
     if(!tile) return;
-    recordFamEvent("not_interested", topicId, tile.query || tile.title || "");
+    // **Undo** (remove-tile: B, §620): it is read over the whole history,
+    // so the line offers Undo for five seconds and the event is recorded
+    // only when the line closes. The tile leaves the page now all the same.
+    notInterestedPending[topicId] = true;
     // Out of the rails' memory too, or "See all" draws it again from there.
+    var was = {};
     Object.keys(railTiles).forEach(function(k){
+      was[k] = railTiles[k];
       railTiles[k] = (railTiles[k] || []).filter(function(t){ return t.id !== topicId; });
     });
-    Array.prototype.forEach.call(
-      document.querySelectorAll('[data-topic="' + (window.CSS && CSS.escape ? CSS.escape(topicId) : topicId) + '"]'),
-      function(el){ el.remove(); });
-    snack("Got it \u2014 you\u2019ll see less like this");
+    var sel = '[data-topic="' + (window.CSS && CSS.escape ? CSS.escape(topicId) : topicId) + '"]';
+    var lists = [];
+    Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){
+      var list = el.parentNode;
+      if(list && lists.indexOf(list) < 0) lists.push(list);
+    });
+    // Each list it was in, read before it goes: the tile folds away as a
+    // copy once the menu has gone (Staging) and the rest close the gap,
+    // the last a beat behind.
+    var keyOf = function(c){
+      return c.getAttribute("data-topic") || c.getAttribute("data-geo")
+        || (c.classList.contains("feed-more") ? "_more" : null);
+    };
+    var gone = lists.map(function(list){
+      var before = Motion.layout(list, ":scope > *", keyOf);
+      var nodes = Array.prototype.filter.call(list.querySelectorAll(":scope > " + sel), function(el){ return !el.classList.contains("motion-leave"); });
+      var at = nodes.map(function(el){ return el.nextSibling; });
+      nodes.forEach(function(el){ el.remove(); });
+      Motion.relist(before, list, ":scope > *", keyOf, {
+        fold: true, followThrough: true, moveMs: Motion.DUR.gap, delay: Motion.DUR.sheetOut,
+        host: function(){ return list; }
+      });
+      return { list: list, nodes: nodes, at: at };
+    });
+    snack("Got it \u2014 you\u2019ll see less like this", {
+      label: "Undo",
+      run: function(){
+        delete notInterestedPending[topicId];
+        Object.keys(was).forEach(function(k){ railTiles[k] = was[k]; });
+        // Back where it was: the gap opens and it rises into it.
+        gone.forEach(function(g){
+          if(!g.list.isConnected) return;
+          var before = Motion.layout(g.list, ":scope > *", keyOf);
+          g.nodes.forEach(function(el, i){
+            var next = g.at[i];
+            g.list.insertBefore(el, next && next.parentNode === g.list ? next : null);
+          });
+          Motion.relist(before, g.list, ":scope > *", keyOf);
+        });
+      },
+      done: function(){
+        delete notInterestedPending[topicId];
+        recordFamEvent("not_interested", topicId, tile.query || tile.title || "");
+      }
+    });
   }
 
   function toggleNowBar(){ togglePlay(); }
@@ -10919,6 +11509,8 @@
   function forgetOfflineCopies(){
     try {
       localStorage.removeItem("famLastFeed");
+      localStorage.removeItem("famLastPickUp");
+      localStorage.removeItem("famLastCircle");
       localStorage.removeItem("famStoriesSeen");
       localStorage.removeItem("famSignedIn");
     } catch(e){}
@@ -15866,7 +16458,10 @@
     return '<span class="seed-acts">'
       + '<button class="seed-act tile-save' + on + '" type="button" data-tile-save="' + escapeHtml(t.id) + '"'
       + ' aria-label="Save ' + escapeHtml(t.title) + ' for later" title="Save for later"'
-      + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
+      + ' onclick="event.stopPropagation(); saveTile(\'' + t.id + '\')">'
+      // An outline, and a filled one once saved (§620).
+      + '<svg class="ts-off" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg>'
+      + '<svg class="ts-on" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12a1 1 0 011 1v15l-7-4-7 4V5a1 1 0 011-1z"/></svg></button>'
       // The three dots (§190): the player's menu, for this tile.
       + '<button class="seed-act tile-more" type="button" data-tile-more="' + escapeHtml(t.id) + '"'
       + ' aria-label="More options for ' + escapeHtml(t.title) + '" title="More"'
@@ -15910,6 +16505,21 @@
     }
     var key = tileSaveKey(t);
     var on = !!savedTileQueries[key];
+    // On the tap (tile-save: B, §620): it almost never fails, so the chip
+    // changes now - the icon swapping on its spring, and the app's SAVED
+    // beside it when it is turned on - and is put back, with the line
+    // saying so, if the server refuses.
+    var chips = document.querySelectorAll('[data-tile-save="' + (window.CSS && CSS.escape ? CSS.escape(topicId) : topicId) + '"]');
+    chips.forEach(function(el){
+      el.classList.add("swap");
+      clearTimeout(el._swap);
+      el._swap = setTimeout(function(){ el.classList.remove("swap"); }, Motion.DUR.icon + 50);
+    });
+    if(on) delete savedTileQueries[key]; else savedTileQueries[key] = true;
+    paintTileSaves();
+    if(!on && Motion.on()) Motion.celebrate('[data-tile-save="' + topicId + '"]', "SAVED", true);
+    if(on) snack("Removed from Saved for Later");
+    else snack("Saved for Later", { label: "Open", run: openSaved });
     var req = on
       ? fetch("/api/saved?q=" + encodeURIComponent(t.query) + "&minutes=" + BROWSE_MINUTES,
               { method: "DELETE" })
@@ -15919,12 +16529,12 @@
                                  title: t.title, source: "myfam" }) });
     req.then(function(r){
       if(!r.ok) throw new Error();
-      if(on) delete savedTileQueries[key]; else savedTileQueries[key] = true;
-      paintTileSaves();
-      if(on) snack("Removed from Saved for Later");
-      else snack("Saved for Later", { label: "Open", run: openSaved });
       if(!on) recordFamEvent("save", topicId, t.query);
-    }).catch(function(){ toast(on ? "Could not take that off" : "Could not save that"); });
+    }).catch(function(){
+      if(on) savedTileQueries[key] = true; else delete savedTileQueries[key];
+      paintTileSaves();
+      toast(on ? "Could not take that off" : "Could not save that");
+    });
   }
 
   // A tile's title, whole (10.5 packet #2). The size steps down for a long
@@ -15938,7 +16548,36 @@
   }
 
   var feedTopicsShown = {};
+  var feedHtmlDrawn = "", feedFirstDrawn = null;
+  // A friend's face whose picture is already on the device is drawn at
+  // once rather than faded up from its initials on every redraw (§620).
+  function settleFaces(root){
+    if(!root) return;
+    root.querySelectorAll(".src-mark img").forEach(function(img){
+      if(img.complete && img.naturalWidth){ img.style.transition = "none"; img.style.opacity = 1; }
+    });
+  }
+  // A game's line that moved since the page was last drawn rolls the
+  // digits that changed and warms for a moment (changed-since: B, §620).
+  // By topic id; a tile seen for the first time moves nothing.
+  var liveLinesShown = {};
+  function markLiveChanges(root){
+    var now = {};
+    root.querySelectorAll("[data-topic]").forEach(function(card){
+      var id = card.getAttribute("data-topic"), t = myFamTopics[id], el = card.querySelector(".seed-live");
+      if(!t || !el || !t.live_line) return;
+      var was = liveLinesShown[id];
+      now[id] = { line: t.live_line, text: el.textContent };
+      if(was && was.line !== t.live_line) Motion.changed(el, was.text);
+    });
+    Object.keys(now).forEach(function(id){ liveLinesShown[id] = now[id]; });
+  }
   function renderMyFamFeed(sections){
+    // A tile waved off a moment ago stays off while its Undo is offered.
+    sections = sections.map(function(sec){
+      return Object.assign({}, sec, { topics: (sec.topics || []).filter(function(t){
+        return !(t && notInterestedPending[t.id]); }) });
+    });
     var html = sections.map(function(sec){
       var title = SECTION_TITLE[sec.key];
       if(sec.key === "from_history") title = madeForTitle();
@@ -16022,7 +16661,24 @@
         + html;
     }
     var feed = document.getElementById("myfamFeed");
-    feed.innerHTML = html;
+    // Every open of the tab redraws the page. One that would draw exactly
+    // what is there leaves it alone, and one that changes keeps each rail
+    // where it had been scrolled to (§620: they snapped back to the start).
+    if(html !== feedHtmlDrawn || !feed.firstChild || feed.firstChild !== feedFirstDrawn){
+      var scrolled = {};
+      feed.querySelectorAll(".feed-rail[data-section]").forEach(function(r){
+        if(r.scrollLeft) scrolled[r.getAttribute("data-section")] = r.scrollLeft;
+      });
+      feed.innerHTML = html;
+      feedHtmlDrawn = html;
+      feedFirstDrawn = feed.firstChild;
+      feed.querySelectorAll(".feed-rail[data-section]").forEach(function(r){
+        var x = scrolled[r.getAttribute("data-section")];
+        if(x) r.scrollLeft = x;
+      });
+      settleFaces(feed);
+      markLiveChanges(feed);
+    }
     // New tiles arrive one after another (§292); tiles already on the page
     // do not arrive again.
     feedTopicsShown = Motion.arriveRails(feed, feedTopicsShown);
@@ -16123,11 +16779,16 @@
     var head = SECTION_CYCLES[key] ? (railTiles[key] || []).slice() : [];
     sectionState = { key: key, seen: [], busy: false, req: sectionState.req + 1,
                      head: head };
+    // The tiles just seen are on the device: the screen opens on them and
+    // they ride in with the push; the rest of the rail arrives below them
+    // when the answer lands (view-more-grid: A, §620).
+    var shown = (railTiles[key] || []).filter(function(t){ return t && t.id; });
+    if(shown.length) renderSection({ key: key, topics: shown, preview: true });
     navigate("section");
-    loadSectionPage();
+    loadSectionPage("open");
   }
 
-  function loadSectionPage(){
+  function loadSectionPage(how){
     var reason = document.getElementById("sectionReason");
     var btn = document.getElementById("sectionRefresh");
     var key = sectionState.key;
@@ -16139,7 +16800,16 @@
     var size = Math.max(1, SECTION_PAGE - head.length);
     var seen = sectionState.seen.concat(head.map(function(t){ return t.id; }));
     sectionState.busy = true;
-    btn.classList.add("spinning");
+    // The async button (§620): the press turns the arrow once; it spins
+    // only once the answer has taken 300 ms, and then for at least 500 ms,
+    // so a quick answer never flashes it.
+    if(how === "deal") Motion.turnIcon(btn.querySelector("svg"));
+    var spunAt = 0;
+    var spinWait = setTimeout(function(){
+      if(sectionState.req !== req) return;
+      spunAt = Date.now();
+      btn.classList.add("spinning");
+    }, Motion.DUR.spinnerAfter);
     fetch(withInterests("/api/myfam/section?key=" + encodeURIComponent(key)
                         + "&minutes=" + myfamLengthMinutes
                         + "&page_size=" + size
@@ -16162,8 +16832,13 @@
         });
         d.cycles = cycles;
         attachFriendFaces(d);
-        renderSection(d);
-        document.getElementById("sectionScroll").scrollTop = 0;
+        var scroller = document.getElementById("sectionScroll");
+        // Refresh deals the next page (section-refresh: B): the old cards
+        // slip out to the left as the new come in from the right, and the
+        // page goes back to the top under them.
+        var draw = function(){ renderSection(d, how); scroller.scrollTop = 0; };
+        if(how === "deal") Motion.deal(document.getElementById("sectionGrid"), scroller, draw);
+        else draw();
       })
       .catch(function(){
         // Same rule as the feed: a failure has to look like a failure.
@@ -16171,29 +16846,45 @@
           + "still works, and this fills in when the server is back.";
       })
       .then(function(){
+        clearTimeout(spinWait);
         if(sectionState.req !== req) return;
         sectionState.busy = false;
-        btn.classList.remove("spinning");
+        var still = spunAt ? Math.max(0, spunAt + Motion.DUR.spinnerMin - Date.now()) : 0;
+        if(!still){ btn.classList.remove("spinning"); return; }
+        setTimeout(function(){ if(!sectionState.busy) btn.classList.remove("spinning"); }, still);
       });
   }
 
   function refreshSection(){
     if(sectionState.busy || !sectionState.key) return;
-    loadSectionPage();
+    loadSectionPage("deal");
   }
 
   // "All caught up", and the way back to the top of the rail.
   function restartSection(){
     if(sectionState.busy || !sectionState.key) return;
     sectionState.seen = [];
-    loadSectionPage();
+    loadSectionPage("deal");
   }
 
-  function renderSection(d){
+  function renderSection(d, how){
     var grid = document.getElementById("sectionGrid");
     var reason = document.getElementById("sectionReason");
     var topics = d.topics || [];
     var refresh = document.getElementById("sectionRefresh");
+    topics = topics.filter(function(t){ return !(t && notInterestedPending[t.id]); });
+    // What was on the grid before this draw, by id, so only what is new
+    // arrives (view-more-grid: A, §620).
+    var had = {};
+    grid.querySelectorAll("[data-topic]").forEach(function(c){ had[c.getAttribute("data-topic")] = true; });
+    var arriving = function(){
+      paintTileSaves();
+      settleFaces(grid);
+      if(how === "deal" || d.preview) return;
+      Motion.arrive(Array.prototype.filter.call(grid.querySelectorAll(".seed-card[data-topic]"), function(c){
+        return !had[c.getAttribute("data-topic")];
+      }));
+    };
     // Offered only when a refresh can show something this page does not:
     // a rail with eight or fewer eligible tiles has nothing else to deal.
     // A cycling rail always offers it until it is caught up - pressing it
@@ -16213,6 +16904,11 @@
     if(!topics.length){
       reason.textContent = d.empty_reason || "Nothing in this section yet.";
       grid.innerHTML = "";
+      return;
+    }
+    if(d.preview){
+      grid.innerHTML = topics.map(card).join("");
+      arriving();
       return;
     }
     // Says what the order means, because "ready first" is not guessable and
@@ -16262,13 +16958,14 @@
         return '<div class="sec-group" data-geo="' + escapeHtml(g.key) + '">'
           + escapeHtml(g.label)
           + (g.yours ? '<small>Where you are</small>' : '')
-          + '</div>' + g.topics.map(card).join("");
+          + '</div>' + g.topics.filter(function(t){ return !(t && notInterestedPending[t.id]); }).map(card).join("");
       }).join("");
+      // Trending's grid arrives and lights its saves like the others (§620).
+      arriving();
       return;
     }
     grid.innerHTML = topics.map(card).join("");
-    Motion.arrive(Array.prototype.slice.call(grid.children, 0, 8));
-    paintTileSaves();
+    arriving();
   }
 
   function startSectionTopic(topicId){
@@ -16598,9 +17295,44 @@
     // of those exists. The server answers empty for a guest, whose listening
     // is not kept anywhere (§127).
     fetch(withInterests("/api/godeeper"))
-      .then(function(r){ return r.ok ? r.json() : {}; })
-      .catch(function(){ return {}; })
-      .then(function(d){ renderGoDeeper(d || {}); });
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        d = d || {};
+        renderGoDeeper(d);
+        rememberLateRow("famLastPickUp", { resume: d.resume || [], threads: d.threads || [] });
+      })
+      // A failure leaves what is drawn - the last answer - as it was.
+      .catch(function(){ if(!goDeeperCardCache.length) renderGoDeeper({}); });
+  }
+
+  // **The rows above the rails, as last seen** (late-sections: B, §620).
+  // Pick up and the faces row are answered after the rails, and each landed
+  // above them in one frame, shoving the tile under a thumb down the page.
+  // The last answer of each is kept for this account on this device (like
+  // the page itself, `famLastFeed`, and emptied with it on log-out) and
+  // drawn on the first frame; when the answer lands only what changed moves.
+  function rememberLateRow(name, data){
+    if(!AUTH.authenticated) return;
+    try { localStorage.setItem(name, JSON.stringify({ who: AUTH.user_id || "", data: data })); } catch(e){}
+  }
+  function rememberedLateRow(name){
+    if(!AUTH.authenticated) return null;
+    try {
+      var kept = JSON.parse(localStorage.getItem(name) || "null");
+      return kept && kept.who === (AUTH.user_id || "") ? kept.data : null;
+    } catch(e){ return null; }
+  }
+  function paintRememberedLateRows(){
+    var gd = document.getElementById("goDeeperBlock");
+    if(gd && !gd.firstChild){
+      var pick = rememberedLateRow("famLastPickUp");
+      if(pick) renderGoDeeper(pick);
+    }
+    var row = document.getElementById("myfamCircle");
+    if(row && row.hidden && !yfCircle.length && !yfMe){
+      var circle = rememberedLateRow("famLastCircle");
+      if(circle){ yfCircle = circle.circle || []; yfMe = circle.me || null; paintMyFamCircle(); }
+    }
   }
 
   // What the section was last built from, so changing the length can redraw
@@ -16640,14 +17372,50 @@
     return out;
   }
 
-  function renderGoDeeper(d){
+  function renderGoDeeper(d, o){
     var el = document.getElementById("goDeeperBlock");
+    o = o || {};
     goDeeperData = d || {};
-    goDeeperCardCache = goDeeperCards(goDeeperData);
+    // A card dismissed a moment ago, whose Undo is still on the line, stays
+    // off whatever the server says (§620).
+    var pending = goDeeperDismissing;
+    var cards = goDeeperCards({
+      resume: (goDeeperData.resume || []).filter(function(r){ return !pending[(r.query || "").toLowerCase()]; }),
+      threads: (goDeeperData.threads || []).filter(function(t){ return !pending[(t.thread || "").toLowerCase()]; })
+    });
+    // The same cards as are drawn: nothing to do, nothing moves.
+    var sign = JSON.stringify(cards);
+    if(sign === goDeeperDrawn && (el.firstChild || !cards.length)){ goDeeperCardCache = cards; return; }
+    goDeeperDrawn = sign;
+    // Where each card was, by its question, and how far its bar had got.
+    var keyOf = function(c){ return c.getAttribute("data-q"); };
+    var before = Motion.layout(el, ".gd-card", keyOf), was = {};
+    el.querySelectorAll(".gd-card").forEach(function(c){
+      var bar = c.querySelector(".gd-bar span"), meta = c.querySelector(".gd-card-meta");
+      was[c.getAttribute("data-q")] = { p: bar ? +bar.getAttribute("data-p") : null,
+                                        meta: meta ? meta.textContent : null };
+    });
+    goDeeperCardCache = cards;
+    var moves = function(){
+      // A first draw moves nothing; after it, only what changed does.
+      if(!Object.keys(before).length && !o.back) return;
+      Motion.relist(before, el, ".gd-card", keyOf, {
+        fold: !!o.fold, followThrough: !!o.fold, moveMs: o.fold ? Motion.DUR.gap : 0,
+        host: function(){ return el.querySelector(".gd-grid") || el; }
+      });
+      el.querySelectorAll(".gd-card").forEach(function(c){
+        var w = was[c.getAttribute("data-q")];
+        if(!w) return;
+        var bar = c.querySelector(".gd-bar span"), meta = c.querySelector(".gd-card-meta");
+        if(bar && w.p != null) Motion.fillBar(bar, w.p, +bar.getAttribute("data-p"));
+        if(meta && w.meta != null) Motion.changed(meta, w.meta);
+      });
+    };
     if(!goDeeperCardCache.length){
       // Nothing to pick up yet, and nothing said about it: the search field
       // is directly above, and a heading over an empty space reads as broken.
       el.innerHTML = "";
+      moves();
       return;
     }
     // The length control used to sit in this heading's right-hand slot. It
@@ -16660,7 +17428,7 @@
         ? formatTime(c.left) + " left"
         : "Go deeper \u00b7 " + c.minutes + " min";
       return '<div class="gd-card' + (c.kind === "resume" ? " resume" : "")
-        + '" onclick="playGoDeeper(' + i + ')">'
+        + '" data-q="' + escapeHtml((c.query || "").toLowerCase()) + '" onclick="playGoDeeper(' + i + ')">'
         + '<button class="gd-x" aria-label="Dismiss ' + escapeHtml(c.title) + '"'
         + ' onclick="event.stopPropagation(); dismissGoDeeper(' + i + ')">'
         + '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
@@ -16670,33 +17438,58 @@
         + (c.summary ? '<div class="gd-card-sum">' + escapeHtml(c.summary) + '</div>' : '')
         + '<div class="gd-card-meta">' + escapeHtml(meta) + '</div>'
         + (c.kind === "resume"
-            ? '<div class="gd-bar"><span style="width:' + Math.round(c.progress * 100) + '%"></span></div>'
+            ? '<div class="gd-bar"><span data-p="' + Math.round(c.progress * 1000) / 1000
+              + '" style="transform:scaleX(' + Math.round(c.progress * 1000) / 1000 + ')"></span></div>'
             : '')
         + '</div>';
     }).join("") + '</div>';
     el.innerHTML = html;
+    moves();
   }
 
   var goDeeperCardCache = [];
+  var goDeeperDrawn = "";
+  //: Cards dismissed whose Undo is still on the line, by lower-cased query.
+  var goDeeperDismissing = {};
 
   // The X on a tile: gone at once and never offered again (the server keeps
   // the list, so it holds on every device). What was behind it - the next
   // part-heard episode or Go Deeper prompt from this week - moves up into the
   // gap, and when nothing else qualifies the section is simply one shorter.
+  // **Undo** (remove-tile: B, §620): it is for good, from a small target
+  // beside the card's own play, so the line offers Undo for five seconds
+  // and the server is told only when the line closes (or the page is
+  // left). The card folds away and the rest close in; Undo opens the gap
+  // again. The section is not asked for again afterwards: what is drawn is
+  // already right, and asking redrew it a second time.
   function dismissGoDeeper(i){
     var c = goDeeperCardCache[i];
     if(!c) return;
     var q = (c.query || "").toLowerCase();
-    var d = goDeeperData || {};
-    renderGoDeeper({
-      resume: (d.resume || []).filter(function(r){ return (r.query || "").toLowerCase() !== q; }),
-      threads: (d.threads || []).filter(function(t){ return (t.thread || "").toLowerCase() !== q; })
+    goDeeperDismissing[q] = true;
+    renderGoDeeper(goDeeperData, { fold: true });
+    snack("Removed from Pick up", {
+      label: "Undo",
+      run: function(){
+        delete goDeeperDismissing[q];
+        renderGoDeeper(goDeeperData, { back: true });
+      },
+      done: function(){
+        fetch("/api/godeeper/dismiss", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: c.query }), keepalive: true
+        }).then(function(r){
+          if(!r.ok) return;
+          // Off the remembered copy too, so the next open does not draw it.
+          var d = goDeeperData || {};
+          goDeeperData = {
+            resume: (d.resume || []).filter(function(x){ return (x.query || "").toLowerCase() !== q; }),
+            threads: (d.threads || []).filter(function(x){ return (x.thread || "").toLowerCase() !== q; })
+          };
+          rememberLateRow("famLastPickUp", goDeeperData);
+        }).catch(function(){}).then(function(){ delete goDeeperDismissing[q]; });
+      }
     });
-    fetch("/api/godeeper/dismiss", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: c.query })
-    }).then(function(r){ if(r.ok) loadGoDeeper(); })
-      .catch(function(){});
   }
 
   function playGoDeeper(i){
@@ -16736,6 +17529,8 @@
         + '<div class="feed-rail"><div class="feed-skeleton"></div>'
         + '<div class="feed-skeleton"></div><div class="feed-skeleton"></div></div></div>';
     }
+    // Pick up and the faces as last seen, on this first frame (§620).
+    paintRememberedLateRows();
     // The browse length rides along, because whether a tile is already
     // written depends on the length it would be written at - asking the cache
     // at the wrong one marks ready tiles unready and sorts the rails wrong.
@@ -18061,7 +18856,17 @@
     if(!el) return;
     if(!yfCircle.length && !yfMe){ el.innerHTML = ""; el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = circleRowHTML();
+    // The same row as is drawn is left alone, and a changed one keeps its
+    // sideways scroll (§620: every open snapped it back to the start and
+    // faded every face up from its initials again).
+    var html = circleRowHTML(), row = el.querySelector(".yf-friends");
+    if(row && el._drawn === html) return;
+    var x = row ? row.scrollLeft : 0;
+    el.innerHTML = html;
+    el._drawn = html;
+    row = el.querySelector(".yf-friends");
+    if(row && x) row.scrollLeft = x;
+    settleFaces(el);
   }
 
   // Asked beside the rails, never before them: the feed draws whether or
@@ -18070,8 +18875,19 @@
     if(!AUTH.authenticated){ yfCircle = []; yfMe = null; paintMyFamCircle(); return; }
     fetch("/api/circle?notes=1")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ yfCircle = d.circle || []; yfMe = d.me || null; paintMyFamCircle(); })
+      .then(function(d){
+        yfCircle = d.circle || []; yfMe = d.me || null; paintMyFamCircle();
+        rememberLateRow("famLastCircle", circleToKeep(d));
+      })
       .catch(function(){});
+  }
+  // The row as it is kept on the device: faces' pictures go with it while
+  // the copy stays small, as the page's own copy does (`rememberFeed`).
+  function circleToKeep(d){
+    var kept = { circle: d.circle || [], me: d.me || null };
+    try { if(JSON.stringify(kept).length < 400000) return kept; } catch(e){}
+    var bare = function(p){ return p ? Object.assign({}, p, { avatar: "" }) : p; };
+    return { circle: kept.circle.map(bare), me: bare(kept.me) };
   }
 
   //: The interests the hub's pills were drawn from, so a tap can open the
@@ -18279,17 +19095,23 @@
   // way every story app works (10.1 packet, third set). Friends with vibes up
   // are first on the row, so the next one is the next face along.
   var storySwipe = null, storySwipedAt = 0;
-  function storyFriend(dir){
+  // The next friend with vibes up that way, opened where they were last
+  // watched to, or null at the end of the row.
+  function friendTowards(dir){
     for(var p = storyAt.person + dir; p >= 0 && p < storyList.length; p += dir){
       if(hasStories(storyList[p])){
         var person = storyList[p], seenAt = storySeenMap()[person.user_id] || 0, start = 0;
         for(var k = 0; k < person.stories.length; k++){
           if(person.stories[k].at > seenAt){ start = k; break; }
         }
-        turnToFriend(dir, { person: p, item: start });
-        return;
+        return { person: p, item: start };
       }
     }
+    return null;
+  }
+  function storyFriend(dir){
+    var to = friendTowards(dir);
+    if(to){ turnToFriend(dir, to); return; }
     // Nobody further that way: past the last friend closes, before the first
     // starts this friend's vibes again.
     if(dir > 0){ closeStory(); return; }
@@ -18303,14 +19125,93 @@
   }
   //: How long a press is before it is a hold rather than a tap.
   var STORY_HOLD_MS = 220;
+  //: A story pulled down past this, or flicked down faster than
+  //: STORY_FLICK px/ms, closes into the face (story-open-close: B, §620).
+  var STORY_CLOSE_PX = 80, STORY_FLICK = 0.1;
   (function(){
     var el = document.getElementById("storyOverlay");
     if(!el) return;
     function onControl(e){
       return !!(e.target.closest && e.target.closest("button, .story-card, .sc-tag"));
     }
+    function onReply(e){ return !!(e.target.closest && e.target.closest(".story-reply")); }
+    // A drag under way: "down" (closing), "side" (the cube turning to the
+    // next friend under the finger) or "band" (pulled past the first or
+    // last friend: it gives, and comes back) - story-next-friend: B, §620.
+    var drag = null;
+    function startDrag(e, dx, dy){
+      if(dy > 10 && dy > Math.abs(dx) * 1.2){
+        clearTimeout(storyHoldTimer);
+        pauseStory();
+        drag = { mode: "down" };
+        return;
+      }
+      // Under reduced motion a sideways drag moves nothing until it is let go.
+      if(!(Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) || !Motion.on()) return;
+      clearTimeout(storyHoldTimer);
+      var dir = dx < 0 ? 1 : -1, to = friendTowards(dir);
+      pauseStory();
+      if(!to){ drag = { mode: "band", dir: dir }; return; }
+      var saved = { at: { person: storyAt.person, item: storyAt.item }, left: storyLeft, seen: null };
+      try { saved.seen = localStorage.getItem("famStoriesSeen"); } catch(err){}
+      var cube = Motion.cubeDrag(el, dir, function(){ storyAt = to; showStory(); pauseStory(); });
+      drag = cube ? { mode: "side", dir: dir, cube: cube, saved: saved, width: el.clientWidth || 1 }
+                  : { mode: "band", dir: dir };
+    }
+    function moveDrag(dx, dy){
+      if(drag.mode === "down"){
+        var d = Math.max(0, dy);
+        el.style.transform = "translateY(" + d + "px) scale(" + (1 - 0.15 * Math.min(d, 300) / 300) + ")";
+      } else if(drag.mode === "band"){
+        // Rubber band: 12 px of dead zone, then less and less, never past 64 px.
+        var b = Math.max(0, Math.abs(dx) - 12), off = 64 * b / (b + 150);
+        el.style.transform = Motion.on() ? "translateX(" + (dx < 0 ? -off : off) + "px)" : "";
+      } else {
+        Motion.cubeSet(drag.cube, Math.max(0, Math.min(1, -dx * drag.dir / drag.width)));
+      }
+    }
+    // Let go: on to the end, or back to where it was.
+    function endDrag(dx, dy, vx, vy, cancelled){
+      var d = drag;
+      drag = null;
+      storySwipedAt = Date.now();
+      if(d.mode === "down"){
+        if(!cancelled && (dy > STORY_CLOSE_PX || vy > STORY_FLICK)){ closeStory(); return; }
+        Motion.storyHome(el);
+        resumeStory();
+        return;
+      }
+      if(d.mode === "band"){
+        var past = !cancelled && (Math.abs(dx) > el.clientWidth / 3 || -vx * d.dir > STORY_FLICK);
+        if(past && d.dir > 0){ closeStory(); return; }
+        Motion.storyHome(el);
+        if(past){ storyFriend(d.dir); return; }
+        resumeStory();
+        return;
+      }
+      var p = d.cube.p, speed = -vx * d.dir / d.width * 1000;
+      var go = !cancelled && (p > 1 / 3 || -vx * d.dir > STORY_FLICK);
+      Motion.cubeLetGo(d.cube, go, go ? speed : -speed, function(){
+        if(go){ resumeStory(); return; }
+        // Turned back: the friend it was, the vibe it was on, where its
+        // bar had got to - and the next friend's not marked as watched.
+        try {
+          if(d.saved.seen == null) localStorage.removeItem("famStoriesSeen");
+          else localStorage.setItem("famStoriesSeen", d.saved.seen);
+        } catch(err){}
+        storyAt = d.saved.at;
+        showStory();
+        var bar = document.querySelector("#storyBars .story-bar.on i");
+        var fill = bar && bar.getAnimations ? bar.getAnimations()[0] : null;
+        if(fill) fill.currentTime = Math.max(0, STORY_MS - d.saved.left);
+        storyLeft = d.saved.left;
+        storyRun();
+      });
+    }
     el.addEventListener("pointerdown", function(e){
-      storySwipe = { x: e.clientX, y: e.clientY };
+      var now = Date.now();
+      storySwipe = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, lt: now, vx: 0, vy: 0 };
+      drag = null;
       clearTimeout(storyHoldTimer);
       if(!onControl(e)) storyHoldTimer = setTimeout(function(){
         pauseStory();
@@ -18319,11 +19220,26 @@
       }, STORY_HOLD_MS);
     });
     el.addEventListener("pointermove", function(e){
+      if(!storySwipe) return;
+      var dx = e.clientX - storySwipe.x, dy = e.clientY - storySwipe.y, now = Date.now();
+      var dt = Math.max(1, now - storySwipe.lt);
+      storySwipe.vx = (e.clientX - storySwipe.lx) / dt;
+      storySwipe.vy = (e.clientY - storySwipe.ly) / dt;
+      storySwipe.lx = e.clientX; storySwipe.ly = e.clientY; storySwipe.lt = now;
       // A finger that is travelling is a swipe, not a hold.
-      if(storySwipe && Math.abs(e.clientX - storySwipe.x) > 12) clearTimeout(storyHoldTimer);
+      if(Math.abs(dx) > 12) clearTimeout(storyHoldTimer);
+      if(!drag && !storyHeld && !onReply(e) && !(e.buttons === 0 && e.pointerType === "mouse")) startDrag(e, dx, dy);
+      if(drag) moveDrag(dx, dy);
     });
     el.addEventListener("pointerup", function(e){
       clearTimeout(storyHoldTimer);
+      if(drag && storySwipe){
+        var sw = storySwipe, stopped = Date.now() - sw.lt > 80;
+        storySwipe = null;
+        // A finger that stopped before it let go carries no speed.
+        endDrag(e.clientX - sw.x, e.clientY - sw.y, stopped ? 0 : sw.vx, stopped ? 0 : sw.vy, false);
+        return;
+      }
       // The reply row holds the story itself while its box has the focus
       // (§282); a tap there is not the end of a hold or a swipe.
       if(e.target.closest && e.target.closest(".story-reply")){ storySwipe = null; return; }
@@ -18342,6 +19258,7 @@
     });
     el.addEventListener("pointercancel", function(){
       clearTimeout(storyHoldTimer);
+      if(drag){ endDrag(0, 0, 0, 0, true); storySwipe = null; return; }
       storySwipe = null;
       resumeStory();
     });
@@ -18368,25 +19285,33 @@
     clearTimeout(storyTimer);
     clearTimeout(storyHoldTimer);
     storyHeld = false;
-    // Back into the face it came out of (§298).
-    Motion.shrinkStory(document.getElementById("storyOverlay"));
-    document.getElementById("storyOverlay").hidden = true;
-    document.getElementById("storyOverlay").classList.remove("paused", "held");
-    // The rings reflect what was just watched.
+    // Back into the face it came out of (§298) - from wherever a drag
+    // down had taken it (§620).
+    var ov = document.getElementById("storyOverlay");
+    var back = Motion.shrinkStory(ov);
+    ov.hidden = true;
+    ov.style.transform = "";
+    ov.classList.remove("paused", "held");
+    // The rings reflect what was just watched: grey at once, the gold
+    // fading under the face once the story is back in it (§620).
     document.querySelectorAll(".yf-friends .yf-friend[data-i]").forEach(function(btn){
       var ring = btn.querySelector(".yf-ring");
       var person = yfCircle[+btn.getAttribute("data-i")];
       if(ring && person && hasStories(person)){
-        ring.classList.toggle("fresh", storiesUnseen(person));
-        ring.classList.toggle("seen", !storiesUnseen(person));
+        Motion.ringFade(ring, function(){
+          ring.classList.toggle("fresh", storiesUnseen(person));
+          ring.classList.toggle("seen", !storiesUnseen(person));
+        }, back);
       }
     });
     var mine = document.getElementById("yfMyStory");
     if(mine && myStoryPerson) mine.classList.toggle("seen", !storiesUnseen(myStoryPerson));
     var myRing = document.getElementById("yfMyRing"), onRow = myStoryOnRow();
     if(myRing && onRow){
-      myRing.classList.toggle("fresh", storiesUnseen(onRow));
-      myRing.classList.toggle("seen", !storiesUnseen(onRow));
+      Motion.ringFade(myRing, function(){
+        myRing.classList.toggle("fresh", storiesUnseen(onRow));
+        myRing.classList.toggle("seen", !storiesUnseen(onRow));
+      }, back);
     }
   }
 
@@ -18468,11 +19393,17 @@
     var input = document.getElementById("storyReplyInput");
     var text = (input.value || "").trim();
     if(!v || !person || !text) return;
+    // The words rise out of the box as it empties (story-reply-send: A, §620).
+    Motion.sendWords(input, text);
     input.value = "";
     input.blur();
     postStoryMessage(person, v, text)
       .then(function(){ toast("Sent to " + firstName(person)); })
-      .catch(function(err){ toast(err.message); });
+      .catch(function(err){
+        // Nothing typed is lost: the words go back in the box.
+        if(!input.value) input.value = text;
+        toast(err.message);
+      });
   }
   function likeStory(){
     var cur = currentStory(), person = cur.person, v = cur.v;

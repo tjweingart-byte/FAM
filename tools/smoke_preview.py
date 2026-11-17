@@ -2450,6 +2450,161 @@ def main() -> int:
             page.evaluate("setTab('home')")
             page.wait_for_timeout(300)
 
+        def dailyfam_motion_holds_nothing():
+            """§620: dailyFAM's round-three picks. A tapped tile's picture
+            grows into the loader and the loader's picture flies on into the
+            player - never a second copy of the tile while the loader is up;
+            View more opens on the rail's own tiles; Refresh does not flash
+            its spinner; a save lights on the tap; Not interested and Pick
+            up's X leave at once, offer Undo, and send nothing until the line
+            goes; a story pulled down closes and one pulled sideways turns
+            back; a reply's words rise out of the box - and nothing drawn for
+            any of it is left behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); document.querySelectorAll('.modal-overlay.active,"
+                          " .sheet-overlay.active').forEach(function(e){ e.classList.remove('active'); })")
+            page.evaluate("stopSpeech(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_selector("#myfamFeed .feed-rail > .seed-card[data-topic]", timeout=10000)
+            page.wait_for_timeout(500)
+            # The fixture's tiles carry no pictures: the first one is given one.
+            page.evaluate("""() => {
+                var card = document.querySelector('#myfamFeed .feed-rail > .seed-card[data-topic]');
+                var t = myFamTopics[card.getAttribute('data-topic')];
+                t.thumb = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"'
+                    + ' width="40" height="30"><rect width="40" height="30" fill="#b85"/></svg>');
+                var th = card.querySelector('.seed-thumb');
+                if (!th.querySelector('.seed-img')) {
+                    var img = document.createElement('img');
+                    img.className = 'seed-img'; img.src = t.thumb;
+                    th.insertBefore(img, th.firstChild);
+                }
+                window.__pictured = card.getAttribute('data-topic');
+            }""")
+            page.wait_for_timeout(200)
+            assert page.evaluate("Motion.DUR.loaderOut") == 340 and page.evaluate("Motion.DUR.arrive") == 350
+            # One picture: a tile's own copy never flies over the loader.
+            page.evaluate("""() => {
+                var seen = window.__hand = { twice: false, into: false, out: false };
+                var ld = document.getElementById("famLoading");
+                if (window.__handWatch) window.__handWatch.disconnect();
+                window.__handWatch = new MutationObserver(function () {
+                    var up = ld.classList.contains("active");
+                    if (up && document.querySelector(".frame > .motion-ghost")) seen.twice = true;
+                    if (document.querySelector(".motion-loader-pic")) seen.into = true;
+                    if (document.querySelector(".motion-loader-out")) seen.out = true;
+                });
+                window.__handWatch.observe(document.querySelector(".frame"), { childList: true });
+            }""")
+            # Clear of the card's own controls (save, the dots, friends' faces).
+            page.click("#myfamFeed .seed-card[data-topic]:has(.seed-img) .seed-thumb",
+                       position={"x": 12, "y": 34})
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_timeout(900)
+            seen = page.evaluate("() => { window.__handWatch.disconnect(); return window.__hand; }")
+            assert not seen["twice"], "a copy of the tile flew while the loader was up"
+            assert seen["into"], "the tile's picture did not grow into the loader"
+            assert seen["out"], "the loader did not hand over to the player"
+            page.evaluate("stopSpeech(); clearGenOverlay(); goBack()")
+            page.wait_for_timeout(500)
+            # View more opens on the rail's tiles, before any answer.
+            drawn = page.evaluate("""() => { openSection('from_history');
+                return [document.querySelectorAll('#sectionGrid .seed-card[data-topic]').length,
+                        (railTiles.from_history || []).length]; }""")
+            assert drawn[0] and drawn[0] == drawn[1], f"View more opened on {drawn[0]} of the rail's {drawn[1]}"
+            page.wait_for_timeout(800)
+            if page.is_visible("#sectionRefresh"):
+                spun = page.evaluate("() => { refreshSection(); return document.getElementById('sectionRefresh')"
+                                     ".classList.contains('spinning'); }")
+                assert not spun, "Refresh's spinner showed on the press, before 300 ms"
+                page.wait_for_timeout(900)
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            # A save lights on the tap, before the server has answered.
+            lit = page.evaluate("""() => { var b = document.querySelector('#myfamFeed .seed-card[data-topic] .tile-save:not(.saved-on)');
+                if (!b) return true; b.click(); return b.classList.contains('saved-on'); }""")
+            assert lit, "a tile's save did not light on the tap"
+            page.wait_for_timeout(1200)
+            # Not interested: gone at once, Undo, and nothing sent until the line goes.
+            page.evaluate("""() => { window.__notint = [];
+                window.__realRecord = window.__realRecord || recordFamEvent;
+                window.recordFamEvent = function (kind) { if (kind === 'not_interested') window.__notint.push(arguments[1]);
+                    return window.__realRecord.apply(this, arguments); }; }""")
+            tid = page.evaluate("() => document.querySelector('#myfamFeed .feed-rail > [data-topic]').getAttribute('data-topic')")
+            page.evaluate("id => tileNotInterested(id)", tid)
+            gone = page.evaluate("id => !document.querySelector('#myfamFeed [data-topic=\"' + id + '\"]')", tid)
+            assert gone, "a tile waved off was still on the page"
+            assert page.is_visible("#snackAct") and page.text_content("#snackAct") == "Undo", "no Undo on the line"
+            assert page.evaluate("window.__notint.length") == 0, "not interested was sent before its Undo was over"
+            page.click("#snackAct")
+            page.wait_for_timeout(500)
+            back = page.evaluate("id => !!document.querySelector('#myfamFeed .feed-rail > [data-topic=\"' + id + '\"]')", tid)
+            assert back, "Undo did not put the tile back"
+            assert page.evaluate("window.__notint.length") == 0, "an undone not interested was sent"
+            page.evaluate("id => { tileNotInterested(id); hideSnack(); }", tid)
+            assert page.evaluate("window.__notint.length") == 1, "not interested was not sent when its line went"
+            page.evaluate("window.recordFamEvent = window.__realRecord")
+            # Pick up's X: a 44 px target, gone at once, Undo puts it back.
+            page.evaluate("Tour.on() && Tour.skip()")
+            page.wait_for_timeout(500)
+            if page.query_selector("#goDeeperBlock .gd-card"):
+                hit = page.evaluate("""() => { var c = document.querySelector('#goDeeperBlock .gd-card');
+                    c.scrollIntoView({ block: 'center' }); var r = c.getBoundingClientRect();
+                    var at = document.elementFromPoint(r.right - 34, r.top + 34);
+                    return !!(at && at.closest('.gd-x')); }""")
+                assert hit, "Pick up's X is not 44 px to press"
+                first = page.evaluate("goDeeperCardCache[0].title")
+                page.evaluate("dismissGoDeeper(0)")
+                assert first not in page.evaluate("goDeeperCardCache.map(c => c.title)")
+                page.click("#snackAct")
+                page.wait_for_timeout(500)
+                assert first in page.evaluate("goDeeperCardCache.map(c => c.title)"), "Undo did not bring the card back"
+            # A story: pulled down it closes, pulled sideways it comes back.
+            if page.query_selector("#myfamCircle .yf-friend:has(.yf-vibe)"):
+                def open_story():
+                    page.click("#myfamCircle .yf-friend:has(.yf-vibe)")
+                    page.wait_for_selector("#storyOverlay:not([hidden])", timeout=5000)
+                    page.wait_for_timeout(400)
+                    return page.eval_on_selector("#storyOverlay", "e => { var r = e.getBoundingClientRect();"
+                                                 " return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width}; }")
+                at = open_story()
+                fill = page.eval_on_selector("#storyBars .story-bar.on i", "e => getComputedStyle(e).transform")
+                assert fill.startswith("matrix"), f"the story's bar is not drawn by scale: {fill}"
+                page.mouse.move(at["x"] + 40, at["y"])
+                page.mouse.down()
+                page.mouse.move(at["x"] - 20, at["y"], steps=4)
+                moved = page.eval_on_selector("#storyOverlay", "e => e.style.transform")
+                assert moved, "a sideways drag did not move the story under the finger"
+                page.wait_for_timeout(150)
+                page.mouse.up()
+                page.wait_for_timeout(700)
+                left = page.evaluate("""() => ({ t: document.getElementById('storyOverlay').style.transform,
+                    n: document.querySelectorAll('.motion-story-back, .motion-shade').length,
+                    open: !document.getElementById('storyOverlay').hidden })""")
+                assert left["open"] and not left["t"] and not left["n"], f"a short sideways drag was left: {left}"
+                # The reply's words rise out of the box.
+                if page.is_visible("#storyReplyInput"):
+                    page.fill("#storyReplyInput", "Nice")
+                    page.press("#storyReplyInput", "Enter")
+                    assert page.evaluate("document.querySelectorAll('.motion-words').length") == 1, \
+                        "the sent words did not rise out of the box"
+                    assert page.input_value("#storyReplyInput") == "", "the reply box was not emptied at once"
+                    page.wait_for_timeout(500)
+                page.mouse.move(at["x"], at["y"] - 100)
+                page.mouse.down()
+                page.mouse.move(at["x"], at["y"] + 60, steps=6)
+                pulled = page.eval_on_selector("#storyOverlay", "e => e.style.transform")
+                assert "translateY" in pulled and "scale" in pulled, f"a drag down did not follow the finger: {pulled!r}"
+                page.mouse.up()
+                page.wait_for_timeout(100)
+                assert page.eval_on_selector("#storyOverlay", "e => e.hidden"), "a story pulled down did not close"
+                page.wait_for_timeout(600)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-loader-pic, .motion-loader-out,'
+                + ' .motion-leave, .motion-words, .motion-shade, .motion-gold-was, .motion-dg, .motion-story-back,'
+                + ' .motion-ghost, .motion-lab').length""")
+            assert left == 0, f"{left} of dailyFAM's motion copies were left behind"
+            page.evaluate("hideSnack(); setTab('home')")
+            page.wait_for_timeout(300)
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -4645,6 +4800,8 @@ def main() -> int:
               round_two_motion_holds_nothing)
         check("Round-three motion holds nothing and leaves nothing behind",
               round_three_motion_holds_nothing)
+        check("dailyFAM's round-three motion holds nothing and leaves nothing behind",
+              dailyfam_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

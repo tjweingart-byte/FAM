@@ -190,17 +190,24 @@
   .fam-dev-pic{ position:absolute; inset:0; border-radius:16px; overflow:hidden;
     background:var(--surface-2); box-shadow:0 14px 30px -14px rgba(0,0,0,.45); }
   .fam-dev-pic img{ display:block; width:100%; height:100%; object-fit:cover; }
-  .fam-dev.develop .fam-dev-pic{ animation:famDevelop 2.4s cubic-bezier(.2,.7,.2,1) both; }
+  /* Two speeds (picture-develop: B, §620): a ready tile - written and
+     voiced ahead, so its audio is a few hundred ms away - is sharp in
+     420 ms, before the loader can leave, so the last frame of it is the
+     picture itself; an unwritten one keeps the owner's slow develop. No
+     scale (a 2.4 s movement); the blur and the colour carry it. The sheen
+     is time passing, so it is linear, like a spinner. */
+  .fam-dev.develop .fam-dev-pic{ animation:famDevelop var(--dur-develop) var(--ease-develop) both; }
+  .fam-dev.develop.ready .fam-dev-pic{ animation-duration:var(--dur-develop-ready);
+    animation-timing-function:var(--ease-out); }
   .fam-dev.develop .fam-dev-pic::after{ content:""; position:absolute; inset:0;
     background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.5) 50%, transparent 65%);
-    transform:translateX(-120%); animation:famDevSheen 1.6s .4s ease-in-out infinite; }
-  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); transform:scale(.94); }
-    to{ filter:none; transform:none; } }
+    transform:translateX(-120%); animation:famDevSheen var(--dur-sheen) var(--dur-sheen-delay) linear infinite; }
+  @keyframes famDevelop{ from{ filter:blur(16px) grayscale(1) brightness(1.4); } to{ filter:none; } }
   @keyframes famDevSheen{ to{ transform:translateX(120%); } }
   .fam-dev.friends{ margin-bottom:16px; }
   .fam-dev-faces{ position:absolute; left:12px; bottom:-18px; display:flex; z-index:2; }
   .fam-dev-faces .src-mark{ width:44px; height:44px; font-size:14px; margin-left:-10px;
-    border:3px solid var(--bg); animation:famFaceIn .6s cubic-bezier(.2,1.3,.4,1) both; }
+    border:3px solid var(--bg); animation:famFaceIn var(--dur-faces) var(--ease-faces) both; }
   .fam-dev-faces .src-mark:first-child{ margin-left:0; --fx:-130px; --fy:-170px; animation-delay:.12s; }
   .fam-dev-faces .src-mark:nth-child(2){ --fx:40px; --fy:-230px; animation-delay:.28s; }
   .fam-dev-faces .src-mark:nth-child(3){ --fx:190px; --fy:-130px; animation-delay:.44s; }
@@ -209,6 +216,17 @@
   .fam-dev-names{ font-size:13px; color:var(--text-muted); max-width:280px;
     animation:famLdUp .3s .7s both; }
   .fam-dev-names b{ color:var(--text); font-weight:600; }
+  /* A ready tile's friends are already there (friends-gather: C, §620):
+     the flight is kept for a tile with time for it, and a ready one's
+     loader leaves before a face could land. */
+  .fam-dev.ready .fam-dev-faces .src-mark, .fam-dev.ready + .fam-dev-names{ animation:none; }
+  /* The tile's picture on its way into the loader's frame, and the loader
+     left behind as the picture flies on into the player (tile-to-player: A). */
+  .fam-dev.motion-loader-pic{ position:absolute; z-index:61; max-width:none; aspect-ratio:auto;
+    margin:0; pointer-events:none; transform-origin:0 0; }
+  .fam-loading.motion-loader-out{ pointer-events:none; }
+  .fam-loading.motion-loader-out *, .fam-loading.motion-loader-out *::before,
+  .fam-loading.motion-loader-out *::after{ animation:none !important; }
 
   /* Option 3, the mix gliding along: its episodes in order, the last one
      marked Heard, this one slid to the middle and lifted. */

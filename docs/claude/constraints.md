@@ -1936,6 +1936,27 @@
   > are instant - and only loading indicators keep a gentle opacity pulse.**
   > A theme change turns every transition off for two frames. The press and
   > the opening intro are unchanged.
+  > **Current:** dailyFAM's picks (PROBLEMS.md §620, the owner's 14 of
+  > 11.16), on the same terms. **One picture from tile to player:** the
+  > tapped tile's picture grows into DailyFAM's loader (300 ms) and the
+  > loader's picture - not a second copy of the tile - flies on into the
+  > player's when the audio is here (340 ms); the player opens under the
+  > loader. A ready tile's picture is sharp in 420 ms, before the loader can
+  > leave; an unwritten one keeps the 2.4 s develop, and its friends'
+  > overshooting flight (a ready tile's faces are already in place) - the
+  > owner's loader looks, which are a wait and not a movement. **New rails
+  > rise 8 px out of a 2 px blur** (350 ms, headings 90 ms ahead, tiles 30 ms
+  > apart, six at most, none below the fold or while the screen is moving).
+  > Pick up and the faces row are drawn as last seen and only a changed card
+  > moves; View more opens on the rail's own tiles; Refresh deals the next
+  > page (out left, in from the right) with its spinner only after 300 ms;
+  > a tile's save lights on the tap; a changed score or time left rolls its
+  > digits and warms copper for a moment; a removed tile folds away and can
+  > be undone for five seconds. A story's bar fills by scale; held, its
+  > chrome hides in 150 ms and returns in 200 ms (at once with reduced
+  > motion); it grows from the face's ring, **pulls down to close** and
+  > **turns to the next friend under the finger** (springs of 400 ms, faces
+  > shaded to 30% side-on); a sent reply's words rise out of the box.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth
