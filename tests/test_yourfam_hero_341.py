@@ -75,7 +75,8 @@ def test_vibes_and_mixes_are_tabs_over_one_grid_of_tiles():
     body = _fn("renderProfile")
     assert body.index('data-shelf="vibes"') < body.index('data-shelf="mixes"')
     assert 'id="yfGrid"' in body
-    shelf = _fn("showProfileShelf")
+    # The tiles are drawn by `profileShelfHTML` since §645, reconciled by `drawShelf`.
+    shelf = _fn("profileShelfHTML")
     assert 'profileTileHTML("playProfileVibe(" + i + ")", v.thumb' in shelf
     # A mix's own cover wins over the borrowed picture.
     assert "m.cover || m.thumb" in shelf

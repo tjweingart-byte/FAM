@@ -284,7 +284,7 @@ def test_the_friends_page_invites_new_users():
 # --- 2b. No (+) in YourFAM's header ----------------------------------------
 
 def test_the_profile_header_has_no_plus():
-    head = _fn("renderProfile").split('document.getElementById("pfTop").innerHTML', 1)[1] \
+    head = _fn("renderProfile").split('var topHTML =', 1)[1] \
         .split("// Who you are.", 1)[0]
     assert "openNewChatModal" not in head
     assert 'yfIcon("plus"' not in head

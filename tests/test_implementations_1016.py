@@ -178,7 +178,7 @@ def test_private_search_left_on_is_honoured_without_the_flag(searcher):
 
 
 def test_private_search_is_one_switch_in_settings_and_on_search():
-    assert 'settingsRow("Private search"' in INDEX
+    assert 'settingsSwitch("Private search"' in INDEX  # a switch since §645
     assert "savePreferences({ private_search: privateSearch })" in INDEX
     assert "paintPrivateSearch(d.saved ? !!d.private_search" in INDEX
     # It no longer turns itself off after one search.

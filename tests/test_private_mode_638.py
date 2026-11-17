@@ -172,7 +172,7 @@ def test_the_friends_rail_reads_only_listeners_who_show_it():
 
 def test_settings_has_a_private_mode_row():
     body = _fn("renderSettings")
-    assert 'settingsRow("Private mode"' in body and "setPrivateMode(" in body
+    assert 'settingsSwitch("Private mode"' in body and "setPrivateMode(" in body
     assert "savePreferences({ private_mode: !!on })" in _fn("setPrivateMode")
 
 
@@ -187,8 +187,8 @@ def test_a_locked_profile_says_follow_to_see():
 def test_private_mode_is_the_first_row_in_settings():
     """The owner: "This should be at the top of the settings page"."""
     body = _fn("renderSettings")
-    assert body.index('settingsRow("Private mode"') < body.index('set-group">You<')
-    assert body.index('settingsRow("Private mode"') < body.index('settingsRow("Name and handle"')
+    assert body.index('settingsSwitch("Private mode"') < body.index('set-group">You<')
+    assert body.index('settingsSwitch("Private mode"') < body.index('settingsRow("Name and handle"')
 
 
 # --- the iPhone ------------------------------------------------------------
@@ -203,7 +203,7 @@ def test_the_iphone_has_the_row_first_in_settings():
     assert 'SetRow(label: "Private mode"' in settings
     assert 'savePreference(["private_mode": on])' in settings
     # The web's note, word for word.
-    web = _fn("renderSettings").split('settingsRow("Private mode"', 1)[1]
+    web = _fn("renderSettings").split('settingsSwitch("Private mode"', 1)[1]
     note = web.split('<div class="set-note">', 1)[1].split("</div>", 1)[0]
     swift_note = settings.split('SetRow(label: "Private mode"', 1)[1].split(
         'SetNote(text: "', 1)[1].split('")', 1)[0]

@@ -183,6 +183,22 @@
     --dur-arc:360ms; --dur-slot:200ms; --dur-unpick:240ms;
     --dur-expand:250ms; --dur-collapse:190ms;
     --dur-row-out:180ms; --dur-undo-in:220ms;
+    /* yourFAM (round three, §645): the hub, a friend's page, Friends,
+       Settings, the shelves, Edit profile and the story editor. Posting a
+       story into your ring is a choreography of two moves, each under the
+       ceiling (story-editor: B). */
+    --dur-hub-in:300ms; --dur-hub-section:80ms; --dur-hub-tile:40ms;
+    --dur-shelf-bar:250ms;
+    --dur-follow:260ms;
+    --dur-regroup:320ms; --dur-regroup-out:150ms; --dur-count-roll:350ms;
+    --dur-tile-gone:150ms; --dur-grid-close:250ms;
+    --dur-flood:250ms; --dur-chip-drain:180ms; --dur-check:200ms; --dur-check-at:80ms;
+    --dur-page-sheet-in:300ms; --dur-page-sheet-out:220ms;
+    --dur-photo-develop:320ms; --dur-pill-new:200ms;
+    --dur-folder-arc:380ms; --dur-bump:220ms; --dur-chip-scroll:200ms; --dur-row-up:150ms;
+    --dur-switch:200ms;
+    --dur-into-ring:380ms; --dur-ring-draw:400ms;
+    --dur-undo-back:200ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
        colour from the palette (§640). */
@@ -3929,6 +3945,78 @@
   /* The whole title, never clamped: a vibe tile is read by its words. */
   .yf-pic-t{ position:relative; z-index:1; padding:7px; font-size:10.5px; font-weight:600;
     line-height:1.2; color:#F4EFE4; overflow-wrap:break-word; hyphens:auto; }
+  /* ---- yourFAM's round-three motion (§645) ---- */
+  /* Follow is filled copper and Following an outline, everywhere
+     (follow-button: C). While its width changes the button's own paint is
+     off and a layer under its words scales instead, so only transforms move. */
+  .follow-btn{ background:var(--copper); border-color:var(--copper); color:var(--ink); font-weight:700;
+    transition:background-color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out),
+      color var(--dur-colour) var(--ease-out); }
+  .follow-btn.is-following, .yf-btn.follow-btn.is-following, .pf-btn.follow-btn.is-following{
+    background:transparent; border-color:var(--border-strong); color:var(--text); font-weight:500; }
+  .follow-btn .motion-tick{ flex:none; margin-right:4px; }
+  .yf-acts-centre .follow-btn{ flex:none; }
+  .motion-following{ position:relative; isolation:isolate; background:transparent !important;
+    border-color:transparent !important; }
+  .motion-follow-paint{ position:absolute; inset:-1px; border-radius:inherit; z-index:-1; pointer-events:none;
+    background:var(--copper); border:1px solid var(--copper); }
+  .is-following > .motion-follow-paint{ background:transparent; border-color:var(--border-strong); }
+  /* Vibes | Mixes: one underline the CSS slides (shelf-switch: A), a
+     transition, so a quick second tap turns it round. */
+  .yf-tabs{ position:relative; }
+  .yf-tab.on{ border-bottom-color:transparent; }
+  .yf-tabs::after{ content:""; position:absolute; left:0; bottom:-1px; width:50%; height:2px;
+    background:var(--copper); pointer-events:none;
+    transition:transform var(--dur-shelf-bar) var(--ease-in-out); }
+  .yf-tabs.mixes::after{ transform:translateX(100%); }
+  .yf-pics{ position:relative; }
+  .yf-chips-line{ position:relative; }
+  #friendsBody, #svBody, #myVibeBody{ position:relative; }
+  /* A friend's interests have their line from the first frame (person-fill:
+     A); one with none to show closes it, under the buttons, so Follow never
+     moves. */
+  .yf-int-room{ display:grid; grid-template-rows:1fr;
+    transition:grid-template-rows var(--dur-collapse) var(--ease-in-out); }
+  .yf-int-room > *{ min-height:0; overflow:hidden; }
+  .yf-int-room.closed{ grid-template-rows:0fr; }
+  .yf-int-room.closed > *{ visibility:hidden; }
+  .yf-chip.reserve{ width:64px; opacity:.4; pointer-events:none; }
+  .yf-stat .dash{ color:var(--text-faint); }
+  /* "Checking photo…" under a photo just set (changes-land). */
+  .yf-checking{ font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:.06em;
+    color:var(--text-muted); margin-top:6px; }
+  .yf-photo img{ transform-origin:50% 50%; }
+  /* The ring drawn round your photo as a story lands in it (story-editor: B). */
+  .motion-story-ring{ position:absolute; z-index:60; pointer-events:none; overflow:visible; }
+  .motion-story-ring circle{ fill:none; stroke:var(--copper); stroke-width:2.5; stroke-dasharray:1;
+    stroke-dashoffset:0; }
+  .motion-into-ring{ overflow:hidden; z-index:60 !important; }
+  .motion-drawer{ pointer-events:none; }
+  .motion-value{ overflow:visible; }
+  /* Settings' switches (settings-switches: A): no chevron, a switch whose
+     knob is moved by a transition (200 ms `in-out`), so a second tap turns
+     it round mid-way. The whole row is the target. */
+  .set-row.set-switch{ cursor:pointer; }
+  .set-switch .mix-switch span{ transition-duration:var(--dur-switch), var(--dur-colour), var(--dur-colour); }
+  /* An interest in Edit profile (interest-picker: B): the icon has its own
+     slot, so choosing never changes a chip's width; the copper is a layer
+     that floods from the tap. */
+  .yf-int{ position:relative; isolation:isolate; overflow:hidden; font-weight:400;
+    transition:color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out); }
+  .yf-int-chips .yf-int.on{ background:none; font-weight:400; }
+  .yf-int-fill{ position:absolute; inset:-1px; z-index:-1; background:var(--copper); pointer-events:none;
+    clip-path:circle(0px at 50% 50%); }
+  .yf-int.on .yf-int-fill{ clip-path:none; }
+  .yf-int-ic{ position:relative; flex:none; width:14px; height:14px; display:grid; }
+  .yf-int-ic svg{ grid-area:1 / 1; transition:opacity var(--dur-colour) var(--ease-out); }
+  .yf-int-plus{ opacity:.6; }
+  .yf-int.on .yf-int-plus, .yf-int:not(.on) .yf-int-check{ opacity:0; }
+  .yf-int-check path{ stroke-dasharray:1; stroke-dashoffset:0; }
+  .yf-int-n{ display:inline-block; font-variant-numeric:tabular-nums; }
+  .yf-stat b, .fr-tabs em, .pf-rail em, .shelf-chip span{ font-variant-numeric:tabular-nums; }
+  @media (prefers-reduced-motion: reduce){
+    .yf-tabs::after, .yf-int-room, .follow-btn, .yf-int, .yf-int-ic svg{ transition:none; }
+  }
   /* A friend's mix tile carries the (+) that adds it to your own. */
   .yf-pic-wrap{ position:relative; display:flex; }
   .yf-pic-wrap .yf-pic{ flex:1; }
@@ -6485,7 +6573,23 @@
       badgeIn: msToken("--dur-badge-in", 220), badgeOut: msToken("--dur-badge-out", 160),
       chipsClose: msToken("--dur-chips-close", 190),
       arc: msToken("--dur-arc", 360), slot: msToken("--dur-slot", 200), unpick: msToken("--dur-unpick", 240),
-      rowOut: msToken("--dur-row-out", 180), undoIn: msToken("--dur-undo-in", 220)
+      rowOut: msToken("--dur-row-out", 180), undoIn: msToken("--dur-undo-in", 220),
+      // yourFAM (§645)
+      hubIn: msToken("--dur-hub-in", 300), hubSection: msToken("--dur-hub-section", 80),
+      hubTile: msToken("--dur-hub-tile", 40), shelfBar: msToken("--dur-shelf-bar", 250),
+      follow: msToken("--dur-follow", 260),
+      regroup: msToken("--dur-regroup", 320), regroupOut: msToken("--dur-regroup-out", 150),
+      countRoll: msToken("--dur-count-roll", 350),
+      tileGone: msToken("--dur-tile-gone", 150), gridClose: msToken("--dur-grid-close", 250),
+      flood: msToken("--dur-flood", 250), chipDrain: msToken("--dur-chip-drain", 180),
+      check: msToken("--dur-check", 200), checkAt: msToken("--dur-check-at", 80),
+      pageSheetIn: msToken("--dur-page-sheet-in", 300), pageSheetOut: msToken("--dur-page-sheet-out", 220),
+      photoDevelop: msToken("--dur-photo-develop", 320), pillNew: msToken("--dur-pill-new", 200),
+      folderArc: msToken("--dur-folder-arc", 380), bump: msToken("--dur-bump", 220),
+      chipScroll: msToken("--dur-chip-scroll", 200), rowUp: msToken("--dur-row-up", 150),
+      switchKnob: msToken("--dur-switch", 200),
+      intoRing: msToken("--dur-into-ring", 380), ringDraw: msToken("--dur-ring-draw", 400),
+      undoBack: msToken("--dur-undo-back", 200)
     };
     var EASE_WIPE = token("--ease-wipe", "cubic-bezier(.4,0,.2,1)");
     var EASE_SWAP = token("--ease-swap", "cubic-bezier(.25,.1,0,1)");
@@ -6787,6 +6891,22 @@
         // New mix's Create (create-mix: B, §642): the mix's page fades in
         // over the naming screen while the folder flies to its cover.
         anims.push(run(to, [{ opacity: 0 }, { opacity: 1 }], DUR.fadeIn));
+      } else if(how === "sheet-up"){
+        // The editors an X closes - Edit profile, Where you are, Your
+        // interests (edit-profile-open: B, §645): a page sheet rises from the
+        // bottom edge (300 ms `out`) over the page it was opened on, which
+        // recedes to .97 and dims 10%.
+        anims.push(run(to, [{ transform: "translateY(100%)" }, { transform: "translateY(0%)" }], DUR.pageSheetIn));
+        anims.push(run(from, [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.97)", opacity: 0.9 }],
+                       DUR.pageSheetIn));
+      } else if(how === "sheet-down"){
+        // And back down off the bottom (220 ms `in`), the page beneath
+        // coming back to its size.
+        from.classList.add("on-top");
+        anims.push(run(from, [{ transform: "translateY(0%)" }, { transform: "translateY(100%)" }], DUR.pageSheetOut,
+                       { easing: EASE_IN }));
+        anims.push(run(to, [{ transform: "scale(.97)", opacity: 0.9 }, { transform: "scale(1)", opacity: 1 }],
+                       DUR.pageSheetOut, { easing: EASE_IN }));
       }
       // When the arriving screen stops moving, for what lands on it (§642).
       arriveUntil = Date.now() + anims.reduce(function(m, a){
@@ -7172,7 +7292,7 @@
     // way it is going (up when it grows) while the new one rolls in, at
     // the same moment. The old one is an inert span inside the element for
     // as long as it takes; then the element is plain text again.
-    function roll(el, before, delay){
+    function roll(el, before, delay, ms){
       var now = el ? el.textContent : "";
       if(!el || !on() || before === undefined || String(before) === now || !seen(el)) return;
       var dir = (parseFloat(now) || 0) >= (parseFloat(before) || 0) ? 1 : -1;
@@ -7184,14 +7304,14 @@
       el.appendChild(nu); el.appendChild(old);
       var o = { easing: EASE_IO, delay: delay || 0 };
       run(nu, [{ transform: "translateY(" + (90 * dir) + "%)", opacity: 0 },
-               { transform: "translateY(0%)", opacity: 1 }], DUR.roll,
+               { transform: "translateY(0%)", opacity: 1 }], ms || DUR.roll,
           { easing: o.easing, delay: o.delay, fill: "backwards" });
       var done = function(){
         if(old.parentNode === el) el.removeChild(old);
         if(el.childNodes.length === 1 && el.firstChild === nu) el.textContent = nu.textContent;
       };
       run(old, [{ transform: "translateY(0%)", opacity: 1 },
-                { transform: "translateY(" + (-90 * dir) + "%)", opacity: 0 }], DUR.roll, o)
+                { transform: "translateY(" + (-90 * dir) + "%)", opacity: 0 }], ms || DUR.roll, o)
         .finished.then(done, done);
     }
 
@@ -7396,7 +7516,7 @@
     // Called before the story is hidden: a copy closes into the face while
     // the real one is already gone. A story being dragged down closes from
     // where the finger left it. Returns how long that takes (0 for none).
-    function shrinkStory(ov){
+    function shrinkStory(ov, easing){
       var o = ov._from;
       ov._from = null;
       if(!on() || !o || ov.hidden || !seen(ov)) return 0;
@@ -7410,7 +7530,7 @@
       run(g, [{ clipPath: big, opacity: 1, transform: from },
               { clipPath: small, opacity: 1, transform: "translateY(0px) scale(1)", offset: 0.85 },
               { clipPath: small, opacity: 0, transform: "translateY(0px) scale(1)" }],
-          DUR.storyShrink, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+          DUR.storyShrink, { easing: easing || EASE_IO }).finished.then(gone(g), gone(g));
       return DUR.storyShrink;
     }
     // A ring that was gold is grey on the first frame; a copy of the gold
@@ -7793,23 +7913,56 @@
     }
 
     // Follow and unfollow change the button on the tap - a tick draws in and
-    // the button takes its new width - and are put back if the server says no.
+    // the button takes its new width - and are put back if the server says no
+    // (§298). Kept as the owner picked it (follow-button: C, §645) but built
+    // on transforms: the button is its new width from the first frame, its
+    // paint - a layer under the words - grows or shrinks from the old width
+    // by `scaleX` (260 ms) while its colour turns (150 ms), and whatever
+    // sits beside it in its row glides over (FLIP). Follow is filled copper,
+    // Following an outline, everywhere; the tick is in Following's own
+    // markup, so a redraw never takes it away.
     var TICK = '<svg class="motion-tick" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
       + ' stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
       + '<path d="M4 12.5l5 5L20 7" pathLength="1"/></svg>';
+    function followLabel(following){ return following ? TICK + "Following" : "Follow"; }
     function follow(userId, following){
       var sel = '[onclick*="ollowPerson(\'' + String(userId).replace(/'/g, "") + '\')"]';
       document.querySelectorAll(sel).forEach(function(btn){
-        var w0 = btn.offsetWidth, act = btn.getAttribute("onclick");
-        btn.setAttribute("onclick", following ? act.replace("followPerson(", "unfollowPerson(")
-                                              : act.replace("unfollowPerson(", "followPerson("));
-        btn.innerHTML = following ? TICK + "Following" : "Follow";
-        btn.classList.toggle("is-following", following);
-        if(!on() || !onActive(btn)) return;
-        run(btn, [{ width: w0 + "px" }, { width: btn.offsetWidth + "px" }], 260, { fill: "none" });
-        var tick = btn.querySelector(".motion-tick path");
-        if(tick) run(tick, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], 220, { delay: 80, fill: "backwards" });
+        var act = btn.getAttribute("onclick");
+        followButton(btn, following, following ? act.replace("followPerson(", "unfollowPerson(")
+                                               : act.replace("unfollowPerson(", "followPerson("));
       });
+    }
+    function followButton(btn, following, act){
+      if(!btn) return;
+      var live = on() && onActive(btn), was = btn.classList.contains("is-following");
+      var w0 = live ? btn.getBoundingClientRect().width : 0, cs = live ? getComputedStyle(btn) : null;
+      var bg0 = cs ? cs.backgroundColor : "", bc0 = cs ? cs.borderTopColor : "";
+      var row = live ? Array.prototype.filter.call(btn.parentNode.children, function(c){ return c !== btn && seen(c); }) : [];
+      var places = row.map(function(c){ return box(c); });
+      if(act !== undefined) btn.setAttribute("onclick", act);
+      btn.innerHTML = followLabel(following);
+      btn.classList.add("follow-btn");
+      btn.classList.toggle("is-following", following);
+      btn.setAttribute("aria-pressed", following ? "true" : "false");
+      if(!live || was === following) return;
+      var w1 = btn.getBoundingClientRect().width;
+      var paint = document.createElement("span");
+      paint.className = "motion-follow-paint";
+      paint.setAttribute("aria-hidden", "true");
+      btn.classList.add("motion-following");
+      btn.insertBefore(paint, btn.firstChild);
+      var pc = getComputedStyle(paint);
+      var bg1 = pc.backgroundColor, bc1 = pc.borderTopColor;
+      var grow = run(paint, [{ transform: "scaleX(" + (w0 / (w1 || 1)) + ")" }, { transform: "scaleX(1)" }],
+                     DUR.follow, { fill: "none" });
+      run(paint, [{ backgroundColor: bg0, borderColor: bc0 }, { backgroundColor: bg1, borderColor: bc1 }],
+          DUR.colour, { fill: "none" });
+      var done = function(){ paint.remove(); btn.classList.remove("motion-following"); };
+      grow.finished.then(done, done);
+      row.forEach(function(c, i){ slideFrom(c, places[i], DUR.follow); });
+      var tick = btn.querySelector(".motion-tick path");
+      if(tick) run(tick, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], DUR.tick, { delay: DUR.tickAt, fill: "backwards" });
     }
 
     // A row taken out of a list slides off to the left while the rows
@@ -7819,7 +7972,7 @@
     // list's flow. `selector` names the list's rows, before and after.
     // `gapAt` holds the gap's closing until the row has slid (a chat:
     // delete-chat, §644 - "the slide, then the removal").
-    function removeRow(row, redraw, selector, gapAt){
+    function removeRow(row, redraw, selector, gapAt, leave){
       var rows = Array.prototype.slice.call(document.querySelectorAll(selector)), k = rows.indexOf(row);
       if(!on() || !row || k < 0 || !onActive(row)){ redraw(); return; }
       // Read before the redraw: where the row and those below it were.
@@ -7832,14 +7985,19 @@
       g.classList.add("motion-row");
       g.style.left = at.left + "px"; g.style.top = at.top + "px"; g.style.width = at.width + "px";
       parent.appendChild(g);
-      run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], DUR.rowOut,
-          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      // `leave`: a row that only left a filtered view goes up toward the
+      // folder chips (8 px and a fade, 150 ms `in`) while the gap closes.
+      run(g, leave === "up" ? [{ transform: "translateY(0px)", opacity: 1 }, { transform: "translateY(-8px)", opacity: 0 }]
+                            : [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }],
+          leave === "up" ? DUR.rowUp : DUR.rowOut, { easing: EASE_IN }).finished.then(gone(g), gone(g));
       now.forEach(function(r, i){
         if(i < k || i + 1 >= tops.length) return;
         var dy = tops[i + 1] - r.getBoundingClientRect().top;
         if(Math.abs(dy) < 1) return;
+        // A shelf's row (saved-remove: A, folder-file: A, §645): the rows
+        // below close on `in-out`.
         run(r, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], DUR.reflow,
-            { fill: gapAt ? "backwards" : "none", delay: gapAt || 0, add: true });
+            { fill: gapAt ? "backwards" : "none", delay: gapAt || 0, add: true, easing: leave ? EASE_IO : EASE });
       });
     }
 
@@ -7966,7 +8124,7 @@
       var out = {};
       if(!root) return out;
       Array.prototype.forEach.call(root.querySelectorAll(sel), function(el){
-        if(el.classList.contains("motion-leave")) return;
+        if(el.classList.contains("motion-leave") || el.classList.contains("motion-row")) return;
         var k = keyOf(el);
         if(k == null || k === "" || out[k]) return;
         out[k] = { el: el, b: box(el), shown: onActive(el) };
@@ -8002,12 +8160,20 @@
       Object.keys(after).forEach(function(k){
         var a = after[k], b = before[k];
         if(!a.shown || moving(a.el)) return;
-        if(!b){ if(o.rise !== false) rise(a.el, delay, DUR.cardIn, false); return; }
+        if(!b){
+          // `enterFade`: an Undo's row fades back in its place (§645).
+          if(o.enterFade) run(a.el, [{ opacity: 0 }, { opacity: 1 }], o.enterFade, { delay: delay, fill: "backwards" });
+          else if(o.rise !== false) rise(a.el, delay, DUR.cardIn, false);
+          return;
+        }
         var dx = b.b.x - a.b.x, dy = b.b.y - a.b.y;
         if(b.shown && (Math.abs(dx) >= 1 || Math.abs(dy) >= 1)) moved.push({ el: a.el, dx: dx, dy: dy });
       });
       moved.forEach(function(m, i){
         var late = o.followThrough && moved.length > 1 && i === moved.length - 1 ? DUR.settleDelay : 0;
+        // `stagger`: each a beat after the last, the first six; the rest
+        // with the sixth (vibe-delete: A, §645).
+        if(o.stagger) late = Math.min(i, 5) * o.stagger;
         run(m.el, [{ transform: "translate(" + m.dx + "px, " + m.dy + "px)" }, { transform: "translate(0px, 0px)" }],
             o.moveMs || DUR.reflow, { easing: EASE_IO, delay: delay + late, fill: "backwards", add: true });
       });
@@ -8019,9 +8185,9 @@
         var frames = o.fold
           ? [{ transform: "perspective(700px) rotateX(0deg) scale(1)", opacity: 1 },
              { transform: "perspective(700px) rotateX(20deg) scale(.9)", opacity: 0 }]
-          : [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(.95)", opacity: 0 }];
+          : [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(" + (o.leaveScale || 0.95) + ")", opacity: 0 }];
         if(o.fold) g.style.transformOrigin = "50% 100%";
-        run(g, frames, o.fold ? DUR.fold : DUR.cardOut, { easing: EASE_IN, delay: delay })
+        run(g, frames, o.fold ? DUR.fold : (o.leaveMs || DUR.cardOut), { easing: EASE_IN, delay: delay })
           .finished.then(gone(g), gone(g));
       });
     }
@@ -8346,6 +8512,9 @@
     // copy, out 18 px and gone in 110 ms `in`, the new one in from 18 px
     // 90 ms later, 200 ms `out`. `change` swaps the panels first.
     function panels(scroller, dir, change){
+      // A second switch while the first is moving finishes the first at once
+      // (shelf-switch: A, §645), as a screen change finishes the last.
+      if(scroller && scroller._panelsDone) scroller._panelsDone();
       if(!on() || !scroller || !onActive(scroller)){ change(); return; }
       var b = box(scroller), copy = inertCopy(scroller);
       copy.classList.add("motion-panel");
@@ -8359,7 +8528,12 @@
       var ins = runAdd(scroller, [{ opacity: 0, transform: "translateX(" + (18 * dir) + "px)" },
                                   { opacity: 1, transform: "translateX(0px)" }], DUR.panelIn,
                        { delay: DUR.panelLag, fill: "backwards" });
-      track([out].concat(ins), function(){ cancelAll(ins); copy.remove(); });
+      var done = function(){
+        cancelAll(ins); cancelAll([out]); copy.remove();
+        if(scroller._panelsDone === done) scroller._panelsDone = null;
+      };
+      scroller._panelsDone = done;
+      track([out].concat(ins), done);
     }
 
     // ---- category chips (category-chips: B) ----
@@ -8984,6 +9158,236 @@
       iconIn(now);
     }
 
+    // ---- yourFAM (§645) ----
+    // The hub's first draw in a session (hub-arrival: A): it builds top
+    // down - your picture, the numbers, the buttons, the interests, the
+    // tabs, 80 ms apart - then the first six tiles 40 ms apart, each up
+    // 8 px out of a 2 px blur, 300 ms `out`. Once a session: every later
+    // open is reconciled in place and shows no motion at all.
+    var hubArrived = false;
+    function hubArrive(root){
+      if(hubArrived || !root) return;
+      hubArrived = true;
+      if(!on() || moving(root) || !seen(root)) return;
+      var at = 0;
+      Array.prototype.forEach.call(root.querySelectorAll(":scope > [data-part]"), function(part){
+        if(part.getAttribute("data-part") === "grid" || !seen(part)) return;
+        rise(part, at, DUR.hubIn, true);
+        at += DUR.hubSection;
+      });
+      Array.prototype.slice.call(root.querySelectorAll('[data-part="grid"] > *'), 0, 6).forEach(function(t, i){
+        if(seen(t)) rise(t, at + i * DUR.hubTile, DUR.hubIn, true);
+      });
+    }
+    // A Friends row that changed group when the server answered
+    // (friends-regroup: A): every row glides from where it was to its new
+    // place (320 ms `in-out`, together); a row that left goes as a copy,
+    // 8 px left and a fade (150 ms `in`); a heading that is new fades in
+    // (150 ms). The rows are live throughout.
+    function regroup(before, root, sel, keyOf){
+      if(!on() || !root || !before) return;
+      var after = layout(root, sel, keyOf);
+      Object.keys(after).forEach(function(k){
+        var a = after[k], b = before[k];
+        if(!a.shown || moving(a.el)) return;
+        if(!b){ run(a.el, [{ opacity: 0 }, { opacity: 1 }], DUR.colour, { fill: "none" }); return; }
+        var dy = b.b.y - a.b.y;
+        if(!b.shown || Math.abs(dy) < 1) return;
+        run(a.el, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], DUR.regroup,
+            { easing: EASE_IO, fill: "none", add: true });
+      });
+      Object.keys(before).forEach(function(k){
+        var b = before[k];
+        if(after[k] || !b.shown || !b.b.h) return;
+        var g = leaveCopy(b, root);
+        if(!g) return;
+        run(g, [{ transform: "translateX(0px)", opacity: 1 }, { transform: "translateX(-8px)", opacity: 0 }],
+            DUR.regroupOut, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      });
+    }
+    // A value that changed in place (person-fill: A; settings-late-rows: C):
+    // the new one fades in over a copy of the old fading out, 150 ms. The
+    // element holds the new value from the first frame.
+    function swapValue(el, html){
+      if(!el || el.innerHTML === html) return false;
+      var g = null;
+      if(on() && onActive(el)){
+        // The old words, drawn where they were in their own type, out of
+        // the page's flow and nothing to read aloud.
+        var r = box(el), cs = getComputedStyle(el);
+        g = document.createElement("span");
+        g.className = "motion-msg motion-value";
+        g.setAttribute("aria-hidden", "true");
+        g.innerHTML = el.innerHTML;
+        ["font", "color", "letterSpacing", "textTransform", "lineHeight", "textAlign", "whiteSpace"].forEach(function(k){
+          g.style[k] = cs[k];
+        });
+        g.style.left = r.x + "px"; g.style.top = r.y + "px";
+        g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      }
+      el.innerHTML = html;
+      if(g){
+        fadeAway(g, DUR.colour);
+        run(el, [{ opacity: 0 }, { opacity: 1 }], DUR.colour, { fill: "none" });
+      }
+      return true;
+    }
+    // A photo you just set comes into focus the way pictures arrive in FAM
+    // (changes-land: B, §298's blur-up): from 8 px of blur and 1.06, fading
+    // in, 320 ms `out`.
+    function develop(img){
+      if(!img || !on() || !onActive(img)) return;
+      run(img, [{ opacity: 0, filter: "blur(8px)", transform: "scale(1.06)" },
+                { opacity: 1, filter: "blur(0px)", transform: "scale(1)" }], DUR.photoDevelop, { fill: "none" });
+    }
+    // Interests that changed (changes-land: B, the pills as A): a new pill
+    // grows from .95 as it fades in (200 ms `out`, 40 ms apart), a removed
+    // one fades as a copy (150 ms `in`), the rest of the line glides into
+    // place (200 ms `in-out`). `root` is positioned.
+    function pills(before, root, sel, keyOf){
+      if(!on() || !root || !before) return;
+      var after = layout(root, sel, keyOf), j = 0;
+      Object.keys(after).forEach(function(k){
+        var a = after[k], b = before[k];
+        if(!a.shown) return;
+        if(!b){
+          run(a.el, [{ opacity: 0, transform: "scale(.95)" }, { opacity: 1, transform: "scale(1)" }], DUR.pillNew,
+              { delay: (j++) * DUR.listStagger, fill: "backwards" });
+          return;
+        }
+        var dx = b.b.x - a.b.x, dy = b.b.y - a.b.y;
+        if(b.shown && (Math.abs(dx) >= 1 || Math.abs(dy) >= 1)){
+          run(a.el, [{ transform: "translate(" + dx + "px, " + dy + "px)" }, { transform: "translate(0px, 0px)" }],
+              DUR.reflow, { easing: EASE_IO, fill: "none", add: true });
+        }
+      });
+      Object.keys(before).forEach(function(k){
+        var b = before[k];
+        if(after[k] || !b.shown) return;
+        var g = leaveCopy(b, root);
+        if(g) run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.colour, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      });
+    }
+    // An interest chosen in Edit profile (interest-picker: B): copper floods
+    // the chip from where it was tapped (a growing circle, 250 ms `out`) and
+    // its tick draws itself (200 ms, 80 ms in); unchosen, the copper drains
+    // back to that point (180 ms `in`). The chip is its new state from the
+    // first frame; its width never changes (the icon has its own slot).
+    function flood(chip, x, y, chosen){
+      var fill = chip && chip.querySelector(".yf-int-fill");
+      if(!fill || !on() || !onActive(chip)) return;
+      var r = chip.getBoundingClientRect();
+      var px = x == null ? r.width / 2 : Math.max(0, Math.min(r.width, x - r.left));
+      var py = y == null ? r.height / 2 : Math.max(0, Math.min(r.height, y - r.top));
+      var R = Math.ceil(Math.max(Math.hypot(px, py), Math.hypot(r.width - px, py),
+                                 Math.hypot(px, r.height - py), Math.hypot(r.width - px, r.height - py))) + 2;
+      var at = " at " + px + "px " + py + "px)";
+      if(chosen){
+        run(fill, [{ clipPath: "circle(0px" + at }, { clipPath: "circle(" + R + "px" + at }], DUR.flood, { fill: "none" });
+        var tick = chip.querySelector(".yf-int-check path");
+        if(tick) run(tick, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], DUR.check,
+                     { delay: DUR.checkAt, fill: "backwards" });
+      } else {
+        run(fill, [{ clipPath: "circle(" + R + "px" + at }, { clipPath: "circle(0px" + at }], DUR.chipDrain,
+            { easing: EASE_IN, fill: "none" });
+      }
+    }
+    // An episode put in a folder (folder-file: A, the queue's gesture): a
+    // copy of its square lifts and arcs into the folder's chip (15%,
+    // 380 ms `in-out`), swelling to 1.15 at the top and shrinking to .4 as
+    // it fades over the last 30%; when it lands `landed` rolls the chip's
+    // count and the chip bumps 1 -> 1.1 -> 1 (220 ms). A chip scrolled out
+    // of its row is scrolled in first and the flight goes 200 ms later.
+    // `from` is the square, or `{ node, b }` - a copy of it and where it
+    // was - read before the shelf was redrawn under it.
+    function toFolder(from, chip, landed){
+      var fin = function(){ if(landed) landed(); };
+      if(from && from.nodeType) from = seen(from) ? { node: from, b: box(from) } : null;
+      if(!on() || !from || !from.b.w || !chip || !onActive(chip)){ fin(); return; }
+      var row = chip.parentNode, rr = row.getBoundingClientRect(), cr = chip.getBoundingClientRect();
+      var out = cr.left < rr.left || cr.right > rr.right;
+      var s0 = from.b;
+      if(out && chip.scrollIntoView) chip.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+      var go = function(){
+        if(!chip.isConnected){ fin(); return; }
+        var e = box(chip), g = inertCopy(from.node);
+        g.classList.add("motion-face");
+        g.style.transformOrigin = "50% 50%";
+        g.style.left = s0.x + "px"; g.style.top = s0.y + "px";
+        g.style.width = s0.w + "px"; g.style.height = s0.h + "px";
+        frameEl().appendChild(g);
+        var dx = e.x + e.w / 2 - (s0.x + s0.w / 2), dy = e.y + e.h / 2 - (s0.y + s0.h / 2);
+        var frames = arcFrames(dx, dy, 0.15, function(t){
+          var k = t <= 0.5 ? 1 + 0.15 * (t / 0.5) : 1.15 - 0.75 * ((t - 0.5) / 0.5);
+          return { transform: "scale(" + k + ")", opacity: t < 0.7 ? 1 : (1 - t) / 0.3 };
+        });
+        var land = function(){ g.remove(); fin(); bump(chip); };
+        run(g, frames, DUR.folderArc, { easing: EASE_IO }).finished.then(land, land);
+      };
+      if(out) setTimeout(go, DUR.chipScroll); else go();
+    }
+    function bump(el){
+      if(!on() || !el || !seen(el)) return;
+      run(el, [{ transform: "scale(1)" }, { transform: "scale(1.1)", offset: 0.5 }, { transform: "scale(1)" }],
+          DUR.bump, { easing: EASE_IO, fill: "none", add: true });
+    }
+    // The story editor's tool panels (story-editor: B, the drawer): up from
+    // the bottom edge (280 ms `out`); down as a copy (200 ms `in`).
+    function drawerIn(panel){
+      if(!on() || !panel || !seen(panel)) return;
+      run(panel, [{ transform: "translateY(100%)" }, { transform: "translateY(0%)" }], DUR.sheetIn, { fill: "none" });
+    }
+    function drawerOut(panel){
+      if(!on() || !panel || !seen(panel) || !panel.parentNode) return;
+      var g = inertCopy(panel);
+      g.hidden = false;
+      g.classList.add("motion-drawer");
+      panel.parentNode.insertBefore(g, panel.nextSibling);
+      run(g, [{ transform: "translateY(0%)" }, { transform: "translateY(100%)" }], DUR.sheetOut, { easing: EASE_IN })
+        .finished.then(gone(g), gone(g));
+    }
+    // Posting a story (story-editor: B, a storyboard of two moves, run
+    // over a story already posted and a ring already drawn): a copy of the
+    // canvas shrinks into your photo (translate and scale, its corners
+    // rounding to a circle, 380 ms `in-out`, fading over its last 20%);
+    // then a copper ring draws round the photo from twelve o'clock (400 ms
+    // `in-out`) and is taken away, leaving the real ring; then `then` -
+    // the bottom line, at 780 ms. With no face on screen the copy just
+    // fades (150 ms). Returns at once; nothing waits on it.
+    function intoRing(canvas, face, then){
+      var fin = function(){ if(then) then(); };
+      if(!on() || !canvas || !seen(canvas)){ fin(); return; }
+      var s0 = box(canvas), g = inertCopy(canvas);
+      g.classList.add("motion-copy", "motion-into-ring");
+      g.style.left = s0.x + "px"; g.style.top = s0.y + "px";
+      g.style.width = s0.w + "px"; g.style.height = s0.h + "px";
+      g.style.transformOrigin = "0 0";
+      frameEl().appendChild(g);
+      if(!face || !seen(face) || !face.closest(".screen.active")){
+        run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.colour, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+        fin();
+        return;
+      }
+      var e = box(face);
+      run(g, [{ transform: "translate(0px, 0px) scale(1, 1)", borderRadius: "18px", opacity: 1 },
+              { opacity: 1, offset: 0.8 },
+              { transform: "translate(" + (e.x - s0.x) + "px, " + (e.y - s0.y) + "px) scale(" + (e.w / s0.w) + ", "
+                  + (e.h / s0.h) + ")", borderRadius: "50%", opacity: 0 }], DUR.intoRing, { easing: EASE_IO })
+        .finished.then(gone(g), gone(g));
+      var size = Math.max(e.w, e.h) + 10, ring = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      ring.setAttribute("class", "motion-story-ring");
+      ring.setAttribute("aria-hidden", "true");
+      ring.setAttribute("viewBox", "0 0 " + size + " " + size);
+      ring.style.left = (e.x + e.w / 2 - size / 2) + "px"; ring.style.top = (e.y + e.h / 2 - size / 2) + "px";
+      ring.style.width = size + "px"; ring.style.height = size + "px";
+      ring.innerHTML = '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + (size / 2 - 2)
+        + '" pathLength="1" transform="rotate(-90 ' + size / 2 + ' ' + size / 2 + ')"/>';
+      frameEl().appendChild(ring);
+      run(ring.firstChild, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], DUR.ringDraw,
+          { easing: EASE_IO, delay: DUR.intoRing }).finished.then(gone(ring), gone(ring));
+      setTimeout(fin, DUR.intoRing + DUR.ringDraw);
+    }
+
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
@@ -9003,6 +9407,9 @@
              arriveList: arriveList, fadeIn: fadeIn, wipeIn: wipeIn, ack: ack, voiceOpen: voiceOpen,
              voiceClose: voiceClose, drain: drain, slideFrom: slideFrom, leaveFrom: leaveFrom, riseIn: riseIn,
              ripple: ripple, ownSwap: ownSwap, swapShown: swapShown, box: box,
+             hubArrive: hubArrive, regroup: regroup, swapValue: swapValue, develop: develop, pills: pills,
+             flood: flood, toFolder: toFolder, bump: bump, drawerIn: drawerIn, drawerOut: drawerOut,
+             intoRing: intoRing, followButton: followButton, followLabel: followLabel, TICK: TICK,
              EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO, SWAP: EASE_SWAP }, DUR: DUR, spring: spring,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
@@ -10672,11 +11079,11 @@
       body: JSON.stringify({ scope: "demographics", allow: !!on }) })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        if(!d || !d.demographics){ toast("Couldn\u2019t save that. Try again."); return; }
+        if(!d || !d.demographics){ toast("Couldn\u2019t save that. Try again."); refreshSettingsIfOpen(); return; }
         if(ACTIVATION) ACTIVATION.counting = d.demographics;
         renderSettings();
       })
-      .catch(function(){ toast("Couldn\u2019t save that. Try again."); });
+      .catch(function(){ toast("Couldn\u2019t save that. Try again."); refreshSettingsIfOpen(); });
   }
 
   // ---------------- Reporting and blocking (App Store 1.2, moderation.py) ----------------
@@ -11983,6 +12390,9 @@
     vcsTool("");
     document.getElementById("vibeComposer").hidden = false;
     drawVibeComposer();
+    // Out of the VIBE! button, as a story grows out of a face (story-editor:
+    // B's opening, §645).
+    Motion.growStory(document.getElementById("vibeComposer"));
     // A picture the player has not got yet: the server's, as the player asks.
     if(!thumb){
       fetch("/api/episode/card?q=" + encodeURIComponent(ep.query)
@@ -12017,6 +12427,9 @@
     vcsTool("");
     document.getElementById("vibeComposer").hidden = false;
     drawVibeComposer();
+    // Grown out of the (+) or your face (story-editor: B, §645): a circle
+    // from the tap to the whole screen, 300 ms `out`.
+    Motion.growStory(document.getElementById("vibeComposer"));
   }
   // Which editor this is: an episode's vibe, or a note.
   function vcsMode(note){
@@ -12030,11 +12443,17 @@
     if(mic) mic.hidden = !speechRecognitionCtor();
     if(!note) vcsStopDictation();
   }
-  function closeVibeComposer(){
+  // `posted`: the post's own storyboard draws the way out (`intoRing`);
+  // otherwise - the X - a copy shrinks back into what opened it (240 ms
+  // `in`) while the editor is already gone.
+  function closeVibeComposer(posted){
     vcs.ep = null;
     vcs.note = false;
     vcsStopDictation();
-    document.getElementById("vibeComposer").hidden = true;
+    var ov = document.getElementById("vibeComposer");
+    if(posted === true) ov._from = null;
+    else Motion.shrinkStory(ov, Motion.EASE.IN);
+    ov.hidden = true;
     // What an episode's end held while the editor was open (§550) goes on
     // now - after a post or a back alike.
     var held = heldForVibe;
@@ -12138,8 +12557,14 @@
     document.getElementById("vcsSize").hidden = tool !== "text";
     document.getElementById("vcsFonts").hidden = tool !== "text";
     var panel = document.getElementById("vcsPanel");
+    var wasOpen = !panel.hidden;
+    if(wasOpen && !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg"
+                    || tool === "line")) Motion.drawerOut(panel);
     panel.hidden = !(tool === "stickers" || tool === "mention" || tool === "picture" || tool === "bg"
                      || tool === "line");
+    // A tool's panel slides up from the bottom edge (story-editor: B's
+    // drawer), and down as a copy; switching tools keeps it up.
+    if(!wasOpen && !panel.hidden) Motion.drawerIn(panel);
     if(tool === "text"){
       vcsPaintFonts();
       if(!keep){ try { document.getElementById("vcsCaption").focus(); } catch(e){} }
@@ -12470,7 +12895,13 @@
         return d;
       });
     }).then(function(){
-      closeVibeComposer();
+      var canvas = document.getElementById("vcsCanvas");
+      markMyStoryUp();
+      var face = myStoryFace();
+      Motion.intoRing(canvas, face, face ? function(){
+        snack("Vibed to your story", { label: "View", run: viewMyNewStory });
+      } : null);
+      closeVibeComposer(true);
       // Lit only if the episode playing is still the one vibed.
       var now = currentEpisode();
       if(now && now.query === ep.query && now.minutes === ep.minutes){
@@ -12478,10 +12909,10 @@
         // Once the composer has gone back to the episode it was opened on.
         setTimeout(function(){ Motion.celebrate("[data-echo]", "VIBED"); }, 300);
       }
-      snack("Vibed to your story", { label: "View", run: viewMyNewStory });
+      if(!face) snack("Vibed to your story", { label: "View", run: viewMyNewStory });
       // Your face on DailyFAM's row carries the ring for it (§297).
       loadMyFamCircle();
-      if(typeof loadProfileQuietly === "function") loadProfileQuietly();
+      refreshHub();
     }).catch(function(err){
       vcs.sending = false;
       ["vcsPostAll", "vcsPostGo"].forEach(function(id){
@@ -12506,6 +12937,22 @@
       myStoryPerson = null;
     }
   }
+  // A story just posted is on your photo before the server is asked again:
+  // the hub's ring is drawn now, so the post can be seen going into it.
+  function markMyStoryUp(){
+    if(!profileNow || !document.querySelector('#profileBody [data-part="hero"]')) return;
+    var p = Object.assign({}, profileNow);
+    p.stories = (p.stories || []).concat([{ at: Date.now() / 1000, local: true }]);
+    renderProfile(p);
+  }
+  // Your face on screen, for a story to land in: yourFAM's photo, else
+  // your face on DailyFAM's row; none elsewhere.
+  function myStoryFace(){
+    var hub = document.querySelector("#screen-profile.active #yfMyStory .yf-photo");
+    if(hub) return hub;
+    var row = document.getElementById("yfMyRing");
+    return row && row.closest(".screen.active") ? row : null;
+  }
   function postNoteStory(){
     if(vcs.sending) return;
     var model = vcs.model;
@@ -12524,14 +12971,17 @@
         return d;
       });
     }).then(function(){
-      closeVibeComposer();
-      snack("Added to your story", { label: "View", run: viewMyNewStory });
-      loadMyFamCircle();
-      loadProfileQuietly().then(function(p){
-        setMyStoryFrom(p);
-        var hub = document.getElementById("screen-profile");
-        if(p && hub && hub.classList.contains("active")) renderProfile(p);
+      // Into your ring (story-editor: B, §645): the story is yours at once -
+      // the ring drawn on your photo - and then the canvas is seen shrinking
+      // into it and the ring drawing round, the line after.
+      var canvas = document.getElementById("vcsCanvas");
+      markMyStoryUp();
+      Motion.intoRing(canvas, myStoryFace(), function(){
+        snack("Added to your story", { label: "View", run: viewMyNewStory });
       });
+      closeVibeComposer(true);
+      loadMyFamCircle();
+      refreshHub().then(function(p){ setMyStoryFrom(p); });
     }).catch(function(err){
       vcs.sending = false;
       ["vcsPostAll", "vcsPostGo"].forEach(function(id){
@@ -17124,6 +17574,8 @@
     var asking = on ? askIfNeeded() : null;
     var changes = {}; changes[name] = !!on;
     savePushPrefs(changes, function(ok){
+      // The switch moved on the tap; this draws what was saved (§645).
+      refreshSettingsIfOpen();
       if(!ok) return;
       if(on) afterPushChoice(asking, "On");
       else toast("Off");
@@ -19898,6 +20350,8 @@
   //: Whether the last `/api/auth/me` never reached the server, and whether
   //: this device was signed in the last time it did (§161's offline open).
   var authUnreachable = false;
+  //: Whether `/api/auth/me` has answered (or failed) at least once.
+  var authKnown = false;
   function rememberSignedIn(on){
     try { if(on) localStorage.setItem("famSignedIn", "1"); else localStorage.removeItem("famSignedIn"); }
     catch(e){}
@@ -19908,11 +20362,12 @@
 
   function refreshAuth(){
     return fetch("/api/auth/me")
-      .catch(function(e){ authUnreachable = true; throw e; })
+      .catch(function(e){ authUnreachable = true; authKnown = true; throw e; })
       .then(function(r){ return r.json(); })
       .then(function(d){
         var was = AUTH.authenticated;
         AUTH = d;
+        authKnown = true;
         // A page that reached this far while the waitlist runs - opened from
         // the offline shell - is sent where the server would have sent it.
         // A guest stays, on the front door, to sign in or sign up (§217, §231).
@@ -19931,9 +20386,12 @@
         // below and `refreshAuth` would quietly resolve with the old answer -
         // which is the one thing this function must never do.
         var here = document.getElementById("screen-profile");
-        if(was !== !!d.authenticated && here && here.classList.contains("active")){
+        if((was !== !!d.authenticated || !d.authenticated) && here && here.classList.contains("active")){
           loadProfile();
         }
+        // Settings' values are read now, at app open and sign-in, so the
+        // screen opens whole (settings-late-rows: C, §645).
+        if(d.authenticated) preloadSettings();
         return d;
       })
       .catch(function(){ return AUTH; });
@@ -20132,6 +20590,14 @@
         if(gdBlock) gdBlock.innerHTML = "";
         savedCache = { items: [], folders: [] };
         viewingProfile = null;
+        // The hub and Settings as this account had them (§645): the next
+        // account's are drawn and read afresh.
+        profileNow = null;
+        var hubBody = document.getElementById("profileBody");
+        if(hubBody) hubBody.innerHTML = "";
+        settingsPreloaded = null;
+        pushState = null;
+        pushStateAsked = false;
         mixes = [];
         forgetLocalPrefs();
         stopSpeech();
@@ -20305,7 +20771,14 @@
     // No account, no page - and no request either. Drawing the gate is not a
     // view of the profile with pieces missing, it is a different screen, so
     // it does not ask the server for one.
-    if(!AUTH.authenticated){ renderProfileGate(); return; }
+    if(!AUTH.authenticated){
+      // A device that was signed in, before `/api/auth/me` has answered,
+      // keeps whatever the hub last showed rather than flashing the guest
+      // gate (§645); the answer redraws this page either way.
+      if(wasSignedIn() && !authKnown) return;
+      renderProfileGate();
+      return;
+    }
     // Who followed since they last looked - for the badge on the Friends
     // tile, and for the popup. Asked here because opening the profile is
     // when it is about to be drawn.
@@ -20575,6 +21048,34 @@
       editIdentity();
       return;
     }
+    // **Shown at once, while it is checked** (changes-land: B, §645): the
+    // new photo develops where the old one was - on this device only - with
+    // "Checking photo…" under it until the server's image check (§224) has
+    // answered; a refused one develops back to the old and the line says
+    // why. A removal is simply drawn on the answer.
+    var oldAvatar = (profileNow && profileNow.avatar) || "";
+    var shown = !!dataUrl;
+    if(shown){
+      if(onIdentity){
+        drawIdentityPicture({ avatar: dataUrl });
+        Motion.develop(document.querySelector("#identityPic img"));
+        document.getElementById("identityPicSay").textContent = "Checking photo\u2026";
+      } else if(profileNow && document.querySelector('#profileBody [data-part="hero"]')){
+        avatarChecking = true;
+        renderProfile(Object.assign({}, profileNow, { avatar: dataUrl }));
+        profileNow.avatar = oldAvatar;
+      }
+    }
+    var putBack = function(){
+      if(!shown) return;
+      if(onIdentity){
+        drawIdentityPicture({ avatar: oldAvatar });
+        Motion.develop(document.querySelector("#identityPic img"));
+      } else if(avatarChecking){
+        avatarChecking = false;
+        if(profileNow) renderProfile(profileNow);
+      }
+    };
     fetch("/api/me", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ name: name, handle: handle, avatar: dataUrl })
@@ -20591,13 +21092,22 @@
       profileNow.handle = saved.handle;
       profileNow.avatar = saved.avatar || "";
       if(onIdentity){
-        drawIdentityPicture(profileNow);
+        // The server's copy of the picture already on screen: swapped in
+        // without developing a second time.
+        if(!shown) drawIdentityPicture(profileNow);
+        else {
+          var img = document.querySelector("#identityPic img");
+          if(img && saved.avatar) img.setAttribute("src", saved.avatar);
+          Motion.swapValue(document.getElementById("identityPicSay"), profileNow.avatar ? "Tap to change" : "Add a photo");
+        }
         toast("Picture saved");
         return;
       }
+      avatarChecking = false;
+      hubQuietPhoto = shown ? profileNow.avatar : "";
       loadProfile();
       toast("Picture saved");
-    }).catch(function(err){ toast(err.message); });
+    }).catch(function(err){ putBack(); toast(err.message); });
   }
 
   function removeAvatar(){
@@ -20684,7 +21194,23 @@
 
   var profileNow = null;
 
-  function renderProfile(p){
+  // **The hub is drawn once and then reconciled** (hub-arrival: A, §645).
+  // Every open of yourFAM used to replace the page with the server's answer
+  // - an empty wash on the first, a silent rebuild every time after, and a
+  // page that went stale after a change made elsewhere. Now its parts
+  // (`data-part`) are compared with what was drawn and only a changed one is
+  // touched: a number rolls, a name cross-fades, a photo develops, pills
+  // arrive and leave, tiles close up. The first draw of a session builds top
+  // down (`Motion.hubArrive`); every later open with nothing new moves
+  // nothing at all. `o.rollDelay` holds a number's roll until what is moving
+  // has landed (vibe-delete: A).
+  //: The server's photo after a save, swapped in without developing again:
+  //: the picture developed when it was set (changes-land: B).
+  var hubQuietPhoto = "";
+  //: A photo set here and still being checked (§224): "Checking photo…".
+  var avatarChecking = false;
+  function renderProfile(p, o){
+    o = o || {};
     profileNow = p;
     loadInviteLink();
     var follows = p.follows || {};
@@ -20692,8 +21218,8 @@
     var vibes = p.echo_count || 0;
     var mixCount = (p.mixes || []).length;
 
-    document.getElementById("pfTop").innerHTML =
-      '<div class="yf-head">' + yfWordmark()
+    var top = document.getElementById("pfTop");
+    var topHTML = '<div class="yf-head">' + yfWordmark()
       + '<div class="yf-head-acts">'
       // No (+) here (10.1 packet, third set): it started a new message, which
       // the Messages tab already does, so it was the same door twice.
@@ -20702,6 +21228,7 @@
       + '<button class="yf-round" onclick="openSettings()" aria-label="Settings">'
       + yfIcon("gear", 17) + '</button>'
       + '</div></div>';
+    if(top._html !== topHTML || !top.firstChild){ top.innerHTML = topHTML; top._html = topHTML; }
 
     // Who you are. Every number is read off the follow graph or the vibes
     // table and worded for the number it holds: "1 vibes" is the tell that a
@@ -20720,7 +21247,7 @@
     // The hero (§341, the owner's pick from the layout deck: option 4's
     // header, option 2's numbers and grid): your picture large and centred,
     // your name, where you are and your handle, over a gold wash.
-    var html = '<div class="yf-hero"><div class="yf-photo-wrap">'
+    var html = '<div class="yf-hero" data-part="hero"><div class="yf-photo-wrap">'
       + (myStoryPerson
           ? '<button class="yf-photo-btn ring' + (storiesUnseen(myStoryPerson) ? "" : " seen")
             + '" id="yfMyStory" onclick="openMyStory()" aria-label="Your story">'
@@ -20728,6 +21255,7 @@
           : '<div class="yf-photo"' + (AUTH.authenticated ? ' onclick="openNoteComposer()"' : '')
             + '>' + yfFace(p) + '</div>')
       + addBadge + '</div>'
+      + (avatarChecking ? '<div class="yf-checking">Checking photo…</div>' : '')
       + '<div class="yf-name">' + escapeHtml(p.name || "Set up your profile") + '</div>'
       // Where they are, as they wrote it, beside the handle (10.7).
       + '<div class="yf-place">' + (p.location ? escapeHtml(p.location) + ' · ' : '')
@@ -20738,7 +21266,7 @@
     // vibes" is the tell that a count was printed rather than read. Friends
     // opens the Friends page, which is also where new friends are found;
     // vibes and mixes turn the grid below to that shelf.
-    html += '<div class="yf-stats">'
+    html += '<div class="yf-stats" data-part="stats">'
       + '<button class="yf-stat" onclick="openFriends()"><b>' + friends + '</b>'
       + plural(friends, "friend") + '</button>'
       + '<button class="yf-stat" onclick="showProfileShelf(\'vibes\', true)"><b>' + vibes + '</b>'
@@ -20749,7 +21277,7 @@
 
     // Saved for Later is the strongest button because it is the most-used
     // personal shortcut; Edit profile is where every change is made.
-    html += '<div class="yf-acts yf-acts-centre">'
+    html += '<div class="yf-acts yf-acts-centre" data-part="acts">'
       + '<button class="yf-btn" onclick="editIdentity()">'
       + (p.name ? "Edit profile" : "Set up profile") + '</button>'
       + '<button class="yf-btn cream" onclick="openSavedAll()">'
@@ -20764,10 +21292,11 @@
     yfInterests = (p.interests_shown || []).slice(0, p.interests_max || 5);
     html += interestLineHTML(yfInterests.length
       ? yfInterests.map(function(row, i){
-          return '<button class="yf-chip" onclick="openInterestAt(' + i + ')">'
-            + escapeHtml(row.label) + '</button>';
+          return '<button class="yf-chip" data-pill="' + escapeHtml(String(row.label).toLowerCase())
+            + '" onclick="openInterestAt(' + i + ')">' + escapeHtml(row.label) + '</button>';
         }).join("")
-      : '<button class="yf-chip muted" onclick="editIdentity()">Add interests in Edit profile</button>');
+      : '<button class="yf-chip muted" data-pill="" onclick="editIdentity()">Add interests in Edit profile</button>',
+      "interests");
 
     // The faces row is DailyFAM's (§251); the list stays for the story
     // viewer, which indexes into it.
@@ -20779,14 +21308,107 @@
     // so they are not on it.
     profileVibes = p.echoes || [];
     profileMixes = p.mixes || [];
-    html += '<div class="yf-tabs" role="tablist">'
+    html += '<div class="yf-tabs" role="tablist" data-part="tabs">'
       + '<button class="yf-tab" role="tab" data-shelf="vibes" onclick="showProfileShelf(\'vibes\')">Vibes</button>'
       + '<button class="yf-tab" role="tab" data-shelf="mixes" onclick="showProfileShelf(\'mixes\')">Mixes</button>'
-      + '</div><div class="yf-pics" id="yfGrid"></div>';
+      + '</div><div class="yf-pics" id="yfGrid" data-part="grid"></div>';
 
-    document.getElementById("profileBody").innerHTML = html;
+    var body = document.getElementById("profileBody");
+    var first = patchParts(body, html, function(part, was, now){
+      return patchHubPart(part, was, now, o);
+    });
     showProfileShelf(profileShelf);
+    if(first) Motion.hubArrive(body);
     loadHubMessages();
+  }
+
+  // A page drawn in parts (`data-part`), reconciled with what is on it:
+  // nothing that did not change is touched. `onPart(name, was, now)`
+  // patches a changed part in place and returns true, or returns false to
+  // have it replaced. Returns true when the page was drawn whole (a first
+  // draw, or parts that no longer line up).
+  function patchParts(body, html, onPart){
+    var tpl = document.createElement("div");
+    tpl.innerHTML = html;
+    var fresh = Array.prototype.slice.call(tpl.children);
+    var held = fresh.map(function(n){ return n.outerHTML; });
+    var old = Array.prototype.filter.call(body.children, function(c){ return c.hasAttribute("data-part"); });
+    var lined = old.length === fresh.length && fresh.every(function(n, i){
+      return old[i].getAttribute("data-part") === n.getAttribute("data-part");
+    });
+    if(!lined){
+      body.innerHTML = "";
+      fresh.forEach(function(n, i){ body.appendChild(n); n._html = held[i]; });
+      return true;
+    }
+    fresh.forEach(function(n, i){
+      var was = old[i];
+      if(was._html === held[i]) return;
+      if(onPart && onPart(n.getAttribute("data-part"), was, n)){ was._html = held[i]; return; }
+      was.replaceWith(n);
+      n._html = held[i];
+    });
+    return false;
+  }
+  // One stat's number and word, in place: `how` rolls or cross-fades it.
+  function patchStats(was, now, how, delay){
+    var a = was.querySelectorAll(".yf-stat"), b = now.querySelectorAll(".yf-stat");
+    if(a.length !== b.length) return false;
+    for(var i = 0; i < a.length; i++){
+      if(a[i].tagName !== b[i].tagName || a[i].getAttribute("onclick") !== b[i].getAttribute("onclick")){
+        a[i].replaceWith(b[i]);
+        continue;
+      }
+      var nb = b[i].querySelector("b"), ob = a[i].querySelector("b");
+      if(!nb || !ob) continue;
+      var word = b[i].lastChild && b[i].lastChild.nodeType === 3 ? b[i].lastChild.textContent : "";
+      if(a[i].lastChild && a[i].lastChild.nodeType === 3) a[i].lastChild.textContent = word;
+      if(ob.innerHTML === nb.innerHTML) continue;
+      if(how === "fade"){ Motion.swapValue(ob, nb.innerHTML); continue; }
+      var before = ob.textContent;
+      ob.innerHTML = nb.innerHTML;
+      Motion.roll(ob, before, delay || 0, Motion.DUR.countRoll);
+    }
+    return true;
+  }
+  function photoSrc(el){
+    var img = el && el.querySelector(".yf-photo img");
+    return img ? img.getAttribute("src") : "";
+  }
+  function patchHubPart(part, was, now, o){
+    if(part === "stats") return patchStats(was, now, "roll", o.rollDelay);
+    if(part === "interests"){
+      var row = was.querySelector(".yf-chips-line"), nrow = now.querySelector(".yf-chips-line");
+      if(!row || !nrow) return false;
+      var key = function(el){ return el.getAttribute("data-pill"); };
+      var before = Motion.layout(row, "[data-pill]", key);
+      row.innerHTML = nrow.innerHTML;
+      Motion.pills(before, row, "[data-pill]", key);
+      return true;
+    }
+    if(part === "hero"){
+      // The photo (with its ring) is replaced when it changed, and a new
+      // picture develops (changes-land: B); the words cross-fade.
+      var w0 = was.querySelector(".yf-photo-wrap"), w1 = now.querySelector(".yf-photo-wrap");
+      if(w0.outerHTML !== w1.outerHTML){
+        var src0 = photoSrc(w0), src1 = photoSrc(w1);
+        w0.replaceWith(w1);
+        if(src1 && src1 !== src0 && src1 !== hubQuietPhoto) Motion.develop(w1.querySelector(".yf-photo img"));
+        if(src1 === hubQuietPhoto) hubQuietPhoto = "";
+      }
+      var c0 = was.querySelector(".yf-checking"), c1 = now.querySelector(".yf-checking");
+      if(c0 && !c1){ Motion.fadeCopy(c0, Motion.DUR.colour); c0.remove(); }
+      if(c1 && !c0){
+        was.querySelector(".yf-photo-wrap").insertAdjacentElement("afterend", c1);
+        Motion.fadeIn(c1);
+      }
+      [".yf-name", ".yf-place"].forEach(function(sel){
+        var a = was.querySelector(sel), b = now.querySelector(sel);
+        if(a && b) Motion.swapValue(a, b.innerHTML);
+      });
+      return true;
+    }
+    return false;
   }
 
   //: Which shelf YourFAM's grid shows, and the rows it was drawn from, so a
@@ -20795,42 +21417,71 @@
   var profileVibes = [];
   var profileMixes = [];
   // One tile: the episode's picture where the server found one, a plain
-  // gradient otherwise, the words at the foot.
-  function profileTileHTML(onclick, picture, title, holdIndex){
-    return '<button class="yf-pic"' + (holdIndex !== undefined ? ' data-hold="' + holdIndex + '"' : '')
+  // gradient otherwise, the words at the foot. `key` names it across
+  // redraws: an episode by its words and length, a mix by its id.
+  function profileTileHTML(onclick, picture, title, holdIndex, key){
+    return '<button class="yf-pic"' + (holdIndex !== undefined && holdIndex !== null ? ' data-hold="' + holdIndex + '"' : '')
+      + (key ? ' data-key="' + escapeHtml(key) + '"' : '')
       + ' onclick="' + onclick + '">'
       + (picture ? '<span class="yf-pic-img" style="background-image:url(&quot;'
           + escapeHtml(picture) + '&quot;)"></span>' : '')
       + '<span class="yf-pic-t">' + escapeHtml(title) + '</span></button>';
   }
+  function vibeKey(v){ return "v:" + v.query + "|" + (v.minutes || ""); }
+  function tileKey(el){ return el.getAttribute("data-key"); }
+  // A grid's tabs and tiles (shelf-switch: A). Turned by a tab or a number,
+  // the underline slides and the grid nudges toward the side chosen - the
+  // old tiles a copy, the new ones live from the first frame. Redrawn with
+  // the same shelf (a vibe gone, a mix added), only what changed moves.
+  function drawShelf(grid, tabs, shelf, html, after){
+    tabs.forEach(function(t){
+      var on = t.getAttribute("data-shelf") === shelf;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    var bar = tabs.length ? tabs[0].parentNode : null;
+    if(bar) bar.classList.toggle("mixes", shelf === "mixes");
+    if(grid._html === html && grid._shelf === shelf) return;
+    var turned = grid._shelf && grid._shelf !== shelf;
+    var draw = function(){
+      grid.innerHTML = html;
+      grid._html = html;
+      grid._shelf = shelf;
+      if(after) after(grid);
+    };
+    if(turned) Motion.panels(grid, shelf === "mixes" ? 1 : -1, draw);
+    else if(grid._shelf && grid._html){
+      var before = Motion.layout(grid, "[data-key]", tileKey);
+      draw();
+      Motion.relist(before, grid, "[data-key]", tileKey, { host: function(){ return grid; } });
+    } else draw();
+  }
+  function scrollToGrid(grid){
+    grid.scrollIntoView({ block: "nearest", behavior: Motion.on() ? "smooth" : "auto" });
+  }
+  function profileShelfHTML(){
+    if(profileShelf === "vibes"){
+      return profileVibes.length
+        ? profileVibes.map(function(v, i){
+            return profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query, i, vibeKey(v));
+          }).join("")
+          + (vibesCount() > profileVibes.length
+              ? '<button class="yf-pic more" data-key="more" onclick="openMyVibe()">See all</button>' : '')
+        : '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode and it shows here.</div>';
+    }
+    return profileMixes.length
+      ? profileMixes.map(function(m, i){
+          return profileTileHTML("openProfileMix(" + i + ")", m.cover || m.thumb, m.name, null, "m:" + m.id);
+        }).join("")
+      : '<div class="pf-empty">No public mixes yet. A new DailyFAM mix is public unless you switch it off.</div>';
+  }
   function showProfileShelf(which, scroll){
     profileShelf = which === "mixes" ? "mixes" : "vibes";
     var grid = document.getElementById("yfGrid");
     if(!grid) return;
-    Array.prototype.forEach.call(document.querySelectorAll("#screen-profile .yf-tab"), function(t){
-      var on = t.getAttribute("data-shelf") === profileShelf;
-      t.classList.toggle("on", on);
-      t.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    var html;
-    if(profileShelf === "vibes"){
-      html = profileVibes.length
-        ? profileVibes.map(function(v, i){
-            return profileTileHTML("playProfileVibe(" + i + ")", v.thumb, v.title || v.query, i);
-          }).join("")
-          + (vibesCount() > profileVibes.length
-              ? '<button class="yf-pic more" onclick="openMyVibe()">See all</button>' : '')
-        : '<div class="pf-empty">Nothing vibed yet. Tap VIBE! on any episode and it shows here.</div>';
-    } else {
-      html = profileMixes.length
-        ? profileMixes.map(function(m, i){
-            return profileTileHTML("openProfileMix(" + i + ")", m.cover || m.thumb, m.name);
-          }).join("")
-        : '<div class="pf-empty">No public mixes yet. A new DailyFAM mix is public unless you switch it off.</div>';
-    }
-    grid.innerHTML = html;
-    if(profileShelf === "vibes") armVibeHolds(grid);
-    if(scroll) grid.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    drawShelf(grid, Array.prototype.slice.call(document.querySelectorAll("#screen-profile .yf-tab")),
+              profileShelf, profileShelfHTML(), function(g){ if(profileShelf === "vibes") armVibeHolds(g); });
+    if(scroll) scrollToGrid(grid);
   }
   // **Press and hold a vibe on your own grid** (the 11.3 packet #4): a
   // sheet that offers "Remove vibe from profile", which deletes the vibe
@@ -20882,27 +21533,64 @@
     ]);
   }
   // A vibe deleted is deleted everywhere: the one row behind the grid tile,
-  // the story and My Vibe (`social.unecho`). Every surface that drew it is
-  // redrawn from what the server now says.
+  // the story and My Vibe (`social.unecho`).
+  //
+  // **Off the grid on the confirm** (vibe-delete: A, §645): the tile
+  // recedes as a copy (.92 and a fade, 150 ms `in`) once the sheet has
+  // dropped, the tiles after it slide back into place (250 ms `in-out`,
+  // 30 ms apart) and the vibes number rolls down as they land. The request
+  // goes at once; a refusal puts it all back and says so. It used to wait
+  // for the server and leave the number stale.
   function deleteMyVibe(v, then){
+    var at = profileVibes.indexOf(v);
+    if(at === -1){
+      profileVibes.forEach(function(p, j){ if(p.query === v.query && p.minutes === v.minutes) at = j; });
+    }
+    var kept = at !== -1 ? profileVibes[at] : null;
+    var grid = document.getElementById("yfGrid");
+    var hub = grid && profileNow && profileShelf === "vibes";
+    var before = hub ? Motion.layout(grid, "[data-key]", tileKey) : null;
+    var wait = Motion.DUR.sheetOut;
+    if(kept) profileVibes.splice(at, 1);
+    if(profileNow){
+      if(profileNow.echo_count) profileNow.echo_count -= 1;
+      profileNow.echoes = profileVibes;
+    }
+    if(hub){
+      grid._html = profileShelfHTML();
+      grid.innerHTML = grid._html;
+      armVibeHolds(grid);
+      Motion.relist(before, grid, "[data-key]", tileKey, { host: function(){ return grid; }, delay: wait,
+        leaveScale: 0.92, leaveMs: Motion.DUR.tileGone, moveMs: Motion.DUR.gridClose, stagger: Motion.DUR.stagger });
+      renderProfile(profileNow, { rollDelay: wait + Motion.DUR.gridClose });
+    }
     fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + (v.minutes || BROWSE_MINUTES),
           { method: "DELETE" })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(!d.ok) throw new Error();
-        var at = profileVibes.indexOf(v);
-        if(at === -1){
-          profileVibes.forEach(function(p, j){ if(p.query === v.query && p.minutes === v.minutes) at = j; });
-        }
-        if(at !== -1) profileVibes.splice(at, 1);
-        if(profileNow && profileNow.echo_count) profileNow.echo_count -= 1;
-        if(document.getElementById("yfGrid")) showProfileShelf(profileShelf);
         snack("Vibe deleted");
         if(typeof loadMyFamCircle === "function") loadMyFamCircle();
-        if(typeof loadProfileQuietly === "function") loadProfileQuietly();
+        refreshHub();
         if(then) then();
       })
-      .catch(function(){ toast("Could not delete that vibe"); });
+      .catch(function(){
+        if(kept){
+          profileVibes.splice(Math.min(at, profileVibes.length), 0, kept);
+          if(profileNow){ profileNow.echo_count = (profileNow.echo_count || 0) + 1; profileNow.echoes = profileVibes; }
+          if(document.getElementById("yfGrid") && profileNow) renderProfile(profileNow);
+        }
+        toast("Could not delete that vibe");
+      });
+  }
+  // The hub read again and reconciled, wherever the listener is: what
+  // changed elsewhere - a story taken down, a vibe deleted from a post - is
+  // on it when they come back (the ring and the number were left stale).
+  function refreshHub(){
+    return loadProfileQuietly().then(function(p){
+      if(p && document.querySelector('#profileBody [data-part="hero"]')) renderProfile(p);
+      return p;
+    });
   }
   function vibesCount(){
     return (profileNow && profileNow.echo_count) || profileVibes.length;
@@ -21030,9 +21718,10 @@
   }
   // "Interests" and one sideways-scrolling line of pills: your page and a
   // friend's draw it the same way (9.30 #4).
-  function interestLineHTML(pills){
+  function interestLineHTML(pills, part){
     if(!pills) return "";
-    return '<div class="yf-interests"><span class="yf-label">Interests</span>'
+    return '<div class="yf-interests"' + (part ? ' data-part="' + part + '"' : '')
+      + '><span class="yf-label">Interests</span>'
       + '<div class="yf-chips yf-chips-line">' + pills + '</div></div>';
   }
 
@@ -21692,7 +22381,9 @@
         loadMyFamCircle();
         if(!hasStories(person)){ closeStory(); }
         else showStory();
-        if(typeof loadProfileQuietly === "function") loadProfileQuietly();
+        // The hub is reconciled too: taking down your last story takes the
+        // ring off your photo there (it stayed until the hub was reopened).
+        refreshHub();
       })
       .catch(function(){ toast("Could not take that down"); });
   }
@@ -21764,32 +22455,121 @@
   // were in three places - a modal, the first-run screens nobody sees twice,
   // and an action sheet inside the player - so "where do I change that" had
   // three answers and two of them were wrong.
+  // **Settings opens whole** (settings-late-rows: C, §645). Everything it
+  // shows is read at app open and at sign-in (`preloadSettings`, from
+  // `refreshAuth`) - six small reads of the listener's own rows - so the
+  // screen is complete on its first frame: no Notifications group dropped
+  // in under the finger, no values popping in from blank. Opening it asks
+  // again in case something changed elsewhere; an answer updates its rows
+  // in place (`renderSettings` reconciles), a value that changed
+  // cross-fading once. The list is never rebuilt under a finger, which is
+  // what lost a tap.
   function openSettings(){
     renderSettings();
     navigate("settings");
-    // Loaded after the screen is up, because both of these are optional
-    // detail and neither should hold the page.
-    loadPrefChoices().then(renderSettings);
-    // Redrawn when it lands rather than awaited with everything else: the plan
-    // is one row's value and should not hold the screen.
-    loadPlan().then(function(plan){ if(plan) renderSettings(); });
-    loadAiConsent().then(renderSettings);
+    preloadSettings(true);
+  }
+  var settingsPreloaded = null;
+  function preloadSettings(again){
+    if(settingsPreloaded && !again) return settingsPreloaded;
+    var jobs = [loadPrefChoices().catch(function(){ return null; }), loadPlan(), loadAiConsent()];
     if(AUTH.authenticated){
-      // Whether reset mail exists decides the note under the password row (§571).
-      checkResetReady().then(renderSettings);
-      loadBlocked().then(renderSettings);
-      loadActivation().then(renderSettings);
+      pushStateAsked = true;
+      jobs.push(checkResetReady(), loadBlocked(), loadActivation(),
+                new Promise(function(done){ loadPushState(done); }));
     }
+    jobs.forEach(function(j){ Promise.resolve(j).then(refreshSettingsIfOpen, function(){}); });
+    settingsPreloaded = Promise.all(jobs.map(function(j){ return Promise.resolve(j).catch(function(){ return null; }); }));
+    return settingsPreloaded;
   }
 
+  // A row's id across redraws: its label, as a slug.
+  function settingKey(label){
+    return String(label).replace(/<[^>]*>/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
   function settingsRow(label, value, action, danger){
-    return '<div class="set-row' + (danger ? " danger" : "") + '"'
+    return '<div class="set-row' + (danger ? " danger" : "") + '" data-set="' + settingKey(label) + '"'
       + (action ? ' onclick="' + action + '" role="button"' : '') + '>'
       + '<div class="set-label">' + label + '</div>'
       + (value ? '<div class="set-value">' + value + '</div>' : '')
       + (action ? '<svg class="set-go" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>' : '')
       + '</div>';
   }
+  // A setting that is on or off (settings-switches: A): no arrow - doors
+  // keep theirs - and a switch whose knob slides (a transition, so a second
+  // tap turns it round). The whole row is the target and is the switch to
+  // a screen reader. A tap flips it at once (`flipSetting`) and the action
+  // saves; whatever the action then says is drawn, so a refusal flips it
+  // back. `ask`: it asks first (Send my questions to AI), and moves only on
+  // the answer.
+  function settingsSwitch(label, on, action, ask){
+    return '<div class="set-row set-switch" data-set="' + settingKey(label) + '" role="switch" tabindex="0"'
+      + ' aria-checked="' + (on ? "true" : "false") + '"'
+      + ' onclick="' + (ask ? "" : "flipSetting(this); ") + action + '"'
+      + ' onkeydown="if(event.key===\' \'||event.key===\'Enter\'){ event.preventDefault(); this.click(); }">'
+      + '<div class="set-label">' + label + '</div>'
+      + '<span class="mix-switch' + (on ? " on" : "") + '" aria-hidden="true"><span></span></span>'
+      + '</div>';
+  }
+  function flipSetting(row){
+    if(!row) return;
+    var on = row.getAttribute("aria-checked") !== "true";
+    row.setAttribute("aria-checked", on ? "true" : "false");
+    var sw = row.querySelector(".mix-switch");
+    if(sw) sw.classList.toggle("on", on);
+  }
+  // Settings reconciled with what is on screen: a row that is still there
+  // keeps its element - its value cross-fades, its switch slides, its action
+  // is the new one - and the list is drawn whole only when its rows no
+  // longer line up, and never while a finger is on it.
+  var settingsPressing = false, settingsOwed = null;
+  function patchSettings(el, html){
+    var tpl = document.createElement("div");
+    tpl.innerHTML = html;
+    var fresh = Array.prototype.slice.call(tpl.children), held = fresh.map(function(n){ return n.outerHTML; });
+    var old = Array.prototype.filter.call(el.children, function(c){ return !c.classList.contains("motion-msg"); });
+    var key = function(n){ return n.getAttribute("data-set") || (n.className + "|" + n.textContent); };
+    var lined = old.length === fresh.length && fresh.every(function(n, i){ return key(old[i]) === key(n); });
+    if(!lined){
+      if(settingsPressing && old.length){ settingsOwed = html; return; }
+      el.innerHTML = "";
+      fresh.forEach(function(n, i){ el.appendChild(n); n._html = held[i]; });
+      return;
+    }
+    fresh.forEach(function(n, i){
+      var was = old[i];
+      if(was._html === held[i]) return;
+      if(!was.hasAttribute("data-set") || !patchSettingRow(was, n)){ was.replaceWith(n); n._html = held[i]; return; }
+      was._html = held[i];
+    });
+  }
+  function patchSettingRow(was, now){
+    var v0 = was.querySelector(".set-value"), v1 = now.querySelector(".set-value");
+    if(!!v0 !== !!v1 || was.querySelector(".set-go") && !now.querySelector(".set-go")
+       || !!was.querySelector(".mix-switch") !== !!now.querySelector(".mix-switch")) return false;
+    ["onclick", "role", "aria-checked", "class"].forEach(function(a){
+      var x = now.getAttribute(a);
+      if(x === null) was.removeAttribute(a); else if(was.getAttribute(a) !== x) was.setAttribute(a, x);
+    });
+    var l0 = was.querySelector(".set-label"), l1 = now.querySelector(".set-label");
+    if(l0 && l1 && l0.innerHTML !== l1.innerHTML) l0.innerHTML = l1.innerHTML;
+    if(v0 && v1 && v0.innerHTML !== v1.innerHTML) Motion.swapValue(v0, v1.innerHTML);
+    var s0 = was.querySelector(".mix-switch"), s1 = now.querySelector(".mix-switch");
+    if(s0 && s1) s0.classList.toggle("on", s1.classList.contains("on"));
+    return true;
+  }
+  (function(){
+    var el = document.getElementById("settingsBody");
+    if(!el) return;
+    el.addEventListener("pointerdown", function(){ settingsPressing = true; });
+    var up = function(){
+      if(!settingsPressing) return;
+      settingsPressing = false;
+      if(settingsOwed !== null){ setTimeout(function(){ settingsOwed = null; renderSettings(); }, 0); }
+    };
+    document.addEventListener("pointerup", up, true);
+    document.addEventListener("pointercancel", up, true);
+  })();
 
   function renderSettings(){
     var el = document.getElementById("settingsBody");
@@ -21805,7 +22585,7 @@
     // listening shown to nobody; vibes still reach the people who follow them.
     var privateMode = !!(PREF_CHOICES && PREF_CHOICES.private_mode);
     var html = (AUTH.authenticated
-        ? settingsRow("Private mode", privateMode ? "On" : "Off",
+        ? settingsSwitch("Private mode", privateMode,
             "setPrivateMode(" + (privateMode ? "false" : "true") + ")")
           + '<div class="set-note">While it\u2019s on, nobody sees what you listen to or search \u2014 not on friends\u2019 cards, the friends rail or the player. People who follow you still see what you vibe.</div>'
         : '')
@@ -21840,7 +22620,7 @@
     // "Your interests" opens the whole list of topics directly (§142) - there
     // is no wheel in front of it any more, and no second door beside it.
     html += '<div class="set-group">Appearance</div>'
-      + settingsRow("Dark mode", currentTheme() === "dark" ? "On" : "Off",
+      + settingsSwitch("Dark mode", currentTheme() === "dark",
           "setTheme('" + (currentTheme() === "dark" ? "light" : "dark") + "')");
     html += '<div class="set-group">Listening</div>'
       + settingsRow("Your interests",
@@ -21852,7 +22632,7 @@
       + settingsRow("My Vibes", "", "openMyVibe()")
       + settingsRow("Save for Later", "", "openSavedAll()")
       + settingsRow("Default speed", escapeHtml(selectedSpeed), "openSpeedMenu()")
-      + settingsRow("Keep the voice's pitch", pitchLocked ? "On" : "Off",
+      + settingsSwitch("Keep the voice's pitch", pitchLocked,
           "setPitchLock(" + (pitchLocked ? "false" : "true") + ")")
       // The one voice a listener picks (§147): their searches'. Every other
       // episode is spoken in a voice drawn from the bank, so this row says
@@ -21873,28 +22653,28 @@
         html += '<div class="set-note">' + escapeHtml(pushState.reason) + '</div>';
       } else if(pp){
         html += settingsRow("Daily reminder", escapeHtml(dailyTimeSummary()), "openDailyTimeMenu()")
-          + settingsRow("Big stories", pp.breaking ? "On" : "Off",
+          + settingsSwitch("Big stories", !!pp.breaking,
               "setPushSwitch('breaking', " + (pp.breaking ? "false" : "true") + ")")
-          + settingsRow("Your teams\u2019 final scores", pp.finals ? "On" : "Off",
+          + settingsSwitch("Your teams\u2019 final scores", !!pp.finals,
               "setPushSwitch('finals', " + (pp.finals ? "false" : "true") + ")")
           + '<div class="set-note">One reminder a day when all your mixes are ready. Big stories reach you on their own when they name something you follow; a story for everyone is checked by a person first. Nothing arrives between 10 PM and 8 AM except your daily reminder.</div>';
       }
     }
     // "Hey FAM" (§158), only where the browser can recognise speech at all.
     if(speechRecognitionCtor()){
-      html += settingsRow("Say \u201cHey FAM\u201d to search", wakeOn ? "On" : "Off",
+      html += settingsSwitch("Say \u201cHey FAM\u201d to search", wakeOn,
           "setWakePhrase(" + (wakeOn ? "false" : "true") + ")")
         + '<div class="set-note">Say \u201cHey FAM\u201d or \u201cWhat\u2019s up FAM\u201d to search by voice. While it\u2019s on, the microphone listens whenever FAM is open and nothing is playing.</div>';
     }
     // Privacy and safety (App Store 1.2 and 5.1.2(i)): the AI answer, who is
     // blocked, and the rules everybody agreed to.
     html += '<div class="set-group">Privacy and safety</div>'
-      + settingsRow("Send my questions to AI", escapeHtml(aiConsentSummary()),
-          "toggleAiConsent()")
+      + settingsSwitch("Send my questions to AI", !!(AI_CONSENT && AI_CONSENT.given),
+          "toggleAiConsent()", true)
       + '<div class="set-note">FAM writes episodes for what you ask with Anthropic\u2019s Claude, and searches for sources with Parallel and Perplexity. Turn this off and you can still listen to everything FAM writes ahead.</div>';
     if(AUTH.authenticated){
       // Counted by default, turned off here (§410 decision 2, §414).
-      html += settingsRow("Count me in FAM\u2019s totals", countingOn() ? "On" : "Off",
+      html += settingsSwitch("Count me in FAM\u2019s totals", countingOn(),
           "setCounting(" + (countingOn() ? "false" : "true") + ")")
         + '<div class="set-note">FAM counts what groups of listeners hear, by age group, gender and region, only in groups of 100 or more. You\u2019re never picked out, and none of it is shown or sent to anyone.</div>';
       html += settingsRow("Blocked people",
@@ -21925,11 +22705,10 @@
       // §190: off unless they turn it on - what somebody searched is theirs.
       var searchesPublic = !!(PREF_CHOICES && PREF_CHOICES.searches_public);
       // §285: the same switch as the Private bubble on searchFAM.
-      html += settingsRow("Private search", privateSearch ? "On" : "Off",
+      html += settingsSwitch("Private search", privateSearch,
           "setPrivateSearch(" + (privateSearch ? "false" : "true") + ")")
         + '<div class="set-note">While it\u2019s on, every search and Go Deeper you start stays out of the episode library, off your friends\u2019 DailyFAM and your listening history, and doesn\u2019t teach your feed.</div>';
-      html += settingsRow("Show my name on episodes I searched",
-          searchesPublic ? "On" : "Off",
+      html += settingsSwitch("Show my name on episodes I searched", searchesPublic,
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
@@ -21948,7 +22727,7 @@
     // Replaying the first run is not something a listener wants from Settings
     // - it is a development affordance, and it is still one tap away on the
     // button at the top of the page, which is where it belongs.
-    el.innerHTML = html;
+    patchSettings(el, html);
   }
 
   // ---- Time zone (10.1) ----
@@ -22065,12 +22844,13 @@
       document.getElementById("locCity").value = p.city || "";
       document.getElementById("locRegion").value = p.region || "";
       document.getElementById("locCountry").value = p.country || "";
-      showScreen("location");
+      // A page sheet over the page it was opened on (edit-profile-open: B).
+      showScreen("location", "sheet-up");
     });
   }
 
   function closeLocation(){
-    showScreen(locationReturn);
+    showScreen(locationReturn, "sheet-down");
     if(locationReturn === "settings") renderSettings();
     if(locationReturn === "profile") loadProfile();
   }
@@ -22125,7 +22905,7 @@
       introSnapshot = { interests: introSelection.slice(),
                         topics: chosenTopics.slice() };
       renderIntro();
-      showScreen("intro");
+      showScreen("intro", "sheet-up");
     });
   }
   function confirmDeleteAccount(){
@@ -22184,7 +22964,7 @@
     el.innerHTML = folderChipsHtml("vibe") + (shown.length ? shown.map(function(v){
       var i = myVibes.indexOf(v);
       var where = folderName("vibe", v.folder_id);
-      return '<div class="vibe-row" onclick="playMyVibe(' + i + ')">'
+      return '<div class="vibe-row" data-key="' + escapeHtml(vibeKey(v)) + '" onclick="playMyVibe(' + i + ')">'
         + '<div class="vibe-row-body">'
         + '<div class="vibe-row-title">' + escapeHtml(v.title || v.query) + '</div>'
         + '<div class="vibe-row-meta">' + v.minutes + ' min · vibed'
@@ -22215,14 +22995,39 @@
     generate(key);
   }
 
+  // My Vibes' X takes the row off on the tap, as Save for Later's does
+  // (saved-remove: A, §645): the slide, the rows closing up, and "Vibe
+  // taken back · Undo" for five seconds; the DELETE goes when the line goes.
   function unvibe(i){
     var v = myVibes[i];
     if(!v) return;
-    fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes,
-          { method: "DELETE" })
-      .then(function(){ loadMyVibe(); snack("Vibe taken back"); })
-      .catch(function(){ toast("Could not take that back"); });
+    var el = document.getElementById("myVibeBody");
+    var row = el && el.querySelector('.vibe-row[data-key="' + cssAttr(vibeKey(v)) + '"]');
+    var take = function(){
+      myVibes = myVibes.filter(function(x){ return x !== v; });
+      countFolder("vibe", v.folder_id, -1);
+      renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
+    };
+    if(row) Motion.removeRow(row, take, "#myVibeBody .vibe-row", Motion.DUR.rowOut, "io");
+    else take();
+    snack("Vibe taken back", {
+      label: "Undo",
+      run: function(){
+        var before = Motion.layout(el, "[data-key]", tileKey);
+        myVibes.splice(Math.min(i, myVibes.length), 0, v);
+        countFolder("vibe", v.folder_id, 1);
+        renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
+        Motion.relist(before, el, "[data-key]", tileKey,
+                      { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
+      },
+      done: function(){
+        fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes, { method: "DELETE" })
+          .then(function(r){ if(!r.ok) throw new Error(); refreshHub(); })
+          .catch(function(){ loadMyVibe(); toast("Could not take that back"); });
+      }
+    });
   }
+  function cssAttr(v){ return String(v).replace(/["\\]/g, "\\$&"); }
 
   // ---------------- Friends ----------------
   function openFriends(){
@@ -22355,6 +23160,10 @@
   function followBack(){
     if(!followerNow){ closeFollowerPopup(); return; }
     var who = followerNow;
+    // On the tap, as Follow is everywhere (§298, §645): the popup closes
+    // and every Follow for them says Following; a refusal puts it back.
+    closeFollowerPopup();
+    Motion.follow(who.user_id, true);
     fetch("/api/friends/follow", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ user_id: who.user_id })
@@ -22364,19 +23173,17 @@
         return d;
       });
     }).then(function(){
-      closeFollowerPopup();
       toast("You and " + (who.name || "they") + " are friends now");
       if(document.getElementById("screen-friends").classList.contains("active")){
         loadFriends();
       }
-      if(document.getElementById("screen-profile").classList.contains("active")){
-        loadProfile();
-      }
-    }).catch(function(e){ toast(e.message); });
+      refreshHub();
+    }).catch(function(e){ Motion.follow(who.user_id, false); toast(e.message); });
   }
 
   function personRow(person, action, label){
-    return '<div class="fr-row" onclick="openPersonProfile(\''
+    return '<div class="fr-row"' + (person.user_id ? ' data-k="u:' + escapeHtml(person.user_id) + '"' : '')
+      + ' onclick="openPersonProfile(\''
       + escapeHtml(person.handle || "") + '\')">'
       + '<div class="fr-av">' + avatarHTML(person, 40) + '</div>'
       // The E beside a name that swears (§224), the same mark as an episode's.
@@ -22388,13 +23195,18 @@
       + (person.waitlisted ? '<div class="fr-wait">Still on the waitlist</div>' : '')
       + '</div>'
       + (action
-          ? '<button class="pf-btn" onclick="event.stopPropagation(); ' + action + '">'
-            + label + '</button>'
+          ? (/ollowPerson\(/.test(action)
+              // Follow and Following, as the tap draws them (follow-button:
+              // C, §645): Following carries its tick in its own markup.
+              ? '<button class="pf-btn follow-btn' + (/^unfollow/.test(action) ? ' is-following' : '') + '"'
+                + ' aria-pressed="' + /^unfollow/.test(action) + '" onclick="event.stopPropagation(); ' + action + '">'
+                + Motion.followLabel(/^unfollow/.test(action)) + '</button>'
+              : '<button class="pf-btn" onclick="event.stopPropagation(); ' + action + '">' + label + '</button>')
           : '')
       + '</div>';
   }
 
-  function renderFriends(){
+  function renderFriends(opts){
     var el = document.getElementById("friendsBody");
     // **Two tabs, Friends | Following** (11.16 notes, the owner's sketch).
     // It was one page of stacked groups under a line of three counts, and
@@ -22426,9 +23238,9 @@
     var tab = function(id, label, n){
       var on = (id === "following") === onFollowing;
       return '<button class="pf-tab' + (on ? " on" : "") + '" role="tab" aria-selected="' + on
-        + '" onclick="showFriendsTab(\'' + id + '\')">' + label + ' <em>' + n + '</em></button>';
+        + '" onclick="showFriendsTab(\'' + id + '\')">' + label + ' <em data-count="' + id + '">' + n + '</em></button>';
     };
-    var html = '<div class="pf-tabs fr-tabs" role="tablist" aria-label="Friends">'
+    var html = '<div class="pf-tabs fr-tabs' + (onFollowing ? ' cats' : '') + '" role="tablist" aria-label="Friends" data-k="tabs">'
       + tab("friends", "Friends", friends.length)
       + tab("following", "Following", following.length) + '</div>';
     if(onFollowing){
@@ -22438,21 +23250,56 @@
     } else {
       html += friends.map(row).join("");
       if(followsYou.length){
-        html += '<div class="pf-rail">Follows you <em>' + followsYou.length + '</em></div>'
-          + '<div class="fr-note">Following back makes you friends.</div>'
+        html += '<div class="pf-rail" data-k="rail">Follows you <em data-count="followsyou">' + followsYou.length + '</em></div>'
+          + '<div class="fr-note" data-k="note">Following back makes you friends.</div>'
           + followsYou.map(row).join("");
       }
       if(!friends.length && !followsYou.length){
         html += '<div class="pf-empty">Nobody yet. Search a @handle above. When someone follows you back, you\u2019re friends.</div>';
       }
     }
-    el.innerHTML = html;
+    drawFriends(el, html, friendsTab, opts);
+  }
+  // The Friends list reconciled (friends-regroup: A, §645). When the server
+  // answers a follow, every row that is still there keeps its element - so
+  // the tick the tap drew carries on drawing - and glides to its new group
+  // (`Motion.regroup`); then the counts roll the changed digits (350 ms,
+  // after the move). A tab turned, or a first draw, is drawn as it is.
+  function drawFriends(el, html, tab, opts){
+    var key = function(n){ return n.getAttribute("data-k"); };
+    var same = el._tab === tab && !(opts && opts.still) && el.querySelector("[data-k]");
+    var before = same ? Motion.layout(el, "[data-k]", key) : null;
+    var counts = {};
+    if(same) Array.prototype.forEach.call(el.querySelectorAll("em[data-count]"), function(e){
+      counts[e.getAttribute("data-count")] = e.textContent;
+    });
+    var olds = {};
+    if(same) Array.prototype.forEach.call(el.querySelectorAll(".fr-row[data-k]"), function(r){ olds[key(r)] = r; });
+    var tpl = document.createElement("div");
+    tpl.innerHTML = html;
+    var nodes = Array.prototype.map.call(tpl.children, function(n){
+      var o = olds[key(n) || ""];
+      if(!o) return n;
+      var a = o.querySelector(".follow-btn"), b = n.querySelector(".follow-btn");
+      var keep = (!a || !b || a.classList.contains("is-following") === b.classList.contains("is-following"))
+        && (o.querySelector(".fr-name") || {}).textContent === (n.querySelector(".fr-name") || {}).textContent;
+      return keep ? o : n;
+    });
+    el.innerHTML = "";
+    nodes.forEach(function(n){ el.appendChild(n); });
+    el._tab = tab;
+    if(!same) return;
+    Motion.regroup(before, el, "[data-k]", key);
+    Array.prototype.forEach.call(el.querySelectorAll("em[data-count]"), function(e){
+      var was = counts[e.getAttribute("data-count")];
+      if(was !== undefined) Motion.roll(e, was, Motion.DUR.regroup, Motion.DUR.countRoll);
+    });
   }
   var friendsTab = "friends";
   function showFriendsTab(which){
     friendsTab = which === "following" ? "following" : "friends";
     var body = document.getElementById("friendsBody");
-    renderFriends();
+    renderFriends({ still: true });
     if(body) body.scrollTop = 0;
   }
 
@@ -22497,10 +23344,12 @@
         return d;
       });
     }).then(function(){
+      // The button already says so: the line is for refusals only (§645).
+      // The profile on screen is asked again once the graph has its new
+      // standing, so Message appears and "follows you" becomes "friends".
       document.getElementById("friendSearch").value = "";
-      loadFriends();
-      refreshPersonIfOpen();
-      toast("Following");
+      loadFriends().then(function(){ refreshPersonIfOpen(); });
+      refreshHub();
     }).catch(function(err){ Motion.follow(userId, false); toast(err.message); });
   }
 
@@ -22511,9 +23360,8 @@
       .then(function(r){
         if(!r.ok) throw new Error();
         document.getElementById("friendSearch").value = "";
-        loadFriends();
-        refreshPersonIfOpen();
-        toast("Unfollowed");
+        loadFriends().then(function(){ refreshPersonIfOpen(); });
+        refreshHub();
       })
       .catch(function(){ Motion.follow(userId, true); toast("Could not unfollow"); });
   }
@@ -22530,6 +23378,8 @@
       .concat(friendsData.following || [], friendsData.followers || [])
       .filter(function(p){ return p.handle === handle; })[0];
     personShelf = "vibes";
+    var pbody = document.getElementById("personBody");
+    if(pbody) pbody._who = null;
     viewingProfile = graph || (known && known.user_id ? {
       user_id: known.user_id, handle: handle, name: known.name || "",
       avatar: known.avatar || "" } : null) || { handle: handle, name: "", user_id: "" };
@@ -22640,7 +23490,7 @@
     // The same page as your own YourFAM (§341, extended to a friend's at
     // the owner's direction): their picture large and centred over the gold
     // wash, name, place and handle, how you stand, then three numbers.
-    var html = '<div class="yf-hero"><div class="yf-photo-wrap">'
+    var html = '<div class="yf-hero" data-part="hero"><div class="yf-photo-wrap">'
       + (fresh ? '<span class="yf-photo-btn ring">' : '')
       + '<div class="yf-photo">' + yfFace(face) + '</div>'
       + (fresh ? '</span>' : '') + '</div>'
@@ -22651,22 +23501,23 @@
       + (standing ? '<div class="yf-meta">' + escapeHtml(standing) + '</div>' : '')
       + '</div>';
 
-    // Three numbers once `/api/person` has answered. Friends goes to the
-    // list below when you may see it (§285) and is a plain number when you
-    // may not; vibes and mixes turn the grid.
+    // Three numbers. Friends goes to the list below when you may see it
+    // (§285) and is a plain number when you may not; vibes and mixes turn
+    // the grid. **Their row is there from the first frame** (person-fill:
+    // A, §645), a dash for each until `/api/person` answers, so Follow
+    // never drops under a finger on its way to it; the values fade in.
     var mixes = pub.mixes || [];
-    if(published){
-      html += '<div class="yf-stats">'
-        + (theirFriends ? '<button class="yf-stat" onclick="scrollToPersonFriends()">'
-                        : '<div class="yf-stat">')
-        + '<b>' + friendCount + '</b>' + plural(friendCount, "friend")
-        + (theirFriends ? '</button>' : '</div>')
-        + '<button class="yf-stat" onclick="showPersonShelf(\'vibes\', true)"><b>' + vibes + '</b>'
-        + plural(vibes, "vibe") + '</button>'
-        + '<button class="yf-stat" onclick="showPersonShelf(\'mixes\', true)"><b>' + mixes.length + '</b>'
-        + (mixes.length === 1 ? "mix" : "mixes") + '</button>'
-        + '</div>';
-    }
+    var dash = '<span class="dash">\u2013</span>';
+    html += '<div class="yf-stats" data-part="stats">'
+      + (theirFriends ? '<button class="yf-stat" onclick="scrollToPersonFriends()">'
+                      : '<div class="yf-stat">')
+      + '<b>' + (published ? friendCount : dash) + '</b>' + plural(friendCount, "friend")
+      + (theirFriends ? '</button>' : '</div>')
+      + '<button class="yf-stat" onclick="showPersonShelf(\'vibes\', true)"><b>' + (published ? vibes : dash) + '</b>'
+      + plural(vibes, "vibe") + '</button>'
+      + '<button class="yf-stat" onclick="showPersonShelf(\'mixes\', true)"><b>' + (published ? mixes.length : dash) + '</b>'
+      + (published && mixes.length === 1 ? "mix" : "mixes") + '</button>'
+      + '</div>';
 
     if(person.user_id){
       // Message only between friends (§520, §575): the server refuses a
@@ -22675,43 +23526,53 @@
       var mutual = (friendsData.friends || []).some(function(f){
         return f.user_id === person.user_id;
       });
-      html += '<div class="yf-acts yf-acts-centre">'
-        + (mutual ? '<button class="yf-btn gold" onclick="messagePerson(\'' + person.user_id + '\')">'
+      html += '<div class="yf-acts yf-acts-centre" data-part="acts">'
+        + (mutual ? '<button class="yf-btn gold" data-act="message" onclick="messagePerson(\'' + person.user_id + '\')">'
                     + yfIcon("chat", 15) + 'Message</button>' : '')
-        + '<button class="yf-btn" onclick="'
+        + '<button class="yf-btn follow-btn' + (following ? ' is-following' : '') + '" data-act="follow"'
+        + ' aria-pressed="' + following + '" onclick="'
         + (following
             ? 'unfollowPerson(\'' + person.user_id + '\')'
             : 'followPerson(\'' + person.user_id + '\')')
-        + '">' + (following ? "Following" : "Follow") + '</button>'
+        + '">' + Motion.followLabel(following) + '</button>'
         + '</div>';
     } else if(person.handle && AUTH.authenticated){
       // Opened from a friend's friends (§285): not in your graph yet, so
       // there is no id here - Follow goes by the handle.
-      html += '<div class="yf-acts yf-acts-centre">'
-        + '<button class="yf-btn gold" onclick="followHandle(\'' + escapeHtml(person.handle) + '\')">'
-        + 'Follow</button></div>';
+      html += '<div class="yf-acts yf-acts-centre" data-part="acts">'
+        + '<button class="yf-btn follow-btn" data-act="follow" aria-pressed="false" onclick="followHandle(\''
+        + escapeHtml(person.handle) + '\')">' + Motion.followLabel(false) + '</button></div>';
+    } else {
+      html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
 
     // Their interests, as chips that open the Topic screen - only to a
     // follower (§638): to anybody else the server sends none and `locked`.
+    // Their line is kept from the first frame, three empty pills in it,
+    // and closes (under the buttons) when there are none to show you.
     personLocked = !!pub.locked;
     personInterests = interestRows(pub);
-    if(!personLocked){
-      html += interestLineHTML(interestChipsHTML(personInterests, "openPersonInterest"));
-    }
+    var pills = "";
+    if(!personLocked) pills = published ? interestChipsHTML(personInterests, "openPersonInterest") : "";
+    html += '<div class="yf-int-room' + (published && !pills ? ' closed' : '') + '" data-part="interests"><div>'
+      + interestLineHTML(published ? (pills || '<span></span>')
+          : '<span class="yf-chip reserve" aria-hidden="true"></span><span class="yf-chip reserve" aria-hidden="true"></span>'
+            + '<span class="yf-chip reserve" aria-hidden="true"></span>')
+      + '</div></div>';
 
     // Their vibes and public mixes - the only two things of theirs that are
     // published - as the same two tabs over one grid of picture tiles.
-    html += '<div class="yf-tabs" role="tablist">'
+    html += '<div class="yf-tabs" role="tablist" data-part="tabs">'
       + '<button class="yf-tab" role="tab" data-shelf="vibes" onclick="showPersonShelf(\'vibes\')">Vibes</button>'
       + '<button class="yf-tab" role="tab" data-shelf="mixes" onclick="showPersonShelf(\'mixes\')">Mixes</button>'
-      + '</div><div class="yf-pics" id="personGrid"></div>';
+      + '</div><div class="yf-pics" id="personGrid" data-part="grid"></div>';
     personVibes = theirVibes;
     personMixes = mixes;
 
     // Who they are friends with, once you are one of them (§285): browse
     // and follow. Each row opens that person's profile by handle.
     personFriends = theirFriends || [];
+    html += '<div data-part="friends">';
     if(theirFriends){
       html += '<div class="yf-row" id="personFriends"><span class="yf-label">Friends \u00b7 '
         + friendCount + '</span></div>';
@@ -22724,7 +23585,7 @@
             + '<div class="yf-vrow-meta">@' + escapeHtml(f.handle) + '</div></div>'
             + (f.following
                 ? '<span class="yf-frow-state">Following</span>'
-                : '<button class="yf-btn gold yf-frow-follow" onclick="event.stopPropagation(); followPersonFriend(' + i + ')">Follow</button>')
+                : '<button class="yf-btn follow-btn yf-frow-follow" aria-pressed="false" onclick="event.stopPropagation(); followPersonFriend(' + i + ')">Follow</button>')
             + '</div>';
         }).join("");
         html += personMoreHTML("friends", theirFriends.length > 4);
@@ -22733,11 +23594,55 @@
       }
     }
 
-    html += '<div class="pf-note">' + (pub.private
+    html += '</div>';
+    html += '<div class="pf-note" data-part="note">' + (pub.private
         ? 'Private account. Only what they vibe is shared, with the people who follow them.'
         : 'Only what they chose to share. What someone listens to stays private.') + '</div>';
-    document.getElementById("personBody").innerHTML = html;
+    // Patched in place (person-fill: A): a late answer, a follow, View more
+    // change only what changed - never the whole page under the finger.
+    var body = document.getElementById("personBody");
+    if(body._who !== (person.handle || person.user_id)){ body.innerHTML = ""; body._who = person.handle || person.user_id; }
+    patchParts(body, html, patchPersonPart);
     showPersonShelf(personShelf);
+  }
+  function patchPersonPart(part, was, now){
+    if(part === "stats") return patchStats(was, now, "fade");
+    if(part === "hero"){
+      var m0 = was.querySelector(".yf-meta"), m1 = now.querySelector(".yf-meta");
+      var a = was.cloneNode(true), b = now.cloneNode(true);
+      [a, b].forEach(function(x){ var m = x.querySelector(".yf-meta"); if(m) m.remove(); });
+      if(a.outerHTML !== b.outerHTML || !m0 !== !m1) return false;
+      if(m0) Motion.swapValue(m0, m1.innerHTML);
+      return true;
+    }
+    if(part === "acts"){
+      // The Follow button is the same element throughout, so what its tap
+      // drew carries on; Message is added (or taken away) beside it.
+      var f0 = was.querySelector('[data-act="follow"]'), f1 = now.querySelector('[data-act="follow"]');
+      var g0 = was.querySelector('[data-act="message"]'), g1 = now.querySelector('[data-act="message"]');
+      if(!f0 || !f1) return false;
+      var place = Motion.box(f0);
+      if(f0.getAttribute("onclick") !== f1.getAttribute("onclick")
+         || f0.classList.contains("is-following") !== f1.classList.contains("is-following")){
+        Motion.followButton(f0, f1.classList.contains("is-following"), f1.getAttribute("onclick"));
+      }
+      if(g1 && !g0){ was.insertBefore(g1, f0); Motion.fadeIn(g1); }
+      else if(g0 && !g1){ Motion.fadeCopy(g0, Motion.DUR.colour); g0.remove(); }
+      else if(g0 && g1 && g0.getAttribute("onclick") !== g1.getAttribute("onclick")) g0.replaceWith(g1);
+      if(g0 !== null || g1 !== null) Motion.slideFrom(f0, place, Motion.DUR.follow);
+      return true;
+    }
+    if(part === "interests"){
+      var closed = now.classList.contains("closed");
+      was.classList.toggle("closed", closed);
+      if(closed) return true;
+      var row = was.querySelector(".yf-chips-line"), nrow = now.querySelector(".yf-chips-line");
+      if(!row || !nrow) return false;
+      row.innerHTML = nrow.innerHTML;
+      Array.prototype.forEach.call(row.children, function(c){ Motion.fadeIn(c); });
+      return true;
+    }
+    return false;
   }
 
   //: Which shelf a friend's grid shows; back to Vibes for each new profile.
@@ -22746,14 +23651,13 @@
     personShelf = which === "mixes" ? "mixes" : "vibes";
     var grid = document.getElementById("personGrid");
     if(!grid) return;
-    Array.prototype.forEach.call(document.querySelectorAll("#screen-person .yf-tab"), function(t){
-      var on = t.getAttribute("data-shelf") === personShelf;
-      t.classList.toggle("on", on);
-      t.setAttribute("aria-selected", on ? "true" : "false");
-    });
+    var tabs = Array.prototype.slice.call(document.querySelectorAll("#screen-person .yf-tab"));
     // Nothing is said about their shelves until `/api/person` has answered:
     // "Nothing vibed yet" before it would be a claim nobody had checked.
-    if(!personPublished){ grid.innerHTML = ""; return; }
+    if(!personPublished){
+      drawShelf(grid, tabs, personShelf, "");
+      return;
+    }
     var html;
     if(personShelf === "vibes" && personLocked){
       // §638: vibes and interests are for the people who follow them.
@@ -22761,21 +23665,25 @@
     } else if(personShelf === "vibes"){
       html = personVibes.length
         ? personVibes.map(function(v, i){
-            return profileTileHTML("playPersonVibe(" + i + ")", v.thumb, v.title || v.query);
+            return profileTileHTML("playPersonVibe(" + i + ")", v.thumb, v.title || v.query, null, vibeKey(v));
           }).join("")
         : '<div class="pf-empty">Nothing vibed yet.</div>';
     } else {
       // A mix tile opens it; the (+) on its corner adds it to your own.
       html = personMixes.length
         ? personMixes.map(function(m, i){
-            return '<div class="yf-pic-wrap">'
+            return '<div class="yf-pic-wrap" data-key="m:' + escapeHtml(m.id) + '">'
               + profileTileHTML("openPersonMix(" + i + ")", m.cover || m.thumb, m.name)
               + mixAddButtonHTML(m, "person", i) + '</div>';
           }).join("")
         : '<div class="pf-empty">No public mixes yet.</div>';
     }
-    grid.innerHTML = html;
-    if(scroll) grid.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Their tiles arrive into the place kept for them (person-fill: A):
+    // up 8 px, 260 ms `out`, 40 ms apart, the first six.
+    var arriving = grid._html === "";
+    drawShelf(grid, tabs, personShelf, html);
+    if(arriving) Motion.arriveList(Array.prototype.slice.call(grid.children));
+    if(scroll) scrollToGrid(grid);
   }
 
   var personVibes = [];
@@ -22798,18 +23706,25 @@
     var f = personFriends[i];
     if(f) openPersonProfile(f.handle, { handle: f.handle, name: f.name || "", avatar: f.avatar || "" });
   }
+  // On the tap (§298, §645): the row says Following at once, and is put
+  // back if the server says no.
   function followPersonFriend(i){
     var f = personFriends[i];
     if(!f) return;
-    followHandle(f.handle, function(){
-      f.following = true;
+    f.following = true;
+    if(viewingProfile) renderFriendProfile(viewingProfile, personPublished);
+    followHandle(f.handle, null, function(){
+      f.following = false;
       if(viewingProfile) renderFriendProfile(viewingProfile, personPublished);
     });
   }
   // Follow by handle - somebody you found through a friend, who is not in
   // your graph and so has no id here. Then the graph is read again, so the
   // profile on screen gets the id that Message and Unfollow need.
-  function followHandle(handle, then){
+  function followHandle(handle, then, refused){
+    // The page's own Follow says Following on the tap (§645).
+    var btns = document.querySelectorAll('[onclick="followHandle(\'' + handle + '\')"]');
+    Array.prototype.forEach.call(btns, function(b){ Motion.followButton(b, true, ""); });
     fetch("/api/friends/follow", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ handle: handle })
@@ -22819,7 +23734,6 @@
         return d;
       });
     }).then(function(){
-      toast("Following");
       if(then) then();
       return loadFriends();
     }).then(function(d){
@@ -22828,7 +23742,13 @@
       var found = (d.following || []).filter(function(p){ return p.handle === handle; })[0];
       if(found){ viewingProfile = found; renderFriendProfile(viewingProfile, personPublished); }
       refreshPersonIfOpen();
-    }).catch(function(err){ toast(err.message); });
+    }).catch(function(err){
+      Array.prototype.forEach.call(btns, function(b){
+        Motion.followButton(b, false, "followHandle('" + handle + "')");
+      });
+      if(refused) refused();
+      toast(err.message);
+    });
   }
 
   function togglePersonMore(which){
@@ -23540,21 +24460,50 @@
     renderIdentityInterests();
   }
 
-  function renderIdentityInterests(){
+  // **Choosing your five** (interest-picker: B, §645). Every chip keeps one
+  // slot for its icon - a faint + until chosen, a tick after - and the same
+  // weight, so choosing never changes its width or moves a chip. A tap
+  // changes that chip in place: copper floods it from where the finger was
+  // and the tick draws itself; unchosen, the copper drains back to the
+  // tap. "3 OF 5" rolls its digit. The list is drawn whole only when it
+  // opens, or a typed interest joins it.
+  var INT_PLUS = '<svg class="yf-int-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>';
+  var INT_CHECK = '<svg class="yf-int-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1"/></svg>';
+  function identityIntChipHTML(row, i, on, full){
+    return '<button class="yf-int' + (on ? " on" : (full ? " dim" : "")) + '" '
+      + 'aria-pressed="' + on + '" onclick="toggleIdentityInterest(' + i + ', event)">'
+      + '<span class="yf-int-fill" aria-hidden="true"></span>'
+      + '<span class="yf-int-ic">' + INT_PLUS + INT_CHECK + '</span>'
+      + escapeHtml(row.label) + '</button>';
+  }
+  function renderIdentityInterests(added){
     var max = identityIntMax();
     var full = identityIntPick.length >= max;
-    document.getElementById("identityIntCount").textContent =
-      identityIntPick.length + " OF " + max;
-    document.getElementById("identityIntChips").innerHTML =
-      identityIntOptions.map(function(row, i){
-        var on = identityIntPick.indexOf(row.id) !== -1;
-        return '<button class="yf-int' + (on ? " on" : (full ? " dim" : "")) + '" '
-          + 'aria-pressed="' + on + '" onclick="toggleIdentityInterest(' + i + ')">'
-          + (on ? yfIcon("check", 13) : "") + escapeHtml(row.label) + '</button>';
-      }).join("");
+    paintIdentityIntCount(added === undefined);
+    var box = document.getElementById("identityIntChips");
+    box.innerHTML = identityIntOptions.map(function(row, i){
+      return identityIntChipHTML(row, i, identityIntPick.indexOf(row.id) !== -1, full);
+    }).join("");
+    // A typed interest arrives at the end, from .95 as it fades in.
+    if(added !== undefined && Motion.on()){
+      var chip = box.children[added];
+      if(chip){
+        Motion.pills({}, box, ".yf-int", function(el){ return el === chip ? "new" : null; });
+        if(chip.scrollIntoView) chip.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }
+  function paintIdentityIntCount(still){
+    var el = document.getElementById("identityIntCount");
+    var n = el.querySelector(".yf-int-n"), before = n && !still ? n.textContent : undefined;
+    el.innerHTML = '<span class="yf-int-n">' + identityIntPick.length + '</span> OF ' + identityIntMax();
+    if(before !== undefined) Motion.roll(el.querySelector(".yf-int-n"), before);
   }
 
-  function toggleIdentityInterest(i){
+  function toggleIdentityInterest(i, ev){
     var row = identityIntOptions[i];
     if(!row) return;
     var at = identityIntPick.indexOf(row.id);
@@ -23564,7 +24513,19 @@
     else if(identityIntPick.length >= identityIntMax()){ return; }
     else { identityIntPick.push(row.id); }
     identityIntDirty = true;
-    renderIdentityInterests();
+    var on = at === -1, full = identityIntPick.length >= identityIntMax();
+    var chips = document.getElementById("identityIntChips").children;
+    var chip = chips[i];
+    if(!chip){ renderIdentityInterests(); return; }
+    chip.classList.toggle("on", on);
+    chip.classList.remove("dim");
+    chip.setAttribute("aria-pressed", on ? "true" : "false");
+    Array.prototype.forEach.call(chips, function(c){
+      if(!c.classList.contains("on")) c.classList.toggle("dim", full);
+    });
+    var pointer = ev && ev.detail ? ev : null;
+    Motion.flood(chip, pointer ? pointer.clientX : null, pointer ? pointer.clientY : null, on);
+    paintIdentityIntCount();
   }
 
   function addIdentityInterest(){
@@ -23584,7 +24545,7 @@
       identityIntPick.push(row.id);
     }
     identityIntDirty = true;
-    renderIdentityInterests();
+    renderIdentityInterests(existing ? undefined : identityIntOptions.length - 1);
   }
 
   // Written only when something was touched. An editor opened to change a
@@ -23693,7 +24654,9 @@
     drawIdentityRequired();
     renderIdentityAccountRows();
     prepareIdentityInterests(editing);
-    showScreen("identity");
+    // Edit profile is a page sheet (edit-profile-open: B, §645); the first
+    // run's step keeps the steps' motion.
+    showScreen("identity", editing ? "sheet-up" : undefined);
     if(!editing) setTimeout(function(){
       document.getElementById("identityName").focus();
     }, 80);
@@ -23796,7 +24759,7 @@
         // it comes back to are the ones just chosen rather than the
         // server's pre-save answer.
         saveIdentityInterests().then(function(){
-          showScreen(identityReturn);
+          showScreen(identityReturn, "sheet-down");
           if(identityReturn === "profile") loadProfile();
           toast("Saved");
         });
@@ -23870,7 +24833,7 @@
   }
 
   function closeIdentity(){
-    showScreen(identityReturn);
+    showScreen(identityReturn, "sheet-down");
     if(identityReturn === "profile") loadProfile();
   }
 
@@ -25566,16 +26529,20 @@
     var items = d.items || [];
     shelfFolders.saved = d.folders || [];
     if(!items.length){
-      document.getElementById("svBody").innerHTML =
+      var empty = document.getElementById("svBody");
+      var had = !!empty.querySelector(".sv-row");
+      empty.innerHTML =
         '<div class="sv-empty">Nothing here yet.<br>Press save on the player '
         + 'and the episode lands here.</div>';
+      // The last row gone: the sentence fades in where the list was (§645).
+      if(had) Motion.fadeIn(empty.firstChild);
       return;
     }
     var shown = shelfFilter("saved", items);
     document.getElementById("svBody").innerHTML = folderChipsHtml("saved")
       + (shown.length ? shown.map(function(i){
       var where = folderName("saved", i.folder_id);
-      return '<div class="sv-row">'
+      return '<div class="sv-row" data-key="s:' + escapeHtml(i.id) + '">'
         + '<div class="sv-art" onclick="playSaved(\'' + i.id + '\')">'
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg></div>'
         + '<div class="sv-main" onclick="playSaved(\'' + i.id + '\')">'
@@ -25613,7 +26580,7 @@
     if(!AUTH.authenticated) return "";
     var pick = shelfPick[kind];
     var chip = function(id, label, n){
-      return '<button class="shelf-chip' + (pick === id ? ' on' : '') + '" type="button"'
+      return '<button class="shelf-chip' + (pick === id ? ' on' : '') + '" type="button" data-folder="' + escapeHtml(id) + '"'
         + ' onclick="pickShelfFolder(\'' + kind + '\', \'' + id + '\')">' + escapeHtml(label)
         + (n != null ? ' <span>' + n + '</span>' : '') + '</button>';
     };
@@ -25685,16 +26652,58 @@
     ]);
   }
   // `ref` is a saved item's id, or an index into `myVibes`.
+  //
+  // **Filed on the tap, and seen going in** (folder-file: A, §645, the
+  // queue's gesture): the row, its meta and the chips' counts change at
+  // once; a copy of the episode's square (a vibe's folder button, which has
+  // none) arcs into the folder's chip, and when it lands the chip's count
+  // rolls and the chip bumps. A row that leaves the folder being shown goes
+  // up toward the chips while the rows below close up. Refused, the shelf is
+  // read again and the line says why. Picking a chip stays instant: it is
+  // a filter.
   function fileInFolder(kind, ref, folderId){
+    var row = kind === "vibe" ? myVibes[ref] : savedItem(ref);
+    if(!row) return Promise.resolve();
+    var body = document.getElementById(kind === "vibe" ? "myVibeBody" : "svBody");
+    var rowSel = kind === "vibe" ? "#myVibeBody .vibe-row" : "#svBody .sv-row";
+    var key = kind === "vibe" ? vibeKey(row) : "s:" + row.id;
+    var el = body && body.querySelector('[data-key="' + cssAttr(key) + '"]');
+    var from = el && (el.querySelector(".sv-art") || el.querySelector(".shelf-fold"));
+    var was = row.folder_id || "";
+    var chipCount = function(id){
+      var chip = body && body.querySelector('.shelf-chip[data-folder="' + cssAttr(id) + '"]');
+      return chip ? chip.querySelector("span") : null;
+    };
+    var shownBefore = folderId ? (chipCount(folderId) || {}).textContent : undefined;
+    var redraw = function(){
+      row.folder_id = folderId;
+      countFolder(kind, was, -1);
+      countFolder(kind, folderId, 1);
+      if(kind === "vibe") renderMyVibe({ vibes: myVibes, folders: shelfFolders.vibe });
+      else renderSaved(savedCache);
+    };
+    var leaves = !!(shelfPick[kind] && shelfPick[kind] !== folderId);
+    var copy = from && Motion.on() ? { node: from.cloneNode(true), b: Motion.box(from) } : null;
+    if(leaves && el) Motion.removeRow(el, redraw, rowSel, 0, "up");
+    else redraw();
+    // The count on the chip waits for the flight to land.
+    var n = folderId ? chipCount(folderId) : null;
+    var landed = n ? n.textContent : "";
+    if(n && shownBefore !== undefined) n.textContent = shownBefore;
+    if(folderId && copy){
+      var chip = body.querySelector('.shelf-chip[data-folder="' + cssAttr(folderId) + '"]');
+      Motion.toFolder(copy, chip, function(){
+        var c = chipCount(folderId);
+        if(c){ var b4 = c.textContent; c.textContent = landed; Motion.roll(c, b4); }
+      });
+    } else if(n) n.textContent = landed;
     var req = kind === "vibe"
-      ? postJSON("/api/vibes/file", { query: myVibes[ref].query, minutes: myVibes[ref].minutes,
-                                      folder_id: folderId })
+      ? postJSON("/api/vibes/file", { query: row.query, minutes: row.minutes, folder_id: folderId })
       : postJSON("/api/saved/" + encodeURIComponent(ref) + "/move", { folder_id: folderId });
     return req.then(function(){
       var name = folderName(kind, folderId);
       toast(folderId ? "Moved to " + (name || "the folder") : "Taken out of the folder");
-      reloadShelf(kind);
-    }).catch(function(e){ toast(e.message); });
+    }).catch(function(e){ reloadShelf(kind); toast(e.message); });
   }
   function chooseFolderFor(kind, ref){
     var row = kind === "vibe" ? myVibes[ref] : savedItem(ref);
@@ -25717,24 +26726,54 @@
   function savedItem(id){
     return (savedCache.items || []).filter(function(i){ return i.id === id; })[0];
   }
+  // **Off the shelf on the tap, with Undo** (saved-remove: A, §645): the
+  // row slides out as a copy (§298's slide, 180 ms `in`) and the rows below
+  // close up after it by transform (200 ms `in-out`). "Removed · Undo"
+  // stays five seconds; the DELETE goes only when the line goes (its time
+  // up, another line, the page hidden). Undo puts the row back in its place,
+  // fading in while the rows below make room. Nothing is read again under
+  // the slide, so it always finishes.
   function removeSaved(id){
     var item = savedItem(id);
-    // Off the shelf on the tap, sliding out (§298); the shelf is read again
-    // either way, so a refused delete puts it back.
+    if(!item) return;
+    var at = savedCache.items.indexOf(item);
     var x = document.querySelector('#svBody [onclick="removeSaved(\'' + id + '\')"]');
     var row = x && x.closest(".sv-row");
-    if(row) Motion.removeRow(row, function(){ row.remove(); }, "#svBody .sv-row");
-    fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
-      .then(function(){
-        // If the episode being unsaved is the one on the player, the green
-        // icon has to go out with it - otherwise the control and the shelf
-        // disagree about the same episode.
-        var ep = currentEpisode();
-        if(item && ep && ep.query === item.query) setSaved(false);
-        loadSaved();
-        toast("Removed");
-      })
-      .catch(function(){ loadSaved(); toast("Could not remove that"); });
+    var take = function(){
+      savedCache.items = savedCache.items.filter(function(i){ return i !== item; });
+      countFolder("saved", item.folder_id, -1);
+      renderSaved(savedCache);
+    };
+    if(row) Motion.removeRow(row, take, "#svBody .sv-row", Motion.DUR.rowOut, "io");
+    else take();
+    // If the episode being unsaved is the one on the player, the icon goes
+    // out with it - otherwise the control and the shelf disagree.
+    var ep = currentEpisode();
+    var onPlayer = !!(ep && ep.query === item.query);
+    if(onPlayer) setSaved(false);
+    snack("Removed", {
+      label: "Undo",
+      run: function(){
+        var before = Motion.layout(document.getElementById("svBody"), "[data-key]", tileKey);
+        savedCache.items.splice(Math.min(at, savedCache.items.length), 0, item);
+        countFolder("saved", item.folder_id, 1);
+        renderSaved(savedCache);
+        Motion.relist(before, document.getElementById("svBody"), "[data-key]", tileKey,
+                      { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
+        if(onPlayer) setSaved(true);
+      },
+      done: function(){
+        fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE" })
+          .then(function(r){ if(!r.ok) throw new Error(); })
+          .catch(function(){ loadSaved(); toast("Could not remove that"); });
+      }
+    });
+  }
+  // A folder chip's count, kept with the shelf it counts.
+  function countFolder(kind, folderId, by){
+    (shelfFolders[kind] || []).forEach(function(f){
+      if(folderId && f.id === folderId) f.items = Math.max(0, (f.items || 0) + by);
+    });
   }
   function playSaved(id){
     var item = savedItem(id);
@@ -27463,7 +28502,7 @@
   // for every screen shown this way.
   function closeIntroToSettings(){
     introMode = "first-run";
-    showScreen(introReturn || "settings");
+    showScreen(introReturn || "settings", "sheet-down");
     if(introReturn === "profile") loadProfile();
     else renderSettings();
     introReturn = "settings";

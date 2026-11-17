@@ -2132,6 +2132,34 @@
   > cell; a like on a vibe is a heart on the card's corner; New message's
   > picked faces arc into a stack beside "Group with…". Reduced motion:
   > all of it instant, the dots still pulsing.
+  > **Current:** yourFAM's picks (PROBLEMS.md §645, the owner's 14 of
+  > 11.16), on the same terms. **The hub is drawn once and reconciled**:
+  > its first draw in a session builds top down (80 ms apart, tiles 40 ms,
+  > 300 ms each); every later answer touches only what changed - a number
+  > rolls (350 ms), a name cross-fades, a new photo develops (blur 8 -> 0,
+  > 1.06 -> 1, 320 ms), interests arrive and leave - and an unchanged one
+  > moves nothing. Vibes | Mixes is one sliding underline (250 ms) and the
+  > grid nudges toward the side chosen, as the app's tabs did. **Follow
+  > keeps §298's look on transforms**: the button is its new width at once
+  > and its paint scales from the old one (260 ms), its neighbours glide;
+  > Follow is filled copper and Following an outline with its tick in its
+  > markup, everywhere; the line says nothing on success. A Friends row
+  > glides to its new group when the server answers (320 ms), the counts
+  > roll after it. A friend's page has its numbers and interests' rows from
+  > the first frame (dashes, then values fading in), so Follow never moves.
+  > **Settings opens whole**: its values are read at app open and sign-in,
+  > rows are updated in place and never rebuilt under a finger; on/off rows
+  > are switches (no chevron, the knob 200 ms, flipped on the tap). A saved
+  > row and a My Vibes row go with Undo (five seconds, the request when the
+  > line goes); a vibe deleted from the grid recedes on the confirm and the
+  > grid closes over it. An episode filed in a folder arcs into its chip.
+  > An interest floods copper from the tap with a fixed icon slot. **Edit
+  > profile, Where you are and Your interests are page sheets** (up 300 ms
+  > over a page receding to .97, down 220 ms). The story editor grows out of
+  > the (+) or VIBE!, its panels are drawers, and **a post shrinks into your
+  > photo and a ring draws round it** - two moves (380 + 400 ms) after the
+  > post exists, the line at 780 ms. Reduced motion: all of it instant
+  > (page sheets too, not B's 120 ms crossfade - the shared pick).
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

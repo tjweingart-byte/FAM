@@ -144,7 +144,10 @@ def test_the_profile_needs_an_account_and_the_page_says_so():
     makes no request for a profile it is not going to draw."""
     page = (_interface())
     assert "renderProfileGate" in page
-    assert 'if(!AUTH.authenticated){ renderProfileGate(); return; }' in page
+    # §645: a device that was signed in waits for `/api/auth/me` rather
+    # than flashing the gate; every other guest gets the gate, no request.
+    assert ('if(!AUTH.authenticated){\n      // A device that was signed in' in page
+            and 'if(wasSignedIn() && !authKnown) return;\n      renderProfileGate();\n      return;\n    }' in page)
 
 
 def test_every_account_gate_opens_the_real_sign_up_screen():

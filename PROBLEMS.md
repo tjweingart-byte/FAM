@@ -39078,3 +39078,78 @@ the share sheet's bottom row turning in place, New message's face toggled
 and gathering, nothing left). **Not verified here:** a real phone's scroll
 with the column rising under momentum, Safari's `clip-path` on a bubble,
 and a real finger on the list.
+
+## 645. Motion, round three: yourFAM (2026-11-17)
+
+The last of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks in
+`yourfam.json` - the hub (`screen-profile`), a friend's page
+(`screen-person`), Friends, Settings, Save for Later, My Vibes, Edit profile
+and its interests, and the story editor (`#vibeComposer`). Built on the
+screens as Main's 11.16 notes left them (Friends | Following, private mode,
+a profile's vibes and interests for followers only). Every time is a named
+token on `:root` (`--dur-hub-*`, `--dur-follow`, `--dur-regroup`,
+`--dur-count-roll`, `--dur-flood`, `--dur-page-sheet-*`, `--dur-folder-arc`,
+`--dur-switch`, `--dur-into-ring`, `--dur-ring-draw` ...), read by
+`Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| The hub arrives | A: stagger the first draw | `renderProfile` builds parts (`data-part`) and `patchParts` reconciles them with what is drawn: an unchanged part is not touched, a changed one is patched (`patchHubPart`). The first draw of a session builds top down (`Motion.hubArrive`: hero, numbers, buttons, interests, tabs 80 ms apart, the first six tiles 40 ms apart, 300 ms `out`, 8 px and a 2 px blur); every later open with nothing new moves nothing. A device that was signed in no longer flashes the guest gate before `/api/auth/me` answers (`authKnown`) |
+| Vibes / Mixes | A: slide by side | One underline (`.yf-tabs::after`) slid by a 250 ms `in-out` transition; the grid nudges with `Motion.panels` (old a copy out 18 px 110 ms `in`, new in 200 ms `out` 90 ms later), and a second tap finishes the first. Yours and a friend's (`drawShelf`). A number's scroll to the grid is `auto` under reduced motion |
+| Follow | C: keep §298, fixed - on transforms (the lead's direction) | `Motion.followButton`: the button is its new width at once; a paint layer under its words scales from the old width (`scaleX`, 260 ms) while its colour turns (150 ms), its neighbours glide (FLIP); the tick draws 220 ms at 80 ms. No `width` animation. Follow filled copper, Following an outline with its tick in its own markup (`Motion.followLabel`), everywhere - Friends, search, a friend's page, their friends, the popup. "Following" / "Unfollowed" on the bottom line are gone (refusals only) |
+| Friends regroup | A: row travels to group | `drawFriends`: rows keyed `data-k`; a row still there keeps its element (so the tap's tick goes on drawing) and glides to its new place (`Motion.regroup`, 320 ms `in-out`); a leaver goes as a copy 8 px left, 150 ms `in`; a new heading fades in 150 ms; the tab and "Follows you" counts roll after the move (350 ms). A tab turned draws as it is |
+| A friend's page fills | A: reserve, then fill | The numbers row is drawn from the first frame with dashes; the interests line is kept (`.yf-int-room`, three empty pills) and closes under the buttons when there are none to show (190 ms, the expander); values cross-fade 150 ms, pills fade in 150 ms, tiles rise 8 px (260 ms `out`, 40 ms apart, first six). Patched in place (`patchPersonPart`): Follow stays the same element and Message is added beside it |
+| Saved: remove | A: §298 on transforms + Undo | The row slides out as a copy (180 ms `in`), the rows below close after it on `in-out` (200 ms, `removeRow`'s new `leave`); "Removed · Undo" for 5 s; the DELETE goes when the line goes (`action.done`); Undo fades the row back while the rows make room (`relist`'s `enterFade`). The shelf is no longer re-read under the slide. My Vibes' X is the same ("Vibe taken back · Undo"); the last row gone fades the empty sentence in |
+| Settings' late rows | C: ask before you look | `preloadSettings` reads preferences, plan, AI consent, reset mail, blocks, activation and push at app open and sign-in (from `refreshAuth`); `openSettings` asks again. `renderSettings` reconciles (`patchSettings`): rows keep their elements (`data-set`), values cross-fade 150 ms when they change, and the list is drawn whole only when its rows no longer line up - never while a finger is on it (owed to the pointerup). The lost tap is fixed |
+| Delete a vibe | A: shrink and close up | On the confirm: the tile is out of the grid, its copy recedes (.92, 150 ms `in`) after the sheet's 200 ms drop, later tiles slide back (250 ms `in-out`, 30 ms apart, first six), the vibes number rolls down as they land; the request goes at once, a refusal puts it back and says so (`relist`'s `leaveScale`, `stagger`) |
+| Your interests | B: fill from the tap | Every chip keeps a 14 px icon slot (+ at 60%, then a tick) and one weight, so its width never changes; a tap changes that chip in place: copper floods from the tap point (`clip-path: circle`, 250 ms `out`) and the tick draws (200 ms at 80 ms); unchosen it drains back (180 ms `in`). "3 OF 5" rolls its digit; a typed interest arrives from .95 |
+| Edit profile opens | B: page sheet rises | `Motion.screen` kinds `sheet-up` (y 100% -> 0, 300 ms `out`, the page beneath to .97 and 10% dimmer) and `sheet-down` (220 ms `in`), for Edit profile, Where you are and Your interests from Settings; the first run's step keeps its motion |
+| Your changes land | B: develop like a picture | A new photo shows at once, on this device, developing (blur 8 -> 0, 1.06 -> 1, fade, 320 ms) with "Checking photo…" under it until the image check answers; refused, the old one develops back and the line says why; the server's copy then swaps in without developing again (`hubQuietPhoto`). Name and place cross-fade; interests by A (`Motion.pills`: new from .95 200 ms `out` 40 ms apart, gone 150 ms `in`, the rest glide 200 ms) |
+| File in a folder | A: fly to the chip | `fileInFolder` changes the row, its meta and the counts on the tap; a copy of the row's square (a vibe row's folder button) arcs into the chip (`Motion.toFolder`, 15%, 380 ms `in-out`, 1 -> 1.15 -> .4, fading over the last 30%), then the chip's count rolls and it bumps (1.1, 220 ms); a chip out of view is scrolled in and the flight goes 200 ms later. A row that leaves the folder shown goes up 8 px (150 ms `in`) while the rows close up. Refused, the shelf is read again |
+| Settings' switches | A: a real switch | Ten on/off rows are `settingsSwitch`: no chevron, `role="switch"` on the row, the mix's switch with its knob on a 200 ms `in-out` transition; flipped on the tap (`flipSetting`), the saved state drawn after (a refusal flips back). "Send my questions to AI" asks first and moves on the answer |
+| Adding to your story | B: into your ring | The editor grows out of the (+), your face or VIBE! (`growStory`), closes into it on X (240 ms `in`); tool panels slide up 280 ms and down as a copy 200 ms. Posted: the ring is drawn on your photo at once (`markMyStoryUp`), a copy of the canvas shrinks into the photo (380 ms `in-out`, rounding, fading over its last 20%), a copper ring draws from twelve o'clock (400 ms), and the line comes at 780 ms (`Motion.intoRing`); with no face on screen the copy fades 150 ms |
+
+**Bugs fixed with them:** the hub repainting stale after a change elsewhere
+(`refreshHub`); the "N vibes" number left stale by a delete; the ring left on
+your photo after taking down your last story; the Message button and "friends"
+not appearing after Follow on a friend's page (the profile is asked again
+once the graph has answered); the tick drawn by Follow vanishing when Friends
+was redrawn; the saved row's fold cut off by the shelf's re-read; the popup's
+Follow back waiting for the server and tappable twice; follows from a friend's
+friends waiting with nothing on the tap; Settings rebuilt up to seven times
+under a finger.
+
+**Where the pick needed a judgement.** Follow's C is "today's motion
+exactly", which animated `width`; the lead asked for it on transforms, so it
+is option B's paint-layer FLIP with C's numbers. Edit profile's B names a
+120 ms crossfade under reduced motion; the shared pick (reduced: A, §640)
+made every screen change instant, and that wins. The hub's first draw is
+skipped (and not owed) when its screen is still moving in. The story's
+storyboard holds the bottom line to 780 ms by the pick; with no face on
+screen it is at once. A vibe row has no picture, so its folder button is
+what flies. A row taken out of a filtered folder goes up and the gap closes
+together, where Saved's removal closes after the slide.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note). CLAUDE.md's
+lines are still true.
+
+**Not built:** findings outside the picks - the 44 px zones for the saved
+row's folder and X, the interest pills, Vibes / Mixes and the (+); wide rows
+opting out of the squeeze; the photo editor's rubber band and transform
+drag; the interests line's edge fade; the shake at 5 of 5 (option A's); the
+replies sheet and the editor as `.sheet-overlay`; a LIKED word on a post's
+heart and its count rolling; a vibe deleted from a post or the posts list
+animating (they are redrawn as before); History and Topic keeping the old
+list while a filter loads; a new folder's chip growing in before the flight
+lands. The iOS client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_645.py` (and §575's Message test and
+the guest gate test read the new markup); the smoke run's "yourFAM's
+round-three motion holds nothing and leaves nothing behind" (an identical
+answer leaving the hub's elements, a changed count rolling in place, the
+shelf's underline and copy, Follow by `scaleX` with no width and its tick,
+Settings keeping a row and switching on the tap, Edit profile rising, an
+interest flooding at the same width, a saved row going with Undo and no
+DELETE, the editor's drawer, a post into the ring with the line after,
+nothing left). **Not verified here:** a real finger, Safari's `clip-path`
+circle on a chip, and the preload's cost on a slow network at sign-in.
