@@ -52,6 +52,10 @@ final class LoadingModel: ObservableObject {
     /// The five steps' screen gave way to the player (not a cancel, not the
     /// glide or the dial): it leaves by the iris (§643 `loader-to-player` C).
     private(set) var handedOff = false
+    /// The dial's screen gave way to the player: the player grows out of
+    /// the dial's own picture, not the tile under it (§641 `tile-to-player`
+    /// A - one picture, never two).
+    private(set) var dialHandedOff = false
     /// A mix's episode: the glide along the mix (§509) instead of the
     /// five steps. It holds nothing - audio starts the moment it arrives,
     /// after the 0.45 s minimum.
@@ -140,6 +144,7 @@ final class LoadingModel: ObservableObject {
         shown = 0
         instant = false
         handedOff = false
+        dialHandedOff = false
         since = Date()
         shownAt = Date()
         visible = true
@@ -175,6 +180,7 @@ final class LoadingModel: ObservableObject {
         shown = 0
         instant = false
         handedOff = false
+        dialHandedOff = false
         since = Date()
         if !adopted { shownAt = Date() }
         visible = true
@@ -229,6 +235,7 @@ final class LoadingModel: ObservableObject {
         run += 1
         early = false
         handedOff = false
+        dialHandedOff = false
         visible = false
     }
 
@@ -265,6 +272,7 @@ final class LoadingModel: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard mine == self.run else { return }
             self.handedOff = !self.free
+            self.dialHandedOff = self.dial != nil
             self.visible = false
             self.onRelease?()
         }
@@ -910,6 +918,15 @@ struct DailyLoadingView: View {
             }
             .frame(width: Self.width, height: Self.width * 0.75)
             .clipShape(RoundedRectangle(cornerRadius: 16))
+            // Where the player grows from when the audio arrives.
+            .background(GeometryReader { geo in
+                let frame = geo.frame(in: .global)
+                Color.clear
+                    .onAppear { PlayerMotion.shared.dial = PictureSpot(url: dial.picture, frame: frame, radius: 16) }
+                    .onChange(of: frame) { _, now in
+                        PlayerMotion.shared.dial = PictureSpot(url: dial.picture, frame: now, radius: 16)
+                    }
+            })
             .blur(radius: soft ? 16 : 0)
             .saturation(soft ? 0 : 1)
             .brightness(soft ? 0.3 : 0)

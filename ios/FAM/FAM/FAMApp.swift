@@ -242,6 +242,11 @@ struct LoadingLayer: View {
         if loading.handedOff && model.showPlayer {
             return AnyTransition.opacity.animation(.linear(duration: 0.02).delay(0.34))
         }
+        if loading.dialHandedOff && model.showPlayer {
+            // Its picture is already flying on in the player: the rest
+            // goes quickly (150 ms).
+            return AnyTransition.opacity.animation(Motion.easeIn(0.15))
+        }
         if loading.glide != nil || loading.dial != nil {
             return AnyTransition.opacity.animation(Motion.easeIn(0.15))
         }
@@ -698,6 +703,11 @@ struct MainTabs: View {
             if model.loading.handedOff && !reduceMotion && chevrons != .zero {
                 playerStage.iris = CGPoint(x: chevrons.midX, y: chevrons.midY)
                 playerStage.from = nil
+            } else if model.loading.dialHandedOff && !reduceMotion,
+                      let dial = PlayerMotion.shared.dial, dial.frame != .zero {
+                // One picture: the dial's own flies on into the player.
+                playerStage.iris = nil
+                playerStage.from = dial
             } else {
                 playerStage.iris = nil
                 playerStage.from = PlayerMotion.shared.growFrom()

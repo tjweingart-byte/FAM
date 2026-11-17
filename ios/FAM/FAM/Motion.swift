@@ -459,6 +459,9 @@ final class PlayerMotion {
     /// The search loader's chevrons, in the window: the iris into the
     /// player opens from their middle (§643 `loader-to-player` C).
     var chevrons: CGRect = .zero
+    /// The DailyFAM wait's picture, in the window: the player grows out of
+    /// it rather than the tile under the loader (§641 `tile-to-player` A).
+    var dial: PictureSpot?
 
     func pressed(_ spot: PictureSpot?) { tapped = (spot, Date()) }
     func pressedButton(_ frame: CGRect) { button = (frame, Date()) }
@@ -837,18 +840,42 @@ private struct PushedScreen<Content: View>: View {
     @ObservedObject var state: PushedState
     let close: () -> Void
     let content: Content
+    /// A page sheet (round three, §645 `edit-profile-open` B): up from the
+    /// bottom edge (300 ms on `--ease-out`) and back down (220 ms on
+    /// `--ease-in`) rather than in from the right.
+    var vertical = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var width: CGFloat { UIScreen.main.bounds.width }
+    private var height: CGFloat { UIScreen.main.bounds.height }
 
     var body: some View {
+        let away = reduceMotion ? 0 : 1 - state.shown
         content
             .background(FAMColor.background.ignoresSafeArea())
             .opacity(reduceMotion ? state.shown : 1)
-            .offset(x: reduceMotion ? 0 : (1 - state.shown) * width)
+            .offset(x: vertical ? 0 : away * width, y: vertical ? away * height : 0)
+            // Back by the left edge, 1:1 under the finger (round three,
+            // §640 `screens` B): a drag that starts within 24 pt of the
+            // edge and goes sideways moves the screen and the one under it;
+            // let go past half way, or flicked faster than 0.1 pt/ms, it
+            // goes back; else it springs home. Taps still reach what is
+            // there. Reduce Motion: the drag follows, the end is at once.
+            // The strip is the 14 pt along the edge, under nothing pressable.
+            .overlay(alignment: .leading) {
+                if !vertical {
+                    Color.clear
+                        .frame(width: 14)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(edgeBack)
+                        .ignoresSafeArea()
+                        .accessibilityHidden(true)
+                }
+            }
             .allowsHitTesting(!state.leaving)
             .onAppear {
-                state.move(to: 1, reduceMotion ? nil : PushedState.pushCurve)
+                state.move(to: 1, reduceMotion ? nil : (vertical ? Motion.easeOut(0.3) : PushedState.pushCurve))
             }
             .onChange(of: state.leaving) { _, leaving in
                 guard leaving else {
@@ -857,7 +884,25 @@ private struct PushedScreen<Content: View>: View {
                     return
                 }
                 if reduceMotion { return }
-                state.move(to: 0, PushedState.popCurve)
+                state.move(to: 0, vertical ? Motion.easeIn(0.22) : PushedState.popCurve)
+            }
+    }
+
+    private var edgeBack: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .onChanged { g in
+                guard !vertical, !state.leaving else { return }
+                let x = max(0, g.translation.width)
+                state.move(to: max(0, 1 - x / width), nil)
+            }
+            .onEnded { g in
+                guard !vertical, !state.leaving else { return }
+                let x = max(0, g.translation.width)
+                if x > 0 && (x > width / 2 || g.velocity.width > 100) {
+                    close()
+                } else if state.shown < 1 {
+                    state.move(to: 1, reduceMotion ? nil : Animation.spring(duration: 0.5, bounce: 0))
+                }
             }
     }
 }
@@ -870,14 +915,18 @@ private struct PushedScreen<Content: View>: View {
 /// Still with Reduce Motion.
 private struct UnderPush: ViewModifier {
     @ObservedObject var state: PushedState
+    /// Under a page sheet the page recedes instead: .97 and 10 % darker.
+    var vertical = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         let width = UIScreen.main.bounds.width
         let t = reduceMotion ? 0 : state.shown
         content
-            .offset(x: -0.28 * width * t)
-            .opacity(Double(1 - 0.45 * t))
+            .offset(x: vertical ? 0 : -0.28 * width * t)
+            .scaleEffect(vertical ? 1 - 0.03 * t : 1)
+            .brightness(vertical ? -0.1 * Double(t) : 0)
+            .opacity(vertical ? 1 : Double(1 - 0.45 * t))
             .animation(state.curve, value: state.shown)
     }
 }
@@ -890,6 +939,7 @@ struct ScreenFlag: Identifiable, Equatable {
 private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
     @Binding var item: Item?
     let screen: (Item) -> Screen
+    var vertical = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the cover shows: the item, held while it slides away.
     @State private var held: Item?
@@ -900,14 +950,14 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(UnderPush(state: state))
+            .modifier(UnderPush(state: state, vertical: vertical))
             .onChange(of: item?.id) { _, _ in follow() }
             .onAppear { if item != nil && held == nil { follow() } }
             .fullScreenCover(item: Binding(get: { held }, set: { new in
                 // A `dismiss()` inside the screen: it slides away first.
                 if new == nil && item != nil { item = nil }
             })) { shown in
-                PushedScreen(state: state, close: { item = nil }, content: screen(shown))
+                PushedScreen(state: state, close: { item = nil }, content: screen(shown), vertical: vertical)
                     .famThemed()
                     .presentationBackground(.clear)
                     // The tour waits behind it and pauses under it (§594).
@@ -925,7 +975,7 @@ private struct ScreenCover<Item: Identifiable, Screen: View>: ViewModifier {
             withTransaction(still) { held = item }
         } else if held != nil, !state.leaving {
             state.leaving = true
-            let wait = reduceMotion ? 0 : 0.26
+            let wait = reduceMotion ? 0 : (vertical ? 0.22 : 0.26)
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
                 guard self.item == nil, mine == run else { return }
                 withTransaction(still) { held = nil }
@@ -955,6 +1005,17 @@ extension View {
         let flag = Binding<ScreenFlag?>(get: { isPresented.wrappedValue ? ScreenFlag() : nil },
                                         set: { isPresented.wrappedValue = $0 != nil })
         return modifier(ScreenCover(item: flag, screen: { _ in content() }))
+    }
+
+    /// A page sheet over the screen (Edit profile, Where you are and Your
+    /// interests from Settings and yourFAM, §645 `edit-profile-open` B):
+    /// up from the bottom edge over a page that recedes to .97.
+    func pageSheetCover<Screen: View>(
+        isPresented: Binding<Bool>, @ViewBuilder content: @escaping () -> Screen
+    ) -> some View {
+        let flag = Binding<ScreenFlag?>(get: { isPresented.wrappedValue ? ScreenFlag() : nil },
+                                        set: { isPresented.wrappedValue = $0 != nil })
+        return modifier(ScreenCover(item: flag, screen: { _ in content() }, vertical: true))
     }
 }
 
@@ -1287,6 +1348,47 @@ func presentGrowing(reel: inout StoryReel, show: (StoryReel) -> Void) {
     withTransaction(still) { show(shown) }
 }
 
+/// The story editor growing out of the (+) or face just pressed (round
+/// three, §645 `story-editor`, opening as A): a circle from the press
+/// widening past the screen's corners, 300 ms on `--ease-out`, inside a
+/// cover shown without iOS's slide over a clear background. With nothing
+/// pressed, or Reduce Motion, it is simply there.
+struct GrowsFromPress<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @State private var origin: CGPoint? = GrowsFromPressOrigin.pressed()
+    @State private var open = false
+
+    var body: some View {
+        let screen = UIScreen.main.bounds
+        let c = origin ?? CGPoint(x: screen.midX, y: screen.midY)
+        let far = [CGPoint(x: 0, y: 0), CGPoint(x: screen.maxX, y: 0),
+                   CGPoint(x: 0, y: screen.maxY), CGPoint(x: screen.maxX, y: screen.maxY)]
+            .map { (($0.x - c.x) * ($0.x - c.x) + ($0.y - c.y) * ($0.y - c.y)).squareRoot() }
+            .max() ?? screen.height
+        content()
+            .modifier(CircleReveal(centre: c, radius: (origin == nil || open) ? far + 2 : 20))
+            .onAppear {
+                guard origin != nil else { return }
+                withAnimation(Motion.easeOut(0.3)) { open = true }
+            }
+    }
+}
+
+enum GrowsFromPressOrigin {
+    /// The middle of the button pressed a moment ago, unless Reduce Motion.
+    static func pressed() -> CGPoint? {
+        guard !Motion.reduced, let face = PlayerMotion.shared.pressedCircle() else { return nil }
+        return CGPoint(x: face.midX, y: face.midY)
+    }
+
+    /// Present with no slide when the editor will grow out of a press.
+    static func present(_ show: () -> Void) {
+        var t = Transaction()
+        t.disablesAnimations = pressed() != nil
+        withTransaction(t) { show() }
+    }
+}
+
 /// Sizes its one child to the child's own height, never more than `cap`
 /// (`.sheet-card`'s `max-height:82%` with its height from what it holds):
 /// a plain `.frame(maxHeight:)` would take the whole cap instead.
@@ -1489,5 +1591,41 @@ extension AnyTransition {
         return .asymmetric(
             insertion: AnyTransition.modifier(active: shut, identity: open).animation(Motion.easeOut(0.3)),
             removal: AnyTransition.modifier(active: shut, identity: open).animation(Motion.easeInOut(0.24)))
+    }
+}
+
+// MARK: - The edge swipe back inside a tab's own stack
+
+/// SwiftUI's stacks here hide the navigation bar, which turns off iOS's own
+/// swipe from the left edge; drawn behind a stack's root, this turns it back
+/// on whenever there is a screen to go back to (round three, §640 `screens`
+/// B: back 1:1 under the finger, iOS's own).
+struct EdgeSwipeBack: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ controller: Controller, context: Context) {}
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        private weak var stack: UINavigationController?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            adopt()
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            adopt()
+        }
+
+        private func adopt() {
+            guard let nav = navigationController else { return }
+            stack = nav
+            nav.interactivePopGestureRecognizer?.isEnabled = true
+            nav.interactivePopGestureRecognizer?.delegate = self
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            (stack?.viewControllers.count ?? 0) > 1
+        }
     }
 }

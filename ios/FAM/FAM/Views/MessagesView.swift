@@ -25,6 +25,8 @@ struct MessagesView: View {
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
+            // iOS's own swipe back, with the bar hidden (§649).
+            .background(EdgeSwipeBack().frame(width: 0, height: 0))
             .navigationDestination(for: SocialRoute.self) { route in
                 SocialScreen(route: route)
             }

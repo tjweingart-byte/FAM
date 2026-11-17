@@ -589,9 +589,9 @@ private struct SettingsPresentations<Sheet: View>: ViewModifier {
             .textModal($textAsk)
             .famSheet(item: $sheet) { kind in sheetView(kind) }
             .sheet(item: $page) { p in SafariView(url: p.url).ignoresSafeArea().tourCover() }
-            .screenCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
-            .screenCover(isPresented: $locating) { LocationView().famObjects(model) }
-            .screenCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
+            .pageSheetCover(isPresented: $editing) { IdentityView(mode: .edit).famObjects(model) }
+            .pageSheetCover(isPresented: $locating) { LocationView().famObjects(model) }
+            .pageSheetCover(isPresented: $interestsOpen) { InterestsView(mode: .settings).famObjects(model) }
             .famSheet(item: $activation) { a in
                 ActivationCard(activation: a).famObjects(model)
             }

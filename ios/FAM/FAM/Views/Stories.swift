@@ -80,9 +80,12 @@ struct FacesRow: View {
                     .tourCover()
             }
             .fullScreenCover(item: $composing) { subject in
-                StoryEditor(subject: subject, openMine: { showMine() })
-                    .environmentObject(model)
-                    .tourCover()
+                GrowsFromPress {
+                    StoryEditor(subject: subject, openMine: { showMine() })
+                        .environmentObject(model)
+                }
+                .presentationBackground(.clear)
+                .tourCover()
             }
             .sheet(isPresented: $invite) {
                 ActivityView(items: model.inviteItems(handle: model.circle?.me?.handle ?? "")) { invite = false }
@@ -131,7 +134,7 @@ struct FacesRow: View {
     /// The note composer: an account's only (`openNoteComposer`).
     private func compose() {
         guard model.listener?.authenticated == true else { return }
-        composing = .note()
+        GrowsFromPressOrigin.present { composing = .note() }
     }
 
     /// The snack's View after posting: your story, read again
@@ -352,6 +355,17 @@ struct StoryViewer: View {
     @State private var leavingAnchor: UnitPoint = .center
     @State private var leavingShift: CGFloat = 0
     @State private var stageWidth: CGFloat = 390
+    /// A turn under the finger (round three, §641 `story-next-friend` B):
+    /// which way, and where it started, so a turn let go short of a third
+    /// goes back to the friend it left. `rubber` at either end: nobody
+    /// that way, the story only gives a little.
+    private struct TurnDrag {
+        let dir: Int
+        let fromPerson: Int
+        let fromIndex: Int
+        let rubber: Bool
+    }
+    @State private var turnDrag: TurnDrag?
     /// Block's sheet (`blockPerson`): the sentence, then "Block".
     @State private var confirm: SheetSpec?
 
@@ -434,7 +448,9 @@ struct StoryViewer: View {
                                                       : Motion.easeOut(Motion.Dur.storyShow)), value: held)
             }
         }
-        // The cube's turn between friends, over the dark behind it.
+        // The cube's turn between friends, over the dark behind it; each
+        // face shaded as it turns away (up to .3).
+        .overlay(Color.black.opacity(Self.shade(turn)).allowsHitTesting(false))
         .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), anchor: turnAnchor, perspective: 0.55)
         .offset(x: turnShift)
         // Pulled down to close (§641): 1:1, shrinking to .85 over 300 pt.
@@ -446,6 +462,7 @@ struct StoryViewer: View {
             if let leavingFace {
                 StillCopyView(copy: leavingFace)
                     .ignoresSafeArea()
+                    .overlay(Color.black.opacity(Self.shade(leavingTurn)).ignoresSafeArea())
                     .rotation3DEffect(.degrees(leavingTurn), axis: (x: 0, y: 1, z: 0),
                                       anchor: leavingAnchor, perspective: 0.55)
                     .offset(x: leavingShift)
@@ -775,6 +792,12 @@ struct StoryViewer: View {
                 // Plainly downward: the story follows the finger (§641).
                 let dx = value.translation.width
                 let dy = value.translation.height
+                // Sideways: the cube turns with the finger (round three).
+                if turnDrag != nil || (!typing && !turning && !closing && !pullingDown && !reduceMotion
+                                       && abs(dx) > 12 && abs(dx) >= abs(dy) * 1.2) {
+                    followTurn(dx: dx)
+                    return
+                }
                 if !typing && !turning && !closing
                     && (pullingDown || (dy > 10 && dy > abs(dx) * 1.2)) {
                     pullingDown = true
@@ -788,6 +811,10 @@ struct StoryViewer: View {
                 pressing = false
                 pressID += 1
                 held = false
+                if let drag = turnDrag {
+                    endTurn(drag, dx: value.translation.width, velocity: value.velocity.width)
+                    return
+                }
                 if pullingDown {
                     pullingDown = false
                     // Past 80 pt, or flicked over 0.1 pt/ms: it shrinks
@@ -1189,6 +1216,9 @@ struct StoryViewer: View {
         guard !closing else { return }
         closing = true
         typing = false
+        // A turn in progress ends where it is: no copy left on screen.
+        turnDrag = nil
+        leavingFace = nil
         guard grows && animated else {
             dismiss()
             return
@@ -1242,6 +1272,115 @@ struct StoryViewer: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
             leavingFace = nil
             turning = false
+        }
+    }
+
+    /// How dark a face is at an angle: .3 at a quarter turn.
+    static func shade(_ degrees: Double) -> Double {
+        0.3 * abs(sin(degrees * Double.pi / 180))
+    }
+
+    /// The finger has gone sideways: the first time, the next friend is put
+    /// behind a still copy of this one (or, with nobody that way, the story
+    /// is held to a rubber band); then both faces follow the finger 1:1.
+    private func followTurn(dx: CGFloat) {
+        let width = max(stageWidth, 1)
+        var still = Transaction()
+        still.disablesAnimations = true
+        if turnDrag == nil {
+            let dir = dx < 0 ? 1 : -1
+            let next = person + dir
+            if people.indices.contains(next), let copy = StillCopy.ofWindow() {
+                turning = true
+                let d = CGFloat(dir)
+                withTransaction(still) {
+                    turnDrag = TurnDrag(dir: dir, fromPerson: person, fromIndex: index, rubber: false)
+                    leavingFace = copy
+                    leavingAnchor = dir > 0 ? .trailing : .leading
+                    leavingTurn = 0
+                    leavingShift = 0
+                    person = next
+                    index = firstUnseen(next, in: people)
+                    turnAnchor = dir > 0 ? .leading : .trailing
+                    turn = Double(90 * dir)
+                    turnShift = width * d
+                }
+            } else {
+                withTransaction(still) {
+                    turnDrag = TurnDrag(dir: dir, fromPerson: person, fromIndex: index, rubber: true)
+                }
+            }
+        }
+        guard let drag = turnDrag else { return }
+        let d = CGFloat(drag.dir)
+        withTransaction(still) {
+            if drag.rubber {
+                // A 12 pt give, then at most 64 pt more.
+                let b = max(0, abs(dx) - 12)
+                turnShift = (dx < 0 ? -1 : 1) * 64 * b / (b + 150)
+            } else {
+                let p = min(1, max(0, -dx * d / width))
+                leavingTurn = Double(-90 * CGFloat(drag.dir) * p)
+                leavingShift = -width * d * p
+                turn = Double(90 * CGFloat(drag.dir) * (1 - p))
+                turnShift = width * d * (1 - p)
+            }
+        }
+    }
+
+    /// Let go: past a third, or flicked, the turn finishes; short of it,
+    /// it turns back to the friend it left. Either way on a 400 ms spring
+    /// with no bounce. At either end the story springs home - and the last
+    /// friend swiped on past 50 pt closes, as before.
+    private func endTurn(_ drag: TurnDrag, dx: CGFloat, velocity: CGFloat) {
+        turnDrag = nil
+        let width = max(stageWidth, 1)
+        let d = CGFloat(drag.dir)
+        let spring = Animation.spring(duration: Motion.Dur.storySpring, bounce: 0)
+        if drag.rubber {
+            withAnimation(spring) { turnShift = 0 }
+            if abs(dx) >= 50 {
+                if drag.dir > 0 {
+                    close()
+                } else {
+                    index = 0
+                    progress = 0
+                }
+            }
+            return
+        }
+        let p = -dx * d / width
+        let flick = -velocity * d > 300
+        if p > 1.0 / 3 || flick {
+            withAnimation(spring) {
+                leavingTurn = Double(-90 * drag.dir)
+                leavingShift = -width * d
+                turn = 0
+                turnShift = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.storySpring + 0.02) {
+                leavingFace = nil
+                turning = false
+            }
+        } else {
+            withAnimation(spring) {
+                leavingTurn = 0
+                leavingShift = 0
+                turn = Double(90 * drag.dir)
+                turnShift = width * d
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.storySpring + 0.02) {
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) {
+                    person = drag.fromPerson
+                    index = drag.fromIndex
+                    turn = 0
+                    turnShift = 0
+                    leavingFace = nil
+                }
+                turning = false
+            }
         }
     }
 

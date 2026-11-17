@@ -28,12 +28,14 @@ struct YouView: View {
         NavigationStack(path: $model.youPath) {
             hub
                 .toolbar(.hidden, for: .navigationBar)
+                // iOS's own swipe back, with the bar hidden (§649).
+                .background(EdgeSwipeBack().frame(width: 0, height: 0))
                 .navigationDestination(for: YouRoute.self) { route in
                     YouScreen(route: route)
                         .toolbar(.hidden, for: .navigationBar)
                 }
         }
-        .screenCover(isPresented: $editing) {
+        .pageSheetCover(isPresented: $editing) {
             IdentityView(mode: .edit).famObjects(model)
         }
         .famSheet(item: $held) { v in holdSheet(v) }
@@ -44,9 +46,12 @@ struct YouView: View {
                 .tourCover()
         }
         .fullScreenCover(item: $composing) { subject in
-            StoryEditor(subject: subject, openMine: { showMine() })
-                .environmentObject(model)
-                .tourCover()
+            GrowsFromPress {
+                StoryEditor(subject: subject, openMine: { showMine() })
+                    .environmentObject(model)
+            }
+            .presentationBackground(.clear)
+            .tourCover()
         }
         .task(id: model.listener?.userId) {
             await you.loadProfile()
@@ -232,7 +237,7 @@ struct YouView: View {
 
     private func compose() {
         guard model.listener?.authenticated == true else { return }
-        composing = .note()
+        GrowsFromPressOrigin.present { composing = .note() }
     }
 
     /// The snack's View after posting: your story, read again.

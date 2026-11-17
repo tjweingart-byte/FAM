@@ -120,6 +120,8 @@ struct MyFAMView: View {
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
+            // iOS's own swipe back, with the bar hidden (§649).
+            .background(EdgeSwipeBack().frame(width: 0, height: 0))
             // Back on the screen from a mix is looking at it (`openPlayFAM`
             // from the back row, §550): the morning's dot goes.
             .onChange(of: path) { _, now in

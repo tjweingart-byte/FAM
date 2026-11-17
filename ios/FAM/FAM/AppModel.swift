@@ -422,6 +422,15 @@ final class AppModel: ObservableObject {
         }
         pathMonitor.start(queue: .main)
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
+        nowPlaying.openLoaderEarly = { [weak self] in
+            guard let self else { return }
+            // Over the player, as the send would: the player goes down for
+            // the loading screen (`go` below does the same).
+            self.showPlayer = false
+            self.loading.openEarly()
+        }
+        nowPlaying.closeLoaderEarly = { [weak self] in self?.loading.closeEarly() }
+        nowPlaying.cancelMark = { [weak self] in self?.cancelSeq ?? 0 }
         nowPlaying.onEnded = { [weak self] ep in self?.mixItemEnded(ep) ?? false }
         nowPlaying.detourFor = { [weak self] base in self?.detour(for: base) ?? "" }
         mixes.say = { [weak self] text, action, perform in
