@@ -53,7 +53,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   does motion fill one. [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
   searched in the last 2h whose episodes are still current; cache only. [trending-searches]
-- **Search is Google's shape**: mic and attach inside the bar's right;
+- **Search is Google's shape**: mic and attach inside the bar's right (go
+  takes the mic's slot while typing, §643);
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
   every return to the app; **Private** is a lock. [search-bar]
 - **Private search**: a lock; on till off (bubble=Settings)

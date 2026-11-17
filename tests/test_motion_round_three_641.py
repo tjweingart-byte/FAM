@@ -34,7 +34,11 @@ def test_every_new_time_is_a_token_read_by_motion():
         assert 'msToken("' + name + '"' in motion, name
     # Nothing new moves for longer than the ceiling.
     for name, ms in re.findall(r"--dur-([a-z-]+):(\d+)ms", INDEX):
-        if name in ("develop", "label", "faces", "mark", "sheen", "sheen-delay", "spinner-min") \
+        # Search (§643): the loader's beat and the ring inside it, the
+        # reduced-motion pulse and the reading line are loading indicators'
+        # loops; "ack" is how long a colour holds.
+        if name in ("develop", "label", "faces", "mark", "sheen", "sheen-delay", "spinner-min",
+                    "beat", "beat-ring", "ring-pulse", "read-bar", "ack") \
                 or name.endswith("-at"):   # a delay before a movement (§642), not the movement
             continue    # a wait's look, a word on screen, or a hold - not a movement
         assert int(ms) <= 450, (name, ms)

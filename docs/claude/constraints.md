@@ -2083,6 +2083,31 @@
   > spinner only past 300 ms, at least 500 ms). The morning dot pops like a
   > count; a finished mix files the day's cards onto one stack and draws a
   > check. Reduced motion: all of it instant, the spinner still turning.
+  > **Current:** search's picks (PROBLEMS.md §643, the owner's 13 of
+  > 11.16), on the same terms. **The loader opens on the press** - the
+  > speller's wait runs under its first step, which is what the speller is
+  > doing - fading in over the page while searchFAM's FAM glides into its
+  > wordmark and the five rows rise; a cancel or a failure takes it down at
+  > once and a copy fades, and Cancel puts the question back in the bar.
+  > **Search's five steps keep their timing exactly** (`GEN_STEP_*`, the
+  > server's marks, audio held to the fifth): only how a step checks off
+  > changed - the circle fills, the tick draws in, a copper thread runs down
+  > to the next circle, all inside the 400 ms last beat; the active ring
+  > fires once a beat as the top chevron lands (one clock, transform and
+  > opacity), and with reduced motion the chevrons are still and the ring
+  > pulses. **The loader opens onto the player through a hole from its
+  > chevrons** (340 ms; the player does not push under it). The mic and the
+  > go arrow share one slot and cross on the icon swap; the bar's edge turns
+  > copper on focus. Voice search grows out of the mic and shrinks back into
+  > it; each word heard sends one ring out of the mark and nothing moves
+  > between words (the arcs are gone); stopping Search now drains its fill
+  > back to a pale button. Length and Voice act in their icons when the
+  > choice changed, never printing it. Trending searches and the A-Z arrive
+  > as the rails do, and "Searching..." waits 300 ms. Go Deeper's line
+  > writes itself in, and **what the chip showed is what is sent** - no
+  > swap under a finger. "Type your own" becomes the field in its own place;
+  > a file being read has a moving line (kept with reduced motion); the
+  > Private lock swaps on the icon spring.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

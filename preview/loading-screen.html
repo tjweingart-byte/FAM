@@ -136,23 +136,45 @@
   .fam-loading.stepped .fam-loading-dots{ display:none; }
   .fam-steps li{ display:flex; align-items:center; gap:12px;
     font-family:'Geist Mono', monospace; font-size:12px; letter-spacing:0.02em;
-    color:var(--text-muted); opacity:.55; transition:opacity .35s ease, color .35s ease; }
+    color:var(--text-muted); opacity:.55;
+    transition:opacity var(--dur-colour) var(--ease-out), color var(--dur-colour) var(--ease-out); }
   .fam-steps li.active, .fam-steps li.done{ opacity:1; }
   .fam-steps li.active{ color:var(--text); }
   .fam-steps li.done{ color:var(--copper); }
+  /* A step checks off (steps-check-off: B, §643): the circle fills copper
+     (150 ms), the tick draws in (220 ms, 80 ms later - Follow's tick), and
+     a thin copper thread fills down from it to the next circle (260 ms,
+     120 ms later), which then lights. Only ever after the server's mark: the
+     timing of the steps is `GEN_STEP_*`, untouched; every part of a check is
+     drawn inside the 400 ms beat before the audio. */
   .fam-step-dot{ position:relative; flex:none; width:20px; height:20px; border-radius:50%;
     border:1.6px solid currentColor; display:flex; align-items:center; justify-content:center;
-    transition:background .3s ease, border-color .3s ease; }
-  .fam-steps li.active .fam-step-dot{ border-color:var(--copper);
-    animation:famStepPulse 1.6s ease-in-out infinite; }
-  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); }
-  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); opacity:0;
-    transform:scale(.4); transition:opacity .25s ease, transform .3s cubic-bezier(.3,1.6,.5,1); }
-  .fam-steps li.done .fam-step-dot svg{ opacity:1; transform:scale(1); }
-  @keyframes famStepPulse{
-    0%,100%{ box-shadow:0 0 0 0 rgba(224,181,99,0.45); }
-    50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
+    transition:background-color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out); }
+  .fam-steps li.active .fam-step-dot{ border-color:var(--copper); }
+  .fam-steps li.active:not([data-step="0"]) .fam-step-dot{ transition-delay:0s, calc(var(--dur-step-rail-at) + var(--dur-step-rail)); }
+  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); transition-delay:0s; }
+  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); }
+  .fam-step-dot svg path{ stroke-dasharray:1; stroke-dashoffset:1;
+    transition:stroke-dashoffset var(--dur-step-tick) var(--ease-out) var(--dur-step-tick-at); }
+  .fam-steps li.done .fam-step-dot svg path{ stroke-dashoffset:0; }
+  .fam-step-rail{ position:absolute; left:calc(50% - 1px); top:calc(100% + 1.6px); width:2px; height:13px;
+    background:var(--border-strong); pointer-events:none; }
+  .fam-step-rail::after{ content:""; position:absolute; inset:0; background:var(--copper);
+    transform:scaleY(0); transform-origin:top;
+    transition:transform var(--dur-step-rail) var(--ease-in-out) var(--dur-step-rail-at); }
+  .fam-steps li.done .fam-step-rail::after{ transform:scaleY(1); }
+  /* The active circle's ring (loader-loops: A, §643) fires once a beat, as
+     the top chevron lands - one clock with the chevrons, on transform and
+     opacity. `Motion.stepRing` runs it; here it is only drawn. */
+  .fam-step-ring{ position:absolute; inset:-1.6px; border-radius:50%; border:1.6px solid var(--copper);
+    opacity:0; pointer-events:none; }
+  /* A replay paints all five done at once: no five ticks in a row. */
+  .fam-steps.instant *, .fam-steps.instant *::after{ transition:none !important; }
+  @media (prefers-reduced-motion: reduce){
+    .fam-steps li, .fam-step-dot, .fam-step-dot svg path, .fam-step-rail::after{ transition:none; }
+    .fam-steps li.active .fam-step-ring{ animation:famRingPulse var(--dur-ring-pulse) var(--ease-in-out) infinite alternate; }
   }
+  @keyframes famRingPulse{ from{ opacity:.35; } to{ opacity:1; } }
 
   /* The two browse waits (§509, the owner's pick from the loading-screen
      options page). A DailyFAM tile tapped shows the tuning dial; a myFAM
@@ -228,6 +250,13 @@
   .fam-dev.motion-loader-pic{ position:absolute; z-index:61; max-width:none; aspect-ratio:auto;
     margin:0; pointer-events:none; transform-origin:0 0; }
   .fam-loading.motion-loader-out{ pointer-events:none; }
+  /* Sent from voice search, the loader fades in over its sheet, which is
+     then hidden beneath it (voice-sheet: B, §643). */
+  .fam-loading.over-voice{ z-index:460; }
+  /* searchFAM's FAM on its way into the loader's wordmark (loader-arrives: B). */
+  .motion-mark{ position:absolute !important; z-index:470; pointer-events:none; margin:0 !important;
+    box-sizing:border-box; }
+  .motion-left{ position:absolute !important; pointer-events:none; margin:0 !important; }
   .fam-loading.motion-loader-out *, .fam-loading.motion-loader-out *::before,
   .fam-loading.motion-loader-out *::after{ animation:none !important; }
 
@@ -270,8 +299,10 @@
      still happening keep a gentle opacity pulse (reduced: A, §640). */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    /* Search's stepped loader keeps one mover (loader-loops: A, §643): the
+       chevrons are still and the active ring pulses. */
+    .fam-loading.stepped .fam-loading-mark .chev{ animation:none; }
     .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
-    .fam-steps li.active .fam-step-dot{ animation:famLdPulse 1.6s ease-in-out infinite; }
     .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
     .fam-dev-faces .src-mark, .fam-dev-names{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }
@@ -318,11 +349,11 @@
              server's own marks for this episode, never from a timer - see
              /api/progress. -->
         <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
-          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Contextualizing your search</span></li>
-          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Retrieving your information</span></li>
-          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Verifying the relevance</span></li>
-          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Finalizing your script</span></li>
-          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Generating the audio</span></li>
+          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Contextualizing your search</span></li>
+          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Retrieving your information</span></li>
+          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Verifying the relevance</span></li>
+          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Finalizing your script</span></li>
+          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i></span><span>Generating the audio</span></li>
         </ol>
 
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put

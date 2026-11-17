@@ -153,6 +153,23 @@
     --dur-tick:220ms; --dur-tick-at:80ms; --dur-star:160ms;
     --dur-dot-in:240ms; --dur-dot-out:160ms;
     --dur-square:300ms;
+    /* search (round three, §643): the bar, the loader and its five steps,
+       voice search, Go Deeper's box. The five steps' own timing is the
+       server's (GEN_STEP_*), never these. */
+    --dur-focus:120ms;
+    --dur-loader-fade:200ms; --dur-mark-glide:320ms; --dur-row-in:240ms; --dur-row-stagger:40ms;
+    --dur-loader-leave:160ms;
+    --dur-step-tick:220ms; --dur-step-tick-at:80ms; --dur-step-rail:260ms; --dur-step-rail-at:120ms;
+    --dur-beat:2400ms; --dur-beat-ring-at:920ms; --dur-beat-ring:1200ms;
+    --dur-iris:340ms;
+    --dur-list-in:260ms; --dur-list-stagger:40ms; --dur-list-fade:150ms;
+    --dur-wipe:320ms; --ease-wipe:cubic-bezier(.4,0,.2,1);
+    --dur-hand:420ms; --dur-hop:240ms; --dur-hop-stagger:35ms; --dur-ack:1000ms;
+    --dur-voice-in:300ms; --dur-voice-out:240ms; --dur-voice-ring-lag:40ms;
+    --dur-drain:260ms; --dur-pill-in:220ms; --dur-pill-flip:220ms;
+    --dur-ripple:420ms; --dur-ripple-gap:150ms;
+    --dur-own-out:150ms; --dur-own-in:200ms;
+    --dur-read-bar:1200ms; --dur-ring-pulse:1200ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
        colour from the palette (§640). */
@@ -347,7 +364,29 @@
   .fam-input-box.tall textarea{ flex:1 0 100%; padding-right:12px; }
   .fam-input-box.tall .bar-btns{ margin-left:auto; }
   .go-btn{ width:36px; height:36px; border-radius:50%; background:var(--copper); color:var(--ink); border:none; display:flex; align-items:center; justify-content:center; flex:none; cursor:pointer; margin:2px; }
-  .go-btn[hidden]{ display:none; }
+  /* Search bar (bar-focus-go: C, §643): Google's pattern - the mic and the
+     copper go arrow share one 40 px slot and cross there on the icon swap
+     (.3 and a 3 px blur, 300 ms), both always in the page, so the clip and
+     the words never move. Clearing the box swaps them back the same way.
+     Focus turns the bar's edge copper, as Next-up's search does. */
+  .fam-input-box{ transition:border-color var(--dur-focus) var(--ease-out); }
+  .fam-input-box:focus-within{ border-color:var(--copper); }
+  .bar-slot{ display:grid; place-items:center; flex:none; width:40px; height:40px; }
+  .bar-slot > button{ grid-area:1/1;
+    transition:opacity var(--dur-swap) var(--ease-swap), transform var(--dur-swap) var(--ease-swap),
+      filter var(--dur-swap) var(--ease-swap), visibility 0s linear 0s; }
+  .bar-slot > .go-btn, .bar-slot.typing > .voice-mic{ opacity:0; transform:scale(.3); filter:blur(3px);
+    visibility:hidden; pointer-events:none;
+    transition:opacity var(--dur-swap) var(--ease-swap), transform var(--dur-swap) var(--ease-swap),
+      filter var(--dur-swap) var(--ease-swap), visibility 0s linear var(--dur-swap); }
+  .bar-slot.no-mic:not(.typing){ width:0; }
+  .bar-slot.typing > .go-btn{ opacity:1; transform:none; filter:none; visibility:visible; pointer-events:auto;
+    transition:opacity var(--dur-swap) var(--ease-swap), transform var(--dur-swap) var(--ease-swap),
+      filter var(--dur-swap) var(--ease-swap), visibility 0s linear 0s; }
+  @media (prefers-reduced-motion: reduce){
+    .fam-input-box, .bar-slot > button, .bar-slot > .go-btn, .bar-slot.typing > .voice-mic,
+      .bar-slot.typing > .go-btn{ transition:none; }
+  }
   /* The two bubbles under the bar (§190). */
   .fam-controls{ display:flex; align-items:center; gap:10px; margin:12px 0 0; }
   .search-bubble{ flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
@@ -355,6 +394,11 @@
     color:var(--text); font-family:'Geist',sans-serif; font-size:14px; font-weight:600;
     cursor:pointer; }
   .search-bubble svg{ color:var(--text-muted); }
+  /* Length and Voice say "set" (bubble-ack: B, §643): the stopwatch's hand
+     turns about the dial's centre, the voice's bars hop from their own. */
+  .search-bubble .ack-hand{ transform-box:view-box; transform-origin:12px 13px; }
+  .search-bubble .ack-bar{ transform-box:fill-box; transform-origin:center; }
+  .search-bubble.acked svg{ color:var(--copper); }
   /* Private search (§282, §285) is a lock (11.16 notes): open while it is
      off, closed and copper while it is on. The page itself does not change -
      it used to go charcoal in either theme, which the owner found too much.
@@ -374,8 +418,8 @@
   /* Voice search (§151). The mic sits on the search box's own line, beside
      the attach button and its size (10.1 #3), and opens a screen of its own
      over the app: the words heard so far at the top, the FAM mark in a ring
-     in the middle, and lines around it that only appear - and only move -
-     while somebody is actually talking. Nothing is searched until they press
+     in the middle, and a ripple out of it for each word heard - nothing
+     moves while nobody is talking (§643). Nothing is searched until they press
      send: speech ending is not a request. */
   .voice-mic{ width:40px; height:40px; border-radius:50%; flex:none;
     background:none; border:none; color:var(--text-muted);
@@ -399,7 +443,8 @@
   .voice-search{ position:absolute; top:var(--sb-h); left:0; right:0; bottom:0; z-index:450;
     background:var(--bg); display:flex; flex-direction:column; padding:14px 20px 22px; }
   .voice-search[hidden]{ display:none; }
-  .voice-search.open{ animation:sheet-in 220ms cubic-bezier(0.22,0.7,0.3,1); }
+  /* It opens as a circle out of the mic and closes back into it
+     (voice-sheet: B, §643, `Motion.voiceOpen` / `voiceClose`). */
   .vs-top{ display:flex; justify-content:flex-end; flex:none; }
   .vs-words{ flex:none; min-height:96px; max-height:34%; overflow-y:auto; margin:10px 4px 0;
     font-family:'Bricolage Grotesque', sans-serif; font-size:21px; line-height:1.35; color:var(--text);
@@ -415,30 +460,20 @@
     box-shadow:inset 0 -2px 0 var(--copper); }
   .vs-stage{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; }
   .vs-orb{ position:relative; width:250px; height:250px; }
-  .vs-waves{ position:absolute; inset:0; width:100%; height:100%; overflow:visible;
-    color:var(--copper); pointer-events:none; }
-  .vs-waves path{ fill:none; stroke:currentColor; stroke-linecap:round; stroke-width:3;
-    opacity:0; transform-box:view-box; transform-origin:125px 125px;
-    transition:opacity .35s ease; }
-  .voice-search.speaking .vs-waves path{ opacity:calc(0.35 + var(--lvl, 0.5) * 0.65);
-    animation:vs-wave 1.1s ease-in-out infinite; }
-  .voice-search.speaking .vs-waves path.r2{ animation-delay:.18s; }
-  .voice-search.speaking .vs-waves path.r3{ animation-delay:.36s; }
-  .voice-search.speaking .vs-waves path.low{ animation-name:vs-line; }
-  @keyframes vs-wave{
-    0%,100%{ transform:scale(1); }
-    50%{ transform:scale(calc(1 + var(--lvl, 0.5) * 0.09)); }
-  }
-  @keyframes vs-line{
-    0%,100%{ transform:scaleX(1); }
-    50%{ transform:scaleX(calc(1 + var(--lvl, 0.5) * 0.35)); }
-  }
+  /* One copper ring out of the mark for each word heard (voice-waves: B,
+     §643): between words nothing moves, so a silent room shows a still
+     mark. `Motion.ripple` draws it. */
+  .vs-ripple{ position:absolute; left:50%; top:50%; width:104px; height:104px; margin:-52px 0 0 -52px;
+    border-radius:50%; border:2px solid var(--copper); opacity:0; pointer-events:none; }
   .vs-mark{ position:absolute; left:50%; top:50%; width:104px; height:104px;
     margin:-52px 0 0 -52px; border-radius:50%; border:2px solid var(--text);
     background:var(--surface); color:var(--copper); display:flex; align-items:center;
     justify-content:center; cursor:pointer; padding:0; }
   .vs-mark svg{ width:40px; height:40px; }
+  .vs-mark{ transition:border-color var(--dur-colour) var(--ease-out); }
   .voice-search.listening .vs-mark{ border-color:var(--copper); }
+  /* Reduced motion: no rings; the mark's ring is lit while words arrive. */
+  .voice-search.hearing .vs-mark{ border-color:var(--copper); box-shadow:0 0 0 3px rgba(224,181,99,0.35); }
   .vs-status{ flex:none; text-align:center; font-family:'Geist Mono', monospace;
     font-size:10.5px; letter-spacing:0.06em; color:var(--text-muted); min-height:30px;
     line-height:1.45; margin:0 10px; }
@@ -463,8 +498,7 @@
   .vs-go-x[hidden]{ display:none; }
   .vs-go-x:active{ background:rgba(var(--fg-rgb),0.06); }
   @media (prefers-reduced-motion: reduce){
-    .voice-search.open{ animation:none; }
-    .voice-search.speaking .vs-waves path{ animation:none; }
+    .vs-mark{ transition:none; }
   }
   .attach-row{ display:flex; flex-wrap:wrap; gap:6px; margin:9px 2px 0; }
   .attach-row:empty{ display:none; }
@@ -475,7 +509,15 @@
   .attach-chip .sz{ font-family:'Geist Mono', monospace; font-size:8px;
     color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
   .attach-chip .rm{ color:var(--text-muted); cursor:pointer; font-size:13px; line-height:1; }
-  .attach-chip.working{ opacity:0.6; }
+  .attach-chip.working{ opacity:0.6; position:relative; overflow:hidden; }
+  /* A file being read (attach-chip: C, §643): a copper line runs along the
+     chip's foot, 1.2 s a pass, for as long as the server reads - a progress
+     indicator, so it keeps moving under reduced motion. Nothing else on a
+     chip moves. */
+  .attach-chip.working::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:2px;
+    background:var(--copper); transform:translateX(-100%);
+    animation:attachReading var(--dur-read-bar) linear infinite; }
+  @keyframes attachReading{ from{ transform:translateX(-100%); } to{ transform:translateX(100%); } }
   .attach-chip.failed{ border-color:var(--coral); color:var(--coral); }
 
   .section{ margin-top:20px; }
@@ -706,9 +748,6 @@
   .feed-more:active{ opacity:0.7; }
 
   /* Explore: a vertical feed of episodes that already exist. */
-  /* Messages was a sheet over the app until §181 made it a tab; the
-     animation stays for voice search's screen. */
-  @keyframes sheet-in{ from{ transform:translateY(14px); opacity:0; } }
   .sheet-close{ width:30px; height:30px; border-radius:50%; border:1px solid var(--border-strong);
     background:none; color:var(--text); display:flex; align-items:center;
     justify-content:center; cursor:pointer; }
@@ -1508,6 +1547,11 @@
     white-space:nowrap; }
   .deeper-len.on{ background:var(--copper); border-color:var(--copper); color:var(--ink);
     font-weight:700; }
+  /* A length picked recolours in 150 ms (go-deeper-box: B, §643). */
+  .deeper-len{ transition:background-color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out),
+    color var(--dur-colour) var(--ease-out); }
+  .deeper-chip .chip-line{ display:block; }
+  @media (prefers-reduced-motion: reduce){ .deeper-len{ transition:none; } }
   .deeper-chip .chip-label{
     display:block; font-family:'Geist Mono', monospace; font-size:8px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted);
@@ -2473,23 +2517,45 @@
   .fam-loading.stepped .fam-loading-dots{ display:none; }
   .fam-steps li{ display:flex; align-items:center; gap:12px;
     font-family:'Geist Mono', monospace; font-size:12px; letter-spacing:0.02em;
-    color:var(--text-muted); opacity:.55; transition:opacity .35s ease, color .35s ease; }
+    color:var(--text-muted); opacity:.55;
+    transition:opacity var(--dur-colour) var(--ease-out), color var(--dur-colour) var(--ease-out); }
   .fam-steps li.active, .fam-steps li.done{ opacity:1; }
   .fam-steps li.active{ color:var(--text); }
   .fam-steps li.done{ color:var(--copper); }
+  /* A step checks off (steps-check-off: B, §643): the circle fills copper
+     (150 ms), the tick draws in (220 ms, 80 ms later - Follow's tick), and
+     a thin copper thread fills down from it to the next circle (260 ms,
+     120 ms later), which then lights. Only ever after the server's mark: the
+     timing of the steps is `GEN_STEP_*`, untouched; every part of a check is
+     drawn inside the 400 ms beat before the audio. */
   .fam-step-dot{ position:relative; flex:none; width:20px; height:20px; border-radius:50%;
     border:1.6px solid currentColor; display:flex; align-items:center; justify-content:center;
-    transition:background .3s ease, border-color .3s ease; }
-  .fam-steps li.active .fam-step-dot{ border-color:var(--copper);
-    animation:famStepPulse 1.6s ease-in-out infinite; }
-  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); }
-  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); opacity:0;
-    transform:scale(.4); transition:opacity .25s ease, transform .3s cubic-bezier(.3,1.6,.5,1); }
-  .fam-steps li.done .fam-step-dot svg{ opacity:1; transform:scale(1); }
-  @keyframes famStepPulse{
-    0%,100%{ box-shadow:0 0 0 0 rgba(224,181,99,0.45); }
-    50%    { box-shadow:0 0 0 5px rgba(224,181,99,0); }
+    transition:background-color var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out); }
+  .fam-steps li.active .fam-step-dot{ border-color:var(--copper); }
+  .fam-steps li.active:not([data-step="0"]) .fam-step-dot{ transition-delay:0s, calc(var(--dur-step-rail-at) + var(--dur-step-rail)); }
+  .fam-steps li.done .fam-step-dot{ background:var(--copper); border-color:var(--copper); transition-delay:0s; }
+  .fam-step-dot svg{ width:12px; height:12px; color:var(--ink); }
+  .fam-step-dot svg path{ stroke-dasharray:1; stroke-dashoffset:1;
+    transition:stroke-dashoffset var(--dur-step-tick) var(--ease-out) var(--dur-step-tick-at); }
+  .fam-steps li.done .fam-step-dot svg path{ stroke-dashoffset:0; }
+  .fam-step-rail{ position:absolute; left:calc(50% - 1px); top:calc(100% + 1.6px); width:2px; height:13px;
+    background:var(--border-strong); pointer-events:none; }
+  .fam-step-rail::after{ content:""; position:absolute; inset:0; background:var(--copper);
+    transform:scaleY(0); transform-origin:top;
+    transition:transform var(--dur-step-rail) var(--ease-in-out) var(--dur-step-rail-at); }
+  .fam-steps li.done .fam-step-rail::after{ transform:scaleY(1); }
+  /* The active circle's ring (loader-loops: A, §643) fires once a beat, as
+     the top chevron lands - one clock with the chevrons, on transform and
+     opacity. `Motion.stepRing` runs it; here it is only drawn. */
+  .fam-step-ring{ position:absolute; inset:-1.6px; border-radius:50%; border:1.6px solid var(--copper);
+    opacity:0; pointer-events:none; }
+  /* A replay paints all five done at once: no five ticks in a row. */
+  .fam-steps.instant *, .fam-steps.instant *::after{ transition:none !important; }
+  @media (prefers-reduced-motion: reduce){
+    .fam-steps li, .fam-step-dot, .fam-step-dot svg path, .fam-step-rail::after{ transition:none; }
+    .fam-steps li.active .fam-step-ring{ animation:famRingPulse var(--dur-ring-pulse) var(--ease-in-out) infinite alternate; }
   }
+  @keyframes famRingPulse{ from{ opacity:.35; } to{ opacity:1; } }
 
   /* The two browse waits (§509, the owner's pick from the loading-screen
      options page). A DailyFAM tile tapped shows the tuning dial; a myFAM
@@ -2565,6 +2631,13 @@
   .fam-dev.motion-loader-pic{ position:absolute; z-index:61; max-width:none; aspect-ratio:auto;
     margin:0; pointer-events:none; transform-origin:0 0; }
   .fam-loading.motion-loader-out{ pointer-events:none; }
+  /* Sent from voice search, the loader fades in over its sheet, which is
+     then hidden beneath it (voice-sheet: B, §643). */
+  .fam-loading.over-voice{ z-index:460; }
+  /* searchFAM's FAM on its way into the loader's wordmark (loader-arrives: B). */
+  .motion-mark{ position:absolute !important; z-index:470; pointer-events:none; margin:0 !important;
+    box-sizing:border-box; }
+  .motion-left{ position:absolute !important; pointer-events:none; margin:0 !important; }
   .fam-loading.motion-loader-out *, .fam-loading.motion-loader-out *::before,
   .fam-loading.motion-loader-out *::after{ animation:none !important; }
 
@@ -2607,8 +2680,10 @@
      still happening keep a gentle opacity pulse (reduced: A, §640). */
   @media (prefers-reduced-motion: reduce){
     .fam-loading-mark .chev{ opacity:1; transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
+    /* Search's stepped loader keeps one mover (loader-loops: A, §643): the
+       chevrons are still and the active ring pulses. */
+    .fam-loading.stepped .fam-loading-mark .chev{ animation:none; }
     .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
-    .fam-steps li.active .fam-step-dot{ animation:famLdPulse 1.6s ease-in-out infinite; }
     .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
     .fam-dev-faces .src-mark, .fam-dev-names{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }
@@ -2779,6 +2854,9 @@
   .reading-own-row{ display:flex; align-items:center; gap:8px; margin-top:8px; padding:4px 4px 4px 14px;
     min-height:46px; border-radius:16px; background:var(--bg); border:1.5px solid var(--copper); }
   .reading-own[hidden], .reading-own-row[hidden]{ display:none; }
+  .reading-own-cell{ display:grid; margin-top:8px; }
+  .reading-own-cell > *{ grid-area:1/1; margin-top:0; }
+  .reading-own-cell > .motion-own{ pointer-events:none; }
   .reading-own-input{ flex:1; min-width:0; border:none; outline:none; background:transparent;
     color:var(--text); font-family:'Geist',sans-serif; font-size:16px; padding:8px 0; }
   .reading-own-input::placeholder{ color:var(--text-faint); }
@@ -3277,6 +3355,8 @@
   /* Search DailyFAM's rows wear the episode's picture (the owner, 10.31):
      the play glyph stays underneath, shown only if there is none or it
      fails to load. */
+  /* A query keeps the last list, dimmed, until its answer (§643). */
+  #mfsBody.is-searching{ opacity:.6; }
   #mfsBody .sv-art{ width:56px; height:42px; flex:0 0 56px; position:relative;
     overflow:hidden; }
   #mfsBody .sv-art img{ position:absolute; inset:0; width:100%; height:100%;
@@ -4146,11 +4226,11 @@
              server's own marks for this episode, never from a timer - see
              /api/progress. -->
         <ol class="fam-steps" id="famSteps" aria-label="What FAM is doing">
-          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Contextualizing your search</span></li>
-          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Retrieving your information</span></li>
-          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Verifying the relevance</span></li>
-          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Finalizing your script</span></li>
-          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Generating the audio</span></li>
+          <li data-step="0"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Contextualizing your search</span></li>
+          <li data-step="1"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Retrieving your information</span></li>
+          <li data-step="2"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Verifying the relevance</span></li>
+          <li data-step="3"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i><i class="fam-step-rail" aria-hidden="true"></i></span><span>Finalizing your script</span></li>
+          <li data-step="4"><span class="fam-step-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg><i class="fam-step-ring" aria-hidden="true"></i></span><span>Generating the audio</span></li>
         </ol>
 
         <!-- The honest wait, kept. PROBLEMS.md 55 removed the filler and put
@@ -4766,16 +4846,6 @@
         <div class="vs-words placeholder" id="vsWords" aria-live="polite" contenteditable="true" spellcheck="true" autocapitalize="off" enterkeyhint="search" role="textbox" aria-label="Your search - tap to correct it" onfocus="editVoiceWords()" oninput="voiceWordsEdited()" onkeydown="voiceWordsKey(event)" onpaste="voiceWordsPaste(event)" onblur="voiceWordsDone()">The words you speak appear here…</div>
         <div class="vs-stage">
           <div class="vs-orb">
-            <svg class="vs-waves" viewBox="0 0 250 250" aria-hidden="true">
-              <path d="M177.1 81.3A68 68 0 0 1 177.1 168.7"/>
-              <path class="r2" d="M190.9 69.7A86 86 0 0 1 190.9 180.3"/>
-              <path class="r3" d="M204.7 58.1A104 104 0 0 1 204.7 191.9"/>
-              <path d="M72.9 168.7A68 68 0 0 1 72.9 81.3"/>
-              <path class="r2" d="M59.1 180.3A86 86 0 0 1 59.1 69.7"/>
-              <path class="r3" d="M45.3 191.9A104 104 0 0 1 45.3 58.1"/>
-              <path class="low r2" d="M97 212H153"/>
-              <path class="low r3" d="M108 225H142"/>
-            </svg>
             <button class="vs-mark" id="vsMark" onclick="toggleVoiceListening()" aria-label="Listen again"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></button>
           </div>
         </div>
@@ -4812,20 +4882,24 @@
               <!-- Voice search (§151). Hidden until `paintVoiceMic` finds
                    speech recognition in this browser: a mic that cannot
                    hear is a control with nothing behind it. -->
-              <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
+              <!-- The mic and go share one slot (bar-focus-go: C, §643): the
+                   arrow takes the mic's place while there is something to send. -->
+              <span class="bar-slot" id="barSlot">
+                <button class="voice-mic" id="voiceMicBtn" hidden onclick="openVoiceSearch()" aria-label="Search by voice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21M9 21h6"/></svg></button>
+                <button class="go-btn" id="searchGoBtn" onclick="runSearch()" aria-label="Search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              </span>
               <button class="attach-btn" id="attachBtn" onclick="openAttachMenu()" aria-label="Add a document, photo or link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
-              <button class="go-btn" id="searchGoBtn" hidden onclick="runSearch()" aria-label="Search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
           </div>
           <div class="attach-row" id="attachRow"></div>
           <!-- Two bubbles under the bar (§190): each opens its choice. The
                choice itself is not printed here - the menus tick it. -->
           <div class="fam-controls">
-            <button type="button" class="search-bubble" id="lengthBubble" onclick="openLengthMenu()" aria-label="Episode length"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4"/></svg>Length</button>
+            <button type="button" class="search-bubble" id="lengthBubble" onclick="openLengthMenu()" aria-label="Episode length"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path class="ack-hand" d="M12 9v4l2.5 2.5"/><path d="M10 2h4"/></svg>Length</button>
             <!-- The voice this search is spoken in (§147). Only here and
                  under Listening in Settings: every other surface draws a
                  voice from the bank per episode. -->
-            <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Voice</button>
+            <button type="button" class="search-bubble" id="voiceBubble" onclick="openVoiceMenu()" aria-label="Voice for your searches"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path class="ack-bar" d="M4 10v4"/><path class="ack-bar" d="M8 7v10"/><path class="ack-bar" d="M12 4v16"/><path class="ack-bar" d="M16 8v8"/><path class="ack-bar" d="M20 11v2"/></svg>Voice</button>
             <!-- Private search (10.15 packet, §282): Google's incognito, left
                  on until turned off (§285), Go Deeper included. In no episode library, on no friend's DailyFAM,
                  in nobody's history. A lock and nothing more (11.16 notes):
@@ -5795,6 +5869,8 @@
           <div class="reading-asked" id="readingQuestion"></div>
           <div class="modal-title reading-title" id="readingTitle">Which one do you mean?</div>
           <div class="reading-choices" id="readingChoices"></div>
+          <!-- One cell for the pill and the field it becomes (which-one: A, §643). -->
+          <div class="reading-own-cell">
           <button class="reading-own" id="readingOwnBtn" type="button" onclick="openReadingOwn()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
@@ -5809,6 +5885,7 @@
                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
             </button>
           </form>
+          </div>
           <button class="reading-cancel" type="button" onclick="answerReading('')">Cancel</button>
         </div>
       </div>
@@ -6278,8 +6355,27 @@
       emptyAt: msToken("--dur-empty-at", 510),
       tick: msToken("--dur-tick", 220), tickAt: msToken("--dur-tick-at", 80), star: msToken("--dur-star", 160),
       dotIn: msToken("--dur-dot-in", 240), dotOut: msToken("--dur-dot-out", 160),
-      square: msToken("--dur-square", 300)
+      square: msToken("--dur-square", 300),
+      // search (§643)
+      loaderFade: msToken("--dur-loader-fade", 200), markGlide: msToken("--dur-mark-glide", 320),
+      rowIn: msToken("--dur-row-in", 240), rowStagger: msToken("--dur-row-stagger", 40),
+      loaderLeave: msToken("--dur-loader-leave", 160),
+      stepRail: msToken("--dur-step-rail", 260), stepRailAt: msToken("--dur-step-rail-at", 120),
+      beat: msToken("--dur-beat", 2400), beatRingAt: msToken("--dur-beat-ring-at", 920),
+      beatRing: msToken("--dur-beat-ring", 1200), iris: msToken("--dur-iris", 340),
+      listIn: msToken("--dur-list-in", 260), listStagger: msToken("--dur-list-stagger", 40),
+      listFade: msToken("--dur-list-fade", 150),
+      wipe: msToken("--dur-wipe", 320),
+      hand: msToken("--dur-hand", 420), hop: msToken("--dur-hop", 240),
+      hopStagger: msToken("--dur-hop-stagger", 35), ack: msToken("--dur-ack", 1000),
+      voiceIn: msToken("--dur-voice-in", 300), voiceOut: msToken("--dur-voice-out", 240),
+      voiceRingLag: msToken("--dur-voice-ring-lag", 40),
+      drain: msToken("--dur-drain", 260), pillIn: msToken("--dur-pill-in", 220),
+      pillFlip: msToken("--dur-pill-flip", 220),
+      ripple: msToken("--dur-ripple", 420), rippleGap: msToken("--dur-ripple-gap", 150),
+      ownOut: msToken("--dur-own-out", 150), ownIn: msToken("--dur-own-in", 200)
     };
+    var EASE_WIPE = token("--ease-wipe", "cubic-bezier(.4,0,.2,1)");
     var EASE_SWAP = token("--ease-swap", "cubic-bezier(.25,.1,0,1)");
     // A spring as a `linear()` curve: a damped spring of the given duration
     // and bounce (the skill's form), with `v0` the speed it starts at, in
@@ -6474,6 +6570,10 @@
     // on from there instead of starting again.
     var swiped = null;
     function screen(from, to, how){
+      // Search's loader is over everything (loader-to-player: C, §643): the
+      // player opens under it with no movement of its own, and whatever is
+      // moving on the loader - its arrival, its rings - carries on.
+      if(how === "player-open" && searchLoader()){ swiped = null; return; }
       settle();
       var drag = swiped && Date.now() - swiped.at < 300 ? swiped : null;
       swiped = null;
@@ -7470,6 +7570,8 @@
     // 200 ms, both `in`. With no picture the copy only fades.
     function handOff(loader){
       if(!on() || !loader || !loader.classList.contains("active")) return;
+      // Search's loader opens onto the player (loader-to-player: C, §643).
+      if(loader.classList.contains("stepped")){ iris(loader); return; }
       // A mix's glide fades out as a copy (mix-glide: B, §642).
       if(!loader.querySelector(".fam-dev")){ if(loader.querySelector(".fam-glide")) glideOut(loader); return; }
       settle();
@@ -8238,6 +8340,312 @@
                     { delay: squareAt + DUR.square, fill: "backwards" });
     }
 
+    // ---- search (round three, §643) ----
+    // Search's own loader: the five steps (`stepped`), whatever asked.
+    function searchLoader(){
+      var el = document.getElementById("famLoading");
+      return el && el.classList.contains("active") && el.classList.contains("stepped") ? el : null;
+    }
+    // The box round everything `sel` matches inside `root`, on screen.
+    function unionBox(root, sel){
+      var u = null;
+      Array.prototype.forEach.call(root.querySelectorAll(sel), function(n){
+        if(!seen(n)) return;
+        var b = box(n);
+        if(!u){ u = { x: b.x, y: b.y, r: b.x + b.w, d: b.y + b.h }; return; }
+        u.x = Math.min(u.x, b.x); u.y = Math.min(u.y, b.y);
+        u.r = Math.max(u.r, b.x + b.w); u.d = Math.max(u.d, b.y + b.h);
+      });
+      return u ? { x: u.x, y: u.y, w: u.r - u.x, h: u.d - u.y } : null;
+    }
+    // The loader arrives (loader-arrives: B). It is up, and its X
+    // pressable, from the press; what moves is drawn over it. The page
+    // under it fades away as the loader's ground fades in (200 ms);
+    // searchFAM's FAM - the one mark both screens have - glides into the
+    // loader's wordmark (320 ms `in-out`, by translate and scale, the
+    // letters' height to the wordmark's); the five rows rise 8 px, 40 ms
+    // apart, 240 ms each, all in by 400 ms - inside step one's half-second
+    // floor, which still counts from the request, so no check can come
+    // sooner. Over voice search (or from any other screen) there is no FAM
+    // to carry: the rest is the same.
+    function loaderIn(loader, from){
+      if(!on() || !loader || !loader.classList.contains("active")) return;
+      var anims = [run(loader, [{ opacity: 0 }, { opacity: 1 }], DUR.loaderFade, { fill: "backwards" })];
+      Array.prototype.forEach.call(loader.querySelectorAll(".fam-steps li"), function(li, i){
+        anims = anims.concat(rise(li, i * DUR.rowStagger, DUR.rowIn, false));
+      });
+      var sheet = document.getElementById("voiceSearch");
+      var logo = from && from.id === "screen-home" && from.classList.contains("active")
+                 && !(sheet && !sheet.hidden) ? from.querySelector(".fam-logo") : null;
+      var wm = loader.querySelector(".fam-loading-wm");
+      var a = logo && seen(logo) ? unionBox(logo, ".wm-glyph, .wm-a") : null;
+      var b = a && wm ? unionBox(wm, ".wm-glyph, .wm-a") : null;
+      var g = null;
+      if(a && b && a.h && b.h){
+        var lb = box(logo);
+        g = inertCopy(logo);
+        g.classList.add("motion-mark");
+        g.style.left = lb.x + "px"; g.style.top = lb.y + "px";
+        g.style.width = lb.w + "px"; g.style.height = lb.h + "px";
+        g.style.transformOrigin = (a.x + a.w / 2 - lb.x) + "px " + (a.y + a.h / 2 - lb.y) + "px";
+        var dx = b.x + b.w / 2 - (a.x + a.w / 2), dy = b.y + b.h / 2 - (a.y + a.h / 2);
+        var c0 = getComputedStyle(logo).color, c1 = getComputedStyle(wm).color;
+        frameEl().appendChild(g);
+        logo.style.visibility = "hidden"; wm.style.visibility = "hidden";
+        anims.push(run(g, [{ transform: "translate(0px, 0px) scale(1)", color: c0 },
+                           { transform: "translate(" + dx + "px, " + dy + "px) scale(" + (b.h / a.h) + ")", color: c1 }],
+                       DUR.markGlide, { easing: EASE_IO }));
+      }
+      track(anims, function(){
+        cancelAll(anims);
+        if(g){ g.remove(); logo.style.visibility = ""; wm.style.visibility = ""; }
+      });
+    }
+    // The loader leaves on a cancel or a failure (loader-arrives: B;
+    // which-one: A): it is down at once and a copy fades, 160 ms `in`, so
+    // the page under it is live on the first frame. Returns how long.
+    function loaderLeave(loader){
+      if(!on() || !loader || !loader.classList.contains("active") || !loader.classList.contains("stepped")) return 0;
+      settle();
+      var copy = inertCopy(loader);
+      copy.classList.add("motion-loader-out");
+      loader.parentNode.insertBefore(copy, loader.nextSibling);
+      run(copy, [{ opacity: 1 }, { opacity: 0 }], DUR.loaderLeave, { easing: EASE_IN }).finished.then(gone(copy), gone(copy));
+      return DUR.loaderLeave;
+    }
+    // The active step's ring (loader-loops: A): one beat with the
+    // chevrons. Once each 2.4 s, as the top chevron lands (.92 s in: the
+    // third chevron's .44 s delay and the fifth of the beat it takes to
+    // rise), the ring grows from the circle to 1.7x as it fades, by
+    // transform and opacity - read off the chevrons' own clock, so the two
+    // never drift. The first waits until the thread above has reached its
+    // circle (steps-check-off: B). Reduced motion: the CSS pulses it.
+    function stepRing(loader){
+      if(!loader) return;
+      var live = loader.classList.contains("active") && loader.classList.contains("stepped");
+      Array.prototype.forEach.call(loader.querySelectorAll(".fam-steps li"), function(li){
+        var ring = li.querySelector(".fam-step-ring");
+        if(!ring) return;
+        if(!live || !li.classList.contains("active") || !on()){
+          if(ring._beat){ ring._beat.cancel(); ring._beat = null; }
+          return;
+        }
+        if(ring._beat) return;
+        var chev = loader.querySelector(".fam-loading-mark .c1");
+        var ca = chev && chev.getAnimations ? chev.getAnimations()[0] : null;
+        var now = document.timeline ? document.timeline.currentTime : 0;
+        var t0 = ca && ca.startTime !== null && ca.startTime !== undefined ? ca.startTime : now;
+        var lights = li.getAttribute("data-step") === "0" ? 0 : DUR.stepRailAt + DUR.stepRail;
+        var k = Math.max(0, Math.ceil((now + lights - t0 - DUR.beatRingAt) / DUR.beat));
+        var first = t0 + DUR.beatRingAt + k * DUR.beat;
+        ring._beat = ring.animate([{ opacity: 0.5, transform: "scale(1)", easing: EASE },
+                                   { opacity: 0, transform: "scale(1.7)", offset: DUR.beatRing / DUR.beat },
+                                   { opacity: 0, transform: "scale(1.7)" }],
+                                  { duration: DUR.beat, delay: Math.max(0, first - now), iterations: Infinity });
+      });
+    }
+    // The loader gives way to the player (loader-to-player: C). The player
+    // is in place under it from the first frame (`screen` does not push
+    // while it is up) and the audio is already playing; a copy of the
+    // loader opens from its own chevrons outward - a hole that grows until
+    // it is gone, 340 ms `in-out`. The hole is the copy's clip: the
+    // loader's rectangle with a circle cut out of it (even-odd), so only
+    // the circle's radius moves.
+    function iris(loader){
+      settle();
+      var b = box(loader), mark = loader.querySelector(".fam-loading-mark");
+      var m = mark && seen(mark) ? box(mark) : { x: b.x + b.w / 2, y: b.y + b.h / 2, w: 0, h: 0 };
+      var cx = m.x + m.w / 2 - b.x, cy = m.y + m.h / 2 - b.y;
+      var far = Math.ceil(Math.max(Math.hypot(cx, cy), Math.hypot(b.w - cx, cy),
+                                   Math.hypot(cx, b.h - cy), Math.hypot(b.w - cx, b.h - cy))) + 2;
+      var hole = function(r){
+        return 'path(evenodd, "M0 0H' + b.w + "V" + b.h + "H0Z M" + (cx - r) + " " + cy
+          + "A" + r + " " + r + " 0 1 0 " + (cx + r) + " " + cy
+          + "A" + r + " " + r + " 0 1 0 " + (cx - r) + " " + cy + 'Z")';
+      };
+      var copy = inertCopy(loader);
+      copy.classList.add("motion-loader-out");
+      loader.parentNode.insertBefore(copy, loader.nextSibling);
+      var a = run(copy, [{ clipPath: hole(0.5) }, { clipPath: hole(far) }], DUR.iris, { easing: EASE_IO });
+      var finish = function(){ a.cancel(); copy.remove(); };
+      finishing.push(finish);
+      a.finished.then(function(){
+        var i = finishing.indexOf(finish);
+        if(i >= 0){ finishing.splice(i, 1); finish(); }
+      }, function(){});
+    }
+    // Lists that land on their own (lists-arrive: A), the rails' arrival:
+    // what was not there rises 8 px and fades in, 260 ms `out`, 40 ms
+    // apart, the first six. Nothing while its screen is still moving in,
+    // which it rides in with.
+    function arriveList(els){
+      if(!on()) return;
+      els.filter(function(el){ return el && seen(el) && !moving(el); }).slice(0, 6).forEach(function(el, i){
+        rise(el, i * DUR.listStagger, DUR.listIn, false);
+      });
+    }
+    // Results that replace a list fade in (150 ms).
+    function fadeIn(el){
+      if(on() && el && seen(el)) run(el, [{ opacity: 0 }, { opacity: 1 }], DUR.listFade, { fill: "none" });
+    }
+    // A line FAM wrote arrives (go-deeper-box: B): revealed left to right
+    // where the old one was, 320 ms, as the player's title once did; its
+    // label has already changed.
+    function wipeIn(el){
+      if(!on() || !onActive(el)) return;
+      run(el, [{ clipPath: "inset(0px 100% 0px 0px)" }, { clipPath: "inset(0px 0% 0px 0px)" }], DUR.wipe,
+          { easing: EASE_WIPE, fill: "none" });
+    }
+    // Length and Voice say "set" (bubble-ack: B), once the sheet has
+    // dropped: the stopwatch's hand turns once round its dial (420 ms
+    // `in-out`), the voice's five bars hop in turn (240 ms, 35 ms apart).
+    // The bubble still never prints the value. Reduced motion: the icon is
+    // copper for a second instead.
+    function ack(bubble){
+      if(!bubble || !seen(bubble)) return;
+      if(!on()){
+        bubble.classList.add("acked");
+        clearTimeout(bubble._ack);
+        bubble._ack = setTimeout(function(){ bubble.classList.remove("acked"); }, DUR.ack);
+        return;
+      }
+      var after = DUR.sheetOut;
+      var hand = bubble.querySelector(".ack-hand");
+      if(hand) run(hand, [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], DUR.hand,
+                   { easing: EASE_IO, delay: after, fill: "none" });
+      Array.prototype.forEach.call(bubble.querySelectorAll(".ack-bar"), function(bar, i){
+        run(bar, [{ transform: "scaleY(1)" }, { transform: "scaleY(1.6)" }, { transform: "scaleY(1)" }], DUR.hop,
+            { easing: EASE_IO, delay: after + i * DUR.hopStagger, fill: "none" });
+      });
+    }
+    // Voice search grows out of the mic (voice-sheet: B): a circle from
+    // the mic opens to the whole sheet, 300 ms `out`, and the FAM ring
+    // settles from .9 40 ms behind it. With no mic on screen (the wake
+    // word) it grows from the ring itself: FAM heard you.
+    function voiceOpen(sheet, from){
+      sheet._from = null;
+      if(!on() || !seen(sheet)) return;
+      var o = from && seen(from) && from.closest(".screen.active") ? from : sheet.querySelector(".vs-mark");
+      if(!o || !seen(o)) return;
+      var r = box(o);
+      var c = { x: r.x + r.w / 2, y: r.y + r.h / 2, r: 20 };
+      sheet._from = c;
+      sheet._open = run(sheet, [{ clipPath: circleIn(sheet, c, false) }, { clipPath: circleIn(sheet, c, true) }],
+                        DUR.voiceIn, { fill: "none" });
+      var mark = sheet.querySelector(".vs-mark");
+      if(mark) runAdd(mark, [{ transform: "scale(.9)" }, { transform: "scale(1)" }], DUR.voiceIn,
+                      { delay: DUR.voiceRingLag, fill: "backwards" });
+    }
+    // Closing, before the sheet is hidden: a copy shrinks back into where
+    // it came from, 240 ms `in-out` - from however far the opening had got,
+    // so an X during it turns round - while the real sheet is already gone.
+    function voiceClose(sheet){
+      var c = sheet._from, opening = sheet._open, at = "";
+      sheet._from = null; sheet._open = null;
+      if(opening){
+        if(opening.playState === "running") at = getComputedStyle(sheet).clipPath;
+        opening.cancel();
+      }
+      if(!on() || !c || sheet.hidden || !seen(sheet)) return 0;
+      var small = circleIn(sheet, c, false);
+      var g = inertCopy(sheet);
+      g.classList.remove("open");
+      sheet.parentNode.insertBefore(g, sheet.nextSibling);
+      run(g, [{ clipPath: at && at !== "none" ? at : circleIn(sheet, c, true), opacity: 1 },
+              { clipPath: small, opacity: 1, offset: 0.85 }, { clipPath: small, opacity: 0 }],
+          DUR.voiceOut, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+      return DUR.voiceOut;
+    }
+    // Search now's count is stopped (search-now: B): the fill drains back
+    // from where it had got to, 260 ms `in-out` - stopping never looks
+    // like the count finishing.
+    function drain(fill, from){
+      // Its own box is already scaled to nothing: the button's is what shows.
+      if(!on() || !(from > 0) || !seen(fill.parentNode)) return;
+      run(fill, [{ transform: "scaleX(" + from + ")" }, { transform: "scaleX(0)" }], DUR.drain,
+          { easing: EASE_IO, fill: "none" });
+    }
+    // Something that just moved in its row glides from where it was
+    // (FLIP), 220 ms `in-out`.
+    function slideFrom(el, before){
+      if(!on() || !before || !seen(el)) return;
+      var now = box(el), dx = before.x - now.x, dy = before.y - now.y;
+      if(Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      runAdd(el, [{ transform: "translate(" + dx + "px, " + dy + "px)" }, { transform: "translate(0px, 0px)" }],
+             DUR.pillFlip, { easing: EASE_IO, fill: "none" });
+    }
+    // A control that has just gone leaves as a copy drawn where it was (in
+    // `host`, which must be positioned): .9 and a fade, 150 ms `in`.
+    function leaveFrom(el, r, host){
+      if(!on() || !r || !r.w || !host) return;
+      var hb = box(host), g = inertCopy(el);
+      g.hidden = false;
+      g.classList.add("motion-left");
+      g.style.left = (r.x - hb.x) + "px"; g.style.top = (r.y - hb.y) + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      host.appendChild(g);
+      run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.9)" }], DUR.colour,
+          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+    }
+    // Something that has just appeared rises 12 px into place (220 ms `out`).
+    function riseIn(el){
+      if(!on() || !seen(el)) return;
+      runAdd(el, [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "translateY(0px)" }],
+             DUR.pillIn, { fill: "none" });
+    }
+    // One ring out of the FAM mark for each word heard (voice-waves: B):
+    // 1 -> 1.35 as it fades from .8, 420 ms `out`, at most one each 150 ms.
+    // Between words, nothing moves.
+    var rippledAt = 0;
+    function ripple(mark){
+      if(!on() || !mark || !seen(mark)) return false;
+      var now = Date.now();
+      if(now - rippledAt < DUR.rippleGap) return false;
+      rippledAt = now;
+      var r = document.createElement("span");
+      r.className = "vs-ripple";
+      r.setAttribute("aria-hidden", "true");
+      mark.parentNode.insertBefore(r, mark);
+      run(r, [{ opacity: 0.8, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.35)" }], DUR.ripple,
+          { fill: "none" }).finished.then(gone(r), gone(r));
+      return true;
+    }
+    // "Type your own" becomes the field in its own place (which-one: A):
+    // both are one grid cell; a copy of the pill fades and shrinks to .97
+    // (150 ms `in`) while the field fades in from .97 (200 ms `out`) and its
+    // arrow arrives on the icon swap. Focus is already in the field.
+    function ownSwap(pill, row){
+      if(!on() || !pill || !row || !seen(row)) return;
+      var g = inertCopy(pill);
+      g.hidden = false;
+      g.classList.add("motion-own");
+      row.parentNode.appendChild(g);
+      run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.97)" }], DUR.ownOut,
+          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      run(row, [{ opacity: 0, transform: "scale(.97)" }, { opacity: 1, transform: "scale(1)" }], DUR.ownIn,
+          { fill: "none" });
+      var arrow = row.querySelector("button svg");
+      if(arrow) iconIn(arrow);
+    }
+    // An icon whose two states are both in the page (Private's lock): the
+    // one now shown grows in from .3 out of a 3 px blur while a copy of the
+    // one now hidden shrinks away the same way - play-pause: A, at once.
+    function swapShown(was, now, colour){
+      if(!on() || !was || !now || !onActive(now)) return;
+      var r = box(now), g = document.createElement("span");
+      g.className = "motion-icon";
+      g.style.left = r.x + "px"; g.style.top = r.y + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      g.style.color = colour || "";
+      var c = was.cloneNode(true);
+      c.removeAttribute("class");
+      c.style.display = "block";
+      g.appendChild(c);
+      frameEl().appendChild(g);
+      iconOut(g).finished.then(gone(g), gone(g));
+      iconIn(now);
+    }
+
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
@@ -8250,6 +8658,10 @@
              chipLayout: chipLayout, followCategory: followCategory, pending: pending, newMixLands: newMixLands,
              blocks: blocks, joinRow: joinRow, putBack: putBack, shuffleRows: shuffleRows, liftRow: liftRow,
              band: band, dropRow: dropRow, undim: undim, dot: dot, fileIn: fileIn, movingFor: movingFor,
+             searchLoader: searchLoader, loaderIn: loaderIn, loaderLeave: loaderLeave, stepRing: stepRing,
+             arriveList: arriveList, fadeIn: fadeIn, wipeIn: wipeIn, ack: ack, voiceOpen: voiceOpen,
+             voiceClose: voiceClose, drain: drain, slideFrom: slideFrom, leaveFrom: leaveFrom, riseIn: riseIn,
+             ripple: ripple, ownSwap: ownSwap, swapShown: swapShown, box: box,
              EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO, SWAP: EASE_SWAP }, DUR: DUR, spring: spring,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
@@ -8683,6 +9095,19 @@
   // title to show (always the corrected spelling). Words already asked about
   // are answered from memory, so the usual send waits for nothing.
   var searchSending = false;
+  var searchAsked = null;
+  // Cancel, or Cancel on "Which one do you mean?": the question and its
+  // attachments go back in the bar they were sent from, unless something
+  // new is there already.
+  function restoreAskedSearch(){
+    var a = searchAsked;
+    searchAsked = null;
+    var input = document.getElementById("searchInput");
+    if(!a || !input || input.value.trim() || ATTACHED.length) return;
+    input.value = a.text || "";
+    ATTACHED = a.attached || [];
+    renderAttachments();
+  }
   // Private search (10.15 packet, §282), left on until it is turned off
   // (10.16 packet, §285): every search and Go Deeper sent while it is on
   // carries it. One switch in two places - this bubble and Settings - kept
@@ -8692,7 +9117,7 @@
   function setPrivateSearch(on){
     // The lock closes or opens, and that is all (11.16 notes): the page no
     // longer turns charcoal behind a falling blind (§282, §298).
-    paintPrivateSearch(on);
+    paintPrivateSearch(on, true);
     if(AUTH.authenticated){
       savePreferences({ private_search: privateSearch }).then(function(saved){
         if(saved && PREF_CHOICES) PREF_CHOICES.private_search = !!saved.private_search;
@@ -8706,12 +9131,20 @@
     toast(privateSearch ? "Private search on \u00b7 kept out of history and feeds" : "Private search off");
   }
   // Drawing only: what the page shows for the switch, with nothing saved.
-  function paintPrivateSearch(on){
+  function paintPrivateSearch(on, tapped){
+    var was = privateSearch;
     privateSearch = !!on;
     var screen = document.getElementById("screen-home");
     if(screen) screen.classList.toggle("private-search", privateSearch);
     var bubble = document.getElementById("privateBubble");
+    var old = bubble && bubble.querySelector(was ? ".lock-shut" : ".lock-open");
+    var colour = tapped && old ? getComputedStyle(old).color : "";
     if(bubble) bubble.setAttribute("aria-pressed", privateSearch ? "true" : "false");
+    // The lock opens or shuts on the icon swap (play-pause: A, §643) - on
+    // the tap only, never when the switch is painted from what is saved.
+    if(bubble && tapped && was !== privateSearch){
+      Motion.swapShown(old, bubble.querySelector(privateSearch ? ".lock-shut" : ".lock-open"), colour);
+    }
     if(bubble){
       bubble.setAttribute("aria-label", privateSearch ? "Private search is on" : "Private search");
       bubble.title = privateSearch ? "Private search is on" : "Private search";
@@ -8732,12 +9165,22 @@
       return on ? on.id : "";
     };
     var startedOn = screenNow();
+    // The loader opens on the press and the speller's wait runs under its
+    // first step - which is what the speller is doing (loader-arrives: B,
+    // §643). Up to 700 ms used to pass with nothing new on screen. Not
+    // before the AI question, nor with a file still being read: those
+    // answer first, as they always did.
+    var seq = genCancelSeq;
+    var opened = !!(AI_CONSENT && AI_CONSENT.given) && !ATTACHED.some(function(a){ return a.pending; })
+                 && openGenOverlayNow();
     fixed.then(function(r){
       searchSending = false;
+      // Cancelled under the loader: nothing is sent.
+      if(seq !== genCancelSeq) return;
       // Not if, during the wait, they kept typing (that text would be sent
       // stale and then wiped) or went somewhere else: the send they pressed
-      // is no longer the one on screen.
-      if(box.value !== raw || screenNow() !== startedOn) return;
+      // is no longer the one on screen. (Under the loader, neither can.)
+      if(!opened && (box.value !== raw || screenNow() !== startedOn)) return;
       sendSearch(r.query, r.title);
     });
   }
@@ -8789,6 +9232,9 @@
       // and it is the input myFAM was asked to rank on - unless it is private.
       if(!privateSearch) recordFamEvent("search", "", val);
       pendingFromSearch = true;
+      // What the bar held, put back if this is cancelled before a word is
+      // heard (§643): Cancel means "as though I had not pressed it".
+      searchAsked = { text: document.getElementById("searchInput").value, attached: ATTACHED.slice() };
       generate("_custom");
       document.getElementById("searchInput").value = "";
       paintSearchBar();
@@ -8810,6 +9256,8 @@
   // focused, at most once a minute, and nothing is drawn when nothing
   // qualifies.
   var TREND_SEARCHES = [];
+  // The searches already drawn this session, by question, and the label.
+  var trendShownQ = {}, trendLabelShown = false;
   var trendFetchedAt = 0;
   var TREND_REFETCH_MS = 60000;
   var TREND_SHOWN = 5;
@@ -8824,27 +9272,52 @@
     paintSearchBar();
     // Not with something attached: that search is about the attachment.
     var show = !input.value.trim() && !ATTACHED.length && TREND_SEARCHES.length > 0;
+    var wasHidden = box.hidden;
     box.hidden = !show;
     if(!show) return;
     // Five at most (10.2 packet): exactly as many as fit on the screen.
-    document.getElementById("trendList").innerHTML = TREND_SEARCHES.slice(0, TREND_SHOWN).map(function(t, i){
+    var list = document.getElementById("trendList");
+    var html = TREND_SEARCHES.slice(0, TREND_SHOWN).map(function(t, i){
       // The episode's own title, spelled by its writer; the question it
       // answered only when it has none.
       var label = t.title || deriveTitleFromPrompt(t.spelled || t.query);
       return '<button class="trend-chip" type="button" data-trend="' + i + '"'
+        + ' data-q="' + escapeHtml(t.query || "") + '"'
         + ' onpointerdown="event.preventDefault()"'
         + ' onclick="runTrendSearch(' + i + ')">' + TREND_ICON
         + '<span class="tc-text">' + escapeHtml(label) + '</span></button>';
     }).join("");
+    if(list._drawn !== html){ list.innerHTML = html; list._drawn = html; }
+    // A search that was not shown before arrives, the label first when the
+    // list was not up (lists-arrive: A, §643). Keyed on the question, so a
+    // refetch moves only what is new; showing them again as the box is
+    // cleared is the keyboard's and stays instant.
+    var fresh = [];
+    if(wasHidden && !trendLabelShown) fresh.push(box.querySelector(".trend-label"));
+    Array.prototype.forEach.call(list.querySelectorAll(".trend-chip"), function(c){
+      var q = c.getAttribute("data-q");
+      if(!trendShownQ[q]) fresh.push(c);
+      trendShownQ[q] = true;
+    });
+    trendLabelShown = true;
+    Motion.arriveList(fresh);
   }
 
+
   // The bar grows with what is typed, up to its cap, and go appears once
-  // there is something to send - the mic and attach stay put.
+  // there is something to send, in the mic's place - the clip stays put.
   function paintSearchBar(){
     var input = document.getElementById("searchInput");
-    var go = document.getElementById("searchGoBtn");
+    var slot = document.getElementById("barSlot");
     if(!input) return;
-    if(go) go.hidden = !input.value.trim() && !ATTACHED.length;
+    // The arrow takes the mic's slot (bar-focus-go: C, §643); both stay in
+    // the page and cross on the icon swap. With no mic, the slot is only
+    // there while the arrow is.
+    if(slot){
+      slot.classList.toggle("typing", !!(input.value.trim() || ATTACHED.length));
+      var mic = document.getElementById("voiceMicBtn");
+      slot.classList.toggle("no-mic", !mic || mic.hidden);
+    }
     // Measured in the one-row shape first: only a question that wraps there
     // gets the bar's full width (10.5 packet #1).
     var bar = document.getElementById("searchBar");
@@ -8960,6 +9433,29 @@
   var genShownAt = 0;
   var genHideTimer = null;
 
+  // The loader opened on a press, before the episode it waits for is asked
+  // for (loader-arrives: B, §643): a search's spelling, a Go Deeper's.
+  // `generate` takes it over as it is - no second arrival.
+  var genEarly = false;
+  function openGenOverlayNow(){
+    var el = famLoadingEl();
+    if(!el || el.classList.contains("active")) return false;
+    clearGenOverlay();
+    activeGenOverlay = el;
+    el.classList.add("active", "stepped");
+    genShownAt = Date.now();
+    paintGenSteps(0);
+    var node = document.getElementById("famLoadingStatus");
+    if(node) node.textContent = genStatusNote;
+    genEarly = true;
+    // Never up for good: the speller answers within 700 ms, and a server
+    // that says nothing is given up on as for any episode (§497).
+    genDeadline = 0;
+    holdGenTimeout(Date.now() + GEN_QUIET_MS, GEN_SERVER_SILENT);
+    Motion.loaderIn(el, document.querySelector(".screen.active"));
+    return true;
+  }
+
   function clearGenOverlay(){
     // Immediate and unconditional: used when a new generation starts and when
     // one fails. A failure is followed by a toast, and holding a loading
@@ -8968,8 +9464,10 @@
     if(genTicker){ clearInterval(genTicker); genTicker = null; }
     if(genHideTimer){ clearTimeout(genHideTimer); genHideTimer = null; }
     stopGenSteps();
+    genEarly = false;
     var el = famLoadingEl();
     if(el) el.classList.remove("active", "stepped", "alt");
+    if(el) Motion.stepRing(el);
     var alt = document.getElementById("famLoadingAlt");
     if(alt) alt.innerHTML = "";
     activeGenOverlay = null;
@@ -9055,11 +9553,19 @@
     var el = famLoadingEl();
     if(!el) return;
     var items = el.querySelectorAll(".fam-steps li");
+    // A replay is all five at once: the end state, not five ticks (§643).
+    var list = el.querySelector(".fam-steps");
+    if(all && list){
+      list.classList.add("instant");
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ list.classList.remove("instant"); }); });
+    }
     for(var i = 0; i < items.length; i++){
       var done = all || i < shown;
       items[i].classList.toggle("done", done);
       items[i].classList.toggle("active", !done && i === shown);
     }
+    // The active circle's ring, on the chevrons' beat (loader-loops: A).
+    Motion.stepRing(el);
   }
 
   // `free` (§509): DailyFAM's dial and a mix's glide. The server's marks are
@@ -9324,6 +9830,8 @@
   }
 
   function onGenerationStarted(){
+    // A word is heard: Cancel no longer puts the question back.
+    searchAsked = null;
     var activeId = document.querySelector(".screen.active") ? document.querySelector(".screen.active").id : "";
     // A vibe's post plays where it sits (§547): the mini bar carries it and
     // the post's own bar moves, so the full player does not open over it.
@@ -9363,13 +9871,18 @@
     famAbandonReporter = null;
     stopSpeech();
     awaitingFirstAudio = "";
+    // The loader is down at once and leaves as a copy; "Cancelled" comes
+    // as it has gone (loader-arrives: B, §643).
+    var leaving = Motion.loaderLeave(famLoadingEl());
     clearGenOverlay();
     hideNowBar();
     setPlayState(false);
     currentPlayingTopicKey = null;
     episodeStamp = "";
     if(onPlayer && stack.length > 1) goBack();
-    toast("Cancelled");
+    restoreAskedSearch();
+    if(leaving) setTimeout(function(){ toast("Cancelled"); }, leaving);
+    else toast("Cancelled");
   }
 
   function onGenerationFailed(message, err){
@@ -9382,6 +9895,9 @@
       generate(lastGenerate.key, lastGenerate.albumContext);
       return;
     }
+    // Down at once; a copy fades as whatever comes next arrives - the
+    // question "which one?" lifting in over it (which-one: A, §643).
+    Motion.loaderLeave(famLoadingEl());
     clearGenOverlay();
     // A name that means two things (§426): which one, then the same episode
     // again with the chosen reading.
@@ -9465,11 +9981,15 @@
     document.getElementById("readingOverlay").classList.add("active");
   }
   // The pill becomes the field, in its place, focused.
+  // Focus is set on the same frame, so the keyboard rises at once; the swap
+  // is drawn over it in the pill's own cell (which-one: A, §643).
   function openReadingOwn(){
-    document.getElementById("readingOwnBtn").hidden = true;
-    document.getElementById("readingOwnRow").hidden = false;
+    var pill = document.getElementById("readingOwnBtn"), row = document.getElementById("readingOwnRow");
+    pill.hidden = true;
+    row.hidden = false;
     var input = document.getElementById("readingOwnInput");
     try { input.focus({ preventScroll: true }); } catch(e){ input.focus(); }
+    Motion.ownSwap(pill, row);
   }
   function readingOwnTyped(){
     var input = document.getElementById("readingOwnInput");
@@ -9489,6 +10009,7 @@
     if(input) input.blur();
     document.getElementById("readingOverlay").classList.remove("active");
     if(choice && then) then(choice);
+    else if(!choice) restoreAskedSearch();
   }
 
   // ---------------- Reaching a limit ----------------
@@ -10062,10 +10583,14 @@
     // name and look up an overlay by id; the home screen's id did not exist, so
     // a search - the commonest action in the app - showed nothing while it
     // worked. An overlay you have to choose is one you can forget to make.
+    // Opened already on the press (a search's spelling, §643): kept as it
+    // is, its arrival already drawn.
+    var early = genEarly;
+    var shownAt = genShownAt;
     clearGenOverlay();
     var overlay = famLoadingEl();
     activeGenOverlay = overlay;
-    if(overlay){ overlay.classList.add("active"); genShownAt = Date.now(); }
+    if(overlay){ overlay.classList.add("active"); genShownAt = early ? shownAt : Date.now(); }
 
     // A tap that writes an episode shows the five steps instead of the old
     // guessed stage line (§148) - except a DailyFAM tile and a mix's episode,
@@ -10073,6 +10598,8 @@
     var variant = TOPICS[key] ? TOPICS[key].loader || "" : "";
     startGenSteps(!!variant);
     if(variant) paintLoadingVariant(variant, TOPICS[key]);
+    // Search's loader arrives (loader-arrives: B, §643).
+    else if(!early) Motion.loaderIn(overlay, document.querySelector(".screen.active"));
 
     // Never spin forever if the server is unreachable or wedged. This is a
     // limit on *silence from the server*, not on the episode: every step the
@@ -10752,21 +11279,69 @@
   function goDeeperSuggestionText(){
     return goDeeperThread() || goDeeperFallback();
   }
+  // **What the chip shows is what is sent** (§643, the review's broken
+  // finding). The writer's line often lands while the box is open, and a
+  // tap used to send whatever was there at the click - a line that had
+  // swapped under the finger, never read. Now the line on screen is kept
+  // (`goDeeperShown`), read when the finger goes down, and no swap is drawn
+  // while a finger is on the chip or for 300 ms after it lifts.
+  var goDeeperShown = "";
+  var goDeeperHold = { down: false, until: 0, timer: 0, pressed: "" };
+  //: How long after the finger lifts a new line still waits.
+  var GO_DEEPER_HOLD_MS = 300;
+  function goDeeperChipHeld(){
+    return goDeeperHold.down || Date.now() < goDeeperHold.until;
+  }
   function showThreadSuggestion(){
     var chip = document.getElementById("goDeeperSuggestion");
     if(!chip) return;
     var text = goDeeperSuggestionText();
+    // Not under a finger: drawn once it has lifted.
+    if(text !== goDeeperShown && goDeeperChipHeld() && chip.style.display !== "none"){
+      clearTimeout(goDeeperHold.timer);
+      goDeeperHold.timer = setTimeout(showThreadSuggestion,
+        Math.max(0, goDeeperHold.until - Date.now()) + (goDeeperHold.down ? GO_DEEPER_HOLD_MS : 0));
+      return;
+    }
+    var was = goDeeperShown;
+    goDeeperShown = text || "";
     if(!text){ chip.style.display = "none"; return; }
+    // The label changes at once; FAM's line writes itself in where the old
+    // one was (go-deeper-box: B, §643) - only a line that changed, in a box
+    // already open.
+    var line = chip.querySelector(".chip-line");
+    var open = goDeeperIsOpen() && chip.style.display !== "none" && was && was !== text && line;
     chip.innerHTML = '<span class="chip-label">'
                    + (goDeeperThread() ? "Pick up the thread" : "Follow the thread")
-                   + '</span>' + escapeHtml(text);
+                   + '</span><span class="chip-line">' + escapeHtml(text) + '</span>';
     chip.style.display = "block";
+    if(open) Motion.wipeIn(chip.querySelector(".chip-line"));
   }
+  (function(){
+    var chip = document.getElementById("goDeeperSuggestion");
+    if(!chip) return;
+    chip.addEventListener("pointerdown", function(){
+      goDeeperHold.down = true;
+      goDeeperHold.pressed = goDeeperShown;
+    });
+    var up = function(){
+      if(!goDeeperHold.down) return;
+      goDeeperHold.down = false;
+      goDeeperHold.until = Date.now() + GO_DEEPER_HOLD_MS;
+      // Read by the click this lift makes; not by a later key press.
+      setTimeout(function(){ goDeeperHold.pressed = ""; }, 0);
+    };
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+  })();
   function useThreadSuggestion(){
-    var text = goDeeperSuggestionText();
+    // The words that were on the chip when it was pressed; a keyboard
+    // press reads the ones on it now.
+    var text = goDeeperHold.pressed || goDeeperShown;
+    goDeeperHold.pressed = "";
     if(!text) return;
     document.getElementById("goDeeperInput").value = text;
-    confirmGoDeeper();
+    confirmGoDeeper(text);
   }
   function escapeHtml(text){
     return String(text).replace(/[&<>"']/g, function(c){
@@ -13093,6 +13668,9 @@
             var changed = (minutes !== selectedLengthMinutes);
             selectedLengthMinutes = minutes;
             paintLengthControls();
+            // The stopwatch says it took (bubble-ack: B, §643) - on
+            // searchFAM, and only for a change.
+            if(changed) ackSearchBubble("lengthBubble");
             // Length is a property of the script, not of playback, so a change
             // made while listening means a different episode.
             var onPlayer = document.querySelector(".screen.active")
@@ -13103,6 +13681,13 @@
       })(m);
     }
     showActionSheet(items);
+  }
+
+  // A bubble whose choice changed acts once the sheet has dropped; it never
+  // prints the choice (rule:search-bar). Only on searchFAM itself.
+  function ackSearchBubble(id){
+    var on = document.querySelector(".screen.active");
+    if(on && on.id === "screen-home") Motion.ack(document.getElementById(id));
   }
 
   function openSpeedMenu(){
@@ -13218,7 +13803,7 @@
   //    and a refusal (microphone blocked, service unreachable) is said in
   //    words on the screen rather than left as a ring that never fills.
   var VOICE = { rec: null, listening: false, before: "", heard: "", interim: "",
-                lvl: 0, raf: 0, quiet: 0, error: "", countdown: 0, editing: false };
+                hearing: 0, quiet: 0, error: "", countdown: 0, editing: false };
   var VOICE_SILENCE_MS = 1600;
   var VOICE_AUTO_SEND_MS = 5000;
 
@@ -13228,6 +13813,7 @@
   function paintVoiceMic(){
     var b = document.getElementById("voiceMicBtn");
     if(b) b.hidden = !speechRecognitionCtor();
+    paintSearchBar();
   }
   // Chrome on Android, in continuous mode, can hand back each new result
   // with everything before it repeated ("who won" then "who won the ryder
@@ -13267,8 +13853,16 @@
     var status = document.getElementById("vsStatus");
     var said = voiceText();
     box.classList.toggle("listening", VOICE.listening);
-    document.getElementById("vsGo").hidden = VOICE.listening || !said;
-    document.getElementById("vsGoCancel").hidden = !VOICE.countdown;
+    var go = document.getElementById("vsGo"), x = document.getElementById("vsGoCancel");
+    var send = document.getElementById("vsSend");
+    var goWas = go.hidden, xWas = x.hidden;
+    var sendAt = !goWas && !box.hidden ? Motion.box(send) : null, xAt = !xWas && !box.hidden ? Motion.box(x) : null;
+    go.hidden = VOICE.listening || !said;
+    x.hidden = !VOICE.countdown;
+    // Search now rises in when they stop; stopped, its X leaves as a copy
+    // and the button glides to the centre (search-now: B, §643).
+    if(goWas && !go.hidden) Motion.riseIn(go);
+    else if(!go.hidden && xAt && x.hidden){ Motion.leaveFrom(x, xAt, box); Motion.slideFrom(send, sendAt); }
     document.getElementById("vsMark").setAttribute("aria-label",
       VOICE.listening ? "Stop listening" : (said ? "Add more" : "Listen again"));
     box.classList.toggle("editing", VOICE.editing);
@@ -13339,15 +13933,16 @@
     if(!voiceText()) paintVoiceWords();
     paintVoiceState();
   }
-  function voiceLevelLoop(){
+  // Each word heard sends one ring out of the mark (voice-waves: B, §643),
+  // at most one each 150 ms; between words nothing moves, so a silent room
+  // shows a still mark. Nothing runs on a clock while nobody talks. With
+  // reduced motion the mark's ring is lit while the words arrive instead.
+  function voiceHeard(){
+    if(Motion.ripple(document.getElementById("vsMark")) || Motion.on()) return;
     var box = document.getElementById("voiceSearch");
-    VOICE.lvl *= 0.93;
-    box.style.setProperty("--lvl", VOICE.lvl.toFixed(3));
-    box.classList.toggle("speaking", VOICE.listening && VOICE.lvl > 0.08);
-    VOICE.raf = requestAnimationFrame(voiceLevelLoop);
-  }
-  function voiceHeard(amount){
-    VOICE.lvl = Math.max(VOICE.lvl, amount);
+    box.classList.add("hearing");
+    clearTimeout(VOICE.hearing);
+    VOICE.hearing = setTimeout(function(){ box.classList.remove("hearing"); }, Motion.DUR.ripple);
   }
   var VOICE_ERRORS = {
     "not-allowed": "FAM can't hear you - microphone access is off for this page",
@@ -13384,7 +13979,6 @@
       VOICE.listening = true;
       paintVoiceState();
     };
-    rec.onspeechstart = function(){ if(VOICE.rec === rec) voiceHeard(0.7); };
     rec.onresult = function(e){
       if(VOICE.rec !== rec) return;
       var fin = "", mid = "";
@@ -13394,7 +13988,7 @@
       }
       VOICE.heard = fin;
       VOICE.interim = mid;
-      voiceHeard(1);
+      voiceHeard();
       paintVoiceWords();
       // They have stopped when nothing new has been heard for a moment, and
       // stopping is when the send button appears.
@@ -13458,14 +14052,12 @@
     // Whatever followed "hey FAM" in the same breath is the start of the
     // question, so it is on screen already and listening adds to it.
     VOICE.heard = typeof seed === "string" ? seed.trim() : "";
-    VOICE.lvl = 0;
     box.hidden = false;
-    box.classList.remove("open");
-    void box.offsetWidth;
-    box.classList.add("open");
+    // Out of the mic it was opened from, or the mark when nothing was
+    // pressed - the wake word (voice-sheet: B, §643).
+    Motion.voiceOpen(box, seed === undefined || typeof seed !== "string"
+                          ? document.getElementById("voiceMicBtn") : null);
     paintVoiceWords();
-    cancelAnimationFrame(VOICE.raf);
-    voiceLevelLoop();
     startVoiceListening();
   }
   // The "go now" countdown (§159). The fill and the timer run off the same
@@ -13489,15 +14081,25 @@
       sendVoiceSearch();
     }, VOICE_AUTO_SEND_MS);
   }
-  // `asButton` leaves a full, still button: the X means "not by itself",
-  // not "not at all".
+  // `asButton`: the X, or a tap on the words. The button stays, to be
+  // pressed - the X means "not by itself", not "not at all" - but the fill
+  // drains back from where it had got to and leaves it pale (search-now: B,
+  // §643): it used to snap full, the picture the count shows a frame before
+  // it sends, so stopping looked like sending.
   function stopVoiceCountdown(asButton){
+    var counting = !!VOICE.countdown;
     clearTimeout(VOICE.countdown);
     VOICE.countdown = 0;
     var fill = document.getElementById("vsGoFill");
     if(!fill) return;
+    var at = 0;
+    if(asButton && counting){
+      var m = /matrix\(([^,]+),/.exec(getComputedStyle(fill).transform || "");
+      at = m ? parseFloat(m[1]) || 0 : 0;
+    }
     fill.style.transition = "none";
-    fill.style.transform = asButton ? "scaleX(1)" : "scaleX(0)";
+    fill.style.transform = "scaleX(0)";
+    if(at) Motion.drain(fill, at);
   }
   function cancelVoiceCountdown(){
     stopVoiceCountdown(true);
@@ -13507,15 +14109,27 @@
     if(VOICE.listening) stopVoiceRecognition(false);
     else startVoiceListening();
   }
-  function closeVoiceSearch(){
+  // `how`: "under" - sent, and the loader is fading in over it, so it is
+  // hidden beneath the loader once that is on screen (voice-sheet: B,
+  // §643); "quiet" - gone at once; else it shrinks back into the mic.
+  function closeVoiceSearch(how){
     VOICE.editing = false;
     if(document.activeElement === voiceWordsEl()) voiceWordsEl().blur();
     stopVoiceRecognition(true);
     stopVoiceCountdown(false);
-    cancelAnimationFrame(VOICE.raf);
+    clearTimeout(VOICE.hearing);
     var box = document.getElementById("voiceSearch");
-    box.hidden = true;
-    box.classList.remove("speaking", "listening", "open", "editing");
+    var hide = function(){
+      box.hidden = true;
+      box.classList.remove("listening", "editing", "hearing");
+      var loader = famLoadingEl();
+      if(loader) loader.classList.remove("over-voice");
+    };
+    if(how === "under" && Motion.on()) setTimeout(hide, Motion.DUR.loaderFade);
+    else {
+      if(how !== "under" && how !== "quiet") Motion.voiceClose(box);
+      hide();
+    }
     VOICE.before = ""; VOICE.heard = ""; VOICE.interim = ""; VOICE.error = "";
     // Not at once: send closes this and then starts an episode, and the wake
     // listener must not be back on the microphone in between.
@@ -13528,9 +14142,14 @@
     var said = voiceText();
     stopVoiceCountdown(false);
     if(!said) return;
-    closeVoiceSearch();
+    // The loader opens over the sheet, on the press, and the sheet is
+    // hidden beneath it (voice-sheet: B, §643): searchFAM never shows
+    // between them. Without a loader (the AI question first) it just goes.
+    var loader = famLoadingEl();
+    if(loader) loader.classList.add("over-voice");
     document.getElementById("searchInput").value = said;
     runSearch();
+    closeVoiceSearch(loader && loader.classList.contains("active") ? "under" : "quiet");
   }
 
   // ---- "Hey FAM" (§158) ----------------------------------------------------
@@ -13642,8 +14261,10 @@
   function wakeUp(rest){
     stopWake();
     var active = document.querySelector(".screen.active");
-    if(!active || active.id !== "screen-home") setTab("home");
-    openVoiceSearch(rest);
+    // Only the sheet moves: searchFAM is put under it without the tab's
+    // nudge (voice-sheet: B, §643).
+    if(!active || active.id !== "screen-home"){ Motion.still(); setTab("home"); }
+    openVoiceSearch(typeof rest === "string" ? rest : "");
   }
   function setWakePhrase(on, why){
     wakeOn = !!on && !!speechRecognitionCtor();
@@ -13693,6 +14314,7 @@
         if(v.id === selectedVoice) return;
         selectedVoice = v.id;
         paintVoiceControls();
+        if(voiceMenuFrom !== "settings") ackSearchBubble("voiceBubble");
         refreshSettingsIfOpen();
         // Kept on the server, so the next search - on this device or after a
         // reload - is in the same voice.
@@ -13806,31 +14428,38 @@
     // Cleared after the confirm has read it (`closeGoDeeper` runs inside it).
     setTimeout(function(){ goDeeperBaseOverride = null; goDeeperThreadOverride = ""; }, 0);
   }
-  function confirmGoDeeper(){
+  // `offered`: the suggestion's words as they were seen (the chip).
+  function confirmGoDeeper(offered){
+    var shown = (typeof offered === "string" ? offered : goDeeperShown || "").trim();
     var val = document.getElementById("goDeeperInput").value.trim();
     // Nothing typed: Continue plays the suggestion on offer - "Pick up the
-    // thread" - rather than doing nothing (10.16 packet, §285).
-    if(!val) val = (goDeeperSuggestionText() || "").trim();
+    // thread" - rather than doing nothing (10.16 packet, §285). The one on
+    // screen, which is the one read (§643).
+    if(!val) val = shown || (goDeeperSuggestionText() || "").trim();
     if(!val){ document.getElementById("goDeeperInput").focus(); return; }
     // A Go Deeper question is the listener's words too (consent.py).
-    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(confirmGoDeeper); return; }
+    if(!(AI_CONSENT && AI_CONSENT.given)){ withAiConsent(function(){ confirmGoDeeper(offered); }); return; }
     var baseKey = getGoDeeperBaseKey(goDeeperContext);
     closeGoDeeper();
     // A typed follow-up is a search, corrected whole at send as the search
     // box's is (`acCorrectQuestion`); FAM's own suggestion is sent as written.
     var minutes = goDeeperMinutes;
-    if(val === (goDeeperSuggestionText() || "").trim()){
-      startFollowUp(val, baseKey, minutes);
+    if(val === shown){
+      startFollowUp(val, baseKey, minutes, false, shown);
       return;
     }
     var fixed = acCorrectQuestion(val);
-    if(!fixed.then){ startFollowUp(fixed.query, baseKey, minutes, true); return; }
-    fixed.then(function(r){ startFollowUp(r.query, baseKey, minutes, true); });
+    if(!fixed.then){ startFollowUp(fixed.query, baseKey, minutes, true, shown); return; }
+    // The loader opens as the box closes; the correction runs under its
+    // first step (loader-arrives: B, §643). A cancel meanwhile sends nothing.
+    var seq = genCancelSeq;
+    openGenOverlayNow();
+    fixed.then(function(r){ if(seq === genCancelSeq) startFollowUp(r.query, baseKey, minutes, true, shown); });
   }
   // A follow-up on the episode under `baseKey`: what Go Deeper plays, and
   // what What's next plays from its lead tile and its search box, so the
   // episode on offer there is the one Go Deeper would have made (9.30 #2).
-  function startFollowUp(val, baseKey, minutes, typed){
+  function startFollowUp(val, baseKey, minutes, typed, shown){
     // With private search on, a Go Deeper is private too (§285): no event,
     // no history, written under nobody's name and listed nowhere.
     var hush = privateSearch;
@@ -13840,7 +14469,7 @@
     TOPICS[newKey] = {
       // The listener's own words, unless they kept FAM's suggestion as it
       // was: the server holds `own` to the AI answer (consent.py, §226).
-      own: !!typed || val !== (goDeeperSuggestionText() || "").trim(),
+      own: !!typed || val !== (typeof shown === "string" ? shown : (goDeeperSuggestionText() || "")).trim(),
       title: deriveTitleFromPrompt(val),
       source: "Following up on " + baseTitle,
       caption: "Picking up where that left off — " + val + "—",
@@ -17145,16 +17774,27 @@
     var q = document.getElementById("mfsInput").value.trim();
     var req = ++mfsReq;
     if(!q){ mfsResults = []; drawMyFamSearch(""); if(mfsCatalog === null) loadMyFamCatalog(); return; }
-    document.getElementById("mfsBody").innerHTML = '<div class="sv-empty">Searching\u2026</div>';
+    // What was there stays, dimmed, and "Searching..." only after 300 ms -
+    // a quick answer no longer flashes it (lists-arrive: A, §643).
+    var body = document.getElementById("mfsBody");
+    body.classList.add("is-searching");
+    setTimeout(function(){
+      if(req === mfsReq && body.classList.contains("is-searching"))
+        body.innerHTML = '<div class="sv-empty">Searching\u2026</div>';
+    }, Motion.DUR.spinnerAfter);
+    var done = function(){ body.classList.remove("is-searching"); };
     fetch("/api/myfam/search?q=" + encodeURIComponent(q))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(req !== mfsReq) return;
+        done();
         mfsResults = d.episodes || [];
         drawMyFamSearch(q);
+        Motion.fadeIn(body);
       })
       .catch(function(){
         if(req !== mfsReq) return;
+        done();
         document.getElementById("mfsBody").innerHTML =
           '<div class="sv-empty">Could not search right now. Try again in a moment.</div>';
       });
@@ -17174,6 +17814,7 @@
         return;
       }
       var letter = "";
+      var first = !!el.querySelector(".sv-empty") || !el.children.length;
       el.innerHTML = mfsResults.map(function(ep, i){
         var head = "";
         if(ep.letter && ep.letter !== letter){
@@ -17182,6 +17823,9 @@
         }
         return head + myFamSearchRow(ep, i);
       }).join("");
+      // The catalogue's first draw arrives as the rails do, letters and
+      // rows, the first six (lists-arrive: A, §643).
+      if(first) Motion.arriveList(Array.prototype.slice.call(el.children, 0, 6));
       return;
     }
     if(!mfsResults.length){

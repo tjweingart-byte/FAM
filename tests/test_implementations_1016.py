@@ -120,8 +120,9 @@ def test_the_side_buttons_carry_their_own_contrast():
 # --- 4. Continue with nothing typed --------------------------------------------
 
 def test_continue_with_nothing_typed_plays_the_suggestion():
-    body = INDEX.split("function confirmGoDeeper(){", 1)[1].split("\n  }\n", 1)[0]
-    assert "if(!val) val = (goDeeperSuggestionText() || \"\").trim();" in body
+    body = INDEX.split("function confirmGoDeeper(offered){", 1)[1].split("\n  }\n", 1)[0]
+    # The suggestion on screen - the one the listener read (§643).
+    assert "if(!val) val = shown || (goDeeperSuggestionText() || \"\").trim();" in body
     assert body.index("goDeeperSuggestionText()") < body.index(".focus()")
 
 

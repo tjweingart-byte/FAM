@@ -38917,3 +38917,72 @@ folder flying with New mix gone from the stack, a finished mix's cards,
 nothing left); `mix_visibility` reads the one lock. **Not verified here:**
 a real finger on the drag and its tilt (a mouse in Chromium only), and the
 glide against a real voice's timing.
+
+## 643. Motion, round three: search (2026-11-17)
+
+The fourth of six phases (`docs/motion/round-three/BUILD.md`): the picks in
+`search.json` - searchFAM (`screen-home`), its loader and five steps, voice
+search, Go Deeper's box, "Which one do you mean?" and the A-Z catalogue.
+Every time is a named token on `:root` (`--dur-loader-fade`, `--dur-iris`,
+`--dur-beat`, `--dur-wipe`, `--ease-wipe`, `--dur-ripple` ...), read by
+`Motion.DUR`. **Search's five steps keep their timing exactly**
+(`GEN_STEP_MIN_MS`, `GEN_STEP_FIRST_MIN_MS`, `GEN_STEP_LAST_BEAT_MS`,
+`GEN_MIN_VISIBLE_MS`, `rule:search-no-cover`): only how a step checks off
+is restyled.
+
+| Animation | Pick | Built |
+|---|---|---|
+| Bar focus and go | C: mic becomes the arrow | `#barSlot`: the mic and go are stacked in one 40 px slot and cross on the icon swap (.3 and a 3 px blur, 300 ms `--ease-swap`), both always in the page; `paintSearchBar` toggles `typing`; attach never moves. With no mic (no speech recognition) the slot is only there while go is. The bar's edge turns copper on focus (120 ms) |
+| Loader arrives | B: FAM keeps its mark | `openGenOverlayNow`: the loader opens on the press (search and a typed Go Deeper) and the speller's wait runs under step one - never before the AI question or with a file still reading; `generate` takes it over as it is (`genEarly`), and a cancel meanwhile sends nothing. `Motion.loaderIn`: the loader fades in 200 ms over the page, searchFAM's FAM (a copy) glides into the wordmark 320 ms `in-out` by translate and scale (the letters' height to the wordmark's), the five rows rise 8 px 40 ms apart, 240 ms. Out on a cancel or failure (`Motion.loaderLeave`): down at once, a copy fades 160 ms `in`; "Cancelled" comes as it has gone |
+| Steps check off | B: a thread runs down | The circle fills 150 ms; the tick is a stroke drawn in (`pathLength=1`, 220 ms at 80 ms); a 2 px thread (`.fam-step-rail`, four of them) fills `scaleY` from the top 260 ms `in-out` at 120 ms, and the next circle lights when it lands. Rows recolour 150 ms. No overshoot, no box-shadow. A replay's all-done paint is the end state (`instant`) |
+| Loader's moving mark | A: one heartbeat | `Motion.stepRing`: the active circle's ring (`.fam-step-ring`) grows 1 -> 1.7 as it fades from .5, once each 2.4 s at .92 s - read off the chevrons' own animation's `startTime`, so one clock; the first waits for the thread. Cancelled when the loader goes. Reduced motion: chevrons still on search's loader, the ring pulses .35 -> 1 |
+| Loader to player | C: iris from the chevrons | `iris` (from `Motion.handOff`): the player is in place under the loader (`screen` returns before settling anything while search's loader is up), and a copy of the loader opens from the chevrons' centre - a `path(evenodd, ...)` clip, the rectangle less a growing circle - 340 ms `in-out`. Replays too, after the 450 ms floor |
+| Lists arrive | A: the rails' arrival | Trending: chips keyed on their question (`trendShownQ`), a new one rises 8 px 260 ms `out` 40 ms apart (the label first, once), an identical redraw draws nothing; hiding and showing as the box is typed stay instant. A-Z: the catalogue's first draw arrives the same way; a query keeps the old rows at .6 and says "Searching..." only after 300 ms; results fade in 150 ms |
+| Go Deeper's box | B: writes itself in | The label swaps at once and FAM's new line is wiped in left to right (clip, 320 ms `--ease-wipe`) where the old one was; lengths recolour 150 ms |
+| Bubble says set | B: the icon acts | A changed length turns the stopwatch's hand once about the dial's centre (420 ms `in-out`); a changed voice hops its five bars (240 ms, 35 ms apart); both after the sheet's drop (200 ms), only on searchFAM. Reduced motion: the icon is copper for 1 s |
+| Voice sheet | B: grows from the mic | `Motion.voiceOpen`: a circle from the mic to the whole sheet 300 ms `out`, the FAM ring from .9 40 ms behind; from the ring when the wake word opened it (whose tab change is `Motion.still`). `voiceClose`: a copy shrinks back 240 ms `in-out`, from however far the opening had got. Sent, the loader fades in over the sheet (`over-voice`) and the sheet is hidden beneath it |
+| Search now | B: drain back | Stopped (X or a tap on the words), the fill drains from where it was to 0 (260 ms `in-out`) and leaves the pale button; the X leaves as a copy (.9, 150 ms `in`) and the button glides to the centre (220 ms); it rises 12 px in when they stop talking |
+| Lines while you talk | B: a ripple per word | The arcs, `voiceLevelLoop` and `--lvl` are gone: each recognition result sends one copper ring out of the mark (1 -> 1.35, .8 -> 0, 420 ms `out`), at most one each 150 ms; nothing runs while nobody talks. Reduced motion: the mark's ring is lit while words arrive |
+| Private search | dropped (owner) | The lock's open / shut swap is the shared icon swap (play-pause: A), on the tap only (`Motion.swapShown`) |
+| Which one? | A: hand-off and swap | The loader leaves as its copy while the question lifts in; "Type your own" and its field share one grid cell - the pill's copy fades to .97 (150 ms `in`), the field comes from .97 (200 ms `out`), its arrow on the icon swap; focus on the same frame |
+| Attachment | C: only the wait moves | A chip being read has a copper line running along its foot, 1.2 s a pass, kept under reduced motion; everything else instant |
+
+**Bugs fixed with them:** Go Deeper's suggestion now sends the line the
+listener saw - read at pointerdown, and no swap is drawn while a finger is on
+the chip or for 300 ms after (`goDeeperShown`, `goDeeperHold`); Continue with
+nothing typed, and the "own" flag, use that same line. Send no longer waits
+up to 700 ms with nothing on screen (search, Go Deeper, voice). Cancel, and
+Cancel on "Which one?", put the question and its attachments back in the bar
+(`restoreAskedSearch`) until a word has been heard. The voice sheet no longer
+writes a custom property on itself every frame.
+
+**Where the pick needed a judgement.** The bubbles' "+150 ms" was the sheet's
+old drop; they start when today's drop ends (`--dur-sheet-out`, 200 ms). The
+loader's wordmark scale is measured (letters' height), not the spec's 1.23.
+The ring is a WAAPI animation on a real element rather than a CSS `::after`:
+a keyframe cannot read the `--ease-out` token, and the phase is set from the
+chevrons' clock anyway. Lists use `--ease-out` for the spec's (.2,.8,.2,1),
+as the rails did (§641); the wipe's (.4,0,.2,1) got its own token. A Go
+Deeper keeps the suggestion as written when it is the one sent; the typed
+one is corrected under the loader. The steps' arrival and the loader fade
+are skipped under reduced motion; the reading line is not (progress).
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note) and
+`rule:search-bar` (go takes the mic's slot; CLAUDE.md's line says so).
+
+**Not built:** findings outside the picks - 44 px zones for the bookshelf,
+voice X, go and loader X; the attachment's removal Undo and its 44 px x; go
+dimming while a file reads; the coral nudge on a voice failure; the
+`<meta name=viewport>` question; "hey FAM" showing that it listens. The iOS
+client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_643.py`; the smoke run's "search's
+round-three motion holds nothing and leaves nothing behind" (go in the mic's
+slot with the clip still, the hand turning for a changed length and nothing
+printed, the loader up on the press while the speller is out, a cancel under
+it leaving a copy, sending nothing and keeping the words, a step's ring that
+stops with the loader, the iris clip, a new trending search arriving once, Go
+Deeper sending the line under the finger, the lock's swap, "type your own"
+in its cell, nothing left), and the voice check's ring per word and drained
+fill. **Not verified here:** iPhone Safari's `path()` clip interpolation and
+animated `circle()`, a real microphone's result rate, and a real finger.

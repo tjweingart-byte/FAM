@@ -2758,6 +2758,127 @@ def main() -> int:
                 + ' .motion-name, .motion-copy, .motion-leave, .motion-line-was, .motion-loader-out').length""")
             assert left == 0, f"{left} of myFAM's motion copies were left behind"
 
+        def search_motion_holds_nothing():
+            """§643: search's round-three picks. Go takes the mic's slot; a
+            changed length turns the stopwatch's hand; the loader opens on the
+            press, over a FAM that glides into it, and a cancel leaves it as a
+            copy and puts the question back, sending nothing; a step checks
+            off with a ring on the chevrons' beat that stops with the loader;
+            the loader opens onto the player through a hole; trending arrives
+            once; Go Deeper's chip sends the line under the finger; the lock
+            swaps; "type your own" swaps in one cell - and nothing drawn for
+            any of it is left behind."""
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay(); stack = ['home']; setTab('home');"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); })")
+            page.wait_for_timeout(400)
+            assert page.evaluate("Motion.DUR.iris") == 340 and page.evaluate("Motion.DUR.beat") == 2400
+            # Go takes the mic's slot, which never moves.
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            clip = page.evaluate("document.getElementById('attachBtn').getBoundingClientRect().left")
+            page.type("#searchInput", "t")
+            assert page.evaluate("document.getElementById('barSlot').classList.contains('typing')"), "go did not take the slot"
+            assert page.is_visible("#searchGoBtn"), "go is not shown in the mic's slot"
+            assert abs(page.evaluate("document.getElementById('attachBtn').getBoundingClientRect().left") - clip) < 1, \
+                "the clip moved when go came"
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            # A changed length: the stopwatch's hand turns, the word is not printed.
+            page.evaluate("selectedLengthMinutes = 1.5; openLengthMenu()")
+            page.wait_for_timeout(350)
+            page.evaluate("""() => { var it = Array.prototype.filter.call(document.querySelectorAll('#sheetCard .sheet-item'),
+                function(e){ return e.textContent.indexOf('3 min') === 0; })[0]; it.click(); }""")
+            turning = page.evaluate("document.querySelector('#lengthBubble .ack-hand').getAnimations().length")
+            assert turning == 1, "the stopwatch's hand did not turn for a changed length"
+            assert "3" not in page.text_content("#lengthBubble"), "the bubble printed the length"
+            page.wait_for_timeout(800)
+            page.evaluate("selectedLengthMinutes = 1.5; paintLengthControls()")
+            # The loader opens on the press, while the speller is still out.
+            page.evaluate("""() => { window.__gen = 0; window.__generate = generate; generate = function(){ window.__gen++; };
+                window.__ac = acCorrectQuestion; AI_CONSENT = AI_CONSENT || {}; AI_CONSENT.given = true;
+                acCorrectQuestion = function(t){ return new Promise(function(done){
+                  setTimeout(function(){ done({ query: t, title: t }); }, 400); }); }; }""")
+            page.fill("#searchInput", "how do tides work")
+            opened = page.evaluate("""() => { runSearch(); var l = famLoadingEl();
+                return { up: l.classList.contains('active') && l.classList.contains('stepped'),
+                         mark: document.querySelectorAll('.motion-mark').length,
+                         rows: l.querySelector('.fam-steps li').getAnimations().length }; }""")
+            assert opened["up"], f"the loader waited for the speller: {opened}"
+            assert opened["rows"] > 0, f"the five rows did not rise in: {opened}"
+            # Cancel under it: a copy leaves, nothing is sent, the words stay.
+            left = page.evaluate("""() => { document.getElementById('famLoadingCancel').click();
+                return { up: famLoadingEl().classList.contains('active'),
+                         copy: document.querySelectorAll('.motion-loader-out').length }; }""")
+            assert not left["up"] and left["copy"] == 1, f"the loader did not leave as a copy: {left}"
+            page.wait_for_timeout(700)
+            assert page.evaluate("window.__gen") == 0, "a search cancelled under the loader was sent"
+            assert page.input_value("#searchInput") == "how do tides work", "cancelling lost the question"
+            page.evaluate("() => { generate = window.__generate; acCorrectQuestion = window.__ac; }")
+            page.fill("#searchInput", "")
+            page.evaluate("paintSearchBar()")
+            # A step checks off; the next ring beats; it all stops with the loader.
+            rings = page.evaluate("""() => { openGenOverlayNow(); paintGenSteps(1);
+                var lis = document.querySelectorAll('#famLoading .fam-steps li');
+                return { done: lis[0].classList.contains('done'),
+                         ring: lis[1].querySelector('.fam-step-ring').getAnimations().length }; }""")
+            assert rings["done"] and rings["ring"] == 1, f"a step did not check off with its ring: {rings}"
+            page.wait_for_timeout(500)
+            # It opens onto the player through a hole from the chevrons.
+            hole = page.evaluate("""() => { handOffGenOverlay(); var c = document.querySelector('.motion-loader-out');
+                return { up: famLoadingEl().classList.contains('active'), clip: c ? getComputedStyle(c).clipPath : '',
+                         beats: Array.prototype.reduce.call(document.querySelectorAll('#famLoading .fam-step-ring'),
+                           function(n, r){ return n + r.getAnimations().length; }, 0) }; }""")
+            assert not hole["up"] and hole["clip"].startswith("path("), f"the loader did not open as an iris: {hole}"
+            assert hole["beats"] == 0, "a step's ring kept beating after the loader went"
+            page.wait_for_timeout(500)
+            # Trending: a search not shown before arrives; a redraw moves nothing.
+            arrived = page.evaluate("""() => { TREND_SEARCHES = [{ query: 'q-' + Date.now(), title: 'A new one' }];
+                paintTrendSearches(); var c = document.querySelector('#trendList .trend-chip');
+                var first = c ? c.getAnimations().length : -1; paintTrendSearches();
+                return [first, document.querySelector('#trendList .trend-chip').getAnimations().length]; }""")
+            assert arrived[0] > 0, f"a new trending search did not arrive: {arrived}"
+            page.wait_for_timeout(400)
+            assert page.evaluate("document.querySelector('#trendList .trend-chip').getAnimations().length") == 0
+            # Go Deeper: the line under the finger is the line sent.
+            sent = page.evaluate("""() => { window.__fu = startFollowUp; var got = null;
+                startFollowUp = function(v){ got = v; };
+                TOPICS['__gd'] = { title: 'Tides' }; currentPlayingTopicKey = '__gd'; episodeThread = '';
+                goDeeperBaseOverride = null; goDeeperThreadOverride = ''; showGoDeeperModal(1.5);
+                var chip = document.getElementById('goDeeperSuggestion'), seen = chip.querySelector('.chip-line').textContent;
+                chip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+                episodeThread = 'Something else entirely'; showThreadSuggestion();
+                var under = chip.querySelector('.chip-line').textContent;
+                window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+                chip.click(); startFollowUp = window.__fu; episodeThread = '';
+                return { seen: seen, under: under, got: got }; }""")
+            assert sent["under"] == sent["seen"], f"the line swapped under the finger: {sent}"
+            assert sent["got"] == sent["seen"], f"Go Deeper sent a line nobody read: {sent}"
+            page.evaluate("closeGoDeeper(); delete TOPICS['__gd']; currentPlayingTopicKey = null;")
+            page.wait_for_timeout(400)
+            # The lock swaps on the icon spring, on the tap.
+            was = page.evaluate("privateSearch")
+            swapped = page.evaluate("""() => { document.getElementById('privateBubble').click();
+                return document.querySelectorAll('.motion-icon').length; }""")
+            assert swapped >= 1, "the lock did not swap its icon"
+            page.wait_for_timeout(500)
+            page.evaluate("document.getElementById('privateBubble').click()")
+            assert page.evaluate("privateSearch") == was
+            page.wait_for_timeout(500)
+            # "Type your own" becomes the field in the pill's own cell.
+            own = page.evaluate("""() => { TOPICS['__r'] = { title: 'United', prompt: 'how did united do' };
+                askReading('__r', null, ['Manchester United', 'DC United']); openReadingOwn();
+                var cell = document.querySelector('.reading-own-cell');
+                return { copy: cell.querySelectorAll('.motion-own').length,
+                         focus: document.activeElement && document.activeElement.id }; }""")
+            assert own["copy"] == 1 and own["focus"] == "readingOwnInput", f"the pill did not swap in place: {own}"
+            page.evaluate("answerReading(''); delete TOPICS['__r'];")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-mark, .motion-loader-out, .motion-left,'
+                + ' .motion-own, .vs-ripple, .motion-icon').length""")
+            assert left == 0, f"{left} of search's motion copies were left behind"
+            page.evaluate("setTab('home')")
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -3003,14 +3124,17 @@ def main() -> int:
             assert page.is_visible("#voiceSearch"), "the voice screen did not open"
             assert page.evaluate("VOICE.listening"), "it is not listening"
             assert not page.is_visible("#vsSend"), "send shows before anything was said"
-            assert page.evaluate(
-                "!document.getElementById('voiceSearch').classList.contains('speaking')"), \
-                "the lines move while nobody is talking"
+            # A ring out of the mark for each word heard, and none while
+            # nobody is talking (voice-waves: B, §643).
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 0, \
+                "the mark moves while nobody is talking"
             page.evaluate("__say('who won the', false)")
-            page.wait_for_timeout(120)
-            assert page.evaluate(
-                "document.getElementById('voiceSearch').classList.contains('speaking')"), \
-                "the lines do not move while somebody is talking"
+            page.wait_for_timeout(60)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 1, \
+                "no ring went out when a word was heard"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .vs-ripple').length") == 0, \
+                "a word's ring was left behind"
             words = page.text_content("#vsWords")
             assert "who won the" in words, f"the heard words are not shown: {words!r}"
             page.evaluate("__say('who won the ryder cup', true)")
@@ -3050,8 +3174,14 @@ def main() -> int:
             assert page.evaluate("window.__searched") == 0, "it searched before the count ran out"
             # The X stops the count: nothing searches by itself, and the
             # button is still there to press.
-            page.click("#vsGoCancel")
-            page.wait_for_timeout(150)
+            # Stopped, the fill drains back and the X leaves as a copy
+            # (search-now: B, §643).
+            stopped = page.evaluate("""() => { document.getElementById('vsGoCancel').click();
+                return { drain: document.getElementById('vsGoFill').getAnimations().length,
+                         copy: document.querySelectorAll('#voiceSearch .motion-left').length }; }""")
+            assert stopped["drain"] == 1 and stopped["copy"] == 1, f"stopping did not drain: {stopped}"
+            page.wait_for_timeout(350)
+            assert page.evaluate("document.querySelectorAll('#voiceSearch .motion-left').length") == 0
             assert page.evaluate("!VOICE.countdown"), "the X did not stop the countdown"
             assert not page.is_visible("#vsGoCancel"), "the X stayed after cancelling"
             assert page.is_visible("#vsSend"), "cancelling took Search now away"
@@ -4959,6 +5089,8 @@ def main() -> int:
               dailyfam_motion_holds_nothing)
         check("myFAM's round-three motion holds nothing and leaves nothing behind",
               myfam_motion_holds_nothing)
+        check("search's round-three motion holds nothing and leaves nothing behind",
+              search_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

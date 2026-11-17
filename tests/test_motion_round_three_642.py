@@ -39,7 +39,8 @@ def test_the_glide_hands_the_light_on_by_transform():
     assert "Motion.glide(el, glide.pos, from, to);" in _fn("paintLoadingVariant")
     assert '<b class="fam-glide-pill"' in _fn("paintLoadingVariant")
     # It leaves as a copy, without finishing the player's push under it.
-    glide_out = _fn("glideOut")
+    start = INDEX.index("    function glideOut(")
+    glide_out = INDEX[start:INDEX.index("\n    }\n", start)]
     assert "settle()" not in glide_out and "inertCopy(loader)" in glide_out
 
 
