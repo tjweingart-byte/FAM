@@ -2061,6 +2061,28 @@
   > motion); it grows from the face's ring, **pulls down to close** and
   > **turns to the next friend under the finger** (springs of 400 ms, faces
   > shaded to 30% side-on); a sent reply's words rise out of the box.
+  > **Current:** myFAM's picks (PROBLEMS.md §642, the owner's 14 of 11.16),
+  > on the same terms. **Every edit on a mix changes on the tap and is put
+  > back, moving, if the server refuses it** - Add topics' (+) and tick, a
+  > recommended topic joining the list, Public / Private, a reorder, Follow
+  > on a category; a mix's page is redrawn in place, never pushed onto
+  > itself. **Back from a mix, from Add topics and New mix's X is a pop**,
+  > not the tab's nudge. The glide hands the light on (the card heard steps
+  > down and says Played as the next lifts to 1.05, the copper pill moves one
+  > dot) by transform, landed inside the 450 ms a written-ahead episode is
+  > shown, and the loader fades in over 120 ms and out over 150 ms. Mix cards
+  > not seen this session are dealt (rise, then their pictures fan); a card
+  > whose lead changed puts the heard picture behind the stack and raises the
+  > new one, READY popping on. Mixes | Categories has one sliding underline
+  > and the list nudges 18 px toward the side chosen; a tapped category chip
+  > slides to its new place; the loading line comes only after 300 ms. A
+  > dragged row lifts, tilts with its speed while the rest dims, rubber-bands
+  > at the ends and settles from under the finger on a spring. Create turns
+  > the named folder into the mix's cover (the page fades in, the name
+  > travels to the title); Add to myFAM and Create are async buttons (a
+  > spinner only past 300 ms, at least 500 ms). The morning dot pops like a
+  > count; a finished mix files the day's cards onto one stack and draws a
+  > check. Reduced motion: all of it instant, the spinner still turning.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

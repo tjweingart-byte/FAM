@@ -38847,3 +38847,73 @@ Pick up gone at once with Undo and nothing sent before the line goes, a
 words rising, a drag down closing, nothing left). **Not verified here:** a
 real finger on a phone (the drags are a mouse in Chromium), and how the
 2 px blur on six tiles costs on an older phone.
+
+## 642. Motion, round three: myFAM (2026-11-17)
+
+The third of six phases (`docs/motion/round-three/BUILD.md`): the 14 picks
+in `myfam.json` - the mixes screen (`screen-playfam`), a mix's page, New
+mix, Add topics, a public mix, the glide and the end of a mix. Built on the
+merged screens (Main's 11.16 notes, §637: Edit topics, the bubbles gone).
+Every time is a named token on `:root` (`--dur-glide*`, `--dur-deck-*`,
+`--dur-chip*`, `--dur-knob`, `--ease-swap` ...), read by `Motion.DUR`.
+
+| Animation | Pick | Built |
+|---|---|---|
+| The mix glide | B: light hand-off | `Motion.glide`: the loader fades in 120 ms; the row slides one card 300 ms `in-out` from 0 ms (was 100 ms late, 450 ms, overshooting); the card just heard steps down 1.05 -> 1 and to .45, 200 ms `in`, its "· Played" fading on at 180 ms; this one lifts 200 ms at 160 ms; a copper pill (`.fam-glide-pill`, 18 px) moves one dot by transform - the width animation is gone. The first episode enters as A (row from +80 px, card and pill grow 200 ms at 220 ms). The rest pose is the CSS, the same with reduced motion; the status dot keeps pulsing. Out: a copy fades 150 ms `in` (`glideOut`), without finishing the player's push under it |
+| Mix cards arrive | B: deck deals | `Motion.mixDeck`, keyed on mix id and on *seen* (on screen), not rendered: a card not seen this session rises 8 px (260 ms `out`, 40 ms apart, the first four) and its pictures, squared on the top one, fan out 240 ms from 100 ms into its rise; nothing while the screen is still moving in (`movingFor`, from the screen's own animations); a card that went fades with an 8 px nudge as a copy, the rest glide into the gap |
+| Mixes / Categories | B: underline and nudge | One underline (`.pf-tabs::after`) slid by a 240 ms `in-out` transition; labels colour 150 ms; a tap nudges the list toward the side chosen (`Motion.panels`: the old list a copy, out 18 px 110 ms `in`, the new in from 18 px 200 ms `out`, 90 ms later). Arrivals and keys (arrow keys added, Enter/Space) switch at once. The Create row keeps its height on Categories (`visibility`), and is decided from the account on the first frame |
+| Category chips | B: chip moves to front | `Motion.chips`: chips keyed by `data-chip`; the tapped chip slides to its place (260 ms `in-out`), the others leave as copies (120 ms `in`), the X arrives at once and the sub-chips fade in 160 ms after it lands, 30 ms apart; with the X the others fade in as it slides back. The list no longer flashes "Loading": what was there stays (`aria-busy`), the line only after 300 ms, held 500 ms |
+| Add topics' (+) | A: icon swap | Optimistic: the mix and every row for that id change on the tap (`markAddTopicRows`), the list is never redrawn; + and tick share one cell and cross through .3 and a 3 px blur on `--ease-swap` (300 ms); fill and edge 150 ms; a refusal flips it back with the server's words |
+| Deck reshuffle | B: heard card goes back | Tiles keyed by story (`data-key`, `data-slot`); the old top dips 10% and to .96 (160 ms `in`), its layer swapped at the low point, then settles in its slot (220 ms `in-out`); the new lead rises into the top 300 ms at 60 ms; one that left the three slides down behind the stack; READY pops at 360 ms (160 ms) and the headline cross-fades 150 ms; changed cards 60 ms apart |
+| Recommended (+) | A: leave up, list grows | `Motion.joinRow`: on the tap the topic is in the mix; the suggestion lifts 12 px away as a copy (160 ms `in`), then everything keyed `data-flip` glides (250 ms `in-out`) while the new row opens by a clip and its copper edge fades over 450 ms. Refused, `Motion.putBack` glides it all back. Shuffle: the five fade out as copies (120 ms) and five fade up 6 px (200 ms, 30 ms apart) |
+| Drag a topic | B: tilt as you carry | Lift 1.02 (150 ms, added to the finger's transform) and a shadow on `::after`; the rest dims to .6 and steps aside on 200 ms `in-out`; the row tilts with its speed (±0.5 px/ms -> ±2deg); past either end a rubber band (12 px dead zone, 64 * b / (b + 150)); let go, it lies flat and settles from under the finger on a 260 ms spring carrying the finger's speed, and the list undims. The handle and the row buttons have 44 px zones |
+| Public / Private | B: lock clicks shut | Toggled in place (`paintMixVisibility`), so the knob is the same element and slides (220 ms `in-out`); one lock rides it and its shackle lifts open or drops shut after the knob lands (180 ms `out` at 220 ms); the words cross-fade in one cell; the line under the name changes in place; refused, it slides back |
+| Create | B: folder and name travel | Create is an async button; on the answer the mix's page takes New mix's place on the stack and fades in (`showScreen(..., "fade")`, 240 ms) while a copy of the folder flies to the cover by translate and scale (360 ms `in-out`), the name typed travels to the title 40 ms behind (scaled, its colour turning), both hand over in 120 ms; "Add topics to mix" rises at 420 ms, the empty line at 510 ms. A screen change finishes it |
+| Add to myFAM | A: async button | `.async-btn`: disabled at once, a spinner only past 300 ms and then at least 500 ms; label, spinner and tick cross-fade through .9 (150 ms) and the fill follows; every button for that mix waits together; changed in place (`markMixAdded` no longer redraws the page or the lists) |
+| Follow a category | B: star flies over | `Motion.followCategory`: on the tap, as Follow on a person - fill 150 ms, a tick drawn in 220 ms at 80 ms, a fixed width; following, a copper star arcs 15% (360 ms `in-out`, swelling to 1.2) to the chip, whose own star pops .5 -> 1 when it lands; none when the chip is scrolled out of the row; refused, it is all put back. The second round trip (the server's list) is no longer waited for |
+| Morning dot | A: pop like a count | `Motion.dot`: in .5 -> 1 and a fade, 240 ms `out`; opening myFAM shrinks a copy away (160 ms `in`) - the arriving tab bar too, since the tap that clears it brings myFAM in |
+| Mix finished | B: cards file in | The day's played cards (six at most, else the whole order), each marked Played, slide in from the right onto a stack once the card has grown (260 ms `out`, 40 ms apart, fanned), square into one (300 ms `in-out`) and a copper check draws (220 ms). The CSS draws the end |
+
+**Bugs fixed with them:** Back on a mix page, New mix's X, Leave and Delete
+played the tab's nudge from the right (`closeMixPage` pops); Back on Add
+topics pushed a second mix page (`closeAddTopics` pops); Rename, Public /
+Private, "Make public and share" and "Make it yours alone" pushed the page
+onto itself (`repaintOpenMix`, in place); a refused reorder stayed on screen;
+the switch's CSS comment said private; mix cards opened on Enter but not
+Space; the 42 px jump when the Create pill appeared.
+
+**Where the pick needed a judgement.** The deal's fan: the spec says "40 ms
+after each card", the demo draws it 100 ms into the card's rise; the demo
+won (`--dur-fan-lag`). The lock: one closed glyph whose shackle the CSS
+lifts 3 units and turns -20deg about its right foot (the spec's numbers,
+in the 24-unit drawing), in place of the two glyphs the code kept for
+legibility at 9 px - the owner's pick. The glide's title no longer rises on
+its own (the review's staging: it arrives with the loader). The tilt's
+spring is an approach with a third of the lift's time, per frame. Create's
+page fades in rather than pushing, as the player's open does (§292) - the
+review's note that this extends the push rule. The async button holds its
+state swap until the spinner's 500 ms are up; the page Create opens never
+waits for it. Every redraw of a mix's page is skipped when identical, and
+the server's answer to an edit is drawn once what is moving has landed.
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note for these).
+
+**Not built:** findings outside the picks - Undo on Delete mix (it still
+deletes from the ⋯ menu), the Categories home listing each category twice,
+category plays showing search's five steps, "Searching..." on Search mixes,
+a new cover photo's blur-up, joint-mix faces under reduced motion, marking
+the playing row, a keyboard way to reorder, and the dead picker CSS. A
+suggestion that tops the five back up after a (+) appears without rising.
+The iOS client's `Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_642.py`; the smoke run's "myFAM's
+round-three motion holds nothing and leaves nothing behind" (the underline
+slid and the old list a copy, the Create row kept, a chip's X on the tap
+with no loading flash, cards dealt once and a changed lead reshuffled, the
+switch changed on the tap without a redraw, a refused reorder back in the
+server's order, Add topics' (+) flipped on the tap, Back from Add topics
+and from a mix a pop, the glide's lit card and pill by transform, Create's
+folder flying with New mix gone from the stack, a finished mix's cards,
+nothing left); `mix_visibility` reads the one lock. **Not verified here:**
+a real finger on the drag and its tilt (a mouse in Chromium only), and the
+glide against a real voice's timing.

@@ -271,7 +271,7 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 
 def test_followed_categories_lead_the_chips_with_a_star():
-    draw = _fn("renderCategoryChips")
+    draw = _fn("paintCategoryChips")
     # Followed, then the facets not followed - each chip once - then More.
     # No "All" since §550: the mixes are their own tab.
     assert 'catChipHTML("", "All"' not in draw
@@ -285,8 +285,8 @@ def test_a_chip_filters_the_page_in_place():
     shown = _fn("showCategoryPanel")
     assert '"catPanel").hidden = !on' in shown and '"mixesPane").hidden = on || cats' in shown
     # Inside a category the row is an X, the category and the level below.
-    draw = _fn("renderCategoryChips")
-    assert "catPage.subs.map(" in draw and "clearCategory()" in draw
+    draw = _fn("paintCategoryChips")
+    assert "catPage.subs.map(" in draw and "clearCategory(true)" in draw
     load = _fn("loadCategoryEpisodes")
     assert "/api/categories/episodes?id=" in load and "&sort=popular" in load
     assert "catPage.subs = d.subcategories" in load
@@ -341,7 +341,9 @@ def test_a_late_categories_answer_cannot_undo_a_follow():
 
 
 def test_following_mid_load_does_not_draw_an_empty_category():
-    assert "if(!catPage.loading) drawCategoryPanel();" in _fn("toggleFollowCategory")
+    # Follow changes its button in place on the tap (§642) and never redraws
+    # the panel, so a follow mid-load cannot draw an empty category.
+    assert "drawCategoryPanel" not in _fn("toggleFollowCategory")
     load = _fn("loadCategoryEpisodes")
     assert load.count("catPage.loading = false;") == 2 and "catPage.loading = true;" in load
 

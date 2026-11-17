@@ -2606,6 +2606,158 @@ def main() -> int:
             page.evaluate("hideSnack(); setTab('home')")
             page.wait_for_timeout(300)
 
+        def myfam_motion_holds_nothing():
+            """§642: myFAM's round-three picks. The tabs' underline slides and
+            the old list leaves as a copy; a category chip keeps its element
+            and the X comes at once; a mix's switch changes on the tap and
+            slides the knob that was there; Add topics' (+) flips its row on
+            the tap; a refused reorder goes back; Back from a mix and from Add
+            topics is a pop; the glide's pill and lit card are drawn by
+            transform; a finished mix files its cards - and nothing drawn for
+            any of it is left behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); })")
+            page.evaluate("openPlayFAM()")
+            page.wait_for_selector("#mixList .mix-a[data-mix]", timeout=10000)
+            page.wait_for_timeout(600)
+            assert page.evaluate("Motion.DUR.glide") == 300 and page.evaluate("Motion.DUR.knob") == 220
+            # Tabs: one underline, slid; the old list leaves as a copy.
+            page.click("#pfTabCats")
+            moved = page.evaluate("""() => ({ cats: document.querySelector('#screen-playfam .pf-tabs').classList.contains('cats'),
+                copy: document.querySelectorAll('.motion-panel').length,
+                row: getComputedStyle(document.getElementById('newMixRow')).visibility,
+                h: document.getElementById('newMixRow').offsetHeight })""")
+            assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
+            assert moved["row"] == "hidden", f"the Create row was taken out of the page: {moved}"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
+            # A chip: the X comes at once, the chip is the same element.
+            if page.query_selector("#catChips .catchip[data-cat]"):
+                page.evaluate("document.querySelector('#catChips .catchip[data-cat]').click()")
+                assert page.query_selector("#catChips [data-chip=x]"), "the X did not come on the tap"
+                assert "Loading" not in (page.text_content("#catPanel") or ""), "the loading line flashed on the tap"
+                page.wait_for_timeout(900)
+                page.click("#catChips [data-chip=x]")
+                page.wait_for_timeout(500)
+            page.click("#pfTabMixes")
+            page.wait_for_timeout(500)
+            # Cards not seen are dealt; a card whose stack changed reshuffles.
+            dealt = page.evaluate("""() => { mixCardsSeen = {}; document.getElementById('mixList')._drawn = null;
+                renderMixList(); return Array.prototype.filter.call(document.querySelectorAll('#mixList .mix-a[data-mix]'),
+                  function(c){ return c.getAnimations().length; }).length; }""")
+            assert dealt >= 1, "no mix card was dealt on first sight"
+            page.wait_for_timeout(700)
+            again = page.evaluate("""() => { renderMixList(); document.getElementById('mixList')._drawn = null; renderMixList();
+                return document.querySelectorAll('#mixList .mix-a[data-mix]')[0].getAnimations().length; }""")
+            assert again == 0, "a card seen before was dealt again"
+            shuffled = page.evaluate("""() => { var m = mixes.filter(function(x){ return (x.cover_tiles || []).length > 1; })[0];
+                if(!m) return -1; m.cover_tiles = m.cover_tiles.slice(1).concat(m.cover_tiles.slice(0, 1));
+                renderMixList(); var card = document.querySelector('#mixList [data-mix="' + m.id + '"]');
+                return Array.prototype.reduce.call(card.querySelectorAll('.mix-a-tile'),
+                  function(n, t){ return n + t.getAnimations().length; }, 0); }""")
+            assert shuffled != 0, "a card whose lead changed did not reshuffle"
+            page.wait_for_timeout(700)
+            # Inside a mix: the switch changes on the tap, in place.
+            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.wait_for_timeout(500)
+            if page.query_selector("#mixBody .mix-vis"):
+                lit = page.evaluate("""() => { var sw = document.querySelector('#mixBody .mix-switch');
+                    window.__knob = sw; var was = sw.classList.contains('on');
+                    document.querySelector('#mixBody .mix-vis').click();
+                    return [was, sw.classList.contains('on')]; }""")
+                assert lit[0] != lit[1], "the switch waited for the server"
+                page.wait_for_timeout(900)
+                assert page.evaluate("window.__knob.isConnected"), "the page was redrawn under the switch"
+                page.evaluate("document.querySelector('#mixBody .mix-vis').click()")
+                page.wait_for_timeout(700)
+            # A refused reorder goes back where the server has it.
+            if page.evaluate("document.querySelectorAll('#mixOrder > .mix-topic').length") >= 2:
+                order = page.evaluate("""() => { window.__realFetch = window.__realFetch || window.fetch;
+                    window.fetch = function(u, o){ if(o && o.method === 'PATCH')
+                        return Promise.resolve(new Response(JSON.stringify({error: 'No'}), {status: 400}));
+                      return window.__realFetch.apply(this, arguments); };
+                    var keys = Array.prototype.map.call(document.querySelectorAll('#mixOrder > .mix-topic'),
+                                                        function(r){ return r.getAttribute('data-key'); });
+                    moveMixTopic(0, 1); return keys; }""")
+                page.wait_for_timeout(900)
+                back = page.evaluate("""() => { window.fetch = window.__realFetch;
+                    return Array.prototype.map.call(document.querySelectorAll('#mixOrder > .mix-topic'),
+                                                    function(r){ return r.getAttribute('data-key'); }); }""")
+                assert back == order, f"a refused reorder stayed drawn: {order} -> {back}"
+            # Add topics: the (+) flips on the tap; Back is a pop.
+            depth = page.evaluate("stack.length")
+            page.evaluate("openAddTopics()")
+            page.wait_for_selector("#screen-addtopics.active", timeout=5000)
+            page.wait_for_timeout(600)
+            if page.query_selector("#addTopicsBody .mix-topic-act[data-id]"):
+                flipped = page.evaluate("""() => { var b = document.querySelector('#addTopicsBody .mix-topic-act[data-id]');
+                    var row = b.closest('.mix-topic'), was = row.classList.contains('chosen');
+                    b.click(); return [was, row.classList.contains('chosen')]; }""")
+                assert flipped[0] != flipped[1], "Add topics' (+) waited for the server"
+                page.wait_for_timeout(700)
+            page.evaluate("closeAddTopics()")
+            page.wait_for_timeout(500)
+            assert page.evaluate("stack.length") == depth and page.evaluate(
+                "document.getElementById('screen-mixdetail').classList.contains('active')"), \
+                "Back from Add topics pushed a second mix page"
+            page.evaluate("closeMixPage()")
+            assert page.evaluate("document.getElementById('screen-mixdetail').classList.contains('leaving')"), \
+                "Back from a mix was not a pop"
+            page.wait_for_timeout(500)
+            assert page.evaluate("document.getElementById('screen-playfam').classList.contains('active')")
+            # The glide: its pill and lit card by transform, never width.
+            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            page.wait_for_timeout(400)
+            if page.evaluate("(mixById(currentMixId).items || []).length") > 1:
+                page.evaluate("""() => { window.__glide = null; var real = Motion.glide;
+                    Motion.glide = function(el){ real.apply(this, arguments);
+                      var c = el.querySelector('.fam-glide-card.on'), p = el.querySelector('.fam-glide-pill');
+                      var moving = c ? c.getAnimations().length : 0;
+                      if(c) c.getAnimations().forEach(function(a){ a.finish(); });
+                      window.__glide = { t: c ? getComputedStyle(c).transform : '', pill: !!p,
+                                         w: p ? p.offsetWidth : 0, moving: moving };
+                      Motion.glide = real; };
+                    playMix(); }""")
+                page.wait_for_function("() => window.__glide", timeout=5000)
+                pose = page.evaluate("window.__glide")
+                assert pose["moving"], f"the lit card did not lift: {pose}"
+                assert pose["t"].startswith("matrix(1.05"), f"the lit card is not lifted by scale: {pose}"
+                assert pose["pill"] and pose["w"] == 18, f"the dot's pill is not drawn: {pose}"
+                page.evaluate("stopSpeech(); clearGenOverlay(); endMixQueue()")
+                page.wait_for_timeout(400)
+            # Create: the mix's page takes the naming screen's place, the
+            # folder flying to its cover; Back goes to the grid.
+            page.evaluate("stopSpeech(); clearGenOverlay(); stack = ['playfam']; showScreen('playfam')")
+            page.evaluate("openNewMix()")
+            page.wait_for_selector("#screen-newmix.active", timeout=5000)
+            page.wait_for_timeout(500)
+            page.fill("#nmInput", "Smoke run club")
+            page.evaluate("""() => { window.__cover = false; var o = new MutationObserver(function(){
+                if (document.querySelector('.motion-cover')) window.__cover = true; });
+                o.observe(document.querySelector('.frame'), { childList: true }); window.__coverWatch = o; }""")
+            page.click("#nmCreate")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            made = page.evaluate("() => { window.__coverWatch.disconnect(); return [stack.slice(), window.__cover]; }")
+            assert "newmix" not in made[0], f"the naming screen stayed under the new mix: {made[0]}"
+            assert made[1], "the folder did not fly to the new mix's cover"
+            page.wait_for_timeout(700)
+            # A mix played through files its cards and draws the check.
+            page.evaluate("""() => { mixPlay = { name: 'Morning', id: '', pos: 1, key: '', played: {0: true, 1: true},
+                order: [{ title: 'A' }, { title: 'B' }] }; finishMix(); }""")
+            filed = page.evaluate("document.querySelectorAll('#mixDoneDeck .mixdone-c').length")
+            assert filed == 2, f"the finished mix filed {filed} cards"
+            page.wait_for_timeout(1300)
+            page.evaluate("closeMixDone(false)")
+            page.evaluate("stack = ['playfam']; setTab('home')")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-panel, .motion-star, .motion-cover,'
+                + ' .motion-name, .motion-copy, .motion-leave, .motion-line-was, .motion-loader-out').length""")
+            assert left == 0, f"{left} of myFAM's motion copies were left behind"
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -3818,10 +3970,12 @@ def main() -> int:
             def state():
                 lit = "on" in (page.query_selector(".mix-switch")
                                .get_attribute("class") or "")
-                word = page.text_content(".mix-vis-t").strip()
-                note = page.text_content(".mix-vis-s").strip()
+                word = page.text_content(".mix-vis-w.on .mix-vis-t").strip()
+                note = page.text_content(".mix-vis-w.on .mix-vis-s").strip()
+                # One lock rides the knob (§642): its shackle is lifted and
+                # turned open while public, at rest - shut - while private.
                 shackle = page.eval_on_selector(
-                    ".mix-switch span svg path", "e => e.getAttribute('d')")
+                    ".mix-switch .lock-shackle", "e => getComputedStyle(e).transform")
                 return lit, word, note, shackle
 
             lit, word, note, shackle = state()
@@ -3831,8 +3985,8 @@ def main() -> int:
             if lit:
                 assert "displayed on your profile" in note.lower(), \
                     f"the public note is missing: {note!r}"
-            # A closed padlock closes: its shackle path ends back at the body.
-            assert shackle.rstrip().endswith("v3.1") != lit, \
+            # A closed padlock closes: its shackle sits on the body.
+            assert (shackle != "none") == lit, \
                 f"the lock is {'open' if not lit else 'closed'} in the wrong position"
 
             page.click(".mix-vis")
@@ -4803,6 +4957,8 @@ def main() -> int:
               round_three_motion_holds_nothing)
         check("dailyFAM's round-three motion holds nothing and leaves nothing behind",
               dailyfam_motion_holds_nothing)
+        check("myFAM's round-three motion holds nothing and leaves nothing behind",
+              myfam_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

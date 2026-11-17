@@ -92,7 +92,8 @@ def test_the_screen_is_two_tabs_under_the_wordmark():
 
 def test_each_tab_shows_its_own_half():
     tab = _fn("showPlayfamTab")
-    assert "row.hidden = cats;" in tab and "chips.hidden = !cats;" in tab
+    # The Create row keeps its height on Categories (playfam-tabs: B, §642).
+    assert 'row.style.visibility = cats ? "hidden" : "";' in tab and "chips.hidden = !cats;" in tab
     shown = _fn("showCategoryPanel")
     assert 'home.hidden = on || !cats;' in shown
     # Picking a category from anywhere opens its tab.

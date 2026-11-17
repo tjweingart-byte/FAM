@@ -135,6 +135,24 @@
     --dur-story-turn:340ms; --dur-story-spring:400ms;
     --dur-reply:220ms;
     --dur-fold:220ms; --dur-gap:240ms;
+    /* myFAM (round three, §642): the mixes screen, a mix's page, its glide
+       and its end. */
+    --dur-glide:300ms; --dur-glide-in:120ms; --dur-glide-out:150ms;
+    --dur-glide-step:200ms; --dur-glide-lift-at:160ms; --dur-glide-stamp-at:180ms; --dur-glide-first-at:220ms;
+    --dur-deck-stagger:40ms; --dur-fan:240ms; --dur-fan-lag:100ms;
+    --dur-underline:240ms; --dur-panel-out:110ms; --dur-panel-in:200ms; --dur-panel-lag:90ms;
+    --dur-chip:260ms; --dur-chip-out:120ms; --dur-chip-in:160ms;
+    --dur-swap:300ms; --ease-swap:cubic-bezier(.25,.1,0,1);
+    --dur-dip:160ms; --dur-deck-slot:220ms; --dur-deck-top:300ms; --dur-deck-top-at:60ms;
+    --dur-ready-at:360ms; --dur-ready:160ms; --dur-deck-apart:60ms;
+    --dur-rec-exit:160ms; --dur-rec-slot:250ms; --dur-rec-edge:450ms;
+    --dur-shuffle-out:120ms; --dur-shuffle-in:200ms;
+    --dur-lift:150ms; --dur-sort:200ms; --dur-drop:260ms;
+    --dur-knob:220ms; --dur-shackle:180ms;
+    --dur-name-at:40ms; --dur-next-step-at:420ms; --dur-empty-at:510ms;
+    --dur-tick:220ms; --dur-tick-at:80ms; --dur-star:160ms;
+    --dur-dot-in:240ms; --dur-dot-out:160ms;
+    --dur-square:300ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
        colour from the palette (§640). */
@@ -524,9 +542,19 @@
   .pf-tabs{ flex:none; display:flex; margin:0 18px 12px; border-bottom:1px solid var(--border);
     background:var(--bg); position:relative; z-index:2; }
   .pf-tab{ flex:1; min-height:42px; padding:8px 0 9px; background:none; border:0;
-    border-bottom:2.5px solid transparent; margin-bottom:-1px; cursor:pointer;
+    margin-bottom:-1px; cursor:pointer; transition:color var(--dur-colour) var(--ease-out);
     font-family:'Geist', sans-serif; font-size:15px; font-weight:600; color:var(--text-muted); }
-  .pf-tab.on{ color:var(--text); border-bottom-color:var(--copper); }
+  .pf-tab.on{ color:var(--text); }
+  /* One underline under whichever is on (playfam-tabs: B, §642), slid by
+     transform - a transition, so a quick second tap turns it round. */
+  .pf-tabs::after{ content:""; position:absolute; left:0; bottom:-1px; width:50%; height:2.5px;
+    background:var(--copper); pointer-events:none;
+    transition:transform var(--dur-underline) var(--ease-in-out); }
+  .pf-tabs.cats::after{ transform:translateX(100%); }
+  .pf-tabs.pf-still::after{ transition:none; }
+  @media (prefers-reduced-motion: reduce){
+    .pf-tabs::after, .pf-tab{ transition:none; }
+  }
   .pf-tab:active{ opacity:0.7; }
   /* The Categories tab's landing: a row per category. */
   .cath-h{ margin:6px 0 8px; font-family:'Geist Mono', monospace; font-size:10px;
@@ -888,7 +916,10 @@
      bottom, and today's headline under the card. With a photo of its own,
      the photo fills the square and the stack steps aside to a corner. */
   .mix-a-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 11px; }
-  .mix-a{ min-width:0; cursor:pointer; }
+  .mix-a{ min-width:0; cursor:pointer; position:relative; }
+  .mix-a-grid{ position:relative; }
+  /* The headline as it was, fading over the new one (deck-reshuffle: B). */
+  .mix-a .motion-line-was{ position:absolute; margin:0; pointer-events:none; }
   .mix-a-cover{ position:relative; aspect-ratio:1; border-radius:18px; overflow:hidden;
     background:var(--mix-hue, var(--surface-2)) center/cover no-repeat; }
   .mix-a-cover.photo::after{ content:""; position:absolute; inset:45% 0 0; pointer-events:none;
@@ -987,7 +1018,7 @@
      that is on is filled. Inside a category the row is an X, the category
      and the level below it. Chips wrap no words and grow with the phone's
      text size (`large-text`). */
-  .catchips{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none;
+  .catchips{ display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; position:relative;
     margin:4px -18px 0; padding:2px 18px 10px; }
   .catchips::-webkit-scrollbar{ display:none; }
   .catchips:empty, .catchips[hidden]{ display:none; }
@@ -1031,7 +1062,14 @@
   .hist-tabs[hidden]{ display:none; }
   .cat-follow{ flex:none; min-height:34px; padding:0 14px; border-radius:17px;
     background:transparent; color:var(--text); border:1px solid var(--border-strong);
-    font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+    font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
+    /* Wide enough for the tick and "Following", so the label swaps in
+       place and nothing resizes (category-follow: B, §642). */
+    min-width:104px; display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    transition:background-color var(--dur-colour) var(--ease-out), color var(--dur-colour) var(--ease-out),
+      border-color var(--dur-colour) var(--ease-out); }
+  .cat-follow .motion-tick{ margin:0; }
+  @media (prefers-reduced-motion: reduce){ .cat-follow{ transition:none; } }
   .cat-follow.on{ background:var(--paper); color:var(--ink); border-color:var(--paper); }
   #catPanel .sv-title{ white-space:normal; overflow:visible; text-overflow:clip;
     line-height:1.3; overflow-wrap:anywhere; }
@@ -1045,9 +1083,27 @@
     display:flex; align-items:center; justify-content:center; color:var(--text-faint);
     cursor:grab; touch-action:none; border:0; background:none; padding:0; }
   .mix-drag:active{ cursor:grabbing; color:var(--copper); }
-  .mix-topic.dragging{ position:relative; z-index:2; border-color:var(--copper);
-    box-shadow:0 8px 22px rgba(0,0,0,0.35); transition:none; }
-  .mix-list.sorting .mix-topic:not(.dragging){ transition:transform 140ms ease; }
+  /* Carrying a row (drag-reorder: B, §642): its shadow is on a pseudo-
+     element that fades in (150 ms), never an animated box-shadow; the rest
+     of the list dims to .6 and steps aside on the reorder's 200 ms
+     `in-out`; let go, the shadow fades as the row settles. */
+  .mix-list .mix-topic{ position:relative; }
+  .mix-list .mix-topic::after{ content:""; position:absolute; inset:-1px; border-radius:inherit;
+    box-shadow:0 8px 22px rgba(0,0,0,0.35); opacity:0; pointer-events:none;
+    transition:opacity var(--dur-lift) var(--ease-out); }
+  .mix-topic.dragging, .mix-topic.settling{ z-index:2; }
+  .mix-topic.dragging{ border-color:var(--copper); transition:none; }
+  .mix-topic.dragging::after, .mix-topic.settling::after{ opacity:1; }
+  .mix-list.sorting .mix-topic:not(.dragging){ opacity:.6;
+    transition:transform var(--dur-sort) var(--ease-in-out), opacity var(--dur-colour) var(--ease-out); }
+  /* 44 px to press, whatever is drawn (the review's hit areas). */
+  .mix-drag, .mix-topic-act{ position:relative; }
+  .mix-drag::before, .mix-topic-act::before{ content:""; position:absolute; left:50%; top:50%;
+    width:44px; height:44px; transform:translate(-50%, -50%); }
+  @media (prefers-reduced-motion: reduce){
+    .mix-list.sorting .mix-topic:not(.dragging){ transition:none; opacity:1; }
+    .mix-list .mix-topic::after{ transition:none; }
+  }
   .mix-topic-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:12.5px;
     color:var(--text); line-height:1.3; }
   .mix-topic-sub{ font-size:9.5px; color:var(--text-muted); margin-top:2px; line-height:1.35; }
@@ -1063,6 +1119,22 @@
   .mix-edit-done{ flex:none; padding:8px 16px; border-radius:999px; border:none; background:var(--copper);
     color:var(--ink); font-family:'Geist',sans-serif; font-size:12px; font-weight:700; cursor:pointer; }
   .mix-topic.chosen{ border-color:var(--copper); }
+  /* Add topics' (+) and tick (topic-toggle: A, §642): both glyphs in one
+     cell, crossing through .3 and a 3 px blur on the icon swap's curve; the
+     fill and the row's edge are colour, 150 ms. Transitions, so a second
+     tap turns them round from where they are. */
+  .at-swap{ display:grid; place-items:center; }
+  .at-swap > span{ grid-area:1 / 1; line-height:1;
+    transition:opacity var(--dur-swap) var(--ease-swap), transform var(--dur-swap) var(--ease-swap),
+      filter var(--dur-swap) var(--ease-swap); }
+  .at-swap .at-tick, .mix-topic.chosen .at-swap .at-plus{ opacity:0; transform:scale(.3); filter:blur(3px); }
+  .mix-topic.chosen .at-swap .at-tick{ opacity:1; transform:none; filter:none; }
+  #addTopicsBody .mix-topic, #addTopicsBody .mix-topic-act{
+    transition:border-color var(--dur-colour) var(--ease-out), background-color var(--dur-colour) var(--ease-out),
+      color var(--dur-colour) var(--ease-out); }
+  @media (prefers-reduced-motion: reduce){
+    .at-swap > span, #addTopicsBody .mix-topic, #addTopicsBody .mix-topic-act{ transition:none; }
+  }
   .mix-topic.chosen .mix-topic-act{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
   .mix-play{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
     padding:13px; border-radius:999px; background:var(--copper); color:var(--ink); border:none;
@@ -1136,6 +1208,28 @@
     border:1.5px solid var(--copper); font-family:'Geist',sans-serif;
     font-size:12px; font-weight:700; cursor:pointer; margin:0 0 11px; }
   .pub-add-btn.on{ background:var(--copper); color:var(--ink); }
+  /* The async button (public-mix-add: A; Create, §642): nothing for 300 ms,
+     then a spinner, at least 500 ms; the label, the spinner and the tick
+     cross-fade through .9 (150 ms) and the fill follows in 150 ms. The
+     spinner turns even with reduced motion - it is work. */
+  .async-btn{ position:relative; }
+  .async-btn .ab-faces{ display:grid; place-items:center; }
+  .async-btn .ab-faces > .ab-face{ grid-area:1 / 1; display:inline-flex; align-items:center; gap:8px; }
+  .async-btn .ab-face{ transition:opacity var(--dur-colour) var(--ease-out), scale var(--dur-colour) var(--ease-out); }
+  .async-btn .ab-face.ab-added, .async-btn.on .ab-face.ab-idle{ opacity:0; scale:.9; }
+  .async-btn.on .ab-face.ab-added{ opacity:1; scale:1; }
+  .async-btn.is-pending .ab-face{ opacity:0 !important; scale:.9 !important; }
+  .async-btn::after{ content:""; position:absolute; left:50%; top:50%; width:14px; height:14px;
+    margin:-9px 0 0 -9px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent;
+    opacity:0; scale:.9; pointer-events:none;
+    transition:opacity var(--dur-colour) var(--ease-out), scale var(--dur-colour) var(--ease-out); }
+  .async-btn.is-pending::after{ opacity:1; scale:1; animation:abSpin .8s linear infinite; }
+  .async-btn.is-pending:disabled{ opacity:1; }
+  @keyframes abSpin{ to{ rotate:360deg; } }
+  .pub-add-btn, .mix-add{ transition:background-color var(--dur-colour) var(--ease-out), color var(--dur-colour) var(--ease-out); }
+  @media (prefers-reduced-motion: reduce){
+    .async-btn .ab-face, .async-btn::after, .pub-add-btn, .mix-add{ transition:none; }
+  }
   .pub-add-btn:disabled{ opacity:0.5; cursor:default; }
   .mix-hero-art.static{ cursor:default; }
   /* A mix's cover, wherever the folder is drawn. */
@@ -1875,20 +1969,30 @@
     color-scheme:light; }
   .mix-when-x{ flex:none; background:none; border:none; color:var(--text-muted); font-size:11px;
     cursor:pointer; padding:4px; }
-  /* The switch means *private*, and carries the lock. `on` is the closed one.
-     It used to mean public, which made the lit position the state where other
-     people could see your mix - read the wrong way round by everybody who has
-     ever used a phone. */
+  /* The switch means *public*, and carries the lock (renderMixBody): `on`
+     is lit, Public, the shackle open; off is Private, the lock shut.
+     Toggled in place on the tap (visibility-switch: B, §642): the knob
+     slides 220 ms `in-out`, the track's colour follows in 150 ms, and the
+     shackle lifts open or drops shut once the knob has landed (180 ms
+     `out`, 220 ms in) - transitions, so a second tap turns them round. */
   .mix-switch{ flex:none; width:44px; height:24px; border-radius:999px;
-    background:var(--border-strong); position:relative; transition:background 160ms ease; }
+    background:var(--border-strong); position:relative;
+    transition:background-color var(--dur-colour) var(--ease-out); }
   .mix-switch span{ position:absolute; top:3px; left:3px; width:18px; height:18px;
     border-radius:50%; background:var(--text-muted);
     display:flex; align-items:center; justify-content:center;
     color:var(--surface);
-    transition:transform 160ms ease, background 160ms ease; }
+    transition:transform var(--dur-knob) var(--ease-in-out), background-color var(--dur-colour) var(--ease-out),
+      color var(--dur-colour) var(--ease-out); }
   .mix-switch.on{ background:var(--copper); }
   .mix-switch.on span{ transform:translateX(20px); background:var(--ink);
     color:var(--copper); }
+  .mix-switch .lock-shackle{ transform-box:fill-box; transform-origin:100% 100%;
+    transition:transform var(--dur-shackle) var(--ease-out) var(--dur-knob); }
+  .mix-switch.on .lock-shackle{ transform:translateY(-3px) rotate(-20deg); }
+  .mix-vis-words{ display:grid; flex:1; min-width:0; }
+  .mix-vis-w{ grid-area:1 / 1; transition:opacity var(--dur-colour) var(--ease-out); }
+  .mix-vis-w:not(.on){ opacity:0; }
 
   /* Vibe controls, on every player. "Vibed" uses the copper the app reserves
      for "you did this", so it reads without a label.
@@ -1900,7 +2004,7 @@
   .pt-icon.echoed{ background:var(--copper); color:var(--ink); border-color:var(--copper); }
 
   @media (prefers-reduced-motion: reduce){
-    .mix-switch, .mix-switch span{ transition:none; }
+    .mix-switch, .mix-switch span, .mix-switch .lock-shackle, .mix-vis-w{ transition:none; }
   }
 
   /* Go Deeper: what is unfinished, and what the endings left open. Above the
@@ -2200,6 +2304,15 @@
   .motion-title{ position:absolute !important; margin:0 !important; pointer-events:none; }
   /* A removed row leaving over the rows that have already closed up. */
   .motion-row{ position:absolute !important; margin:0 !important; z-index:1; pointer-events:none; }
+  /* myFAM's copies (§642): the list a tab leaves, the star that flies to a
+     chip, New mix's folder and name on their way to the mix's page. */
+  .motion-panel{ position:absolute !important; z-index:1; pointer-events:none; overflow:hidden !important; }
+  .motion-star{ position:absolute; z-index:61; pointer-events:none; color:var(--copper);
+    display:flex; align-items:center; justify-content:center; }
+  .motion-star svg{ width:100%; height:100%; }
+  .motion-cover{ position:absolute !important; z-index:61; margin:0 !important; pointer-events:none;
+    transform-origin:0 0; }
+  .motion-name{ position:absolute; z-index:62; pointer-events:none; white-space:nowrap; transform-origin:0 0; }
   /* Sign-up's three steps, filled to the one on screen, and which one it
      is in words (signup-steps: B). */
   .motion-steps{ position:absolute; top:calc(var(--sb-h) + 6px); left:50%; transform:translateX(-50%);
@@ -2397,7 +2510,10 @@
   .fam-ld-kick b{ font-weight:inherit; color:var(--copper); }
   .fam-ld-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px;
     line-height:1.22; color:var(--text); text-wrap:balance; max-width:300px;
-    animation:famLdUp .3s ease both; }
+    animation:famLdUp var(--dur-title) var(--ease-out) both; }
+  /* A mix's title comes with the loader in one piece (mix-glide: B, §642):
+     the row and the lit card are the only things that move. */
+  .fam-ld-alt.is-glide .fam-ld-title{ animation:none; }
   .fam-ld-status{ font-family:'Geist Mono', monospace; font-size:11.5px; letter-spacing:.03em;
     color:var(--text-muted); display:flex; align-items:center; gap:8px; }
   .fam-ld-status::before{ content:""; flex:none; width:7px; height:7px; border-radius:50%;
@@ -2455,12 +2571,14 @@
   /* Option 3, the mix gliding along: its episodes in order, the last one
      marked Heard, this one slid to the middle and lifted. */
   .fam-glide{ width:calc(100% + 64px); overflow:hidden; padding:10px 0; }
-  .fam-glide-track{ display:flex; gap:10px; width:max-content;
-    animation:famGlide .45s .1s cubic-bezier(.3,1.1,.4,1) both; }
-  @keyframes famGlide{ from{ transform:translateX(var(--from, 0px)); } to{ transform:translateX(var(--to, 0px)); } }
+  /* Drawn at rest; `Motion.glide` moves it there (mix-glide: B, §642): the
+     row slides one card in 300 ms, the card heard steps down, this one
+     lifts to 1.05 - no overshoot - and the copper pill moves one dot, by
+     transform, never by width. */
+  .fam-glide-track{ display:flex; gap:10px; width:max-content; transform:translateX(var(--to, 0px)); }
   .fam-glide-card{ flex:none; width:128px; border-radius:12px; padding:6px 6px 9px; box-sizing:border-box;
     background:var(--surface); border:1px solid var(--border); text-align:left; position:relative;
-    display:flex; flex-direction:column; gap:5px; opacity:.4; overflow:hidden; }
+    display:flex; flex-direction:column; gap:5px; opacity:.45; overflow:hidden; }
   /* The episode's picture, 4:3 like every tile (§591); the surface shows
      through when the topic has none. */
   .fam-glide-pic{ display:block; width:100%; aspect-ratio:4/3; border-radius:8px; overflow:hidden;
@@ -2470,17 +2588,18 @@
   .fam-glide-card .n{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:.08em; color:var(--text-faint); }
   .fam-glide-card .t{ font-size:12px; line-height:1.25; color:var(--text-muted); display:-webkit-box;
     -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .fam-glide-card.on{ opacity:1; border-color:var(--copper); animation:famGlidePick .4s .25s cubic-bezier(.2,1.3,.4,1) both; }
+  .fam-glide-card.on{ opacity:1; border-color:var(--copper); transform:scale(1.05); }
   .fam-glide-card.on .t{ color:var(--text); }
   .fam-glide-card.on .n{ color:var(--copper); }
   .fam-glide-card.played .n{ color:var(--text-muted); }
   .fam-glide-card.skipped .n{ color:var(--text-faint); }
-  @keyframes famGlidePick{ from{ transform:scale(1); } to{ transform:scale(1.08); } }
-  .fam-glide-dots{ display:flex; gap:6px; }
+  .fam-glide-dots{ display:flex; gap:6px; position:relative; }
   .fam-glide-dots i{ width:6px; height:6px; border-radius:3px; background:var(--border-strong); }
   .fam-glide-dots i.h{ background:var(--text-faint); }
-  .fam-glide-dots i.on{ background:var(--copper); animation:famGlideDot .4s .25s both; }
-  @keyframes famGlideDot{ from{ width:6px; } to{ width:18px; } }
+  .fam-glide-dots i.on{ background:var(--copper); }
+  /* The pill over this episode's dot, 18 px centred on it. */
+  .fam-glide-pill{ position:absolute; top:0; width:18px; height:6px; border-radius:3px;
+    background:var(--copper); left:calc(var(--at, 0) * 12px - 6px); }
 
   /* Motion is decoration here; the words are the information. Anyone who has
      asked for less of it still gets the full status line. Nothing moves;
@@ -2491,11 +2610,8 @@
     .fam-loading-dots i{ transform:none; animation:famLdPulse 2.4s ease-in-out infinite; }
     .fam-steps li.active .fam-step-dot{ animation:famLdPulse 1.6s ease-in-out infinite; }
     .fam-ld-title, .fam-dev.develop .fam-dev-pic, .fam-dev.develop .fam-dev-pic::after,
-    .fam-dev-faces .src-mark, .fam-dev-names,
-    .fam-glide-track, .fam-glide-card.on, .fam-glide-dots i.on{ animation:none; }
+    .fam-dev-faces .src-mark, .fam-dev-names{ animation:none; }
     .fam-dev.develop .fam-dev-pic::after{ display:none; }
-    .fam-glide-track{ transform:translateX(var(--to, 0px)); }
-    .fam-glide-dots i.on{ width:18px; }
   }
 
   .demo-badge{
@@ -3093,6 +3209,19 @@
   /* The end of a DailyFAM playlist (§134): the same card as What's next, and
      deliberately nothing in it that plays anything. */
   .mixdone-card{ text-align:center; padding:24px 20px 14px; }
+  /* The day's cards, drawn as they end: squared into one stack, the check
+     on top. `Motion.fileIn` brings them there (mix-finished: B, §642). */
+  .mixdone-deck{ position:relative; width:72px; height:54px; margin:0 auto 18px; }
+  .mixdone-deck[hidden]{ display:none; }
+  .mixdone-c{ position:absolute; inset:0; border-radius:8px; overflow:hidden;
+    background:var(--surface-2) center / cover no-repeat; border:1.5px solid rgba(255,255,255,0.8);
+    box-shadow:0 4px 10px -4px rgba(0,0,0,0.5); }
+  .mixdone-c i{ position:absolute; left:4px; bottom:4px; font-style:normal; font-family:'Geist Mono', monospace;
+    font-size:6.5px; letter-spacing:0.08em; text-transform:uppercase; background:rgba(244,239,228,0.92);
+    color:#18151F; border-radius:3px; padding:1px 3px; }
+  .mixdone-check{ position:absolute; right:-9px; top:-9px; width:22px; height:22px; padding:3px;
+    box-sizing:border-box; border-radius:50%; background:var(--copper); color:var(--ink); }
+  .mixdone-check path{ stroke-dasharray:1; stroke-dashoffset:0; }
   .mixdone-h{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px;
     line-height:1.3; color:var(--text); margin:0 0 8px; }
   .mixdone-sub{ font-size:12px; line-height:1.55; color:var(--text-muted); }
@@ -4812,9 +4941,9 @@
         <!-- Two tabs under the wordmark (§550, the owner's 11.11 note, "like
              Groups | Messages"): the listener's mixes, and the categories
              that used to be a chip row over them. -->
-        <div class="pf-tabs" role="tablist" aria-label="myFAM">
-          <button type="button" class="pf-tab on" id="pfTabMixes" role="tab" aria-selected="true" onclick="showPlayfamTab('mixes')">Mixes</button>
-          <button type="button" class="pf-tab" id="pfTabCats" role="tab" aria-selected="false" onclick="showPlayfamTab('categories')">Categories</button>
+        <div class="pf-tabs" role="tablist" aria-label="myFAM" onkeydown="playfamTabKey(event)">
+          <button type="button" class="pf-tab on" id="pfTabMixes" role="tab" aria-selected="true" onclick="showPlayfamTab('mixes', event)">Mixes</button>
+          <button type="button" class="pf-tab" id="pfTabCats" role="tab" aria-selected="false" tabindex="-1" onclick="showPlayfamTab('categories', event)">Categories</button>
         </div>
         <!-- "Create new mix" (11.7 packet): a pill under the wordmark in place
              of the circled (+) top right. Still hidden until `/api/mixes`
@@ -4867,7 +4996,7 @@
       <section class="screen" id="screen-mixdetail">
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
-          <span class="back" onclick="openPlayFAM()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
+          <span class="back" onclick="closeMixPage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <h2 id="mixTitle">Mix</h2>
           <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
         </div>
@@ -4911,7 +5040,7 @@
                  oninput="onNewMixName()" onkeydown="if(event.key==='Enter') confirmNewMix()">
         </div>
         <div style="padding:0 18px 18px;">
-          <button class="np-save-btn nm-create" id="nmCreate" onclick="confirmNewMix()" disabled>Create</button>
+          <button class="np-save-btn nm-create async-btn" id="nmCreate" onclick="confirmNewMix()" disabled><span class="ab-face">Create</span></button>
         </div>
       </section>
 
@@ -5249,6 +5378,8 @@
            played, so nothing else starts: no countdown, no recommendation. -->
       <div class="modal-overlay" id="mixDoneOverlay">
         <div class="nextup-card mixdone-card" role="dialog" aria-labelledby="mixDoneH">
+          <!-- Today's cards, filed onto one stack (mix-finished: B, §642). -->
+          <div class="mixdone-deck" id="mixDoneDeck" aria-hidden="true" hidden></div>
           <div class="mixdone-h" id="mixDoneH">You have finished listening to your playlist for today</div>
           <div class="mixdone-sub">Fresh episodes on the same topics tomorrow.</div>
           <button class="nextup-back" onclick="closeMixDone(true)">Back to myFAM</button>
@@ -6121,8 +6252,35 @@
       storyHide: msToken("--dur-story-hide", 150), storyShow: msToken("--dur-story-show", 200),
       storyTurn: msToken("--dur-story-turn", 340), storySpring: msToken("--dur-story-spring", 400),
       reply: msToken("--dur-reply", 220),
-      fold: msToken("--dur-fold", 220), gap: msToken("--dur-gap", 240)
+      fold: msToken("--dur-fold", 220), gap: msToken("--dur-gap", 240),
+      // myFAM (§642)
+      colour: msToken("--dur-colour", 150),
+      glide: msToken("--dur-glide", 300), glideIn: msToken("--dur-glide-in", 120),
+      glideOut: msToken("--dur-glide-out", 150), glideStep: msToken("--dur-glide-step", 200),
+      glideLiftAt: msToken("--dur-glide-lift-at", 160), glideStampAt: msToken("--dur-glide-stamp-at", 180),
+      glideFirstAt: msToken("--dur-glide-first-at", 220),
+      deckStagger: msToken("--dur-deck-stagger", 40), fan: msToken("--dur-fan", 240),
+      fanLag: msToken("--dur-fan-lag", 100),
+      underline: msToken("--dur-underline", 240), panelOut: msToken("--dur-panel-out", 110),
+      panelIn: msToken("--dur-panel-in", 200), panelLag: msToken("--dur-panel-lag", 90),
+      chip: msToken("--dur-chip", 260), chipOut: msToken("--dur-chip-out", 120), chipIn: msToken("--dur-chip-in", 160),
+      swap: msToken("--dur-swap", 300),
+      dip: msToken("--dur-dip", 160), deckSlot: msToken("--dur-deck-slot", 220),
+      deckTop: msToken("--dur-deck-top", 300), deckTopAt: msToken("--dur-deck-top-at", 60),
+      readyAt: msToken("--dur-ready-at", 360), ready: msToken("--dur-ready", 160),
+      deckApart: msToken("--dur-deck-apart", 60),
+      recExit: msToken("--dur-rec-exit", 160), recSlot: msToken("--dur-rec-slot", 250),
+      recEdge: msToken("--dur-rec-edge", 450),
+      shuffleOut: msToken("--dur-shuffle-out", 120), shuffleIn: msToken("--dur-shuffle-in", 200),
+      lift: msToken("--dur-lift", 150), sort: msToken("--dur-sort", 200), drop: msToken("--dur-drop", 260),
+      knob: msToken("--dur-knob", 220), shackle: msToken("--dur-shackle", 180),
+      nameAt: msToken("--dur-name-at", 40), nextStepAt: msToken("--dur-next-step-at", 420),
+      emptyAt: msToken("--dur-empty-at", 510),
+      tick: msToken("--dur-tick", 220), tickAt: msToken("--dur-tick-at", 80), star: msToken("--dur-star", 160),
+      dotIn: msToken("--dur-dot-in", 240), dotOut: msToken("--dur-dot-out", 160),
+      square: msToken("--dur-square", 300)
     };
+    var EASE_SWAP = token("--ease-swap", "cubic-bezier(.25,.1,0,1)");
     // A spring as a `linear()` curve: a damped spring of the given duration
     // and bounce (the skill's form), with `v0` the speed it starts at, in
     // distances-to-go per second - so a drag let go fast keeps its speed.
@@ -6305,6 +6463,8 @@
     // Until when a tab change's nudge is moving the new tab's content:
     // anything that arrives inside it rides in with it (§641).
     var tabUntil = 0;
+    // Until when a pushed or popped screen is still moving in (§642).
+    var arriveUntil = 0;
     function moving(el){
       var s = el && el.closest ? el.closest(".screen") : null;
       return !s || s.classList.contains("arriving") || Date.now() < tabUntil;
@@ -6406,7 +6566,16 @@
                                            { opacity: 1, transform: "translateX(0px)" }],
                                       260, { delay: 80 }));
         });
+      } else if(how === "fade"){
+        // New mix's Create (create-mix: B, §642): the mix's page fades in
+        // over the naming screen while the folder flies to its cover.
+        anims.push(run(to, [{ opacity: 0 }, { opacity: 1 }], DUR.fadeIn));
       }
+      // When the arriving screen stops moving, for what lands on it (§642).
+      arriveUntil = Date.now() + anims.reduce(function(m, a){
+        var t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+        return Math.max(m, t ? t.endTime || 0 : 0);
+      }, 0);
       var finish = function(){
         anims.forEach(function(x){ try { x.cancel(); } catch(e){} });
         from.style.background = "";
@@ -7300,7 +7469,9 @@
     // still had; the loader's words go in 150 ms and its background in
     // 200 ms, both `in`. With no picture the copy only fades.
     function handOff(loader){
-      if(!on() || !loader || !loader.classList.contains("active") || !loader.querySelector(".fam-dev")) return;
+      if(!on() || !loader || !loader.classList.contains("active")) return;
+      // A mix's glide fades out as a copy (mix-glide: B, §642).
+      if(!loader.querySelector(".fam-dev")){ if(loader.querySelector(".fam-glide")) glideOut(loader); return; }
       settle();
       var pic = loader.querySelector(".fam-dev .fam-dev-pic"), img = pic && pic.querySelector("img");
       var bg = document.getElementById("playerBg");
@@ -7508,6 +7679,565 @@
           { easing: EASE_IO, fill: "none" });
     }
 
+    // ==== myFAM (round three, §642): the owner's 14 picks of 11.16 ====
+    // The same terms as every phase: the page is what it will be on the
+    // frame a movement starts, anything shown leaving is an inert copy, and
+    // nothing here waits on anything.
+
+    // How much longer the screen `el` is on is still moving in (a push, a
+    // pop, a tab's nudge). What arrives on it waits that long to move -
+    // never to be drawn.
+    function movingFor(el){
+      var s = el && el.closest ? el.closest(".screen") : null;
+      var until = Math.max(tabUntil, s && s.classList.contains("arriving") ? arriveUntil : 0);
+      return Math.max(0, until - Date.now());
+    }
+    // On the active screen (arriving or not) and drawn.
+    function shownHere(el){ return !!(el && seen(el) && el.closest(".screen.active")); }
+
+    // ---- a mix's glide (mix-glide: B, the light passes on) ----
+    // The loader fades in over 120 ms. The row slides one card, 300 ms
+    // `in-out`, while the card just heard steps down (1.05 -> 1 and to its
+    // resting fade, 200 ms `in`) and says Played, and this one lifts 160 ms
+    // in (200 ms `out`); the copper pill moves one dot on the row's clock.
+    // The first episode has nothing to hand on, so it enters as the tuned
+    // glide: the row slides in and its card and pill grow, 220 ms in. The
+    // CSS draws the rest pose, so a cut at any frame - audio here, a skip,
+    // the X - leaves the pose the owner chose, never a half-way one.
+    function glide(loader, pos, from, to){
+      if(!on() || !loader || !loader.classList.contains("active")) return;
+      var row = loader.querySelector(".fam-glide-track");
+      if(!row) return;
+      var cards = row.children, now = cards[pos], was = pos > 0 ? cards[pos - 1] : null;
+      var other = was || cards[pos + 1];
+      var pill = loader.querySelector(".fam-glide-pill"), dots = loader.querySelectorAll(".fam-glide-dots i");
+      // Read every pose before anything starts moving.
+      var lit = now ? getComputedStyle(now) : null, rest = other ? getComputedStyle(other) : lit;
+      var litPose = lit ? { transform: lit.transform === "none" ? "scale(1)" : lit.transform,
+                            opacity: lit.opacity, borderColor: lit.borderColor } : null;
+      var restPose = rest ? { transform: "scale(1)", opacity: rest.opacity, borderColor: rest.borderColor } : null;
+      var pitch = dots.length > 1 ? dots[1].offsetLeft - dots[0].offsetLeft : 0;
+      run(loader, [{ opacity: 0 }, { opacity: 1 }], DUR.glideIn, { fill: "none" });
+      run(row, [{ transform: "translateX(" + from + "px)" }, { transform: "translateX(" + to + "px)" }], DUR.glide,
+          { easing: EASE_IO, fill: "none" });
+      if(!now) return;
+      if(was){
+        run(was, [litPose, restPose], DUR.glideStep, { easing: EASE_IN, fill: "none" });
+        var stamp = was.querySelector(".st");
+        if(stamp) run(stamp, [{ opacity: 0 }, { opacity: 1 }], DUR.colour, { delay: DUR.glideStampAt, fill: "backwards" });
+        run(now, [restPose, litPose], DUR.glideStep, { delay: DUR.glideLiftAt, fill: "backwards" });
+        if(pill && pitch) run(pill, [{ transform: "translateX(" + (-pitch) + "px)" }, { transform: "translateX(0px)" }],
+                              DUR.glide, { easing: EASE_IO, fill: "none" });
+      } else {
+        run(now, [restPose, litPose], DUR.glideStep, { delay: DUR.glideFirstAt, fill: "backwards" });
+        if(pill) run(pill, [{ transform: "scaleX(.33)" }, { transform: "scaleX(1)" }], DUR.glideStep,
+                     { delay: DUR.glideFirstAt, fill: "backwards" });
+      }
+    }
+    // The glide leaves when the audio is here: taken down at once, a copy
+    // fades 150 ms `in`. The player's own push under it is left alone.
+    function glideOut(loader){
+      var copy = inertCopy(loader);
+      copy.classList.add("motion-loader-out");
+      loader.parentNode.insertBefore(copy, loader.nextSibling);
+      var a = run(copy, [{ opacity: 1 }, { opacity: 0 }], DUR.glideOut, { easing: EASE_IN });
+      track([a], function(){ cancelAll([a]); copy.remove(); });
+    }
+
+    // ---- myFAM's mix cards (mix-cards-arrive: B; deck-reshuffle: B) ----
+    // Where each card stood before the grid is redrawn, by mix id: its box
+    // in the grid, its pictures by key and slot, READY and its headline.
+    function deckLayout(root){
+      var out = {};
+      if(!root) return out;
+      var rb = root.getBoundingClientRect();
+      root.querySelectorAll("[data-mix]").forEach(function(card){
+        var r = card.getBoundingClientRect(), tiles = {};
+        card.querySelectorAll(".mix-a-tile[data-key]").forEach(function(t){
+          tiles[t.getAttribute("data-key")] = { slot: +t.getAttribute("data-slot"), pic: t.style.backgroundImage,
+                                               cls: t.className, ready: !!t.querySelector(".mix-a-ready") };
+        });
+        var line = card.querySelector(".mix-a-line");
+        out[card.getAttribute("data-mix")] = { el: card, b: box(card), x: r.left - rb.left, y: r.top - rb.top,
+          shown: shownHere(card), tiles: tiles, line: line ? line.cloneNode(true) : null };
+      });
+      return out;
+    }
+    // Each slot's pose, read off the stack as drawn (t0 on top).
+    function slotPoses(tiles){
+      var T = {};
+      tiles.forEach(function(t){
+        var s = +t.getAttribute("data-slot"), tr = getComputedStyle(t).transform;
+        if(!(s in T)) T[s] = tr && tr !== "none" ? tr : "matrix(1, 0, 0, 1, 0, 0)";
+      });
+      if(!(0 in T)) T[0] = "matrix(1, 0, 0, 1, 0, 0)";
+      return T;
+    }
+    // The grid after a redraw. A mix not seen before this session is dealt:
+    // the card rises 8 px (260 ms `out`, 40 ms apart, the first four) and
+    // its pictures, squared on the top one, fan out 240 ms later than it
+    // starts - first sight only, so a revisit never replays it. A card seen
+    // before whose stack changed reshuffles (below); one that went fades
+    // with an 8 px nudge as a copy (160 ms `in`) and those after it glide
+    // into the gap (220 ms `in-out`). All of it waits for the screen to stop
+    // moving; a mix is seen only when it is on screen, so one made on New
+    // mix is dealt when its grid is first shown.
+    function mixDeck(root, before, seenIds){
+      if(!root) return;
+      var cards = Array.prototype.slice.call(root.querySelectorAll("[data-mix]"));
+      if(!cards.some(shownHere)) return;
+      var anim = on(), wait = movingFor(root), rb = root.getBoundingClientRect();
+      var now = {}, dealt = 0, changed = 0, left = false;
+      cards.forEach(function(c){ now[c.getAttribute("data-mix")] = true; });
+      Object.keys(before).forEach(function(id){
+        var b = before[id];
+        if(now[id] || !b.shown || !anim) return;
+        var host = root.querySelector(".mix-a-grid") || root;
+        var g = leaveCopy(b, host);
+        if(!g) return;
+        g.removeAttribute("data-mix");
+        left = true;
+        run(g, [{ transform: "translateX(0px)", opacity: 1 }, { transform: "translateX(-8px)", opacity: 0 }], DUR.dip,
+            { easing: EASE_IN, delay: wait }).finished.then(gone(g), gone(g));
+      });
+      cards.forEach(function(card){
+        var id = card.getAttribute("data-mix");
+        if(!shownHere(card)) return;
+        var was = before[id];
+        if(!seenIds[id]){
+          seenIds[id] = true;
+          if(!anim || dealt >= 4) return;
+          var at = wait + dealt * DUR.deckStagger;
+          dealt++;
+          var tiles = Array.prototype.slice.call(card.querySelectorAll(".mix-a-tile[data-slot]"));
+          var T = slotPoses(tiles);
+          rise(card, at, DUR.cardIn, false);
+          tiles.forEach(function(t){
+            var s = +t.getAttribute("data-slot");
+            if(s > 0) run(t, [{ transform: T[0] }, { transform: T[s] }], DUR.fan, { delay: at + DUR.fanLag, fill: "backwards" });
+          });
+          return;
+        }
+        if(!anim || !was || !was.shown) return;
+        var r = card.getBoundingClientRect(), dx = was.x - (r.left - rb.left), dy = was.y - (r.top - rb.top);
+        if(Math.abs(dx) >= 1 || Math.abs(dy) >= 1){
+          run(card, [{ transform: "translate(" + dx + "px, " + dy + "px)" }, { transform: "translate(0px, 0px)" }],
+              DUR.deckSlot, { easing: EASE_IO, delay: wait + (left ? DUR.dip : 0), fill: "backwards", add: true });
+        }
+        if(reshuffle(card, was, wait + changed * DUR.deckApart)) changed++;
+      });
+    }
+    // The heard card goes back (deck-reshuffle: B). The story that led dips
+    // 10% and shrinks to .96 (160 ms `in`) - moving behind, its layer swapped
+    // at the low point, unseen - and settles into its back slot (220 ms
+    // `in-out`); the new lead rises straight into the top slot (300 ms, 60 ms
+    // in); others change slots with the back one; one that left the three
+    // slides down behind the stack, clipped by the cover. READY pops onto
+    // the new lead at 360 ms and the headline cross-fades, 150 ms. A card
+    // never fades while in view and never passes through another.
+    function reshuffle(card, was, delay){
+      var stack = card.querySelector(".mix-a-stack");
+      var tiles = stack ? Array.prototype.slice.call(stack.querySelectorAll(".mix-a-tile[data-key]")) : [];
+      var T = slotPoses(tiles), keys = {}, oldTop = null, newTop = null, any = false;
+      Object.keys(was.tiles).forEach(function(k){ if(was.tiles[k].slot === 0) oldTop = k; });
+      tiles.forEach(function(t){
+        keys[t.getAttribute("data-key")] = true;
+        if(+t.getAttribute("data-slot") === 0) newTop = t;
+      });
+      tiles.forEach(function(t){
+        var k = t.getAttribute("data-key"), s = +t.getAttribute("data-slot"), o = was.tiles[k];
+        var os = o ? o.slot : -1;
+        if(os === s) return;
+        any = true;
+        var below = function(slot){ return (T[slot] || T[0]) + " translateY(110%)"; };
+        if(os === 0){
+          var total = DUR.dip + DUR.deckSlot, at = DUR.dip / total, dip = T[0] + " translateY(10%) scale(.96)";
+          run(t, [{ transform: T[0], zIndex: 5, easing: EASE_IN },
+                  { transform: dip, zIndex: 5, offset: at, easing: EASE_IO },
+                  { transform: dip, zIndex: 0, offset: Math.min(1, at + 0.002), easing: EASE_IO },
+                  { transform: T[s], zIndex: 0 }], total, { easing: "linear", delay: delay, fill: "backwards" });
+        } else if(s === 0){
+          run(t, [{ transform: os > 0 ? (T[os] || T[0]) : below(0) }, { transform: T[0] }], DUR.deckTop,
+              { easing: EASE_IO, delay: delay + DUR.deckTopAt, fill: "backwards" });
+        } else {
+          run(t, [{ transform: os > 0 ? (T[os] || T[0]) : below(s) }, { transform: T[s] }], DUR.deckSlot,
+              { easing: EASE_IO, delay: delay + DUR.dip, fill: "backwards" });
+        }
+      });
+      if(stack) Object.keys(was.tiles).forEach(function(k){
+        if(keys[k]) return;
+        var o = was.tiles[k], g = document.createElement("div");
+        any = true;
+        g.className = o.cls;
+        g.style.backgroundImage = o.pic;
+        g.setAttribute("aria-hidden", "true");
+        g.style.pointerEvents = "none";
+        stack.insertBefore(g, stack.firstChild);
+        var from = T[o.slot] || T[0];
+        run(g, [{ transform: from }, { transform: from + " translateY(110%)" }], DUR.deckSlot,
+            { easing: EASE_IN, delay: delay }).finished.then(gone(g), gone(g));
+      });
+      var ready = newTop && newTop.querySelector(".mix-a-ready");
+      if(ready && (newTop.getAttribute("data-key") !== oldTop || !(was.tiles[oldTop] || {}).ready)){
+        any = true;
+        run(ready, [{ transform: "scale(.5)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], DUR.ready,
+            { delay: delay + DUR.readyAt, fill: "backwards" });
+      }
+      var line = card.querySelector(".mix-a-line");
+      if(line && was.line && was.line.innerHTML !== line.innerHTML){
+        any = true;
+        var c = was.line;
+        c.classList.add("motion-line-was");
+        c.setAttribute("aria-hidden", "true");
+        c.style.left = line.offsetLeft + "px"; c.style.top = line.offsetTop + "px";
+        c.style.width = line.offsetWidth + "px";
+        card.appendChild(c);
+        run(c, [{ opacity: 1 }, { opacity: 0 }], DUR.colour, { easing: EASE_IN, delay: delay + DUR.readyAt })
+          .finished.then(gone(c), gone(c));
+        run(line, [{ opacity: 0 }, { opacity: 1 }], DUR.colour, { delay: delay + DUR.readyAt, fill: "backwards" });
+      }
+      return any;
+    }
+
+    // ---- Mixes | Categories (playfam-tabs: B) ----
+    // The underline is one bar the CSS slides (240 ms `in-out`, a
+    // transition, so a quick second tap turns it round); the list nudges
+    // toward the side chosen, as the app's own tabs did: the old one, a
+    // copy, out 18 px and gone in 110 ms `in`, the new one in from 18 px
+    // 90 ms later, 200 ms `out`. `change` swaps the panels first.
+    function panels(scroller, dir, change){
+      if(!on() || !scroller || !onActive(scroller)){ change(); return; }
+      var b = box(scroller), copy = inertCopy(scroller);
+      copy.classList.add("motion-panel");
+      copy.style.left = b.x + "px"; copy.style.top = b.y + "px";
+      copy.style.width = b.w + "px"; copy.style.height = b.h + "px";
+      frameEl().appendChild(copy);
+      copy.scrollTop = scroller.scrollTop;
+      change();
+      var out = run(copy, [{ transform: "translateX(0px)", opacity: 1 },
+                           { transform: "translateX(" + (-18 * dir) + "px)", opacity: 0 }], DUR.panelOut, { easing: EASE_IN });
+      var ins = runAdd(scroller, [{ opacity: 0, transform: "translateX(" + (18 * dir) + "px)" },
+                                  { opacity: 1, transform: "translateX(0px)" }], DUR.panelIn,
+                       { delay: DUR.panelLag, fill: "backwards" });
+      track([out].concat(ins), function(){ cancelAll(ins); copy.remove(); });
+    }
+
+    // ---- category chips (category-chips: B) ----
+    // The tapped chip is the same chip before and after: it slides to its
+    // new place (260 ms `in-out`, FLIP) while the chips that go fade as
+    // copies (120 ms `in`) and the narrower ones fade in beside it once it
+    // has landed (160 ms `out`, 30 ms apart); the X comes at once. With
+    // `together` (the X tapped) the others fade in as the chip goes back.
+    var chipsUntil = 0;
+    function chips(row, before, together){
+      if(!on() || !row || !before) return;
+      var key = function(el){ return el.getAttribute("data-chip"); };
+      var after = layout(row, "[data-chip]", key), moved = false, fresh = [];
+      Object.keys(after).forEach(function(k){
+        var a = after[k], b = before[k];
+        if(!a.shown) return;
+        if(!b || !b.shown){ fresh.push(a.el); return; }
+        var dx = b.b.x - a.b.x;
+        if(Math.abs(dx) < 1) return;
+        moved = true;
+        run(a.el, [{ transform: "translateX(" + dx + "px)" }, { transform: "translateX(0px)" }], DUR.chip,
+            { easing: EASE_IO, fill: "backwards", add: true });
+      });
+      if(moved) chipsUntil = Date.now() + DUR.chip;
+      var lag = together ? 0 : Math.max(0, chipsUntil - Date.now()), j = 0;
+      fresh.forEach(function(el){
+        var d = el.getAttribute("data-chip") === "x" ? 0 : lag + (j++) * DUR.stagger;
+        run(el, [{ opacity: 0 }, { opacity: 1 }], DUR.chipIn, { delay: d, fill: "backwards" });
+      });
+      Object.keys(before).forEach(function(k){
+        var b = before[k];
+        if(after[k] || !b.shown) return;
+        var g = leaveCopy(b, row);
+        if(!g) return;
+        g.removeAttribute("data-chip"); g.removeAttribute("data-cat");
+        run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.chipOut, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      });
+    }
+    function chipLayout(row){
+      return on() && row ? layout(row, "[data-chip]", function(el){ return el.getAttribute("data-chip"); }) : null;
+    }
+
+    // ---- a curve between two points (the queue's, shared) ----
+    // Quadratic, bulging `bulge` of the way it goes on whichever side is up,
+    // sampled into keyframes; `extra(t)` adds to each frame.
+    function arcFrames(dx, dy, bulge, extra){
+      var d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
+      if(ny > 0){ nx = -nx; ny = -ny; }
+      var cx = dx / 2 + nx * 2 * bulge * d, cy = dy / 2 + ny * 2 * bulge * d, frames = [];
+      for(var i = 0; i <= 10; i++){
+        var t = i / 10, u = 1 - t, f = extra ? extra(t) : {};
+        f.offset = t;
+        f.transform = "translate(" + (2 * u * t * cx + t * t * dx) + "px, " + (2 * u * t * cy + t * t * dy) + "px)"
+          + (f.transform ? " " + f.transform : "");
+        frames.push(f);
+      }
+      return frames;
+    }
+
+    // ---- following a category (category-follow: B) ----
+    // The button changes on the tap, as Follow on a person does (§298):
+    // it fills (150 ms, the CSS) and a tick draws in (220 ms `out`, 80 ms
+    // in) - its width fixed, so nothing resizes. Following, a copper star
+    // lifts off the button and arcs (15%, 360 ms `in-out`, swelling to 1.2
+    // at the top) to the category's chip, whose own star - drawn on the
+    // tap - pops in when it lands (.5 -> 1, 160 ms). No flight when the
+    // chip is scrolled out of its row. Unfollowing is quiet.
+    function followCategory(btn, chip, following){
+      if(!btn) return;
+      btn.classList.toggle("on", following);
+      btn.innerHTML = following ? TICK + "Following" : "Follow";
+      btn.setAttribute("aria-pressed", following ? "true" : "false");
+      if(!following || !on() || !onActive(btn)) return;
+      var tick = btn.querySelector(".motion-tick path");
+      if(tick) run(tick, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], DUR.tick, { delay: DUR.tickAt, fill: "backwards" });
+      var star = chip && chip.querySelector(".cat-star"), row = chip && chip.parentNode;
+      if(!star || !seen(star)) return;
+      var rr = row.getBoundingClientRect(), cr = chip.getBoundingClientRect();
+      if(cr.left < rr.left || cr.right > rr.right) return;
+      var s = box(btn), e = box(star);
+      var g = document.createElement("span");
+      g.className = "motion-star";
+      g.setAttribute("aria-hidden", "true");
+      g.innerHTML = star.outerHTML;
+      var sx = s.x + s.w / 2 - e.w / 2, sy = s.y + s.h / 2 - e.h / 2;
+      g.style.left = sx + "px"; g.style.top = sy + "px";
+      g.style.width = e.w + "px"; g.style.height = e.h + "px";
+      frameEl().appendChild(g);
+      var frames = arcFrames(e.x - sx, e.y - sy, 0.15, function(t){
+        return { transform: "scale(" + (1 + 0.2 * Math.sin(Math.PI * t)) + ")" };
+      });
+      run(g, frames, DUR.flight, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+      run(star, [{ transform: "scale(.5)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], DUR.star,
+          { delay: DUR.flight, fill: "backwards" });
+    }
+
+    // ---- the async button (public-mix-add: A; Create) ----
+    // Pressed, it says nothing for 300 ms; past that it spins, and once it
+    // spins it spins at least 500 ms, so a quick answer never flashes it.
+    // `done(then)` is called with the answer; `then` runs when the spinner
+    // may go. The spinner turns even with reduced motion: it is work.
+    function pending(btn){
+      var spunAt = 0, over = false;
+      var t = setTimeout(function(){
+        if(over || !btn) return;
+        spunAt = Date.now();
+        btn.classList.add("is-pending");
+      }, DUR.spinnerAfter);
+      return function(then){
+        over = true;
+        clearTimeout(t);
+        var fin = function(){ if(btn) btn.classList.remove("is-pending"); if(then) then(); };
+        var hold = spunAt ? Math.max(0, spunAt + DUR.spinnerMin - Date.now()) : 0;
+        if(hold) setTimeout(fin, hold); else fin();
+      };
+    }
+
+    // ---- New mix: the folder becomes the cover (create-mix: B) ----
+    // The page fades in (the screen's `fade`, 240 ms `out`) without its
+    // name, cover or next step; a copy of the folder just named flies to
+    // the cover's place by translate and scale (360 ms `in-out`), the name
+    // typed travels to the title 40 ms behind it, both hand over in 120 ms,
+    // then "Add topics to mix" rises 8 px (240 ms, at 420 ms) and the empty
+    // line fades in at 510 ms. A screen change finishes all of it at once.
+    function newMixLands(folder, name, page){
+      if(!on() || !folder || !seen(folder) || !page) return;
+      var art = page.querySelector(".mix-hero-art"), title = page.querySelector(".mix-hero-t");
+      if(!art || !seen(art)) return;
+      var a = box(folder), b = box(art), anims = [], lands = [], hidden = [], copies = [];
+      var g = inertCopy(folder);
+      g.classList.add("motion-cover");
+      g.style.left = a.x + "px"; g.style.top = a.y + "px";
+      g.style.width = a.w + "px"; g.style.height = a.h + "px";
+      var inName = g.querySelector(".nm-folder-name");
+      if(inName && name) inName.style.visibility = "hidden";
+      frameEl().appendChild(g);
+      copies.push(g);
+      art.style.visibility = "hidden"; hidden.push(art);
+      lands.push(run(g, [{ transform: "translate(0px, 0px) scale(1)" },
+                         { transform: "translate(" + (b.x - a.x) + "px, " + (b.y - a.y) + "px) scale(" + (b.w / a.w) + ")" }],
+                     DUR.flight, { easing: EASE_IO }));
+      if(name && title && seen(name) && seen(title)){
+        var na = box(name), nb = box(title), ns = getComputedStyle(name), ts = getComputedStyle(title);
+        var n = document.createElement("span");
+        n.className = "motion-name";
+        n.setAttribute("aria-hidden", "true");
+        n.textContent = title.textContent;
+        ["fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing"].forEach(function(p){ n.style[p] = ns[p]; });
+        n.style.left = na.x + "px"; n.style.top = na.y + "px";
+        frameEl().appendChild(n);
+        copies.push(n);
+        var k = (parseFloat(ts.fontSize) || 1) / (parseFloat(ns.fontSize) || 1);
+        title.style.visibility = "hidden"; hidden.push(title);
+        lands.push(run(n, [{ transform: "translate(0px, 0px) scale(1)", color: ns.color },
+                           { transform: "translate(" + (nb.x - na.x) + "px, " + (nb.y - na.y) + "px) scale(" + k + ")", color: ts.color }],
+                       DUR.flight, { easing: EASE_IO, delay: DUR.nameAt }));
+      }
+      var add = page.querySelector(".mix-add-topics"), empty = page.querySelector(".mix-empty");
+      if(add) anims = anims.concat(runAdd(add, [{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "translateY(0px)" }],
+                                          DUR.title, { delay: DUR.nextStepAt, fill: "backwards" }));
+      if(empty) anims.push(run(empty, [{ opacity: 0 }, { opacity: 1 }], DUR.title, { delay: DUR.emptyAt, fill: "backwards" }));
+      anims = anims.concat(lands);
+      var finish = function(){
+        cancelAll(anims);
+        copies.forEach(function(c){ c.remove(); });
+        hidden.forEach(function(el){ el.style.visibility = ""; });
+      };
+      finishing.push(finish);
+      Promise.all(lands.map(function(x){ return x.finished; })).then(function(){
+        var i = finishing.indexOf(finish);
+        if(i < 0) return;
+        finishing.splice(i, 1);
+        hidden.forEach(function(el){ el.style.visibility = ""; });
+        // The landed copies hand over to the real cover and name.
+        lands.forEach(function(x){ try { x.commitStyles(); } catch(e){} });
+        copies.forEach(function(c){
+          run(c, [{ opacity: 1 }, { opacity: 0 }], DUR.handOver).finished.then(gone(c), gone(c));
+        });
+      }, function(){});
+    }
+
+    // ---- a recommended topic joins the mix (rec-joins: A) ----
+    // On the tap: the suggestion lifts 12 px away as a copy (160 ms `in`);
+    // then its slot closes while the new row opens at the end of the mix
+    // (250 ms `in-out`), so the heading slides down into the gap and the
+    // other suggestions stay put; the new row's copper edge fades over
+    // 450 ms. `redraw` makes the change; the page's blocks are keyed by
+    // `data-flip`.
+    function flipKey(el){ return el.getAttribute("data-flip"); }
+    function blocks(root){ return on() && root ? layout(root, "[data-flip]", flipKey) : null; }
+    function joinRow(root, row, redraw, newKey, oldKey){
+      var before = blocks(root);
+      if(!before || !row || !onActive(row)){ redraw(); return; }
+      var g = inertCopy(row), at = box(row);
+      g.classList.add("motion-copy");
+      g.style.left = at.x + "px"; g.style.top = at.y + "px"; g.style.width = at.w + "px"; g.style.height = at.h + "px";
+      delete before[oldKey];
+      redraw();
+      frameEl().appendChild(g);
+      run(g, [{ transform: "translateY(0px)", opacity: 1 }, { transform: "translateY(-12px)", opacity: 0 }], DUR.recExit,
+          { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      relist(before, root, "[data-flip]", flipKey, { rise: false, moveMs: DUR.recSlot, delay: DUR.recExit });
+      var nu = root.querySelector('[data-flip="' + newKey.replace(/["\\]/g, "") + '"]');
+      if(!nu || !onActive(nu)) return;
+      run(nu, [{ clipPath: "inset(0 0 100% 0 round 12px)" }, { clipPath: "inset(0 0 0% 0 round 12px)" }], DUR.recSlot,
+          { easing: EASE_IO, delay: DUR.recExit, fill: "backwards" });
+      var edge = getComputedStyle(nu).borderColor;
+      var copper = getComputedStyle(document.documentElement).getPropertyValue("--copper").trim() || "#E0B563";
+      run(nu, [{ borderColor: copper }, { borderColor: edge }], DUR.recEdge,
+          { easing: EASE, delay: DUR.recExit + DUR.recSlot, fill: "backwards" });
+    }
+    // Anything that went back where it was (a refused edit): every block
+    // glides from where it stood; what is new rises, what went recedes.
+    function putBack(root, before, redraw, moveMs){
+      redraw();
+      if(before) relist(before, root, "[data-flip]", flipKey, { moveMs: moveMs || DUR.recSlot });
+    }
+    // Shuffle: the five suggestions fade out as copies (120 ms `in`) and
+    // five new ones fade up 6 px (200 ms `out`, 30 ms apart) after them.
+    function shuffleRows(root, sel, redraw){
+      var before = on() && root ? layout(root, sel, function(el){ return flipKey(el) || ""; }) : null;
+      redraw();
+      if(!before) return;
+      var list = root.querySelector(".rec-list");
+      Object.keys(before).forEach(function(k){
+        var g = list ? leaveCopy(before[k], list) : null;
+        if(!g) return;
+        g.removeAttribute("data-flip");
+        run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.shuffleOut, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+      });
+      if(!list) return;
+      Array.prototype.forEach.call(list.querySelectorAll(sel), function(el, i){
+        if(el.classList.contains("motion-leave") || !onActive(el)) return;
+        runAdd(el, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "translateY(0px)" }], DUR.shuffleIn,
+               { delay: DUR.shuffleOut + i * DUR.stagger, fill: "backwards" });
+      });
+    }
+
+    // ---- reordering a mix (drag-reorder: B, tilt as you carry) ----
+    // Held, the row lifts to 1.02 (150 ms `out`) and its shadow - on a
+    // pseudo-element, faded, never animated itself - comes up while the
+    // rest of the list dims to .6 (the CSS, with the neighbours' 200 ms
+    // `in-out` step aside). The row follows the finger 1:1, tilting with
+    // its speed (±0.5 px/ms -> ±2deg) on a spring; past either end it
+    // rubber-bands (12 px dead zone, then 64 * b / (b + 150), never past
+    // 64 px). Let go, it lies flat and settles from under the finger into
+    // its slot on a 260 ms spring that keeps the finger's speed.
+    function liftRow(row){
+      if(!on() || !row) return [];
+      return [run(row, [{ transform: "scale(1)" }, { transform: "scale(1.02)" }], DUR.lift, { add: true })];
+    }
+    function band(over){
+      var b = Math.max(0, Math.abs(over) - 12);
+      return (over < 0 ? -1 : 1) * 64 * b / (b + 150);
+    }
+    function dropRow(row, from, v){
+      if(!on() || !row || !onActive(row)) return;
+      var d = Math.abs(from.dy) || 1, sp = spring(DUR.drop, 0, Math.min(20, Math.abs(v) * 1000 / d));
+      run(row, [{ transform: "translateY(" + from.dy + "px) scale(1.02) rotate(" + from.rot + "deg)" },
+                { transform: "translateY(0px) scale(1) rotate(0deg)" }], sp.duration, { easing: sp.easing, fill: "none" });
+      row.classList.add("settling");
+      setTimeout(function(){ row.classList.remove("settling"); }, sp.duration);
+    }
+    function undim(rows){
+      if(!on()) return;
+      rows.forEach(function(r){ run(r, [{ opacity: 0.6 }, { opacity: 1 }], DUR.colour, { fill: "none" }); });
+    }
+
+    // ---- the morning dot (morning-dot: A) ----
+    // It pops onto the tab the way an unread count does: .5 -> 1 and in,
+    // 240 ms `out`; opening myFAM shrinks a copy away (to .5, 160 ms `in`).
+    // Only the tab bar on screen moves - the arriving one too, since the
+    // tap that clears it is the one that brings myFAM in.
+    function dot(d, show){
+      var was = !d.hidden, live = on() && seen(d) && !!d.closest(".screen.active");
+      if(!show){
+        if(was && live){
+          var g = inertCopy(d);
+          g.removeAttribute("data-mix-dot");
+          d.parentNode.insertBefore(g, d);
+          run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.5)" }], DUR.dotOut,
+              { easing: EASE_IN }).finished.then(gone(g), gone(g));
+        }
+        d.hidden = true;
+        return;
+      }
+      d.hidden = false;
+      if(!was && on() && seen(d) && d.closest(".screen.active"))
+        run(d, [{ opacity: 0, transform: "scale(.5)" }, { opacity: 1, transform: "scale(1)" }], DUR.dotIn, { fill: "none" });
+    }
+
+    // ---- a mix played through (mix-finished: B, cards file in) ----
+    // Once the card has grown in (220 ms), the day's cards - each marked
+    // Played, six at most - slide in from the right onto the stack, 260 ms
+    // `out`, 40 ms apart, fanned; then they square into one (300 ms
+    // `in-out`) and a copper check draws (220 ms `out`). The CSS draws the
+    // end: squared, with the check.
+    function fileIn(deck){
+      if(!on() || !deck) return;
+      var cards = Array.prototype.slice.call(deck.querySelectorAll(".mixdone-c")), n = cards.length;
+      if(!n) return;
+      var squareAt = DUR.modalIn + (n - 1) * DUR.deckStagger + DUR.cardIn;
+      cards.forEach(function(c, i){
+        var mid = (i - (n - 1) / 2), fan = "translateX(" + (mid * 7) + "px) rotate(" + (mid * 5) + "deg)";
+        run(c, [{ transform: "translateX(140px) rotate(0deg)", opacity: 0 }, { transform: fan, opacity: 1 }], DUR.cardIn,
+            { delay: DUR.modalIn + i * DUR.deckStagger, fill: "both" });
+        run(c, [{ transform: fan }, { transform: "translateX(0px) rotate(0deg)" }], DUR.square,
+            { easing: EASE_IO, delay: squareAt, fill: "forwards" }).finished.then(function(){
+          c.getAnimations().forEach(function(x){ x.cancel(); });
+        }, function(){});
+      });
+      var badge = deck.querySelector(".mixdone-check"), check = badge && badge.querySelector("path");
+      if(badge) run(badge, [{ opacity: 0, transform: "scale(.5)" }, { opacity: 1, transform: "scale(1)" }], DUR.ready,
+                    { delay: squareAt + DUR.square, fill: "backwards" });
+      if(check) run(check, [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], DUR.tick,
+                    { delay: squareAt + DUR.square, fill: "backwards" });
+    }
+
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
@@ -7516,7 +8246,11 @@
              sendWords: sendWords, intoLoader: intoLoader, handOff: handOff, layout: layout, relist: relist,
              changed: changed, fillBar: fillBar, deal: deal, turnIcon: turnIcon, moving: moving,
              badge: badge, follow: follow, removeRow: removeRow, steps: steps,
-             EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO }, DUR: DUR, spring: spring,
+             glide: glide, deckLayout: deckLayout, mixDeck: mixDeck, panels: panels, chips: chips,
+             chipLayout: chipLayout, followCategory: followCategory, pending: pending, newMixLands: newMixLands,
+             blocks: blocks, joinRow: joinRow, putBack: putBack, shuffleRows: shuffleRows, liftRow: liftRow,
+             band: band, dropRow: dropRow, undim: undim, dot: dot, fileIn: fileIn, movingFor: movingFor,
+             EASE: { OUT: EASE, IN: EASE_IN, IO: EASE_IO, SWAP: EASE_SWAP }, DUR: DUR, spring: spring,
              SNAP: "cubic-bezier(.3,1.25,.5,1)" };
   })();
   Motion.watchOverlays();
@@ -8545,14 +9279,15 @@
               + '<span class="fam-glide-pic">' + (it.picture
                   ? '<img src="' + escapeHtml(String(it.picture)) + '" alt="" decoding="async" onerror="this.remove()">'
                   : '') + '</span>'
-              + '<span class="n">' + (j + 1) + (was === "played" ? ' \u00b7 Played' : was ? ' \u00b7 Skipped' : '') + '</span>'
+              + '<span class="n">' + (j + 1) + (was === "played" ? '<span class="st"> \u00b7 Played</span>'
+                  : was ? '<span class="st"> \u00b7 Skipped</span>' : '') + '</span>'
               + '<span class="t">' + escapeHtml(String(it.title || "")) + '</span></div>';
           }).join("")
         + '</div></div>'
         + (order.length > 1 && order.length <= 12
             ? '<div class="fam-glide-dots" aria-hidden="true">' + order.map(function(_, j){
                 return '<i class="' + (j < pos ? 'h' : '') + (j === pos ? 'on' : '') + '"></i>';
-              }).join("") + '</div>' : '');
+              }).join("") + '<b class="fam-glide-pill" style="--at:' + pos + '"></b></div>' : '');
     } else {
       return;
     }
@@ -8561,6 +9296,7 @@
     html += '<div class="fam-ld-title">' + escapeHtml(title) + '</div>'
       + '<div class="fam-ld-status">' + escapeHtml(status) + '</div>';
     alt.innerHTML = html;
+    alt.classList.toggle("is-glide", !!glide);
     alt._for = t;
     el.classList.add("alt");
     // A friend's face already on the device is drawn, not faded up from
@@ -8581,6 +9317,8 @@
         var from = glide.pos > 0 ? to + LOADING_GLIDE_STEP : to + 80;
         track.style.setProperty("--to", to + "px");
         track.style.setProperty("--from", from + "px");
+        // The light passes on (mix-glide: B, §642).
+        Motion.glide(el, glide.pos, from, to);
       }
     }
   }
@@ -13398,6 +14136,9 @@
     // mix" or a mix - and the morning's new mix is what the tab is for.
     if(catPage.root || catPage.finding) clearCategory();
     showPlayfamTab("mixes");
+    // The Create row is decided from the account on the first frame, so
+    // the cards never land and then jump 42 px down (§642).
+    showNewMixButton(!!AUTH.authenticated);
     clearMixDot();
     loadMixes();
   }
@@ -13456,6 +14197,7 @@
     }).catch(function(){
       // A failure has to look like one. An empty page here would read as
       // "you have no mixes", which is a different and much worse message.
+      el._drawn = null;
       el.innerHTML = '<div class="mix-empty">Your mixes could not load. They\u2019re safe \u2014 try again in a moment.</div>';
     });
   }
@@ -13465,13 +14207,13 @@
   // have no mixes - they may well have some waiting under this same id.
   function renderMixesLocked(){
     showNewMixButton(false);
-    document.getElementById("mixList").innerHTML =
-      '<div class="locked-note">Make mixes of the topics you want every day, with fresh episodes each morning. Free with an account.'
+    drawMixCards(
+      '<div class="locked-note" data-mix="locked">Make mixes of the topics you want every day, with fresh episodes each morning. Free with an account.'
       + '<div class="locked-acts">'
       + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
       + '</div></div>'
-      + (sampleMix ? sampleMixCardHTML(sampleMix) : '');
+      + (sampleMix ? sampleMixCardHTML(sampleMix) : ''));
   }
 
   // **An example playlist for a guest** (at the owner's direction), so
@@ -13522,7 +14264,9 @@
     }).join("");
     html += '<div class="locked-note" style="margin-top:14px;">' + escapeHtml(m.note || "")
       + gateActions() + '</div>';
-    document.getElementById("mixBody").innerHTML = html;
+    var body = document.getElementById("mixBody");
+    body._drawn = null;
+    body.innerHTML = html;
   }
 
   // The "+" and the body of this screen are two halves of one answer, so
@@ -13575,15 +14319,17 @@
     var tiles = (m.cover_tiles || []).slice(0, 3);
     var photo = !!m.cover;
     var stack = tiles.map(function(t, i){ return { t: t, i: i }; }).reverse().map(function(x){
-      return '<div class="mix-a-tile t' + x.i + '" style="background-image:url(' + x.t.picture + ')">'
+      // Keyed by the story, so a reshuffle can tell which card went where.
+      return '<div class="mix-a-tile t' + x.i + '" data-slot="' + x.i + '" data-key="'
+        + escapeHtml(String(x.t.id || (x.t.picture || "") + "|" + (x.t.label || x.i))) + '" style="background-image:url(' + x.t.picture + ')">'
         + (x.i === 0 && x.t.ready ? '<span class="mix-a-ready">READY</span>' : '')
         + (x.t.label ? '<span class="mix-a-label">' + escapeHtml(x.t.label) + '</span>' : '')
         + '</div>';
     }).join("");
     var style = photo ? ' style="--mix-hue:' + mixHue(m.id) + '; background-image:url(' + m.cover + ')"'
                       : ' style="--mix-hue:' + mixHue(m.id) + '"';
-    return '<div class="mix-a" role="button" tabindex="0" onclick="' + open + '"'
-      + ' onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); this.click(); }"'
+    return '<div class="mix-a" role="button" tabindex="0" data-mix="' + escapeHtml(String(m.id)) + '" onclick="' + open + '"'
+      + ' onkeydown="if(event.key===\'Enter\' || event.key===\' \'){ event.preventDefault(); this.click(); }"'
       + ' aria-label="' + escapeHtml(m.name) + '">'
       + '<div class="mix-a-cover' + (photo ? " photo" : "") + '"' + style + '>'
       + (tiles.length ? '<div class="mix-a-stack">' + stack + '</div>'
@@ -13617,7 +14363,21 @@
         return mixCardAHTML(m, "openMix('" + m.id + "')");
       }).join("") + '</div>';
     }
-    document.getElementById("mixList").innerHTML = html;
+    drawMixCards(html);
+  }
+  // The grid redrawn under the deck's motion (mix-cards-arrive: B,
+  // deck-reshuffle: B, §642): a mix not seen this session is dealt, a
+  // card whose stack changed reshuffles, one that went leaves. An
+  // identical redraw draws nothing.
+  var mixCardsSeen = {};
+  function drawMixCards(html){
+    var el = document.getElementById("mixList");
+    if(!el) return;
+    if(el._drawn === html && el.innerHTML){ Motion.mixDeck(el, {}, mixCardsSeen); return; }
+    var before = Motion.deckLayout(el);
+    el.innerHTML = html;
+    el._drawn = html;
+    Motion.mixDeck(el, before, mixCardsSeen);
   }
 
   // ---- Categories (§229, §253; filter chips since the 11.3 packet) ----
@@ -13671,25 +14431,37 @@
     }
     return id;
   }
+  // The tick a followed category's button carries, drawn in on the tap.
+  var CAT_TICK = '<svg class="motion-tick" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<path d="M4 12.5l5 5L20 7" pathLength="1"/></svg>';
   var CAT_STAR = '<svg class="cat-star" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-label="Following">'
     + '<path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>';
   function catChipHTML(id, label, on, followed, action, extra){
     return '<button type="button" class="catchip' + (on ? ' on' : '') + (extra || '') + '" role="tab"'
-      + ' aria-selected="' + (on ? 'true' : 'false') + '" data-cat="' + escapeHtml(id) + '"'
+      + ' aria-selected="' + (on ? 'true' : 'false') + '" data-cat="' + escapeHtml(id) + '" data-chip="' + escapeHtml(id) + '"'
       + ' onclick="' + action + '(this.dataset.cat)">'
       + (followed ? CAT_STAR : '') + escapeHtml(label) + '</button>';
   }
   // The row: All / followed / facets / More, or - inside a category - X,
   // the category and what is under it.
-  function renderCategoryChips(){
+  // `anim` (category-chips: B, §642): a tap redrew the row, so the chip
+  // tapped slides to its new place and the rest fade out and in; with
+  // `together` (the X) the others fade in as it slides back.
+  function renderCategoryChips(anim, together){
     var el = document.getElementById("catChips");
     if(!el) return;
     renderCategoryHome();
     if(!catData){ el.innerHTML = ""; return; }
-    var x = '<button type="button" class="catchip catchip-x" onclick="clearCategory()" aria-label="All categories">'
+    var before = anim ? Motion.chipLayout(el) : null;
+    paintCategoryChips(el);
+    if(before) Motion.chips(el, before, together);
+  }
+  function paintCategoryChips(el){
+    var x = '<button type="button" class="catchip catchip-x" data-chip="x" onclick="clearCategory(true)" aria-label="All categories">'
       + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
     if(catPage.finding){
-      el.innerHTML = x + '<span class="catchip-label">Find a category</span>';
+      el.innerHTML = x + '<span class="catchip-label" data-chip="label">Find a category</span>';
       return;
     }
     if(!catPage.root){
@@ -13700,7 +14472,7 @@
       el.innerHTML = mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
         + catData.facets.filter(function(f){ return !followed[f.id]; })
             .map(function(f){ return catChipHTML(f.id, f.label, false, false, "pickCategory"); }).join("")
-        + '<button type="button" class="catchip catchip-more" onclick="openCategoryFind()">More</button>';
+        + '<button type="button" class="catchip catchip-more" data-chip="more" onclick="openCategoryFind()">More</button>';
       return;
     }
     el.innerHTML = x
@@ -13712,26 +14484,55 @@
   }
   // Which of myFAM's two tabs is on (§550): "mixes" or "categories".
   var playfamTab = "mixes";
-  function showPlayfamTab(which){
+  // `how` (playfam-tabs: B, §642): the event of a tap, which slides the
+  // underline and nudges the list toward the side chosen; a key (arrows,
+  // or Enter / Space, whose click has no pointer) and every arrival on
+  // the screen switch at once.
+  function showPlayfamTab(which, how){
+    var was = playfamTab;
     playfamTab = which === "categories" ? "categories" : "mixes";
     var cats = playfamTab === "categories";
-    [["pfTabMixes", !cats], ["pfTabCats", cats]].forEach(function(t){
-      var b = document.getElementById(t[0]);
-      if(!b) return;
-      b.classList.toggle("on", t[1]);
-      b.setAttribute("aria-selected", t[1] ? "true" : "false");
-    });
-    var row = document.getElementById("newMixRow");
-    if(row) row.hidden = cats;
-    var chips = document.getElementById("catChips");
-    if(chips) chips.hidden = !cats;
-    // Leaving Categories forgets the one that was open; arriving shows the
-    // list of them.
-    if(!cats && (catPage.root || catPage.finding)){ clearCategory(); }
-    else showCategoryPanel(!!(cats && (catPage.root || catPage.finding)));
+    var tapped = !!(how && how.type === "click" && how.detail > 0) && was !== playfamTab;
+    var tabs = document.querySelector("#screen-playfam .pf-tabs");
+    if(tabs){
+      // One underline, moved by the CSS; without a tap it jumps.
+      if(!tapped){ tabs.classList.add("pf-still"); }
+      tabs.classList.toggle("cats", cats);
+      if(!tapped){ void tabs.offsetWidth; tabs.classList.remove("pf-still"); }
+    }
+    var change = function(){
+      [["pfTabMixes", !cats], ["pfTabCats", cats]].forEach(function(t){
+        var b = document.getElementById(t[0]);
+        if(!b) return;
+        b.classList.toggle("on", t[1]);
+        b.setAttribute("aria-selected", t[1] ? "true" : "false");
+        b.tabIndex = t[1] ? 0 : -1;
+      });
+      // The Create row keeps its height on Categories, so the list never
+      // rides a 42 px jump.
+      var row = document.getElementById("newMixRow");
+      if(row) row.style.visibility = cats ? "hidden" : "";
+      var chips = document.getElementById("catChips");
+      if(chips) chips.hidden = !cats;
+      // Leaving Categories forgets the one that was open; arriving shows the
+      // list of them.
+      if(!cats && (catPage.root || catPage.finding)){ clearCategory(); }
+      else showCategoryPanel(!!(cats && (catPage.root || catPage.finding)));
+      if(scroller) scroller.scrollTop = 0;
+    };
     var scroller = document.querySelector("#screen-playfam .scroll");
-    if(scroller) scroller.scrollTop = 0;
+    if(tapped) Motion.panels(scroller, cats ? 1 : -1, change); else change();
   }
+  // The tab list's keys: left and right move between the two, at once.
+  function playfamTabKey(e){
+    if(e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    var cats = e.key === "ArrowRight";
+    showPlayfamTab(cats ? "categories" : "mixes");
+    var b = document.getElementById(cats ? "pfTabCats" : "pfTabMixes");
+    if(b) b.focus();
+  }
+
   function showCategoryPanel(on){
     var cats = playfamTab === "categories";
     document.getElementById("catPanel").hidden = !on;
@@ -13782,7 +14583,10 @@
     if(playfamTab !== "categories") showPlayfamTab("categories");
     catPage = { root: id, node: id, episodes: [], subs: [], finding: false };
     showCategoryPanel(true);
-    renderCategoryChips();
+    // A new category: nothing of the last one's list stays under it.
+    var panel = document.getElementById("catPanel");
+    if(panel) panel.innerHTML = "";
+    renderCategoryChips(true);
     var scroller = document.querySelector("#screen-playfam .scroll");
     if(scroller) scroller.scrollTop = 0;
     loadCategoryEpisodes();
@@ -13790,14 +14594,14 @@
   // A second tap on the chip that is on goes back up to the category.
   function pickCategorySub(id){
     catPage.node = (id === catPage.node && id !== catPage.root) ? catPage.root : id;
-    renderCategoryChips();
+    renderCategoryChips(true);
     loadCategoryEpisodes();
   }
-  function clearCategory(){
+  function clearCategory(tapped){
     catReq++;
     catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
     showCategoryPanel(false);
-    renderCategoryChips();
+    renderCategoryChips(tapped === true, true);
   }
   function isFollowed(id){
     if(!catData || !catData.saved) return false;
@@ -13817,6 +14621,23 @@
     var node = catPage.node;
     var at = ids.indexOf(node);
     if(at === -1) ids.push(node); else ids.splice(at, 1);
+    // On the tap (category-follow: B, §642), as Follow on a person: the
+    // button, the star on the chip and on its row change now, and are put
+    // back if the server says no.
+    var kept = catData.mine.slice();
+    var mark = function(following, mine){
+      catData.mine = mine;
+      renderCategoryChips();
+      var chip = null;
+      document.querySelectorAll("#catChips [data-chip]").forEach(function(c){
+        if(c.getAttribute("data-chip") === node) chip = c;
+      });
+      document.querySelectorAll("#catPanel .cat-follow").forEach(function(btn){
+        Motion.followCategory(btn, chip, following);
+      });
+    };
+    mark(at === -1, at === -1 ? kept.concat([{ id: node, label: categoryLabelOf(node), facet: categoryFacetOf(node) }])
+                               : kept.filter(function(c){ return c.id !== node; }));
     fetch("/api/categories/mine", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ categories: ids })
@@ -13831,36 +14652,56 @@
       return fetch("/api/categories").then(function(r){ return r.ok ? r.json() : null; })
         .then(function(d){ return req === catDataReq ? d : null; });
     }).then(function(d){
-      if(d) catData = d;
-      renderCategoryChips();
-      // Mid-load the panel is the loading line; it redraws when that lands.
-      if(!catPage.loading) drawCategoryPanel();
-    }).catch(function(err){ toast(err.message || "Could not save that"); })
-      .then(function(){ catFollowBusy = false; });
+      // The server's own list, quietly: what it kept is what the row says.
+      if(d){ catData = d; renderCategoryChips(); }
+    }).catch(function(err){
+      mark(at !== -1, kept);
+      toast(err.message || "Could not save that");
+    }).then(function(){ catFollowBusy = false; });
   }
+
   function loadCategoryEpisodes(){
     var req = ++catReq;
     var el = document.getElementById("catPanel");
     var node = catPage.node;
     catPage.episodes = [];
     catPage.loading = true;
-    el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+    // No flash (§642): what was there stays, and says it is busy; the
+    // loading line comes only once the answer has taken 300 ms, and then
+    // stays at least 500 ms.
+    el.setAttribute("aria-busy", "true");
+    var shownAt = 0;
+    var wait = setTimeout(function(){
+      if(req !== catReq) return;
+      shownAt = Date.now();
+      el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+    }, Motion.DUR.spinnerAfter);
+    var landed = function(draw){
+      clearTimeout(wait);
+      var hold = shownAt ? Math.max(0, shownAt + Motion.DUR.spinnerMin - Date.now()) : 0;
+      var go = function(){ if(req !== catReq) return; el.removeAttribute("aria-busy"); draw(); };
+      if(hold) setTimeout(go, hold); else go();
+    };
     fetch("/api/categories/episodes?id=" + encodeURIComponent(node) + "&sort=popular")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(req !== catReq) return;
-        catPage.loading = false;
-        catPage.episodes = d.episodes || [];
-        // The level below comes from the category's own answer, so
-        // narrowing to one of them keeps the row.
-        if(node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(); }
-        drawCategoryPanel();
+        landed(function(){
+          catPage.loading = false;
+          catPage.episodes = d.episodes || [];
+          // The level below comes from the category's own answer, so
+          // narrowing to one of them keeps the row.
+          if(node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(true); }
+          drawCategoryPanel();
+        });
       })
       .catch(function(){
         if(req !== catReq) return;
-        catPage.loading = false;
-        el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
-          + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
+        landed(function(){
+          catPage.loading = false;
+          el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
+            + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
+        });
       });
   }
   function catRowMeta(ep){
@@ -13877,7 +14718,8 @@
     var label = categoryLabelOf(catPage.node);
     var on = isFollowed(catPage.node);
     var follow = catData ? '<button type="button" class="cat-follow' + (on ? ' on' : '')
-      + '" onclick="toggleFollowCategory()">' + (on ? "Following" : "Follow") + '</button>' : '';
+      + '" aria-pressed="' + (on ? 'true' : 'false') + '" onclick="toggleFollowCategory()">'
+      + (on ? CAT_TICK + "Following" : "Follow") + '</button>' : '';
     if(!eps.length){
       el.innerHTML = '<div class="catp-head"><div class="catp-name">' + escapeHtml(label) + '</div>' + follow + '</div>'
         + '<div class="sv-empty">Nothing has been made in ' + escapeHtml(label) + ' today yet. '
@@ -13989,7 +14831,9 @@
   }
 
   // --- inside one mix ---
-  function openMix(id){
+  // `landed` (create-mix: B, §642): New mix's Create, whose naming screen
+  // the mix's page takes the place of, fading in as the folder flies.
+  function openMix(id, landed){
     var m = mixById(id);
     if(!m) return;
     currentMixId = id;
@@ -14001,7 +14845,12 @@
       return;
     }
     renderMixBody(m);
-    navigate("mixdetail");
+    if(landed && stack[stack.length - 1] === "newmix"){
+      var folder = document.getElementById("nmFolder"), name = document.getElementById("nmPreview");
+      stack[stack.length - 1] = "mixdetail";
+      showScreen("mixdetail", "fade");
+      Motion.newMixLands(folder, name, document.getElementById("screen-mixdetail"));
+    } else navigate("mixdetail");
     noteMixOpen(m.id, false);
     if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
@@ -14017,6 +14866,24 @@
       var again = mixById(currentMixId);
       if(again && again.id === id){ recState.mixId = null; rerenderMixKeepScroll(again); }
     });
+  }
+
+  // Back from a mix, its naming screen, or anything that leaves one (§642,
+  // the review's bug): a pop to the screen it came from - myFAM's grid
+  // re-read on the way - never the tab's nudge from the right, which read
+  // as going forward. With nothing under it, myFAM as a tab.
+  function closeMixPage(){
+    var prev = stack.length > 1 ? stack[stack.length - 2] : "";
+    if(!prev){ openPlayFAM(); return; }
+    goBack();
+    if(prev === "playfam") loadMixes();
+  }
+  // The open mix redrawn where it is - a rename, the cover, a joint mix
+  // made one person's - rather than pushed onto itself (the review's bug).
+  function repaintOpenMix(saved){
+    if(!saved || currentMixId !== saved.id) return;
+    document.getElementById("mixTitle").textContent = saved.name;
+    rerenderMixKeepScroll(saved);
   }
 
   // Tells the server the mix was opened, or one of its episodes started
@@ -14103,7 +14970,7 @@
       + (owner ? '<button class="mix-change" onclick="renameMix()">Change</button>' : '') + '</div>'
       + mixPeopleLine(m)
       + '<div class="mix-hero-s">' + nBrief + (nBrief === 1 ? " briefing" : " briefings") + ' · daily · '
-      + (m.joint ? "joint" : (m.public ? "public" : "private")) + '</div>'
+      + '<span class="mix-hero-vis">' + (m.joint ? "joint" : (m.public ? "public" : "private")) + '</span></div>'
       + '</div></div>';
     // Share and invite, under the name as on Spotify; the menu is the
     // header's three dots.
@@ -14121,7 +14988,7 @@
       html += '<div class="mix-edit-bar"><span>Tap \u00d7 to remove a topic from this mix</span>'
         + '<button class="mix-edit-done" onclick="doneEditingTopics()">Done</button></div>';
     } else {
-      html += '<button class="mix-add-topics" onclick="openAddTopics()">'
+      html += '<button class="mix-add-topics" data-flip="add" onclick="openAddTopics()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
     }
@@ -14144,7 +15011,7 @@
         + (items.length === 1 ? " episode" : " episodes") + '</button>';
     }
     if(items.length){
-      html += '<div class="mix-meta" style="margin:0 0 9px;">Today’s edition · '
+      html += '<div class="mix-meta" data-flip="meta" style="margin:0 0 9px;">Today’s edition · '
         + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
         + ((m.today_order || []).length > 1 ? ' · plays best stories first' : '') + '</div>';
       html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
@@ -14153,7 +15020,7 @@
         var sig = t.since && t.signal ? (t.signal.kind === "update" ? "update" : "trending") : "";
         return '<div class="mix-topic' + (by ? " has-face" : "")
           + (sig === "update" ? " has-sig sig-update" : sig ? " has-sig sig-trending" : "")
-          + '" data-i="' + i + '">'
+          + '" data-i="' + i + '" data-key="' + escapeHtml(String(t.id)) + '" data-flip="t:' + escapeHtml(String(t.id)) + '">'
           // The handle (10.5 packet #3): drag to put the topics in the
           // order the playlist plays them.
           + '<button class="mix-drag" type="button" aria-label="Drag to reorder"'
@@ -14191,7 +15058,7 @@
           + '</div>';
       }).join("") + '</div>';
     } else {
-      html += '<div class="mix-empty">Nothing in this mix yet. Add the topics you want a fresh briefing on every day.</div>';
+      html += '<div class="mix-empty" data-flip="empty">Nothing in this mix yet. Add the topics you want a fresh briefing on every day.</div>';
     }
     html += recommendedHTML(m);
     if(owner){
@@ -14203,18 +15070,29 @@
       // (closed padlock) is Private. The word is beside the switch and the
       // lock is on the knob, so the two halves of the state cannot be read
       // separately.
-      html += '<div class="mix-vis" onclick="toggleMixVisibility()"'
+      //
+      // Both states' words sit in one cell and cross-fade, and one lock
+      // rides the knob, its shackle opening or snapping shut once the knob
+      // has landed (visibility-switch: B, §642) - toggled in place, never
+      // redrawn, so the knob is the same element and slides.
+      html += '<div class="mix-vis" data-flip="vis" onclick="toggleMixVisibility()"'
         + ' role="switch" aria-checked="' + (m.public ? "true" : "false") + '"'
         + ' aria-label="Public">'
-        + '<div><div class="mix-vis-t">' + (m.public ? "Public" : "Private") + '</div>'
-        + '<div class="mix-vis-s">' + (m.public
-            ? "Public will be displayed on your profile"
-            : "Only you can see this mix") + '</div></div>'
-        + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>'
-        + (m.public ? lockOpenSVG() : lockClosedSVG()) + '</span></div>'
+        + '<div class="mix-vis-words">'
+        + '<div class="mix-vis-w pub' + (m.public ? " on" : "") + '"' + (m.public ? '' : ' aria-hidden="true"') + '>'
+        + '<div class="mix-vis-t">Public</div><div class="mix-vis-s">Public will be displayed on your profile</div></div>'
+        + '<div class="mix-vis-w priv' + (m.public ? "" : " on") + '"' + (m.public ? ' aria-hidden="true"' : '') + '>'
+        + '<div class="mix-vis-t">Private</div><div class="mix-vis-s">Only you can see this mix</div></div>'
+        + '</div>'
+        + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>' + lockSVG() + '</span></div>'
         + '</div>';
     }
-    document.getElementById("mixBody").innerHTML = html;
+    var body = document.getElementById("mixBody");
+    // An identical redraw leaves the page - and whatever is moving on it -
+    // alone (§642).
+    if(body._drawn === html && body.innerHTML) return;
+    body._drawn = html;
+    body.innerHTML = html;
   }
 
   // ---------------- Reordering a mix (10.5 packet #3) ----------------
@@ -14223,6 +15101,10 @@
   // playlist plays. The rows are moved, not redrawn, while the finger is down,
   // and the mix is saved once at the end - one PATCH per drag, with the same
   // payload shape every other edit sends.
+  // Tilt as you carry (drag-reorder: B, §642): the row lifts and its
+  // shadow comes up, the rest of the list dims, the row follows the finger
+  // 1:1 and tilts with its speed, rubber-bands past either end, and lies
+  // flat as it settles from under the finger into its slot.
   var mixDrag = null;
   function startMixDrag(e, handle){
     var row = handle.closest(".mix-topic"), list = handle.closest(".mix-list");
@@ -14231,30 +15113,58 @@
     var rows = Array.prototype.slice.call(list.children);
     mixDrag = { row: row, list: list, y0: e.clientY, dy: 0, from: rows.indexOf(row),
                 pitch: row.offsetHeight + (parseFloat(getComputedStyle(row).marginBottom) || 0),
-                id: e.pointerId };
+                id: e.pointerId, v: 0, at: performance.now(), rot: 0, tilt: Motion.on(),
+                lift: Motion.liftRow(row) };
     try { handle.setPointerCapture(e.pointerId); } catch(err){}
     row.classList.add("dragging");
     list.classList.add("sorting");
     handle.onpointermove = moveMixDrag;
     handle.onpointerup = handle.onpointercancel = endMixDrag;
+    if(mixDrag.tilt) requestAnimationFrame(tiltMixDrag);
   }
   function mixDragTarget(){
     var d = mixDrag, n = d.list.children.length;
     var shift = Math.round(d.dy / (d.pitch || 1));
     return Math.max(0, Math.min(n - 1, d.from + shift));
   }
+  // Where the row is drawn: the finger, held at either end by a band.
+  function mixDragShown(d){
+    var lo = -d.from * d.pitch, hi = (d.list.children.length - 1 - d.from) * d.pitch;
+    if(d.dy < lo) return lo + Motion.band(d.dy - lo);
+    if(d.dy > hi) return hi + Motion.band(d.dy - hi);
+    return d.dy;
+  }
+  function drawMixDrag(d){
+    d.row.style.transform = "translateY(" + mixDragShown(d) + "px)" + (d.rot ? " rotate(" + d.rot + "deg)" : "");
+  }
+  // The tilt: ±0.5 px/ms of speed is ±2deg, reached on a spring-like
+  // approach (a third of the lift's time), and back to flat as the finger
+  // slows or stops.
+  function tiltMixDrag(now){
+    var d = mixDrag;
+    if(!d || !d.tilt) return;
+    if(now - d.at > 50) d.v *= 0.8;
+    var want = Math.max(-1, Math.min(1, d.v / 0.5)) * 2;
+    d.rot += (want - d.rot) * Math.min(1, 16 / (Motion.DUR.lift / 3));
+    if(Math.abs(d.rot) < 0.01) d.rot = 0;
+    drawMixDrag(d);
+    requestAnimationFrame(tiltMixDrag);
+  }
   function moveMixDrag(e){
     var d = mixDrag;
     if(!d || e.pointerId !== d.id) return;
-    d.dy = e.clientY - d.y0;
-    d.row.style.transform = "translateY(" + d.dy + "px)";
+    var t = performance.now(), dy = e.clientY - d.y0, dt = Math.max(1, t - d.at);
+    d.v = d.v * 0.5 + ((dy - d.dy) / dt) * 0.5;
+    d.at = t;
+    d.dy = dy;
+    drawMixDrag(d);
     var to = mixDragTarget();
     Array.prototype.slice.call(d.list.children).forEach(function(r, i){
       if(r === d.row) return;
-      var dy = 0;
-      if(d.from < to && i > d.from && i <= to) dy = -d.pitch;
-      if(d.from > to && i < d.from && i >= to) dy = d.pitch;
-      r.style.transform = dy ? "translateY(" + dy + "px)" : "";
+      var off = 0;
+      if(d.from < to && i > d.from && i <= to) off = -d.pitch;
+      if(d.from > to && i < d.from && i >= to) off = d.pitch;
+      r.style.transform = off ? "translateY(" + off + "px)" : "";
     });
   }
   function endMixDrag(e){
@@ -14264,28 +15174,70 @@
     mixDrag = null;
     var handle = e && e.currentTarget;
     if(handle){ handle.onpointermove = handle.onpointerup = handle.onpointercancel = null; }
-    Array.prototype.slice.call(d.list.children).forEach(function(r){ r.style.transform = ""; });
+    // Where the row was under the finger, against where its slot is.
+    var shown = mixDragShown(d), slot = (to - d.from) * d.pitch, from = { dy: shown - slot, rot: d.rot };
+    d.lift.forEach(function(a){ try { a.cancel(); } catch(err){} });
+    var others = [];
+    Array.prototype.slice.call(d.list.children).forEach(function(r){
+      r.style.transform = "";
+      if(r !== d.row) others.push(r);
+    });
     d.row.classList.remove("dragging");
     d.list.classList.remove("sorting");
-    if(to !== d.from) moveMixTopic(d.from, to);
+    if(to !== d.from){
+      moveMixTopic(d.from, to, { from: from, v: d.v });
+      return;
+    }
+    Motion.dropRow(d.row, from, d.v);
+    Motion.undim(others);
   }
-  // Move the topic at `from` to `to` and save the mix in that order.
-  function moveMixTopic(from, to){
+  // Move the topic at `from` to `to` and save the mix in that order. Drawn
+  // at once in the new order; a refusal puts every row back where the
+  // server has it, gliding, with its words (§642).
+  function moveMixTopic(from, to, drop){
     var m = mixById(currentMixId);
     if(!m || !m.items || from === to || !m.items[from]) return;
+    var kept = m.items.slice();
     var items = m.items.slice();
     var moved = items.splice(from, 1)[0];
     items.splice(Math.max(0, Math.min(items.length, to)), 0, moved);
-    // Drawn at once in the new order; the server's answer replaces it.
     m.items = items;
     rerenderMixKeepScroll(m);
+    mixBodyCalmAt = Date.now() + Motion.DUR.drop;
+    if(drop){
+      var row = null, others = [];
+      document.querySelectorAll("#mixOrder > .mix-topic").forEach(function(r){
+        if(r.getAttribute("data-key") === String(moved.id)) row = r; else others.push(r);
+      });
+      Motion.dropRow(row, drop.from, drop.v);
+      Motion.undim(others);
+    }
     var payload = items.map(function(i){
       return i.custom ? { query: i.query, title: i.title } : i.id;
     });
-    saveMix("PATCH", "/api/mixes/" + m.id, { topic_ids: payload }, function(saved){
-      if(currentMixId === saved.id) rerenderMixKeepScroll(saved);
+    var id = m.id;
+    saveMix("PATCH", "/api/mixes/" + id, { topic_ids: payload }, function(saved){
+      if(currentMixId === saved.id) settleMixBody(saved);
+    }, function(){
+      var now = mixById(id);
+      if(!now) return;
+      now.items = kept;
+      if(currentMixId !== id) return;
+      var body = document.getElementById("mixBody");
+      Motion.putBack(body, Motion.blocks(body), function(){ rerenderMixKeepScroll(now); }, Motion.DUR.sort);
     });
   }
+  // The server's answer drawn once what is moving on the page has landed,
+  // so a redraw never cuts a settle or a join short; identical, nothing.
+  function settleMixBody(m){
+    var wait = Math.max(0, mixBodyCalmAt - Date.now());
+    setTimeout(function(){
+      var again = mixById(m.id);
+      if(again && currentMixId === m.id && document.getElementById("screen-mixdetail").classList.contains("active"))
+        rerenderMixKeepScroll(again);
+    }, wait);
+  }
+  var mixBodyCalmAt = 0;
 
   // ---------------- Recommended topics, under a mix ----------------
   // Spotify's "Recommended songs" under a playlist: five at a time, one tap
@@ -14368,8 +15320,9 @@
     }).sort(function(a, b){ return (b.score - a.score) || (a.idx - b.idx); })
       .map(function(r){ return r.c; });
   }
-  function followRowHTML(c, on, onclick, actHTML, sub){
-    return '<div class="mix-topic' + (on ? " chosen" : "") + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + '>'
+  function followRowHTML(c, on, onclick, actHTML, sub, flip){
+    return '<div class="mix-topic' + (on ? " chosen" : "") + '"' + (onclick ? ' onclick="' + onclick + '"' : '')
+      + (flip ? ' data-flip="' + escapeHtml(flip) + '"' : '') + '>'
       + '<div class="fol-ic">' + catIcon(c.icon) + '</div>'
       + '<div class="mix-topic-body">'
       + '<div class="mix-topic-title">' + escapeHtml(c.label) + '</div>'
@@ -14462,7 +15415,7 @@
     if(!recState.shown.length) return "";
     var basis = recServerPersonal ? "Based on what you listen to"
       : (m.items && m.items.length) ? "Topics to follow, based on this mix" : "Topics to follow, based on your interests";
-    return '<div class="rec-head"><div><div class="rec-title">Recommended topics</div>'
+    return '<div class="rec-head" data-flip="rec-head"><div><div class="rec-title">Recommended topics</div>'
       + '<div class="rec-sub">' + basis + '</div></div>'
       + '<button class="rec-shuffle" onclick="shuffleRecs()" aria-label="Shuffle recommendations">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
@@ -14474,8 +15427,8 @@
           var cat = facetLabel(c.tags);
           return followRowHTML(c, false, "",
             '<button class="mix-topic-act" aria-label="Add ' + escapeHtml(c.label) + ' to this mix" '
-            + 'onclick="addRecTopic(\'' + id + '\')">+</button>',
-            (cat ? cat + " \u00b7 " : "") + "new briefing every day");
+            + 'onclick="addRecTopic(\'' + id + '\', this)">+</button>',
+            (cat ? cat + " \u00b7 " : "") + "new briefing every day", "r:" + id);
         }).join("") + '</div>';
   }
 
@@ -14498,23 +15451,43 @@
       fresh = fresh.concat(recNext(m, REC_COUNT - fresh.length));
     }
     recState.shown = fresh.length ? fresh : prev;
-    rerenderMixKeepScroll(m);
+    // The five fade out and five new fade up (rec-joins, §642).
+    Motion.shuffleRows(document.getElementById("mixBody"), ".rec-list > [data-flip]", function(){ rerenderMixKeepScroll(m); });
   }
+
 
   // A recommendation's (+) puts the whole subject in the mix at once, as
   // Spotify's does (11.7 packet). The "anything specific?" panel it used to
   // open went with the picker; a team or a company is one search away on
   // "Add topics to mix" ("eagles" -> NFL · Eagles).
-  function addRecTopic(id){
+  // On the tap (rec-joins: A, §642): the topic is in the mix and its row
+  // at the end of the list at once - the suggestion lifting away, the
+  // heading sliding down - and it all goes back, with the server's words,
+  // if the server says no.
+  function addRecTopic(id, btn){
     var m = mixById(currentMixId);
     if(!m || mixItemIds(m)[id]) return;
-    saveMix("PATCH", "/api/mixes/" + m.id, { add: [id] }, function(saved){
-      recState.shown = recState.shown.filter(function(x){ return x !== id; });
-      rerenderMixKeepScroll(saved);
-      var c = followById(id);
+    var c = followById(id), was = recState.shown.indexOf(id);
+    var body = document.getElementById("mixBody");
+    var item = { id: id, title: c ? c.label : id, icon: c ? c.icon : "", subtitle: "" };
+    m.items = (m.items || []).concat([item]);
+    recState.shown = recState.shown.filter(function(x){ return x !== id; });
+    mixBodyCalmAt = Date.now() + Motion.DUR.recExit + Motion.DUR.recSlot + Motion.DUR.recEdge;
+    Motion.joinRow(body, btn && btn.closest(".mix-topic"), function(){ rerenderMixKeepScroll(m); }, "t:" + id, "r:" + id);
+    var mid = m.id;
+    saveMix("PATCH", "/api/mixes/" + mid, { add: [id] }, function(saved){
+      settleMixBody(saved);
       toast("Added " + (c ? c.label : "that") + " to " + saved.name);
+    }, function(){
+      var now = mixById(mid);
+      if(!now) return;
+      now.items = (now.items || []).filter(function(i){ return i.id !== id; });
+      if(recState.shown.indexOf(id) < 0 && was >= 0) recState.shown.splice(Math.min(was, recState.shown.length), 0, id);
+      if(currentMixId !== mid) return;
+      Motion.putBack(body, Motion.blocks(body), function(){ rerenderMixKeepScroll(now); });
     });
   }
+
 
   // ---------------- A DailyFAM playlist, played through ----------------
   // (§134.) "Play all" used to play the first episode and stop, and tapping
@@ -14785,6 +15758,13 @@
 
   function finishMix(){
     var name = mixPlay ? mixPlay.name : "";
+    // The day's cards, read before the playlist is forgotten: what was
+    // played (else everything it held), six at most (mix-finished: B, §642).
+    var heard = [];
+    if(mixPlay){
+      heard = mixPlay.order.filter(function(it, j){ return mixPlay.played && mixPlay.played[j]; });
+      if(!heard.length) heard = mixPlay.order.slice();
+    }
     mixPlay = null;
     drawMixSkip(false);
     stopSpeech();
@@ -14798,8 +15778,19 @@
     var h = document.getElementById("mixDoneH");
     if(h) h.textContent = "You have finished listening to your "
       + (name || "myFAM") + " playlist for today";
+    var deck = document.getElementById("mixDoneDeck");
+    if(deck){
+      deck.innerHTML = heard.slice(0, 6).map(function(it){
+        return '<span class="mixdone-c"' + (it.picture ? ' style="background-image:url(&quot;'
+          + escapeHtml(String(it.picture)) + '&quot;)"' : '') + '><i>Played</i></span>';
+      }).join("") + '<svg class="mixdone-check" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+        + ' stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M5 12.5l4.5 4.5L19 7" pathLength="1"/></svg>';
+      deck.hidden = !heard.length;
+    }
     var overlay = document.getElementById("mixDoneOverlay");
     if(overlay) overlay.classList.add("active");
+    Motion.fileIn(deck);
   }
 
   function closeMixDone(toDaily){
@@ -14963,7 +15954,7 @@
               if(saved && saved.id){
                 keepMix(saved);
                 renderMixList();
-                openMix(saved.id);
+                repaintOpenMix(saved);
               }
               toast("It’s yours alone now");
             })
@@ -14982,7 +15973,7 @@
             .then(function(){
               mixes = mixes.filter(function(x){ return x.id !== m.id; });
               renderMixList();
-              openPlayFAM();
+              closeMixPage();
               toast("You left " + m.name);
             })
             .catch(function(){ toast("Could not leave that mix"); });
@@ -15228,14 +16219,40 @@
   }
 
   // Public mixes appear on the profile. A new mix is public by default.
+  // On the tap (visibility-switch: B, §642): the switch, its words and the
+  // line under the name change in place - the knob that is there slides -
+  // and are put back, sliding, if the server says no.
   function toggleMixVisibility(){
     var m = mixById(currentMixId);
     if(!m) return;
-    saveMix("PATCH", "/api/mixes/" + m.id, { public: !m.public }, function(saved){
-      openMix(saved.id);
+    var next = !m.public, id = m.id;
+    m.public = next;
+    paintMixVisibility(next);
+    saveMix("PATCH", "/api/mixes/" + id, { public: next }, function(saved){
+      if(currentMixId === saved.id) paintMixVisibility(saved.public);
       toast(saved.public ? "On your profile now" : "Private again");
+    }, function(){
+      var was = mixById(id);
+      if(was) was.public = !next;
+      if(currentMixId === id) paintMixVisibility(!next);
     });
   }
+  function paintMixVisibility(pub){
+    var row = document.querySelector("#mixBody .mix-vis");
+    if(!row) return;
+    row.setAttribute("aria-checked", pub ? "true" : "false");
+    var sw = row.querySelector(".mix-switch");
+    if(sw) sw.classList.toggle("on", pub);
+    row.querySelectorAll(".mix-vis-w").forEach(function(w){
+      var on = w.classList.contains("pub") === pub;
+      w.classList.toggle("on", on);
+      if(on) w.removeAttribute("aria-hidden"); else w.setAttribute("aria-hidden", "true");
+    });
+    var line = document.querySelector("#mixBody .mix-hero-vis");
+    var m = mixById(currentMixId);
+    if(line && !(m && m.joint)) line.textContent = pub ? "public" : "private";
+  }
+
 
   function renameMix(){
     var m = mixById(currentMixId);
@@ -15244,7 +16261,7 @@
       placeholder: m.name,
       confirmLabel: "Save",
       onConfirm: function(value){
-        saveMix("PATCH", "/api/mixes/" + m.id, { name: value }, function(){ openMix(m.id); });
+        saveMix("PATCH", "/api/mixes/" + m.id, { name: value }, repaintOpenMix);
       }
     });
   }
@@ -15255,7 +16272,9 @@
       .then(function(r){
         if(!r.ok) throw new Error();
         toast("Deleted " + m.name);
-        openPlayFAM();
+        mixes = mixes.filter(function(x){ return x.id !== m.id; });
+        renderMixList();
+        closeMixPage();
       })
       .catch(function(){ toast("Could not delete that mix"); });
   }
@@ -15329,6 +16348,14 @@
       });
   }
 
+  // Both states of an add button in one cell (public-mix-add: A, §642):
+  // the CSS shows the one its `on` says, so the button is changed in
+  // place and the change cross-fades. `words` adds the labels.
+  function addFacesHTML(words){
+    return '<span class="ab-faces">'
+      + '<span class="ab-face ab-idle">' + addIconSVG(false) + (words ? "Add to myFAM" : "") + '</span>'
+      + '<span class="ab-face ab-added">' + addIconSVG(true) + (words ? "In your myFAM" : "") + '</span></span>';
+  }
   function addIconSVG(on){
     return on
       ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
@@ -15339,10 +16366,11 @@
   // mix is in, so one handler serves search results and profiles alike.
   function mixAddButtonHTML(m, where, i){
     if(m.mine) return '';
-    return '<button class="mix-add' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
+    return '<button class="mix-add async-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
+      + ' data-name="' + escapeHtml(m.name) + '"'
       + ' aria-label="' + (m.added ? "Remove " + escapeHtml(m.name) + " from your myFAM" : "Add " + escapeHtml(m.name) + " to your myFAM") + '"'
       + ' onclick="event.stopPropagation(); addMixFrom(\'' + where + '\',' + i + ')">'
-      + addIconSVG(m.added) + '</button>';
+      + addFacesHTML(false) + '</button>';
   }
 
   function publicMixCardHTML(m, i){
@@ -15423,9 +16451,8 @@
     if(m.mine){
       html += '<div class="mix-meta" style="margin:0 0 11px;">This is one of your mixes</div>';
     } else {
-      html += '<button class="pub-add-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
-        + ' onclick="addMixFrom(\'view\', 0)">' + addIconSVG(m.added)
-        + (m.added ? "In your myFAM" : "Add to myFAM") + '</button>';
+      html += '<button class="pub-add-btn async-btn' + (m.added ? ' on' : '') + '" data-add-mix="' + escapeHtml(m.id) + '"'
+        + ' data-name="' + escapeHtml(m.name) + '" onclick="addMixFrom(\'view\', 0)">' + addFacesHTML(true) + '</button>';
     }
     if(items.length){
       html += '<button class="mix-play" onclick="playPublicMix()">'
@@ -15489,7 +16516,7 @@
       ]);
       return;
     }
-    document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = true; });
+    var done = pendMixButtons(m.id);
     fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "POST" })
       .then(function(r){
         return r.json().then(function(d){
@@ -15498,15 +16525,29 @@
         });
       })
       .then(function(saved){
-        markMixAdded(m.id);
         if(Array.isArray(mixes) && !mixById(saved.id)) mixes.push(saved);
-        snack("Added to your myFAM as " + saved.name,
-              { label: "Open", run: function(){ openMix(saved.id); } });
+        done(function(){
+          markMixAdded(m.id);
+          snack("Added to your myFAM as " + saved.name,
+                { label: "Open", run: function(){ openMix(saved.id); } });
+        });
       })
-      .catch(function(e){
-        document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
-        toast(e.message);
+      .catch(function(e){ done(function(){ toast(e.message); }); });
+  }
+  // Every button for that mix waits together (the async button, §642):
+  // disabled at once, a spinner only past 300 ms; `done(then)` gives them
+  // back once the spinner may go.
+  function pendMixButtons(id){
+    var btns = Array.prototype.slice.call(document.querySelectorAll('[data-add-mix="' + id + '"]'));
+    btns.forEach(function(b){ b.disabled = true; });
+    var dones = btns.map(function(b){ return Motion.pending(b); });
+    return function(then){
+      var left = dones.length;
+      if(!left){ if(then) then(); return; }
+      dones.forEach(function(d){
+        d(function(){ if(--left) return; btns.forEach(function(b){ b.disabled = false; }); if(then) then(); });
       });
+    };
   }
 
   // The same button, tapped again once it reads Added: asks first, because
@@ -15519,7 +16560,7 @@
   }
 
   function removeMixCopy(m){
-    document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = true; });
+    var done = pendMixButtons(m.id);
     fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "DELETE" })
       .then(function(r){
         return r.json().then(function(d){
@@ -15529,14 +16570,14 @@
       })
       .then(function(){
         if(Array.isArray(mixes)) mixes = mixes.filter(function(x){ return x.source_id !== m.id; });
-        markMixAdded(m.id, false);
-        toast("Removed from your myFAM");
+        done(function(){
+          markMixAdded(m.id, false);
+          toast("Removed from your myFAM");
+        });
       })
-      .catch(function(e){
-        document.querySelectorAll('[data-add-mix="' + m.id + '"]').forEach(function(b){ b.disabled = false; });
-        toast(e.message);
-      });
+      .catch(function(e){ done(function(){ toast(e.message); }); });
   }
+
 
   // Every copy of that mix on screen - a search result, a profile row and the
   // mix's own screen can all be showing it at once.
@@ -15545,12 +16586,16 @@
     [publicResults, personMixes, publicMix ? [publicMix] : []].forEach(function(list){
       (list || []).forEach(function(m){ if(m && m.id === id) m.added = on; });
     });
-    if(!document.getElementById("dailyResults").hidden)
-      renderDailyResults(document.getElementById("dailySearch").value.trim());
-    if(document.getElementById("screen-publicmix").classList.contains("active")) renderPublicMix();
-    if(viewingProfile && document.getElementById("screen-person").classList.contains("active"))
-      renderFriendProfile(viewingProfile, personPublished);
+    // Changed in place, never redrawn (§642): a redraw would cut the
+    // button's cross-fade short.
+    document.querySelectorAll('[data-add-mix="' + id + '"]').forEach(function(b){
+      b.classList.toggle("on", on);
+      var name = b.getAttribute("data-name") || "this mix";
+      if(b.classList.contains("mix-add"))
+        b.setAttribute("aria-label", on ? "Remove " + name + " from your myFAM" : "Add " + name + " to your myFAM");
+    });
   }
+
 
   // A shared /m/<id> link lands on `/?mix=<id>`: open that mix once the app
   // has decided which screen it starts on, and take the id out of the address
@@ -15655,7 +16700,7 @@
           + "and anyone with the link can see it and add it." },
       { label: "Make public and share", action: function(){
           saveMix("PATCH", "/api/mixes/" + m.id, { public: true }, function(saved){
-            openMix(saved.id);
+            repaintOpenMix(saved);
             openMixShareModal(saved);
           });
         } }
@@ -15798,7 +16843,7 @@
   }
   // Abandoning the naming screen abandons its cover too, so it cannot ride
   // along on the next mix made some other way.
-  function cancelNewMix(){ newMixCover = ""; openPlayFAM(); }
+  function cancelNewMix(){ newMixCover = ""; closeMixPage(); }
   function confirmNewMix(){
     var value = document.getElementById("nmInput").value.trim();
     if(!value){ document.getElementById("nmInput").focus(); return; }
@@ -15807,12 +16852,20 @@
       return;
     }
     var btn = document.getElementById("nmCreate");
+    if(btn.disabled) return;
     btn.disabled = true;
+    // The async button (§642): a spinner only once the save has taken
+    // 300 ms. The page opens the moment the mix is made; a refusal keeps
+    // the name typed and gives Create back.
+    var done = Motion.pending(btn);
     saveMix("POST", "/api/mixes", { name: value, topic_ids: [], cover: newMixCover }, function(m){
       newMixCover = "";
-      openMix(m.id);
-    }, function(){ btn.disabled = false; });
+      done();
+      btn.disabled = false;
+      openMix(m.id, true);
+    }, function(){ done(function(){ btn.disabled = false; }); });
   }
+
 
   // The listener's interests as rows, or the broad categories when they have
   // chosen none - what `followRanked` orders the catalogue by.
@@ -15854,9 +16907,18 @@
     ensureFollowCatalogue(renderAddTopics);
     loadRecOrder(renderAddTopics);
   }
+  // Back is a pop to the mix's page under it (the review's bug: it pushed
+  // a second one), redrawn with what was added.
   function closeAddTopics(){
-    if(addTopicsMixId && mixById(addTopicsMixId)) openMix(addTopicsMixId); else openPlayFAM();
+    var m = addTopicsMixId && mixById(addTopicsMixId);
+    if(m && stack.length > 1 && stack[stack.length - 2] === "mixdetail" && currentMixId === m.id){
+      goBack();
+      rerenderMixKeepScroll(m);
+      return;
+    }
+    if(m) openMix(addTopicsMixId); else openPlayFAM();
   }
+
   function addTopicsRow(c, id, title, sub, on){
     return '<div class="mix-topic' + (on ? " chosen" : "") + '">'
       + '<div class="fol-ic">' + catIcon(c ? c.icon : "leaf") + '</div>'
@@ -15865,7 +16927,11 @@
       + '<div class="mix-topic-sub">' + escapeHtml(sub) + '</div></div>'
       + '<button class="mix-topic-act" data-id="' + escapeHtml(id) + '" '
       + 'aria-label="' + (on ? "Remove " : "Add ") + escapeHtml(title) + (on ? " from" : " to") + ' this mix" '
-      + 'onclick="toggleTopicInMix(this.dataset.id)">' + (on ? "✓" : "+") + '</button></div>';
+      + 'onclick="toggleTopicInMix(this.dataset.id, this)">'
+      // Both glyphs in one cell (topic-toggle: A, §642): the row's class
+      // says which shows, and the swap is a transition that turns round.
+      + '<span class="at-swap" aria-hidden="true"><span class="at-plus">+</span><span class="at-tick">✓</span></span>'
+      + '</button></div>';
   }
   function renderAddTopics(){
     var el = document.getElementById("addTopicsBody");
@@ -15930,22 +16996,48 @@
     el.innerHTML = html;
   }
   // (+) adds, the tick takes it back out - both saved at once.
-  function toggleTopicInMix(id){
+  function toggleTopicInMix(id, btn){
     var m = mixById(addTopicsMixId);
     if(!m || !id) return;
-    var at = -1;
-    (m.items || []).forEach(function(i, n){ if(String(i.id).toLowerCase() === String(id).toLowerCase()) at = n; });
-    var body = document.getElementById("addTopicsBody"), top = body ? body.scrollTop : 0;
+    var low = String(id).toLowerCase(), at = -1;
+    (m.items || []).forEach(function(i, n){ if(String(i.id).toLowerCase() === low) at = n; });
+    var adding = at === -1;
+    var label = splitFocusId(id).focus.join(", ") || ((followById(splitFocusId(id).base) || {}).label) || "that";
+    // On the tap (topic-toggle: A, §642): the mix as it will be, and the
+    // row(s) for it flipped in place - never the list redrawn, which would
+    // cut the swap short. A refusal flips it back with the server's words.
+    var removed = null;
+    if(adding) m.items = (m.items || []).concat([{ id: id, title: label }]);
+    else removed = m.items.splice(at, 1)[0];
+    markAddTopicRows(id, adding);
     // An operation, not the whole list (§498): merged into the mix as the
     // server holds it, so a second quick tap - or somebody else in a joint
     // mix - is never undone by this one.
-    saveMix("PATCH", "/api/mixes/" + m.id, at === -1 ? { add: [id] } : { remove: [id] }, function(saved){
-      renderAddTopics();
-      if(body) body.scrollTop = top;
-      var label = splitFocusId(id).focus.join(", ") || ((followById(splitFocusId(id).base) || {}).label) || "that";
-      toast((at === -1 ? "Added " : "Removed ") + label + (at === -1 ? " to " : " from ") + saved.name);
+    saveMix("PATCH", "/api/mixes/" + m.id, adding ? { add: [id] } : { remove: [id] }, function(saved){
+      toast((adding ? "Added " : "Removed ") + label + (adding ? " to " : " from ") + saved.name);
+    }, function(){
+      var now = mixById(addTopicsMixId);
+      if(now){
+        if(adding) now.items = (now.items || []).filter(function(i){ return String(i.id).toLowerCase() !== low; });
+        else if(removed && !now.items.some(function(i){ return String(i.id).toLowerCase() === low; }))
+          now.items.splice(Math.min(at, now.items.length), 0, removed);
+      }
+      markAddTopicRows(id, !adding);
     });
   }
+  // Every row on Add topics for this id: chosen or not, and its label.
+  function markAddTopicRows(id, on){
+    var low = String(id).toLowerCase();
+    document.querySelectorAll("#addTopicsBody .mix-topic-act[data-id]").forEach(function(b){
+      if(String(b.getAttribute("data-id")).toLowerCase() !== low) return;
+      var row = b.closest(".mix-topic");
+      if(row) row.classList.toggle("chosen", on);
+      var title = row && row.querySelector(".mix-topic-title");
+      var name = title ? title.textContent : "this topic";
+      b.setAttribute("aria-label", (on ? "Remove " : "Add ") + name + (on ? " from" : " to") + " this mix");
+    });
+  }
+
   // Sent as its words alone: no title is the client saying "name this for
   // me", and the server answers with the short name it chose.
   function addTypedTopicToMix(){
@@ -18231,30 +19323,16 @@
       });
   }
 
-  // The lock on the visibility switch. Two glyphs rather than one rotated
-  // shackle, because "open" has to be recognisable at 11px and a tilted bar
-  // is not.
-  function lockClosedSVG(){
+  // One lock for the visibility switch (visibility-switch: B, §642, the
+  // owner's pick over the old open and closed glyphs): the closed body and shackle,
+  // and the CSS lifts the shackle 3 units and turns it -20deg about its
+  // right foot when the mix is public - after the knob has landed.
+  function lockSVG(){
     return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
       + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
       + 'stroke-linejoin="round" aria-hidden="true">'
       + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
-      + '<path d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0v3.1"/></svg>';
-  }
-  // The open one, swung clear of the body rather than merely missing a leg.
-  //
-  // It used to be the closed glyph with the right-hand descent removed, so
-  // the shackle still sat centred over the lock and the whole difference
-  // between "private" and "public" was three pixels of stroke at 9px. Hinged
-  // over to the right it reads as open at a glance: there is a visible gap
-  // where the shackle used to meet the body, which is the thing a lock being
-  // open actually looks like.
-  function lockOpenSVG(){
-    return '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" '
-      + 'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" '
-      + 'stroke-linejoin="round" aria-hidden="true">'
-      + '<rect x="4" y="10.5" width="16" height="11" rx="2.5"/>'
-      + '<path d="M13 10.5V7a4 4 0 0 1 8 0v1.6"/></svg>';
+      + '<path class="lock-shackle" d="M7.8 10.5V7.4a4.2 4.2 0 0 1 8.4 0v3.1"/></svg>';
   }
 
   // "1 vibe", "2 vibes". Regular plurals only, which is every noun a count
@@ -26371,7 +27449,8 @@
   function drawMixDot(){
     var on = !!(AUTH.authenticated && freshMixes.ids.length && freshMixes.edition
                 && mixDotSeen() !== freshMixes.edition);
-    document.querySelectorAll("[data-mix-dot]").forEach(function(el){ el.hidden = !on; });
+    // Popped on and shrunk away like an unread count (morning-dot: A, §642).
+    document.querySelectorAll("[data-mix-dot]").forEach(function(el){ Motion.dot(el, on); });
   }
   function clearMixDot(){
     if(freshMixes.edition){

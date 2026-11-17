@@ -23,6 +23,9 @@ HOOKS = {
     "echo-icon",    # positioned by .sb-icon; this only names it for toggleEcho
     "typed-offer",  # styled by .mix-topic; marks a topic the listener typed
     "pk-chosen",    # the "In this mix" stack, found by toggleMixTopic (10.5 #4)
+    "mix-hero-vis", # the word public/private under a mix's name, set in place (§642)
+    "pub", "priv",  # which state's words a .mix-vis-w holds, found by paintMixVisibility (§642)
+    "st",           # a glide card's Played/Skipped stamp, faded on by Motion.glide (§642)
 }
 
 
