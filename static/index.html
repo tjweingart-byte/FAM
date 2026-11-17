@@ -18380,7 +18380,15 @@
     // not make this week's grid still has to be readable here.
     (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
       .forEach(function(i){ labels[i.id] = i.label; });
-    var html = '<div class="set-group">You</div>'
+    // Private mode leads the page, at the owner's direction (§638): their
+    // listening shown to nobody; vibes still reach the people who follow them.
+    var privateMode = !!(PREF_CHOICES && PREF_CHOICES.private_mode);
+    var html = (AUTH.authenticated
+        ? settingsRow("Private mode", privateMode ? "On" : "Off",
+            "setPrivateMode(" + (privateMode ? "false" : "true") + ")")
+          + '<div class="set-note">While it\u2019s on, nobody sees what you listen to or search \u2014 not on friends\u2019 cards, the friends rail or the player. People who follow you still see what you vibe.</div>'
+        : '')
+      + '<div class="set-group">You</div>'
       + settingsRow("Name and handle",
           escapeHtml((profileNow && profileNow.name) || "Not set"),
           "editIdentity()")
@@ -18644,6 +18652,15 @@
     showScreen(locationReturn);
     if(locationReturn === "settings") renderSettings();
     if(locationReturn === "profile") loadProfile();
+  }
+
+  function setPrivateMode(on){
+    savePreferences({ private_mode: !!on }).then(function(saved){
+      if(saved && PREF_CHOICES) PREF_CHOICES.private_mode = !!saved.private_mode;
+      toast(saved ? (on ? "Private mode is on" : "Private mode is off")
+                  : "Could not save that");
+      refreshSettingsIfOpen();
+    });
   }
 
   function setSearchesPublic(on){
@@ -19061,6 +19078,7 @@
     }).then(function(){
       document.getElementById("friendSearch").value = "";
       loadFriends();
+      refreshPersonIfOpen();
       toast("Following");
     }).catch(function(err){ Motion.follow(userId, false); toast(err.message); });
   }
@@ -19073,6 +19091,7 @@
         if(!r.ok) throw new Error();
         document.getElementById("friendSearch").value = "";
         loadFriends();
+        refreshPersonIfOpen();
         toast("Unfollowed");
       })
       .catch(function(){ Motion.follow(userId, true); toast("Could not unfollow"); });
@@ -19122,11 +19141,23 @@
   var personInterests = [];
   var personShowAll = { friends: false };
 
-  function loadPersonProfile(person){
+  // After a follow or unfollow from somebody's page (§638): their vibes and
+  // interests open, or close, with the follow, so the page is asked again -
+  // keeping the shelf and what is drawn until the answer lands.
+  function refreshPersonIfOpen(){
+    var screen = document.getElementById("screen-person");
+    if(viewingProfile && screen && screen.classList.contains("active")){
+      loadPersonProfile(viewingProfile, true);
+    }
+  }
+
+  function loadPersonProfile(person, keep){
     var handle = person.handle || "";
-    personPublished = null;
-    personShowAll = { friends: false };
-    personShelf = "vibes";
+    if(!keep){
+      personPublished = null;
+      personShowAll = { friends: false };
+      personShelf = "vibes";
+    }
     var query = handle ? "handle=" + encodeURIComponent(handle)
                        : "user_id=" + encodeURIComponent(person.user_id || "");
     fetch("/api/person?" + query)
@@ -19240,9 +19271,13 @@
         + 'Follow</button></div>';
     }
 
-    // Their interests, as chips that open the Topic screen.
+    // Their interests, as chips that open the Topic screen - only to a
+    // follower (§638): to anybody else the server sends none and `locked`.
+    personLocked = !!pub.locked;
     personInterests = interestRows(pub);
-    html += interestLineHTML(interestChipsHTML(personInterests, "openPersonInterest"));
+    if(!personLocked){
+      html += interestLineHTML(interestChipsHTML(personInterests, "openPersonInterest"));
+    }
 
     // Their vibes and public mixes - the only two things of theirs that are
     // published - as the same two tabs over one grid of picture tiles.
@@ -19277,7 +19312,9 @@
       }
     }
 
-    html += '<div class="pf-note">Only what they chose to share. What someone listens to stays private.</div>';
+    html += '<div class="pf-note">' + (pub.private
+        ? 'Private account. Only what they vibe is shared, with the people who follow them.'
+        : 'Only what they chose to share. What someone listens to stays private.') + '</div>';
     document.getElementById("personBody").innerHTML = html;
     showPersonShelf(personShelf);
   }
@@ -19297,7 +19334,10 @@
     // "Nothing vibed yet" before it would be a claim nobody had checked.
     if(!personPublished){ grid.innerHTML = ""; return; }
     var html;
-    if(personShelf === "vibes"){
+    if(personShelf === "vibes" && personLocked){
+      // §638: vibes and interests are for the people who follow them.
+      html = '<div class="pf-empty">Follow to see their vibes and interests.</div>';
+    } else if(personShelf === "vibes"){
       html = personVibes.length
         ? personVibes.map(function(v, i){
             return profileTileHTML("playPersonVibe(" + i + ")", v.thumb, v.title || v.query);
@@ -19319,6 +19359,8 @@
 
   var personVibes = [];
   var personMixes = [];
+  //: Whether the open profile withholds vibes and interests (§638).
+  var personLocked = false;
   var personFriends = [];
 
   // View more / Show less, at the foot of a list on somebody's profile.
@@ -19364,6 +19406,7 @@
       if(!document.getElementById("screen-person").classList.contains("active")) return;
       var found = (d.following || []).filter(function(p){ return p.handle === handle; })[0];
       if(found){ viewingProfile = found; renderFriendProfile(viewingProfile, personPublished); }
+      refreshPersonIfOpen();
     }).catch(function(err){ toast(err.message); });
   }
 

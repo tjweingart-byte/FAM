@@ -246,6 +246,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
+- **Private mode** tops Settings: plays and searches shown to nobody,
+  over `searches_public`; vibes still reach followers. A profile's vibes and
+  interests are for its followers only (`locked`). [private-mode]
 - Social updates itself: message cursor is a **row id, never a timestamp**,
   and belongs to the client; `bootstrap` announces nothing; send draws
   optimistically. VIBE! = `echo` in code (`/api/vibe` and `/api/echo` are one

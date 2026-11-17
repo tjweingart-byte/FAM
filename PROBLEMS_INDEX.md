@@ -629,3 +629,4 @@ and `limit` = Lines.
 | 38442 | 22 | 635. The plan for 2027, from an interview with the owner (2026-11-16) |
 | 38464 | 11 | 636. CLAUDE.md trimmed, not its budget raised (2026-11-16) |
 | 38475 | 133 | 637. The owner's 11.16 notes: edit topics, Friends / Following, captions that start off and scroll, a lock for private search, the player on an iPad (2026-11-16) |
+| 38608 | 55 | 638. Private mode, and a profile's vibes and interests for followers only (2026-11-17) |

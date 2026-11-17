@@ -221,6 +221,8 @@ def test_somebody_elses_profile_never_publishes_what_they_listened_to(client):
     client.cookies.clear()
     client.post("/api/auth/signup",
                 json={"email": "me@b.com", "password": "password1234"})
+    # A follower: interests are for followers only (§637).
+    client.post("/api/friends/follow", json={"handle": "them"})
     seen = client.get("/api/person", params={"handle": "them"}).json()
     assert "tech" in seen["interests"]
     assert "sports" not in seen["interests"], (
@@ -238,6 +240,7 @@ def test_a_pinned_row_is_what_other_people_see(client):
     client.cookies.clear()
     client.post("/api/auth/signup",
                 json={"email": "me@b.com", "password": "password1234"})
+    client.post("/api/friends/follow", json={"handle": "them2"})  # §637
     seen = client.get("/api/person", params={"handle": "them2"}).json()
     assert seen["interests"] == ["money"]
 
