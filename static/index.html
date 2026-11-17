@@ -2814,8 +2814,11 @@
   .snack-act{ flex:none; border:0; background:none; cursor:pointer; padding:6px 2px;
     margin:-6px 0; font:700 13.5px 'Geist', sans-serif; color:var(--copper); }
   .snack-act[hidden]{ display:none; }
+  /* The .show selectors too: they carry the entrance's transition at two
+     classes, which beat one (§647). */
   @media (prefers-reduced-motion: reduce){
-    .toast, .snack, .toast::before, .snack::before{ transition:none; }
+    .toast, .snack, .toast.show, .snack.show,
+    .toast::before, .snack::before, .toast.show::before, .snack.show::before{ transition:none; }
   }
 
   /* -------- the drop-down notification --------
@@ -7638,9 +7641,13 @@
       finishing.push(fin);
       Promise.all(anims.map(function(x){ return x.finished; })).then(fin, function(){});
     }
+    // It returns the cube (null when nothing moves), so a viewer closed
+    // mid-turn can end it (§647).
     function turnStory(ov, dir, draw){
-      if(!on() || !seen(ov)){ draw(); return; }
-      cubeRun(cubeOpen(ov, dir, draw), 0, 1, { duration: DUR.storyTurn, easing: EASE_IO });
+      if(!on() || !seen(ov)){ draw(); return null; }
+      var c = cubeOpen(ov, dir, draw);
+      cubeRun(c, 0, 1, { duration: DUR.storyTurn, easing: EASE_IO });
+      return c;
     }
     // A sideways drag: the next friend's story is drawn at once and the cube
     // follows the finger (`cubeSet`); let go, it springs on to the end or
@@ -9568,12 +9575,14 @@
   // line with it (§646): an Undo whose request has already gone would put
   // back on screen what the server no longer has. `keepLine` is snack()'s,
   // which draws the next line over this one at once.
+  // It returns what the commit returns - its request, where it gives one -
+  // so log-out can wait for it (§647).
   function flushSnackCommit(keepLine){
     var f = snackCommit;
     snackCommit = null;
     if(!f) return;
     if(keepLine !== true) endSnackLine();
-    f();
+    return f();
   }
   function endSnackLine(){
     var bar = document.getElementById("snack");
@@ -9630,7 +9639,7 @@
   function hideSnack(){
     var bar = document.getElementById("snack");
     if(bar) bar.classList.remove("show");
-    flushSnackCommit();
+    return flushSnackCommit();
   }
 
   // ---------------- Instant feedback ----------------
@@ -13701,6 +13710,8 @@
     } catch(e){}
     OfflineShelf.clear();
     savedTileQueries = {};
+    tileSavePending = {};
+    tileSaveSeq++;
     shelfFolders = { saved: [], vibe: [] };
     shelfPick = { saved: "", vibe: "" };
     myVibes = [];
@@ -14277,7 +14288,12 @@
     isPlaying = true;
     paIsPlaying = true;
     var icon = document.getElementById("playIcon2");
-    if(icon) icon.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>';
+    if(icon){
+      icon.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>';
+      // What `Motion.swapIcon` last drew, kept with the icon: a stale key
+      // made the next pause skip its swap (§647).
+      icon._iconKey = true;
+    }
     drawPlayAllTransport(true);
     setNowBarPlaying(true);
     paintVibePostTransport();
@@ -16591,6 +16607,8 @@
       // has landed (visibility-switch: B, §642) - toggled in place, never
       // redrawn, so the knob is the same element and slides.
       html += '<div class="mix-vis" data-flip="vis" onclick="toggleMixVisibility()"'
+        // Reached and turned by keyboard, as a Settings switch is (§647).
+        + ' tabindex="0" onkeydown="if(event.key===\' \'||event.key===\'Enter\'){ event.preventDefault(); toggleMixVisibility(); }"'
         + ' role="switch" aria-checked="' + (m.public ? "true" : "false") + '"'
         + ' aria-label="Public">'
         + '<div class="mix-vis-words">'
@@ -19180,6 +19198,11 @@
   // interested" is not a button on the card; since the 11.3 packet it is a
   // row in the card's three dots (`tileNotInterested`).
   var savedTileQueries = {};
+  // A tap lights its tile before the server answers (§641), so a shelf
+  // read must not undo it (§647): a read that started before a tap began
+  // or settled is dropped (`tileSaveSeq`), and a tap still in flight wins
+  // over any read (`tileSavePending`, key -> what the tap made it).
+  var tileSaveSeq = 0, tileSavePending = {};
 
   function seedActsHtml(t){
     var on = savedTileQueries[tileSaveKey(t)] ? " saved-on" : "";
@@ -19215,11 +19238,15 @@
   // open lit. One read of the shelf per draw of the page.
   function loadTileSaves(){
     if(!AUTH.authenticated) return;
+    var seq = tileSaveSeq;
     fetch("/api/saved").then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        if(!d) return;
+        if(!d || seq !== tileSaveSeq) return;
         savedTileQueries = {};
         (d.items || []).forEach(function(i){ savedTileQueries[i.query + "|" + i.minutes] = true; });
+        Object.keys(tileSavePending).forEach(function(k){
+          if(tileSavePending[k]) savedTileQueries[k] = true; else delete savedTileQueries[k];
+        });
         paintTileSaves();
       }).catch(function(){});
   }
@@ -19244,6 +19271,12 @@
       el._swap = setTimeout(function(){ el.classList.remove("swap"); }, Motion.DUR.icon + 50);
     });
     if(on) delete savedTileQueries[key]; else savedTileQueries[key] = true;
+    tileSaveSeq++;
+    tileSavePending[key] = !on;
+    var settle = function(){
+      tileSaveSeq++;
+      if(tileSavePending[key] === !on) delete tileSavePending[key];
+    };
     paintTileSaves();
     if(!on && Motion.on()) Motion.celebrate('[data-tile-save="' + topicId + '"]', "SAVED", true);
     if(on) snack("Removed from Saved for Later");
@@ -19256,9 +19289,11 @@
           body: JSON.stringify({ query: t.query, minutes: BROWSE_MINUTES,
                                  title: t.title, source: "myfam" }) });
     req.then(function(r){
+      settle();
       if(!r.ok) throw new Error();
       if(!on) recordFamEvent("save", topicId, t.query);
     }).catch(function(){
+      settle();
       if(on) savedTileQueries[key] = true; else delete savedTileQueries[key];
       paintTileSaves();
       toast(on ? "Could not take that off" : "Could not save that");
@@ -20212,7 +20247,7 @@
         renderGoDeeper(goDeeperData, { back: true });
       },
       done: function(){
-        fetch("/api/godeeper/dismiss", {
+        return fetch("/api/godeeper/dismiss", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: c.query }), keepalive: true
         }).then(function(r){
@@ -20406,6 +20441,7 @@
     paIsPlaying = true;
     document.getElementById("paPlayIcon").innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="var(--paper)"><rect x="4.6" y="3.4" width="5.6" height="17.2" rx="1.6"/><rect x="13.8" y="3.4" width="5.6" height="17.2" rx="1.6"/></svg>';
     document.getElementById("paPlayIcon2").innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>';
+    document.getElementById("paPlayIcon")._iconKey = document.getElementById("paPlayIcon2")._iconKey = true;
     renderSegbar();
   }
 
@@ -20696,15 +20732,27 @@
   // The overlay is the splash, which is already the FAM mark over everything.
   // Half a second, so it reads as the app resetting rather than as a wait.
   var LOGOUT_SPLASH_MS = 500;
+  // How long log-out waits for that commit's answer before it ends the
+  // session anyway (§647).
+  var LOGOUT_COMMIT_WAIT_MS = 1500;
+  // Bumped when the account on this page ends: an answer to a request sent
+  // under the last one sees it changed and touches nothing (§647).
+  var authEpoch = 0;
 
   function logOut(){
     // A delete or a leave waiting on its Undo (§644) is this account's: it
     // goes now, under this session, not later under the next one's - and
-    // its line with it, whatever it offered (§646).
-    hideSnack();
+    // its line with it, whatever it offered (§646). The session ends only
+    // once it has been answered (or 1.5 s has passed), or the server could
+    // see the log-out first and refuse it (§647).
+    var pending = hideSnack();
     endSnackLine();
+    authEpoch++;
     showSplash(LOGOUT_SPLASH_MS);
-    fetch("/api/auth/logout", { method: "POST" })
+    Promise.race([
+      Promise.resolve(pending).catch(function(){}),
+      new Promise(function(res){ setTimeout(res, LOGOUT_COMMIT_WAIT_MS); })
+    ]).then(function(){ return fetch("/api/auth/logout", { method: "POST" }); })
       .then(function(){ return refreshAuth(); })
       .catch(function(){})
       .then(function(){
@@ -22075,8 +22123,12 @@
 
   // Another friend's vibes turn in like a cube's next face (§298); one
   // friend's own vibes change in place, as on Instagram.
+  // A tap's or the timer's turn is kept (`storyTurning`) so that closing
+  // the story mid-turn ends it with the viewer (§647), as a drag's does.
+  var storyTurning = null;
   function turnToFriend(dir, at){
-    Motion.turnStory(document.getElementById("storyOverlay"), dir, function(){
+    if(storyTurning){ var was = storyTurning; storyTurning = null; Motion.cubeEnd(was); }
+    storyTurning = Motion.turnStory(document.getElementById("storyOverlay"), dir, function(){
       storyAt = at;
       showStory();
     });
@@ -22144,6 +22196,7 @@
           storyAt = d.saved.at;
         }
         if(turning){ var t = turning; turning = null; Motion.cubeEnd(t); }
+        if(storyTurning){ var tt = storyTurning; storyTurning = null; Motion.cubeEnd(tt); }
       } finally { ending = false; }
     };
     function restoreSeen(saved){
@@ -22733,6 +22786,10 @@
     row.setAttribute("aria-checked", on ? "true" : "false");
     var sw = row.querySelector(".mix-switch");
     if(sw) sw.classList.toggle("on", on);
+    // The row is no longer what was drawn: the next redraw patches it
+    // whatever it says, so a refusal - which draws what was there before
+    // the tap - flips it back (§647).
+    row._html = null;
     // The row's action said what the switch was to become on the tap that
     // drew it; a second tap before the save redraws the row must send the
     // other value, not the same one again (§646). The tap running now
@@ -23266,7 +23323,7 @@
                       { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
       },
       done: function(){
-        fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes, { method: "DELETE", keepalive: true })
+        return fetch("/api/vibe?q=" + encodeURIComponent(v.query) + "&minutes=" + v.minutes, { method: "DELETE", keepalive: true })
           .then(function(r){ if(!r.ok) throw new Error(); delete vibePendingRemove[key]; refreshHub(); })
           .catch(function(){ delete vibePendingRemove[key]; loadMyVibe(); toast("Could not take that back"); });
       }
@@ -25656,10 +25713,13 @@
       done: function(){
         // Undone, or opened again meanwhile: nothing to send.
         if(!threadsGone[id]) return;
+        // An answer after log-out is the last account's: it paints no
+        // count and says nothing on the next one's screen (§647).
+        var epoch = authEpoch;
         var req = how === "leave"
           ? fetch("/api/messages/groups/" + encodeURIComponent(id), { method: "DELETE", keepalive: true })
           : fetch("/api/messages/thread?with=" + encodeURIComponent(id), { method: "DELETE", keepalive: true });
-        req.then(function(r){
+        return req.then(function(r){
             return r.json().then(function(d){
               if(!r.ok) throw new Error(d.detail || d.error
                 || (how === "leave" ? "Could not leave that group" : "Could not delete that chat"));
@@ -25667,10 +25727,12 @@
             });
           })
           .then(function(d){
+            if(epoch !== authEpoch) return;
             delete threadsGone[id];
             if(d && typeof d.unread === "number") setUnreadDot(d.unread);
           })
           .catch(function(err){
+            if(epoch !== authEpoch) return;
             // It is still there: back on the list, and said.
             delete threadsGone[id];
             toast(err.message || (how === "leave" ? "Could not leave that group" : "Could not delete that chat"));
@@ -27045,7 +27107,7 @@
                       { enterFade: Motion.DUR.undoBack, moveMs: Motion.DUR.undoBack });
       },
       done: function(){
-        fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE", keepalive: true })
+        return fetch("/api/saved/" + encodeURIComponent(id), { method: "DELETE", keepalive: true })
           .then(function(r){ if(!r.ok) throw new Error(); delete savedPendingRemove[id]; })
           .catch(function(){ delete savedPendingRemove[id]; loadSaved(); toast("Could not remove that"); });
       }

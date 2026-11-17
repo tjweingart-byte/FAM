@@ -3230,6 +3230,7 @@ def main() -> int:
             page.evaluate("openSaved()")
             page.wait_for_timeout(900)
             if page.evaluate("(savedCache.items || []).length") >= 1:
+                gone_n = page.evaluate("document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length")
                 gone = page.evaluate("""() => { var n = document.querySelectorAll('#svBody .sv-row').length;
                     removeSaved(savedCache.items[0].id);
                     return { fewer: document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length === n - 1,
@@ -3238,7 +3239,16 @@ def main() -> int:
                 page.wait_for_timeout(500)
                 page.click("#snackAct")
                 page.wait_for_timeout(400)
-                assert page.evaluate("window.__deletes") == 0, "Undo still deleted the saved episode"
+                # The row is back (§647: a count of DELETEs alone passed
+                # whether or not Undo did anything), and nothing is deleted
+                # once the line has gone either.
+                back = page.evaluate("""() => { var id = savedCache.items[0] && savedCache.items[0].id;
+                    hideSnack();
+                    return { rows: document.querySelectorAll('#svBody .sv-row:not(.motion-row)').length,
+                             row: document.querySelectorAll('#svBody .sv-row[data-key="s:' + id + '"]:not(.motion-row)').length,
+                             deletes: window.__deletes }; }""")
+                assert back == {"rows": gone_n, "row": 1, "deletes": 0}, \
+                    f"Undo did not put the saved row back, or still deleted it: {back}"
             page.evaluate("window.fetch = window.__yfFetch; hideSnack(); goBack()")
             page.wait_for_timeout(500)
             # The story editor: a tool's panel slides; a post goes into the ring.
@@ -5525,7 +5535,93 @@ def main() -> int:
             page.evaluate("hideSnack(); goBack()")
             page.wait_for_timeout(300)
 
+        def second_audit_holds():
+            """§647, the second audit, driven rather than read: the source
+            pins passed while a refused switch stayed on. A Settings switch
+            the server refuses flips back; under reduced motion the bottom
+            line and its dot do not move at all; a tile's save lit on the tap
+            survives a shelf read that started before it."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay(); hideSnack();")
+            # A refused switch goes back to what the server has.
+            page.evaluate("openSettings()")
+            page.wait_for_selector("#screen-settings.active", timeout=8000)
+            page.wait_for_timeout(900)
+            row = '#settingsBody [data-set="private-mode"]'
+            assert page.query_selector(row), "Settings has no Private mode switch"
+            was = page.get_attribute(row, "aria-checked")
+            page.evaluate("""() => { window.__a2Fetch = window.fetch;
+                window.fetch = function(u, o){
+                  if(String(u).indexOf('/api/preferences') === 0 && o && o.method === 'POST')
+                    return Promise.resolve(new Response('no', { status: 500 }));
+                  return window.__a2Fetch.apply(this, arguments); }; }""")
+            try:
+                # Read on the tap's own frame: the refusal answers before a
+                # second round trip from here would.
+                flipped = page.evaluate("""(sel) => { var r = document.querySelector(sel); r.click();
+                    return r.getAttribute('aria-checked'); }""", row)
+                page.wait_for_timeout(800)
+                after = page.evaluate("""(sel) => { var r = document.querySelector(sel);
+                    return { checked: r.getAttribute('aria-checked'),
+                             knob: r.querySelector('.mix-switch').classList.contains('on') }; }""", row)
+            finally:
+                page.evaluate("window.fetch = window.__a2Fetch; hideSnack();")
+            assert flipped != was, "the switch did not flip on the tap"
+            assert after == {"checked": was, "knob": was == "true"}, \
+                f"a refused Private mode stayed as tapped: was {was}, now {after}"
+            page.evaluate("goBack()")
+            page.wait_for_timeout(500)
+            # Reduced motion: the line and its dot arrive with no transition.
+            page.emulate_media(reduced_motion="reduce")
+            try:
+                moved = page.evaluate("""() => { var out = {};
+                    toast('Reduced');
+                    var t = document.getElementById('toast');
+                    out.toast = getComputedStyle(t).transitionDuration;
+                    out.toastDot = getComputedStyle(t, '::before').transitionDuration;
+                    snack('Reduced', { label: 'Undo', run: function(){} });
+                    var s = document.getElementById('snack');
+                    out.snack = getComputedStyle(s).transitionDuration;
+                    out.snackDot = getComputedStyle(s, '::before').transitionDuration;
+                    out.running = s.getAnimations().length + t.getAnimations().length;
+                    snackCommit = null; hideSnack();
+                    return out; }""")
+            finally:
+                page.emulate_media(reduced_motion="no-preference")
+            assert all(moved[k].split(",")[0].strip() == "0s" for k in ("toast", "toastDot", "snack", "snackDot")) \
+                and moved["running"] == 0, f"the bottom line moved under reduced motion: {moved}"
+            # A tile's save survives an older shelf read.
+            page.evaluate("loadMyFamFeed(); setTab('myfam')")
+            page.wait_for_timeout(2500)
+            r = page.evaluate("""async () => {
+                var real = window.fetch;
+                window.fetch = function(u, o){
+                  var pr = real.apply(this, arguments);
+                  if(String(u).indexOf('/api/saved') === 0 && !(o && o.method))
+                    return new Promise(function(res){ setTimeout(function(){ res(pr); }, 600); });
+                  return pr; };
+                try {
+                  var btn = document.querySelector('#myfamFeed [data-tile-save]');
+                  if(!btn) return null;
+                  var id = btn.getAttribute('data-tile-save'), sel = '[data-tile-save="' + id + '"]';
+                  var was = btn.classList.contains('saved-on');
+                  loadTileSaves();
+                  await new Promise(function(res){ setTimeout(res, 50); });
+                  btn.click();
+                  var lit = document.querySelector(sel).classList.contains('saved-on');
+                  await new Promise(function(res){ setTimeout(res, 1200); });
+                  var after = document.querySelector(sel).classList.contains('saved-on');
+                  if(after !== was){ document.querySelector(sel).click();
+                    await new Promise(function(res){ setTimeout(res, 600); }); }
+                  return { flipped: lit !== was, kept: after === lit };
+                } finally { window.fetch = real; hideSnack(); }
+            }""")
+            assert r is not None, "dailyFAM drew no tile with a save"
+            assert r == {"flipped": True, "kept": True}, f"an older shelf read undid a tile's save: {r}"
+
         check("An Undo whose request has gone does nothing", a_sent_undo_does_nothing)
+        check("A refused switch flips back; reduced motion moves no line; a tile's save holds",
+              second_audit_holds)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

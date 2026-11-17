@@ -39287,3 +39287,71 @@ Tests: `tests/test_motion_round_three_646.py`; §640's spring test drops
 smoke run's "An Undo whose request has gone does nothing" and the story
 checks above. **Not verified here:** a real finger, iOS's suspended timer
 behind the stale Undo, and a page actually closed under a `keepalive` send.
+
+## 647. Motion round three: the second audit (2026-11-17)
+
+Three reviewers drove §640-§646 again in a browser and filed eight
+findings (one broken, the rest friction and polish; all three found the
+reduced-motion line). Each was reproduced with the reviewer's own probe
+before it was fixed and again after, on a preview built from the change.
+All eight are fixed. Nothing in `rule:motion` changed: each fix is the
+existing pattern - the change made first, rollback to what the server said.
+
+**A refused Settings switch never flipped back (broken).** `flipSetting`
+turns the row on the tap; the refusal redraws Settings, which drew exactly
+the HTML it drew before the tap, so `patchSettings` (`was._html ===
+held[i]`) skipped the row and Private mode stayed on - `aria-checked="true"`
+- while the server had it off. A privacy control saying the listener was
+hidden when they were not. `flipSetting` now clears the row's `_html`, so
+the next redraw always patches a flipped row to what the server has. §646's
+source pin passed throughout; the new smoke check refuses
+`/api/preferences`, taps Private mode and reads `aria-checked` back.
+
+**Friction.**
+- *Reduced motion: the bottom line still rose and faded, its dot sprang*
+  (all three). The reduced block's `.toast, .snack, ::before{ transition:none }`
+  is one class; `.toast.show, .snack.show` and their `::before` carry the
+  entrance at two, and won. The block names the `.show` selectors too. A
+  regression of §640: the merge base's `.show` rule had no transition.
+  Fixed; the smoke run reads the computed transitions under emulated
+  reduced motion.
+- *A tile's save lit on the tap was switched off by a shelf read already in
+  flight* (§641's optimistic paint opened the window): `loadTileSaves`
+  rebuilt `savedTileQueries` from the pre-save list. A read that started
+  before a tap began or settled is dropped (`tileSaveSeq`), and a tap still
+  in flight wins over any read (`tileSavePending`). Fixed; driven in the
+  smoke run with the shelf read held 600 ms.
+- *Log-out did not wait for the chat delete it sent* (§644/§646 said it
+  goes "under this session"; nothing ordered the two requests): a logout
+  handled first made the DELETE a 401 - the chat not deleted, and "You need
+  an account for this." on the signed-out screen - and a late answer put
+  the last account's unread count back on every Messages tab.
+  `flushSnackCommit` and `hideSnack` return the commit's request (the chat,
+  group, Saved, My Vibes and Go Deeper commits return theirs), `logOut`
+  posts `/api/auth/logout` once it settles or after
+  `LOGOUT_COMMIT_WAIT_MS` (1.5 s), and `goneChat`'s answer is ignored once
+  `authEpoch` has moved (log-out bumps it). Fixed.
+
+**Polish.**
+- *A story closed during a tap's or the timer's cube turn* left the cube
+  and `.motion-story-back` turning over the page for 340 ms: `turnToFriend`
+  never set the drag closure's `turning`. `Motion.turnStory` returns its
+  cube, kept in `storyTurning`, which `storyDragEnd` ends with the viewer
+  (and a second turn ends the first). Fixed.
+- *Public / Private said `role="switch"` but took no keyboard* (§642):
+  `tabindex="0"` and Enter/Space, as the Settings switch rows. Fixed.
+- *`markPlaying` left the play icon's swap key stale*, so the first pause
+  of a new episode did not swap: it sets `_iconKey` with the HTML (and the
+  album player's two icons likewise). Fixed.
+- *yourFAM's Saved Undo smoke check passed whether or not Undo worked*: it
+  counted DELETEs at 400 ms, before any could go. It now asserts the row
+  count is back and the row is there, then ends the line and checks that
+  still nothing was deleted. Fixed.
+
+**Skipped:** none.
+
+Tests: `tests/test_motion_round_three_647.py`; the smoke run's new "A
+refused switch flips back; reduced motion moves no line; a tile's save
+holds" and the stronger Saved Undo in yourFAM's check. **Not verified
+here:** a real network reordering the DELETE and the logout (the probes
+delay one side in the page), and a real screen reader on the mix switch.
