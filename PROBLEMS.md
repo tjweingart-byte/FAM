@@ -39355,3 +39355,63 @@ refused switch flips back; reduced motion moves no line; a tile's save
 holds" and the stronger Saved Undo in yourFAM's check. **Not verified
 here:** a real network reordering the DELETE and the logout (the probes
 delay one side in the page), and a real screen reader on the mix switch.
+
+## 648. The owner's 11.17 notes: FAM Ambassadors, the keyboard put away, Instagram's link (2026-11-17)
+
+The owner's PDF "11.17.26 Implementations", three asks.
+
+**1. FAM Ambassadors.** "In settings, add a place to put in a 'FAM
+Ambassador Code'. Once they put this in, the FAM Ambassador tag will appear
+on their profile. The ambassador code will be generated on the admin page
+... An ambassador should have an unlimited free membership." Built
+([ambassadors]):
+- `accounts.py`: an `ambassadors` table (code, the admin's note of who it
+  is for, made, holder, entered, revoked) and `accounts.ambassador_at`, read
+  in the session's one query, so the plan (`unlimited`) and the badge cost
+  no second read. `new_ambassador`, `redeem_ambassador` (case, spaces,
+  dashes and the FAM prefix forgiven; one code one account and one account
+  one code, taken by an UPDATE that only succeeds while unheld; ten wrong
+  codes an hour per account), `revoke_ambassador`, `ambassadors`.
+- `/admin/ambassadors` (`admin_ui/ambassadors.html`, linked from /admin):
+  "Add new ambassador" with an optional who-it's-for note, the new code
+  with Copy, and every code with its account, email, made and entered
+  dates, Copy and Revoke. `GET/POST /api/admin/ambassadors`,
+  `POST /api/admin/ambassadors/revoke`, admin only (404).
+- `POST /api/ambassador`, an account's only. `/api/auth/me` (via
+  `Listener.as_dict`) and `/api/person` carry `ambassador`.
+- Web: Settings > Account settings "FAM Ambassador code" (Add code /
+  Ambassador); the first-run profile step - what a person let off the
+  waitlist sees - has an optional "FAM Ambassador code" field, a wrong code
+  stopping the step with the server's words; both profiles draw the FAM
+  wordmark and "Ambassador" in gold under the place line, as the owner's
+  mock-up does.
+- **Not built:** the iOS app's Settings row, sign-up field and badge (the
+  API is there; the screens are the next iOS build's). Whether an
+  ambassador code should also let somebody off the waitlist was not asked;
+  it does not.
+
+**2. "Is it possible to embed the link to the episode on the tile card on
+Instagram so when you click on the tile it takes you to the episode."**
+No: Instagram lets no app make a story picture tappable, and has not
+since it withdrew the attribution link; the Link sticker is the only
+tappable link in a story and the person posting adds it (SHARING.md
+already said so, §558). What changed: the Instagram tile leaves the
+episode's `/s/<id>` link - the sent-episode page with the waitlist note,
+which is what the owner said it should look like - ready for the sticker's
+Paste. iOS: as plain text in the hand-off's pasteboard item, and as the
+clipboard in the share-sheet fallback ("Link copied - add Instagram's Link
+sticker and paste it"). Web: copied at the tap, the picture shared alone.
+**Not verified:** whether Instagram leaves that pasteboard text in place
+after reading the card; it needs a phone.
+
+**3. "If the keyboard is popped up and I click somewhere random on the
+screen, I want the keyboard to disappear."** The screenshot is the iOS
+app's Messages. iOS: `KeyboardDismiss.swift`, one tap recogniser per
+window that never cancels or delays the tap, ends editing unless the tap
+is on a field or in the 72-point strip above the keyboard where a
+composer's Send sits (so sending never closes it). Web: a tap (not a
+scroll) on anything that is not a field or a control blurs the focused
+field. **Not verified:** the Swift was not compiled here (no Xcode); the
+web listener was exercised only by the smoke run.
+
+Tests: `tests/test_ambassadors_648.py`.

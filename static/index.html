@@ -3538,6 +3538,13 @@
   /* The place they gave, under their name (10.7). */
   .yf-place{ font-size:12px; color:var(--text-muted); margin-top:3px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* "FAM Ambassador" under the name (§648). */
+  .yf-amb{ display:inline-flex; align-items:center; gap:5px; margin-top:4px;
+    color:var(--gold, #F0C35E); font-size:12px; line-height:1; }
+  .yf-amb-mark{ display:inline-flex; align-items:center; gap:1px; }
+  .yf-amb-mark span, .yf-amb-mark svg{ display:inline-block; width:9px; height:11px; }
+  .yf-amb-mark .wm-a svg{ width:11px; }
+  .yf-amb-word{ font-family:'Bricolage Grotesque', serif; font-weight:500; letter-spacing:.01em; }
   .yf-meta{ font-family:'Geist Mono', monospace; font-size:10px;
     color:var(--text-muted); margin-top:3px; }
   .yf-meta b{ font-weight:400; color:inherit; cursor:pointer; }
@@ -4767,6 +4774,18 @@
                        placeholder="(888) 888-8888" style="margin-bottom:0;"
                        oninput="formatPhoneInput(this); drawIdentityRequired()">
               </div>
+            </div>
+
+            <!-- A FAM Ambassador code (§648, the owner's 11.17 notes): the
+                 first run after being let in is where a new ambassador says
+                 so. Optional; Settings has the same row for later. -->
+            <div class="auth-field" id="identityAmbassadorField" data-first-run>
+              <div class="auth-label">FAM Ambassador code <span class="auth-opt">optional</span></div>
+              <input class="modal-input" id="identityAmbassador" data-enter="identityNextBtn" type="text"
+                     autocomplete="off" autocorrect="off" autocapitalize="characters"
+                     spellcheck="false" placeholder="FAM-XXXX-XXXX" maxlength="40"
+                     style="margin-bottom:0;">
+              <div class="id-note">Only if FAM gave you one.</div>
             </div>
 
             <!-- What they are into, on the Edit profile side only. Picked
@@ -14403,6 +14422,40 @@
     closeModal();
     handler(val);
   });
+  // **A tap off a field puts the keyboard away** (the owner's 11.17 notes,
+  // §648): "If the keyboard is popped up and I click somewhere random on
+  // the screen, I want the keyboard to disappear." A phone browser keeps a
+  // field focused through a tap on plain page, so the field is blurred
+  // here. A tap on another field, or on a control (a Send button, a mic,
+  // a chip), is left alone - it is choosing something, and the control
+  // decides what happens to the keyboard. Scrolling is not a tap.
+  var KEEPS_KEYBOARD = "input, textarea, select, button, a, label, [contenteditable], "
+    + "[role=button], [role=switch], [role=option], [role=tab], [onclick], [data-keep-keyboard]";
+  function isTypingField(el){
+    if(!el || el === document.body) return false;
+    if(el.isContentEditable) return true;
+    var tag = el.tagName;
+    if(tag === "TEXTAREA") return true;
+    if(tag !== "INPUT") return false;
+    return !/^(button|submit|reset|checkbox|radio|range|color|file|image|hidden)$/i.test(el.type || "");
+  }
+  (function(){
+    var start = null;
+    document.addEventListener("pointerdown", function(e){
+      start = isTypingField(document.activeElement) ? { x: e.clientX, y: e.clientY, t: e.target } : null;
+    }, true);
+    document.addEventListener("pointerup", function(e){
+      var s = start; start = null;
+      if(!s || e.target !== s.t) return;
+      if(Math.abs(e.clientX - s.x) > 10 || Math.abs(e.clientY - s.y) > 10) return;
+      var field = document.activeElement;
+      if(!isTypingField(field)) return;
+      var t = e.target;
+      if(t && t.closest && t.closest(KEEPS_KEYBOARD)) return;
+      field.blur();
+    }, true);
+  })();
+
   // **Return submits, everywhere** (the owner's 11.14 notes: "on every
   // page ... if you type enter on keyboard, it should act as a submit
   // button"). A field inside a <form> submits by itself, and a field with
@@ -20867,6 +20920,37 @@
       : "Password reset isn\u2019t available yet, so keep your password somewhere safe. ";
   }
 
+  // FAM Ambassador (§648, the owner's 11.17 notes). The code is checked by
+  // the server (`POST /api/ambassador`); once in, `/api/auth/me` says
+  // `ambassador` and the profile wears the tag.
+  function sendAmbassadorCode(code){
+    return fetch("/api/ambassador", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ code: code })
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        if(!r.ok) throw new Error(d.error || d.detail || "That code didn\u2019t work");
+        AUTH.ambassador = true;
+        AUTH.tier = "unlimited";
+        return d;
+      });
+    });
+  }
+  function enterAmbassadorCode(){
+    showModal({
+      title: "FAM Ambassador code", placeholder: "FAM-XXXX-XXXX",
+      confirmLabel: "Add",
+      onConfirm: function(code){
+        sendAmbassadorCode(code).then(function(){
+          toast("You\u2019re a FAM Ambassador");
+          var settings = document.getElementById("screen-settings");
+          if(settings && settings.classList.contains("active")) renderSettings();
+          if(typeof loadPlan === "function") Promise.resolve(loadPlan()).then(refreshSettingsIfOpen, function(){});
+        }).catch(function(err){ toast(err.message); });
+      }
+    });
+  }
+
   function setFirstPassword(){
     showModal({
       title: "Set a password", placeholder: "at least 8 characters",
@@ -21386,6 +21470,20 @@
       + 'fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   }
   // The "your" + FAM mark, the same three glyphs every other tab heading sets.
+  // "FAM Ambassador" under a profile's name (§648): the wordmark, then the
+  // word, in gold - as the owner's 11.17 mock-up draws it.
+  function ambassadorTag(){
+    return '<div class="yf-amb" aria-label="FAM Ambassador">'
+      + '<span class="yf-amb-mark" aria-hidden="true"><span class="wm-glyph f"><svg viewBox="4.55 4.55 12.9 16.9" '
+      + 'fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span>'
+      + '<span class="wm-a"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/>'
+      + '<path d="M5 20l7-7 7 7"/></svg></span>'
+      + '<span class="wm-glyph m"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" '
+      + 'stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>'
+      + '</span><span class="yf-amb-word">Ambassador</span></div>';
+  }
   function yfWordmark(){
     return '<h2 class="wordmark" aria-label="yourFAM">your'
       + '<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" '
@@ -21480,6 +21578,7 @@
       // Where they are, as they wrote it, beside the handle (10.7).
       + '<div class="yf-place">' + (p.location ? escapeHtml(p.location) + ' · ' : '')
       + (p.handle ? "@" + escapeHtml(p.handle) : "no handle yet") + '</div>'
+      + (AUTH.ambassador ? ambassadorTag() : '')
       + '</div>';
 
     // Three numbers, each a door, each worded for the number it holds - "1
@@ -21607,6 +21706,8 @@
       return true;
     }
     if(part === "hero"){
+      // The ambassador tag came or went (§648): the hero is drawn again.
+      if(!was.querySelector(".yf-amb") !== !now.querySelector(".yf-amb")) return false;
       // The photo (with its ring) is replaced when it changed, and a new
       // picture develops (changes-land: B); the words cross-fade.
       var w0 = was.querySelector(".yf-photo-wrap"), w1 = now.querySelector(".yf-photo-wrap");
@@ -22991,6 +23092,10 @@
       html += settingsSwitch("Show my name on episodes I searched", searchesPublic,
           "setSearchesPublic(" + (searchesPublic ? "false" : "true") + ")")
         + '<div class="set-note">When it\u2019s on, anyone who opens an episode you searched can see your @handle in the player\u2019s menu.</div>';
+      // FAM Ambassador (§648): the code an admin gave them, entered once.
+      html += settingsRow("FAM Ambassador code",
+          AUTH.ambassador ? "Ambassador" : "Add code",
+          AUTH.ambassador ? "" : "enterAmbassadorCode()");
       html += settingsRow("Signed in as", escapeHtml(AUTH.email), "")
         + passwordSettingsRow()
         + settingsRow("Log out", "", "logOut()")
@@ -23804,6 +23909,7 @@
       + escapeHtml(face.name || ("@" + (person.handle || ""))) + '</div>'
       + '<div class="yf-place">' + (pub.location ? escapeHtml(pub.location) + ' · ' : '')
       + '@' + escapeHtml(person.handle || "") + '</div>'
+      + (pub.ambassador ? ambassadorTag() : '')
       + (standing ? '<div class="yf-meta">' + escapeHtml(standing) + '</div>' : '')
       + '</div>';
 
@@ -24916,6 +25022,8 @@
     document.getElementById("identitySkip").hidden = editing;
     Array.prototype.forEach.call(document.querySelectorAll("#screen-identity [data-first-run]"),
       function(el){ el.hidden = editing; });
+    // Already an ambassador (§648): nothing to enter.
+    if(AUTH.ambassador) document.getElementById("identityAmbassadorField").hidden = true;
     document.getElementById("identityEditOnly").hidden = !editing;
     document.getElementById("identityNextBtn").textContent =
       editing ? "Save" : "Next";
@@ -25046,7 +25154,8 @@
     var body = { name: name, handle: handle };
     // The first run's number first: a refused one stops the save before
     // anything else is written.
-    (identityMode === "edit" ? Promise.resolve() : saveIdentityAccount(false)).then(function(){
+    (identityMode === "edit" ? Promise.resolve()
+      : saveIdentityAccount(false).then(saveIdentityAmbassador)).then(function(){
       return fetch("/api/me", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify(body)
@@ -25132,9 +25241,17 @@
       });
     });
   }
+  // The first run's ambassador code (§648): sent only if one was typed; a
+  // wrong one stops the step with the server's words, like a taken handle.
+  function saveIdentityAmbassador(){
+    var field = document.getElementById("identityAmbassador");
+    var code = field ? field.value.trim() : "";
+    if(!code || !AUTH.authenticated || AUTH.ambassador) return Promise.resolve();
+    return sendAmbassadorCode(code);
+  }
   function skipIdentity(){
     if(identityMissing().length){ showIdentityRequired(); return; }
-    saveIdentityAccount(true).then(afterIdentity)
+    saveIdentityAccount(true).then(saveIdentityAmbassador).then(afterIdentity)
       .catch(function(err){ toast(err.message); });
   }
 
@@ -27675,7 +27792,7 @@
     closeShareModal();
     // A story is a picture with a link on it, not a sentence with a URL in
     // it, so those destinations get the card instead of the text.
-    if(t.needs_image){ shareStoryCard(t); return; }
+    if(t.needs_image){ shareStoryCard(t, key); return; }
     // Copy is the clipboard and nothing else; everything else has somewhere
     // to go. Before this every destination ended on the clipboard and the
     // listener was left to find the app themselves, which is not a share
@@ -27757,8 +27874,17 @@
      Where there is no file sharing (a desktop browser, an older phone) it
      downloads. A file on disk is a card the listener can post; an unexplained
      tab is not. */
-  function shareStoryCard(t){
-    toast("Making your card\u2026");
+  function shareStoryCard(t, key){
+    // Instagram (§648, the owner's 11.17 notes): no app can make a story
+    // picture tappable - only Instagram's Link sticker is, added by the
+    // person posting. So the episode's link (`/s/<id>`, the sent-episode
+    // page with its waitlist note) goes on the clipboard now, while the tap
+    // still counts, ready for that sticker's Paste.
+    var igLink = key === "instagram_story" && shareTargets && /^https?:/.test(shareTargets.url || "")
+      ? shareTargets.url : "";
+    if(igLink){ copyQuietly(igLink); t = Object.assign({}, t, { text: igLink, igLink: true }); }
+    toast(igLink ? "Making your card\u2026 the link is copied for Instagram\u2019s Link sticker"
+                 : "Making your card\u2026");
     // The player card a FAM link makes in Messages, centred on a 9:16 story
     // (the owner's 11.12 notes) - drawn by the server, so no canvas; a mix,
     // or an older server, keeps the words-only SVG card.
@@ -27781,7 +27907,10 @@
                             + (story ? ".jpg" : ".png"), { type: type });
         if(navigator.canShare && navigator.share
            && navigator.canShare({ files: [file] })){
-          return navigator.share({ files: [file], text: t.text })
+          // Instagram is handed the picture alone: its share extension
+          // refuses a picture with words beside it, and the link waits on
+          // the clipboard for the Link sticker.
+          return navigator.share(t.igLink ? { files: [file] } : { files: [file], text: t.text })
             .catch(function(err){
               // A cancelled share sheet is not a failure and must not be
               // reported as one - it is somebody changing their mind.
@@ -27830,8 +27959,9 @@
   function saveCardInstead(blob, t){
     copyQuietly(t.text);
     return downloadBlob(blob, blob.type === "image/jpeg" ? "fam-episode.jpg" : "fam-episode.png").then(function(saved){
-      toast(saved ? "Card saved \u2014 the words are on your clipboard"
-                  : "Not saved \u2014 the words are on your clipboard");
+      var what = t.igLink ? "the link is on your clipboard for Instagram\u2019s Link sticker"
+                          : "the words are on your clipboard";
+      toast((saved ? "Card saved \u2014 " : "Not saved \u2014 ") + what);
     });
   }
 

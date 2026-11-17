@@ -120,6 +120,35 @@ class AuthError(ValueError):
     """Something the person can fix, phrased so it can be shown to them."""
 
 
+class AmbassadorError(AuthError):
+    """A code that cannot be entered, in words for the listener (§648)."""
+
+
+#: FAM Ambassador codes (§648): FAM-XXXX-XXXX from 31 letters and digits
+#: that cannot be misread for one another (no 0/O, 1/I/L), about 8.5e11 of
+#: them, and `AMBASSADOR_TRIES` wrong guesses an hour per account.
+AMBASSADOR_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+AMBASSADOR_TRIES = 10
+AMBASSADOR_NAME_MAX = 80
+_AMBASSADOR_MISSES: dict = {}
+
+
+def _ambassador_code() -> str:
+    pick = "".join(secrets.choice(AMBASSADOR_ALPHABET) for _ in range(8))
+    return f"FAM-{pick[:4]}-{pick[4:]}"
+
+
+def normalise_ambassador_code(code: str) -> str:
+    """What was typed, as stored: case, spaces and dashes forgiven, the
+    FAM prefix optional."""
+    raw = "".join(ch for ch in str(code or "").upper() if ch.isalnum())
+    if raw.startswith("FAM"):
+        raw = raw[3:]
+    if len(raw) != 8:
+        return ""
+    return f"FAM-{raw[:4]}-{raw[4:]}"
+
+
 class NoPasswordYet(AuthError):
     """A sign-in to an account that has never had a password (§606): an
     email-only waitlist join, or Google or Apple. Its own class so the
@@ -160,6 +189,9 @@ class Listener:
     #: same query that resolves the session, because the waitlist gate asks it
     #: on every request (WAITLIST.md).
     status: str = ""
+    #: A FAM Ambassador (§648): entered a code an admin made. Its plan is
+    #: already "unlimited" in `tier`; this is the badge.
+    ambassador: bool = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -176,6 +208,7 @@ class Listener:
             "authenticated": self.is_authenticated,
             "has_account": self.has_account,
             "status": self.status,
+            "ambassador": self.ambassador,
         }
 
 
@@ -438,6 +471,10 @@ class AccountStore:
                 # send, and never cleared but by a send that certainly
                 # failed - so no account is ever texted twice.
                 "ALTER TABLE accounts ADD COLUMN texted_at REAL NOT NULL DEFAULT 0",
+                # §648: when this account entered a FAM Ambassador code an
+                # admin made, 0 for everyone else. Read with the session, so
+                # the badge and the unlimited plan cost no second query.
+                "ALTER TABLE accounts ADD COLUMN ambassador_at REAL NOT NULL DEFAULT 0",
             ):
                 try:
                     conn.execute(ddl)
@@ -498,6 +535,22 @@ class AccountStore:
                 except sqlite3.OperationalError:
                     pass  # already there
 
+            # FAM Ambassadors (§648): one row per code an admin made. The
+            # code is the key; `user_id` is "" until an account enters it,
+            # and one account holds one code. `revoked` takes it back.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS ambassadors (
+                       code        TEXT PRIMARY KEY,
+                       name        TEXT NOT NULL DEFAULT '',
+                       created     REAL NOT NULL,
+                       user_id     TEXT NOT NULL DEFAULT '',
+                       redeemed_at REAL NOT NULL DEFAULT 0,
+                       revoked_at  REAL NOT NULL DEFAULT 0
+                   )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS ambassadors_user"
+                         " ON ambassadors(user_id) WHERE user_id != ''")
+
             # Password reset (§244): at most one live code per account, kept
             # only as a hash. `issued` counts the codes sent in the current
             # window, so asking again and again cannot buy unlimited guesses.
@@ -550,7 +603,8 @@ class AccountStore:
                 "SELECT s.user_id, COALESCE(a.email, ''), COALESCE(a.plan, 'free'),"
                 "       COALESCE(a.display_name, ''), COALESCE(a.phone, ''),"
                 "       a.user_id IS NOT NULL, COALESCE(a.status, ''),"
-                "       COALESCE(a.free_month_earned_at, 0)"
+                "       COALESCE(a.free_month_earned_at, 0),"
+                "       COALESCE(a.ambassador_at, 0)"
                 " FROM sessions s"
                 " LEFT JOIN accounts a ON a.user_id = s.user_id"
                 " WHERE s.token_hash = ? AND s.expires > ?",
@@ -572,8 +626,11 @@ class AccountStore:
             )
         except Exception:
             log.exception("could not refresh session; continuing")
-        return Listener(row[0], row[1], self._with_free_month(row[2], row[7], now),
-                        row[3], row[4], bool(row[5]), row[6])
+        return Listener(row[0], row[1],
+                        self._with_ambassador(self._with_free_month(row[2], row[7], now),
+                                              row[8]),
+                        row[3], row[4], bool(row[5]), row[6],
+                        ambassador=bool(row[8]))
 
     def end_session(self, token: str) -> bool:
         if not token:
@@ -605,7 +662,8 @@ class AccountStore:
         try:
             row = self._conn().execute(
                 "SELECT email, created, last_login, plan, display_name, phone,"
-                " status, birth_date, gender, free_month_earned_at"
+                " status, birth_date, gender, free_month_earned_at,"
+                " COALESCE(ambassador_at, 0)"
                 " FROM accounts WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
@@ -616,10 +674,12 @@ class AccountStore:
             return None
         return {"user_id": user_id, "email": row[0],
                 "created": row[1], "last_login": row[2],
-                "plan": self._with_free_month(row[3], row[9]),
+                "plan": self._with_ambassador(self._with_free_month(row[3], row[9]),
+                                              row[10]),
                 "display_name": row[4], "phone": row[5], "status": row[6],
                 "birth_date": row[7] or "", "gender": row[8] or "",
-                "free_month_earned_at": float(row[9] or 0)}
+                "free_month_earned_at": float(row[9] or 0),
+                "ambassador": bool(row[10])}
 
     # --- the free month (§577) --------------------------------------------
 
@@ -664,6 +724,104 @@ class AccountStore:
                 and entitlements.rank(plan) < entitlements.rank("plus"):
             return "plus"
         return plan
+
+    @staticmethod
+    def _with_ambassador(plan: str, ambassador_at) -> str:
+        """An ambassador's plan is unlimited and free (§648): it only
+        raises, and is gone the moment the code is revoked."""
+        return "unlimited" if ambassador_at else plan
+
+    # --- FAM Ambassadors (§648) -------------------------------------------
+
+    def new_ambassador(self, name: str = "", at: float = 0.0) -> dict:
+        """Mint a code for an admin to hand to an ambassador."""
+        name = " ".join(str(name or "").split())[:AMBASSADOR_NAME_MAX]
+        now = at or time.time()
+        for _ in range(8):
+            code = _ambassador_code()
+            try:
+                self._conn().execute(
+                    "INSERT INTO ambassadors (code, name, created) VALUES (?, ?, ?)",
+                    (code, name, now))
+            except Exception:  # noqa: BLE001 - a collision; draw again
+                continue
+            return {"code": code, "name": name, "created": now}
+        raise AuthError("Could not make a new code. Try again.")
+
+    def ambassadors(self) -> list[dict]:
+        """Every code, newest first, with the account that holds it."""
+        rows = self._conn().execute(
+            "SELECT m.code, m.name, m.created, m.user_id, m.redeemed_at, m.revoked_at,"
+            "       COALESCE(a.email, ''), COALESCE(a.display_name, ''),"
+            "       COALESCE(a.phone, '')"
+            " FROM ambassadors m LEFT JOIN accounts a ON a.user_id = m.user_id"
+            " ORDER BY m.created DESC").fetchall()
+        return [{"code": r[0], "name": r[1], "created": r[2], "user_id": r[3],
+                 "redeemed_at": r[4] or None, "revoked": bool(r[5]),
+                 "email": r[6], "display_name": r[7], "phone": r[8]}
+                for r in rows]
+
+    def ambassador_code_for(self, user_id: str) -> str:
+        row = self._conn().execute(
+            "SELECT code FROM ambassadors WHERE user_id = ? AND revoked_at = 0",
+            (user_id,)).fetchone() if user_id else None
+        return row[0] if row else ""
+
+    def redeem_ambassador(self, user_id: str, code: str, at: float = 0.0) -> str:
+        """Enter a code: the account becomes an ambassador. Returns the
+        code. Idempotent for the account that already holds it; refused
+        (`AmbassadorError`, its words for the listener) for a code that is
+        unknown, revoked or held by somebody else, and after
+        `AMBASSADOR_TRIES` wrong codes in an hour."""
+        if not user_id:
+            raise AmbassadorError("Sign in to add an ambassador code.")
+        now = at or time.time()
+        tries = [t for t in _AMBASSADOR_MISSES.get(user_id, []) if now - t < 3600]
+        if len(tries) >= AMBASSADOR_TRIES:
+            raise AmbassadorError("Too many codes tried. Try again in an hour.")
+        wanted = normalise_ambassador_code(code)
+        held = self.ambassador_code_for(user_id)
+        if held:
+            if held == wanted:
+                return held
+            raise AmbassadorError("This account is already a FAM Ambassador.")
+        row = self._conn().execute(
+            "SELECT user_id, revoked_at FROM ambassadors WHERE code = ?",
+            (wanted,)).fetchone() if wanted else None
+        if not row or row[1]:
+            tries.append(now)
+            _AMBASSADOR_MISSES[user_id] = tries
+            raise AmbassadorError("That code isn\u2019t right. Check it and try again.")
+        # Taken only if still free, so two accounts racing for one code
+        # cannot both hold it.
+        cur = self._conn().execute(
+            "UPDATE ambassadors SET user_id = ?, redeemed_at = ?"
+            " WHERE code = ? AND user_id = '' AND revoked_at = 0",
+            (user_id, now, wanted))
+        if not cur.rowcount:
+            raise AmbassadorError("That code is already in use.")
+        self._conn().execute("UPDATE accounts SET ambassador_at = ? WHERE user_id = ?",
+                             (now, user_id))
+        return wanted
+
+    def revoke_ambassador(self, code: str) -> Optional[str]:
+        """Take a code back: its account loses the badge and the plan.
+        Returns the account that held it ("" for none), None if unknown."""
+        wanted = normalise_ambassador_code(code)
+        row = self._conn().execute("SELECT user_id FROM ambassadors WHERE code = ?",
+                                   (wanted,)).fetchone() if wanted else None
+        if not row:
+            return None
+        self._conn().execute("UPDATE ambassadors SET revoked_at = ? WHERE code = ?",
+                             (time.time(), wanted))
+        if row[0]:
+            self._conn().execute("UPDATE accounts SET ambassador_at = 0 WHERE user_id = ?",
+                                 (row[0],))
+        return row[0]
+
+    def is_ambassador(self, user_id: str) -> bool:
+        account = self.account(user_id) if user_id else None
+        return bool(account and account.get("ambassador"))
 
     def demographic_rows(self) -> list:
         """(user_id, birth_date, gender) for every account let into the app
@@ -1326,6 +1484,9 @@ class AccountStore:
         self._conn().execute("DELETE FROM identities WHERE user_id = ?", (user_id,))
         self._conn().execute("DELETE FROM password_resets WHERE user_id = ?",
                              (user_id,))
+        # Their ambassador code stays on the admin's list, unheld (§648).
+        self._conn().execute("UPDATE ambassadors SET user_id = '', redeemed_at = 0"
+                             " WHERE user_id = ?", (user_id,))
         cur = self._conn().execute("DELETE FROM accounts WHERE user_id = ?",
                                    (user_id,))
         return {"account": bool(cur.rowcount), "identities": identities,

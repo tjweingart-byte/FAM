@@ -1567,6 +1567,20 @@
   > second grant finds it gone; it is given back only when the send certainly
   > failed (`sms.NOT_SENT`: unconfigured, a 4xx, never connected). A timeout
   > or a 5xx (`sms.UNKNOWN`) may have been delivered and is never retried.
+<!-- rule:ambassadors -->
+- **A FAM Ambassador is made by a code an admin made** (PROBLEMS.md §648,
+  the owner's 11.17 notes). `/admin/ambassadors` "Add new ambassador" mints
+  `FAM-XXXX-XXXX` (`accounts.new_ambassador`; 31 unmistakable characters,
+  never chosen by the client); the admin hands it over; the listener enters
+  it in Settings ("FAM Ambassador code") or on the first-run profile step
+  after being let in (`POST /api/ambassador`, an account's only, ten wrong
+  codes an hour). One code holds one account and one account one code.
+  Entered, `accounts.ambassador_at` is stamped, read with the session: the
+  plan is **unlimited, free** (`_with_ambassador` only raises it), and
+  `/api/auth/me` and `/api/person` say `ambassador`, which draws the "FAM
+  Ambassador" tag under the name on both profiles. **Revoke** takes the tag
+  and the plan back at the next request; a deleted account leaves its code
+  on the admin's list, unheld. The code is not a waitlist pass.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**
