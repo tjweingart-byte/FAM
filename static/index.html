@@ -170,6 +170,19 @@
     --dur-ripple:420ms; --dur-ripple-gap:150ms;
     --dur-own-out:150ms; --dur-own-in:200ms;
     --dur-read-bar:1200ms; --dur-ring-pulse:1200ms;
+    /* Messages (round three, §644): a chat, the inbox, the Messages tab's
+       count, the share sheet and New message. The typing dots' loop is an
+       activity indicator, a wait and not a movement. */
+    --dur-column:220ms; --dur-column-stagger:40ms;
+    --dur-typing:1200ms; --dur-dots-grow:240ms; --dur-dots-out:80ms;
+    --dur-dots-text-at:80ms; --dur-dots-text:120ms;
+    --dur-sending-after:1000ms; --dur-line-out:120ms;
+    --dur-reorder:280ms; --dur-row-new:240ms;
+    --dur-badge-in:220ms; --dur-badge-out:160ms;
+    --dur-chips-close:190ms;
+    --dur-arc:360ms; --dur-slot:200ms; --dur-unpick:240ms;
+    --dur-expand:250ms; --dur-collapse:190ms;
+    --dur-row-out:180ms; --dur-undo-in:220ms;
     /* What a tile shows before its picture lands (pictures: B). No
        dominant colour is sent with a thumbnail yet, so it is one neutral
        colour from the palette (§640). */
@@ -1431,8 +1444,22 @@
   .share-nomatch[hidden]{ display:none; }
   /* The one they are about to send to (§142). A ring rather than a tint, so a
      photo stays recognisable while it is selected. */
-  .share-contact.selected .av{ box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--copper); }
+  /* The ring is its own circle, so it can grow in (.9 -> 1) and fade over
+     150 ms rather than appear (share-pick: C, §644). The row is given room
+     above for it, or its scroller would clip it. */
+  .share-contacts{ padding-top:4px; margin-top:-4px; }
+  .share-contact::after{ content:""; position:absolute; top:-4px; left:4px; width:48px; height:48px;
+    box-sizing:border-box; border-radius:50%; border:2px solid var(--copper); pointer-events:none;
+    opacity:0; transform:scale(.9);
+    transition:opacity var(--dur-colour) var(--ease-out), transform var(--dur-colour) var(--ease-out); }
+  .share-contact.selected::after, .share-contact.on::after{ opacity:1; transform:none; }
   .share-contact.selected .nm{ color:var(--copper); font-weight:700; }
+  /* The sheet's own bottom row turns into "Cancel | Share with @maya" in
+     its one grid cell, so nothing above it moves (share-pick: C, §644). */
+  .share-bottom{ display:grid; margin-top:16px; }
+  .share-bottom > *{ grid-area:1 / 1; margin:0 !important; }
+  .share-bottom > .share-idle[hidden]{ display:none; }
+  .share-bottom > .motion-xfade{ pointer-events:none; }
   .share-confirm{ display:flex; gap:8px; margin-top:12px; }
   .share-confirm[hidden]{ display:none; }
   .share-confirm .modal-btn{ flex:1; }
@@ -1466,26 +1493,40 @@
   .msg-row.out{ justify-content:flex-end; }
   .msg-bubble{ max-width:75%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.4;
     white-space:pre-wrap; overflow-wrap:anywhere; }
-  /* A like on a vibe (§282) is the heart itself, not a bubble around it. */
-  .msg-row.msg-row .msg-bubble.msg-like{ background:none; padding:0 4px; font-size:30px; line-height:1.1; }
+  /* A like on a vibe (§282) is a heart on the card's corner, as a reaction
+     is on a phone's messages (vibe-reply-like: C, §644) - not a heart of its
+     own under the card. */
+  .msg-react{ position:absolute; top:-9px; right:-9px; width:22px; height:22px; border-radius:50%;
+    background:var(--surface); border:1px solid var(--border-strong); display:flex; align-items:center;
+    justify-content:center; font-size:11px; line-height:1; pointer-events:none; }
+  .msg-row.out .msg-react{ right:auto; left:-9px; }
   .msg-row.in .msg-bubble{ background:var(--surface); color:var(--text); border-bottom-left-radius:4px; }
   .msg-row.out .msg-bubble{ background:var(--copper); color:var(--ink); font-weight:600; border-bottom-right-radius:4px; }
-  /* Typed and drawn, not yet acknowledged by the server. Faded rather than
-     marked with a word: it is one round trip long in the ordinary case, and a
-     label that appears and vanishes that fast is noise. This is deliberately
-     not a delivery receipt - whether *they* got it is a promise about
-     somebody else's attention, which this app does not invent. */
-  .msg-row.pending .msg-bubble{ opacity:0.55; }
+  /* Typed and drawn, not yet acknowledged by the server (`.pending`): drawn
+     as it will be, with nothing on it in the ordinary case - one round trip
+     long, and a dim that comes and goes that fast is a flicker (send-confirm:
+     B, §644). Past a second, "Sending…" under the last bubble. This is
+     deliberately not a delivery receipt - whether *they* got it is a promise
+     about somebody else's attention, which this app does not invent. */
+  .msg-sending{ text-align:right; font-family:'Geist Mono', monospace; font-size:9px;
+    color:var(--text-faint); margin:-6px 4px 10px; letter-spacing:0.04em; }
+  /* Not sent (send-failed: C, §644): the bubble stays where it was, faded,
+     and says so under itself; a tap sends it again. */
+  .msg-row.failed .msg-bubble, .msg-row.failed .yf-ep{ opacity:.55; }
+  .msg-row.failed .msg-bubble{ cursor:pointer; }
+  .msg-failed{ display:block; width:max-content; max-width:80%; margin:-6px 2px 10px auto; padding:4px 2px;
+    background:none; border:none; color:var(--coral); font:inherit; font-size:10.5px; font-weight:600;
+    cursor:pointer; text-align:right; }
   /* The other person is typing (§127): three dots in one of their bubbles,
-     rising in turn. */
+     an opacity wave left to right (typing-dots: B, §644). Phase offsets, so
+     all three are mid-wave from the first frame; no bob, so it keeps moving
+     under reduced motion - it says work is going on. */
   .msg-typing{ display:flex; gap:4px; align-items:center; padding:12px 14px; }
-  .msg-typing i{ width:6px; height:6px; border-radius:50%; background:var(--text-muted);
-    animation:typingDot 1.2s ease-in-out infinite; }
-  .msg-typing i:nth-child(2){ animation-delay:.15s; }
-  .msg-typing i:nth-child(3){ animation-delay:.3s; }
-  @keyframes typingDot{ 0%,60%,100%{ opacity:.35; transform:translateY(0); }
-    30%{ opacity:1; transform:translateY(-3px); } }
-  @media (prefers-reduced-motion: reduce){ .msg-typing i{ animation:none; opacity:.7; } }
+  .msg-typing i{ width:6px; height:6px; border-radius:50%; background:var(--text-muted); opacity:.35;
+    animation:typingDot var(--dur-typing) var(--ease-in-out) infinite; }
+  .msg-typing i:nth-child(1){ animation-delay:-.3s; }
+  .msg-typing i:nth-child(2){ animation-delay:-.15s; }
+  @keyframes typingDot{ 0%,60%,100%{ opacity:.35; } 30%{ opacity:1; } }
   .msg-fam-card{ max-width:78%; background:var(--surface-2); border:1px solid var(--border-strong); border-radius:14px; padding:10px 12px; display:flex; align-items:center; gap:10px; cursor:pointer; }
   .msg-row.out .msg-fam-card{ background:rgba(224,181,99,0.14); border-color:rgba(224,181,99,0.35); }
   .msg-fam-card .mf-play{ width:28px; height:28px; border-radius:50%; background:var(--ink); flex:none; display:flex; align-items:center; justify-content:center; }
@@ -3763,13 +3804,39 @@
   .msg-from{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:.06em;
     color:var(--text-muted); margin:6px 0 2px 4px; }
   .msg-system{ text-align:center; font-size:11px; color:var(--text-muted); margin:8px 0; }
+  /* The tick is always drawn and swaps in like an icon (.3 and a 3 px blur,
+     new-chat-pick, §644), so a tap toggles the face rather than redrawing
+     every face under the finger. */
   .share-contact .pick{ position:absolute; right:-2px; bottom:16px; width:18px; height:18px; border-radius:50%;
-    background:var(--copper); color:var(--ink); font-size:11px; font-weight:800; display:none;
-    align-items:center; justify-content:center; border:2px solid var(--surface); }
-  .share-contact.on .pick{ display:flex; }
-  .share-contact.on .av{ box-shadow:0 0 0 2px var(--copper); }
+    background:var(--copper); color:var(--ink); font-size:11px; font-weight:800; display:flex;
+    align-items:center; justify-content:center; border:2px solid var(--surface); z-index:1;
+    opacity:0; transform:scale(.3); filter:blur(3px);
+    transition:opacity var(--dur-swap) var(--ease-swap), transform var(--dur-swap) var(--ease-swap),
+               filter var(--dur-swap) var(--ease-swap); }
+  .share-contact.on .pick{ opacity:1; transform:none; filter:none; }
   .share-contact{ position:relative; }
-  .gc-picked{ font-size:12px; color:var(--text-muted); margin:10px 0 0; min-height:16px; }
+  /* Who is in: their faces gather in a stack beside the words (faces
+     gather, new-chat-pick: B, §644). */
+  .gc-picked{ font-size:12px; color:var(--text-muted); margin:10px 0 0; min-height:22px;
+    display:flex; align-items:center; gap:8px; }
+  .gc-stack{ display:flex; flex:none; }
+  .gc-stack:empty{ display:none; }
+  .gc-stack .av{ width:22px; height:22px; border-radius:50%; flex:none; margin-left:-6px;
+    box-shadow:0 0 0 2px var(--surface); display:flex; align-items:center; justify-content:center;
+    color:var(--ink); font-weight:700; font-size:8px; }
+  .gc-stack .av:first-child{ margin-left:0; }
+  .gc-words{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .motion-face{ position:absolute; z-index:61; pointer-events:none; margin:0 !important; transform-origin:0 0; }
+  /* The group's name opens as an expander at two people (250 ms in,
+     190 ms out), so the card does not jump. */
+  .nc-name{ display:grid; grid-template-rows:0fr;
+    transition:grid-template-rows var(--dur-collapse) var(--ease-in-out); }
+  .nc-name.open{ grid-template-rows:1fr; transition-duration:var(--dur-expand); }
+  .nc-name > div{ min-height:0; overflow:hidden; }
+  .nc-name .modal-input{ margin:10px 0 0; }
+  /* Start chat / Start group, both in one cell, crossing. */
+  .nc-go .nc-many, .nc-go.group .nc-one{ opacity:0; scale:.9; }
+  .nc-go.group .nc-many{ opacity:1; scale:1; }
   .group-av{ position:relative; }
   .vc-ep{ font-family:'Bricolage Grotesque', sans-serif; font-size:14px; line-height:1.3; color:var(--text);
     margin:-2px 0 12px; }
@@ -3908,10 +3975,37 @@
     line-height:1.1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .yf-thread-sub{ font-family:'Geist Mono', monospace; font-size:10px;
     color:var(--text-muted); margin-top:2px; }
-  .yf-thread-head .yf-chips{ margin-top:11px; }
-  .yf-thread-head .yf-chips:empty{ display:none; }
-  .yf-thread-head .yf-chip{ height:23px; font-size:10px; padding:0 9px; }
-  #screen-thread #thread-body{ padding:14px 13px; }
+  /* Their interests' room is kept from the first frame of a one-to-one
+     chat (header-chips: B, §644): the chips fade into it when their profile
+     answers, so the chat never shrinks under the reader. A group has none;
+     someone who shows none closes it (190 ms, the grid expander). One line,
+     sideways, so the room is always the one height. */
+  .thread-chips-room{ display:grid; grid-template-rows:34px;
+    transition:grid-template-rows var(--dur-chips-close) var(--ease-in-out); }
+  .thread-chips-room.closed{ grid-template-rows:0px; }
+  .thread-chips-room.still{ transition:none; }
+  .thread-chips-room > .yf-chips{ min-height:0; margin-top:0; padding-top:11px; overflow:hidden;
+    flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  .thread-chips-room > .yf-chips::-webkit-scrollbar{ display:none; }
+  .yf-thread-head .yf-chip{ height:23px; font-size:10px; padding:0 9px; flex:none; }
+  #screen-thread #thread-body{ padding:14px 13px; position:relative; overflow-anchor:none; }
+  /* A chat row read off the network glides to its new place; the one rising
+     is drawn over the ones it passes (chat-to-top: A, §644). */
+  .thread-row.motion-risen{ position:relative; z-index:1; background:var(--bg); }
+  .thread-row.leaving{ pointer-events:none; }
+  .thread-row:focus-visible{ outline:2px solid var(--copper); outline-offset:-2px; }
+  /* A copy drawn while a chat's bubble or line leaves (§644). */
+  .motion-msg{ position:absolute !important; margin:0 !important; z-index:2; pointer-events:none; }
+  /* The old count leaving the Messages tab's badge, clipped to its size. */
+  .motion-badge{ position:absolute; z-index:61; pointer-events:none; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    font-family:'Geist Mono', monospace; font-size:8px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .motion-badge > span, .tab-badge > span{ display:inline-block; }
+  .motion-badge.gone{ border-radius:7px; background:var(--coral); }
+  @media (prefers-reduced-motion: reduce){
+    .thread-chips-room, .share-contact::after, .share-contact .pick, .nc-name,
+    .nc-go .ab-face{ transition:none; }
+  }
   .msg-day{ text-align:center; font-family:'Geist Mono', monospace; font-size:9px;
     color:var(--text-faint); margin:0 0 10px; letter-spacing:0.04em; }
   .yf-ep{ max-width:236px; display:flex; flex-direction:column; gap:5px; }
@@ -3919,7 +4013,8 @@
   .yf-ep-lab{ display:flex; align-items:center; gap:5px; font-family:'Geist Mono', monospace;
     font-size:9px; color:var(--copper); letter-spacing:0.04em; text-transform:uppercase; }
   .yf-ep-card{ background:var(--surface-2); border:1px solid rgba(var(--fg-rgb),0.14);
-    border-radius:15px 15px 15px 5px; padding:11px; display:flex; flex-direction:column; gap:8px; }
+    border-radius:15px 15px 15px 5px; padding:11px; display:flex; flex-direction:column; gap:8px;
+    position:relative; }
   .msg-row.out .yf-ep-card{ border-radius:15px 15px 5px 15px; }
   .yf-ep-meta{ font-family:'Geist Mono', monospace; font-size:8.5px;
     letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
@@ -4018,7 +4113,8 @@
   .tab-badge{ position:absolute; top:-4px; right:-7px; min-width:14px; height:14px;
     padding:0 3px; border-radius:7px; background:var(--coral); color:#fff;
     font-family:'Geist Mono', monospace; font-size:8px; font-weight:700;
-    display:flex; align-items:center; justify-content:center; }
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden; font-variant-numeric:tabular-nums; }
   .tab-badge[hidden]{ display:none; }
   /* The morning's new mix (§550): a plain dot, no number - one thing is
      waiting, and it is the mix. Copper, so it is not read as a message. */
@@ -5407,7 +5503,7 @@
             <button class="yf-round" id="threadPhotoBtn" hidden onclick="openGroupPhotoMenu()" aria-label="Add a group photo"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5l-8.8 8.8a5 5 0 01-7.1-7.1l9-9a3.4 3.4 0 014.8 4.8l-9 9a1.8 1.8 0 01-2.5-2.5l8.3-8.3"/></svg></button>
             <button class="yf-round" onclick="openThreadMenu()" aria-label="More"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
           </div>
-          <div class="yf-chips" id="threadChips"></div>
+          <div class="thread-chips-room" id="threadChipsRoom"><div class="yf-chips" id="threadChips"></div></div>
         </div>
         <div class="scroll" id="thread-body"></div>
         <!-- The group photo's three doors: the library, the camera (`capture`
@@ -5609,14 +5705,6 @@
                    oninput="filterShareSection('friends')">
             <div class="share-contacts" id="shareContacts"></div>
           </div>
-          <!-- Tapping a person selects them and nothing else (§142). It used
-               to send on the tap and close the sheet, so nobody could tell
-               whether it had gone - or to whom. Now the face lights up, and
-               sending is this button, with Cancel to take the choice back. -->
-          <div class="share-confirm" id="shareConfirm" hidden>
-            <button class="modal-btn ghost" onclick="cancelShareContact()">Cancel</button>
-            <button class="modal-btn primary" id="shareConfirmBtn" onclick="confirmShareContact()">Share</button>
-          </div>
           <!-- Outside FAM. Nothing is posted from here: the phone's share
                sheet and each platform's own app do the posting, with the
                person looking at it - so FAM holds no token for any of them.
@@ -5624,8 +5712,20 @@
           <div class="gc-label" style="margin:4px 0 8px;">Anywhere else</div>
           <div class="sh-grid" id="shareTargets"></div>
           <div class="sh-note" id="shareNote" hidden></div>
-          <div class="modal-btns" style="margin-top:16px;">
-            <button class="modal-btn ghost" style="flex:1;" onclick="closeShareModal()">Cancel</button>
+          <!-- Tapping a person selects them and nothing else (§142). It used
+               to send on the tap and close the sheet, so nobody could tell
+               whether it had gone - or to whom. Now the face lights up, and
+               the sheet's own bottom row becomes "Cancel | Share with @maya"
+               in the same cell (share-pick: C, §644) - Cancel there takes the
+               choice back - so nothing above it moves. -->
+          <div class="share-bottom" id="shareBottom">
+            <div class="modal-btns share-idle" id="shareIdle">
+              <button class="modal-btn ghost" style="flex:1;" onclick="closeShareModal()">Cancel</button>
+            </div>
+            <div class="share-confirm" id="shareConfirm" hidden>
+              <button class="modal-btn ghost" onclick="cancelShareContact()">Cancel</button>
+              <button class="modal-btn primary" id="shareConfirmBtn" onclick="confirmShareContact()">Share</button>
+            </div>
           </div>
         </div>
       </div>
@@ -5978,14 +6078,16 @@
                packet #4); Chat starts typing to them. -->
           <div class="gc-label" style="margin-bottom:8px;">Pick one or more friends</div>
           <div class="share-contacts" id="newChatContacts"></div>
-          <div class="gc-picked" id="newChatPicked"></div>
-          <input class="modal-input" id="newChatGroupName" data-enter="newChatGo" type="text" maxlength="60" hidden
-                 placeholder="Name the group (optional)" style="margin:10px 0 0;">
+          <div class="gc-picked" id="newChatPicked"><span class="gc-stack" id="newChatStack"></span><span class="gc-words" id="newChatWords"></span></div>
+          <div class="nc-name" id="newChatNameRoom" inert><div>
+            <input class="modal-input" id="newChatGroupName" data-enter="newChatGo" type="text" maxlength="60"
+                   placeholder="Name the group (optional)">
+          </div></div>
           <div class="gc-label" style="margin:16px 0 8px;">Or start a new conversation</div>
           <input class="modal-input" id="newChatInput" data-enter="newChatGo" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Name or phone number">
           <div class="modal-btns">
             <button class="modal-btn ghost" onclick="closeNewChatModal()">Cancel</button>
-            <button class="modal-btn primary" id="newChatGo" onclick="confirmNewChat()">Start chat</button>
+            <button class="modal-btn primary async-btn nc-go" id="newChatGo" onclick="confirmNewChat()" aria-label="Start chat"><span class="ab-faces"><span class="ab-face nc-one">Start chat</span><span class="ab-face nc-many" aria-hidden="true">Start group</span></span></button>
           </div>
         </div>
       </div>
@@ -6373,7 +6475,17 @@
       drain: msToken("--dur-drain", 260), pillIn: msToken("--dur-pill-in", 220),
       pillFlip: msToken("--dur-pill-flip", 220),
       ripple: msToken("--dur-ripple", 420), rippleGap: msToken("--dur-ripple-gap", 150),
-      ownOut: msToken("--dur-own-out", 150), ownIn: msToken("--dur-own-in", 200)
+      ownOut: msToken("--dur-own-out", 150), ownIn: msToken("--dur-own-in", 200),
+      // messages (§644)
+      column: msToken("--dur-column", 220), columnStagger: msToken("--dur-column-stagger", 40),
+      dotsGrow: msToken("--dur-dots-grow", 240), dotsOut: msToken("--dur-dots-out", 80),
+      dotsTextAt: msToken("--dur-dots-text-at", 80), dotsText: msToken("--dur-dots-text", 120),
+      sendingAfter: msToken("--dur-sending-after", 1000), lineOut: msToken("--dur-line-out", 120),
+      reorder: msToken("--dur-reorder", 280), rowNew: msToken("--dur-row-new", 240),
+      badgeIn: msToken("--dur-badge-in", 220), badgeOut: msToken("--dur-badge-out", 160),
+      chipsClose: msToken("--dur-chips-close", 190),
+      arc: msToken("--dur-arc", 360), slot: msToken("--dur-slot", 200), unpick: msToken("--dur-unpick", 240),
+      rowOut: msToken("--dur-row-out", 180), undoIn: msToken("--dur-undo-in", 220)
     };
     var EASE_WIPE = token("--ease-wipe", "cubic-bezier(.4,0,.2,1)");
     var EASE_SWAP = token("--ease-swap", "cubic-bezier(.25,.1,0,1)");
@@ -6597,7 +6709,12 @@
                                            { opacity: 1, transform: "translateX(0px)" }],
                                       DUR.tab, { easing: EASE }));
         });
-        track(anims, function(){ anims.forEach(function(x){ try { x.cancel(); } catch(e){} }); });
+        var tw = landing = [];
+        track(anims, function(){
+          anims.forEach(function(x){ try { x.cancel(); } catch(e){} });
+          land(tw);
+          owed(to);
+        });
         return;
       }
       from.classList.add("leaving");
@@ -6676,6 +6793,7 @@
         var t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
         return Math.max(m, t ? t.endTime || 0 : 0);
       }, 0);
+      var mine = landing = [];
       var finish = function(){
         anims.forEach(function(x){ try { x.cancel(); } catch(e){} });
         from.style.background = "";
@@ -6684,6 +6802,8 @@
         from.classList.remove("leaving", "on-top");
         from.removeAttribute("aria-hidden");
         to.classList.remove("arriving");
+        land(mine);
+        owed(to);
       };
       finishing.push(finish);
       Promise.all(anims.map(function(x){ return x.finished; })).then(function(){
@@ -6703,6 +6823,15 @@
         }
         finish();
       }, function(){});
+    }
+    // What waits for the screen change under way to land (§644): a chat
+    // deleted from inside it leaves the list once the list has slid back.
+    // Run at once when nothing is moving.
+    var landing = null;
+    function landed(fn){ if(landing) landing.push(fn); else fn(); }
+    function land(list){
+      if(landing === list) landing = null;
+      list.splice(0).forEach(function(f){ try { f(); } catch(e){ console.error(e); } });
     }
     // A set of animations the next screen change finishes at once.
     function track(anims, finish){
@@ -7415,45 +7544,252 @@
           DUR.reply, { easing: EASE_IN }).finished.then(gone(w), gone(w));
     }
 
-    // Messages pop out of their bubble's tail corner.
-    function popMessages(rows){
-      if(!on()) return;
-      Array.prototype.forEach.call(rows, function(row){
-        var el = row.firstElementChild;
-        row.classList.remove("msg-new");
-        if(!el) return;
-        el.style.transformOrigin = row.classList.contains("out") ? "100% 100%" : "0% 100%";
-        run(el, [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1.04)", offset: 0.65 },
-                 { opacity: 1, transform: "scale(1)" }], 260, { easing: EASE, fill: "backwards" });
+    // ---- Messages (§644) ----
+    // A chat's column rises (chat-bubbles: A): when the reader was at the
+    // bottom and the chat grew by `h`, every row is drawn `h` lower and
+    // rises into place, 220 ms `out`, transform only - the new bubbles
+    // coming up from behind the message box, fully opaque, never scaled. A
+    // burst's new messages start 40 ms apart, the first six. `carry` is how
+    // far a rise still under way had to go, so a second message turns it
+    // round from where it is. In a short chat that does not scroll, the new
+    // rows alone rise by their own height. `skip` is a row that has its own
+    // entrance (the dots growing into it).
+    function column(body, h, carry, skip){
+      body._column = null;
+      if(!on() || !body || !onActive(body)) return;
+      var kids = Array.prototype.filter.call(body.children, function(el){
+        return !/\bmotion-/.test(el.className) && el !== skip;
+      });
+      var order = [], newH = 0;
+      kids.forEach(function(el){
+        var mi = el.getAttribute("data-mi");
+        if(mi !== null && el.classList.contains("msg-new")){
+          if(order.indexOf(mi) < 0) order.push(mi);
+          newH += el.offsetHeight;
+        }
+      });
+      var total = h + (carry || 0);
+      if(Math.abs(total) < 1 && !order.length) return;
+      var anims = [];
+      kids.forEach(function(el){
+        var mi = el.getAttribute("data-mi"), fresh = mi !== null && el.classList.contains("msg-new");
+        var dy = fresh ? Math.max(total, newH) : total;
+        if(Math.abs(dy) < 1) return;
+        var k = fresh ? Math.min(order.indexOf(mi), 5) : 0;
+        anims = anims.concat(runAdd(el, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }],
+                                    DUR.column, { easing: EASE, delay: k * DUR.columnStagger, fill: "backwards" }));
+      });
+      if(anims.length) body._column = { probe: anims[0].effect.target, anims: anims };
+    }
+    // How far the column still has to rise, read before the chat is redrawn.
+    function columnCarry(body){
+      var c = body && body._column;
+      if(!c || !c.probe || !c.probe.isConnected) return 0;
+      var running = c.anims.some(function(a){ return a.playState === "running"; });
+      if(!running) return 0;
+      var m = getComputedStyle(c.probe).transform;
+      var v = m && m !== "none" ? m.match(/matrix\(([^)]*)\)/) : null;
+      return v ? parseFloat(v[1].split(",")[5]) || 0 : 0;
+    }
+    // Their message grows out of the dots (typing-dots: B): the new bubble
+    // is clipped to the dots' box at its tail corner and opens to its own
+    // (240 ms `in-out`); its words fade in from 80 to 200 ms; a copy of the
+    // dots fades out over 80 ms. Words are revealed, never scaled.
+    function dotsToMessage(bubble, dots, dotsCopy){
+      if(!on() || !bubble || !dots || !seen(bubble)){ if(dotsCopy) dotsCopy.remove(); return; }
+      var w = bubble.offsetWidth, hh = bubble.offsetHeight;
+      var T = Math.max(0, hh - dots.h), R = Math.max(0, w - dots.w);
+      var round = " round 15px 15px 15px 5px";
+      run(bubble, [{ clipPath: "inset(" + T + "px " + R + "px 0px 0px" + round + ")" },
+                   { clipPath: "inset(0px 0px 0px 0px" + round + ")" }], DUR.dotsGrow, { easing: EASE_IO, fill: "none" });
+      run(bubble, [{ color: "transparent" }, { color: getComputedStyle(bubble).color }], DUR.dotsText,
+          { delay: DUR.dotsTextAt, fill: "backwards" });
+      if(dotsCopy){
+        frameEl().appendChild(dotsCopy);
+        run(dotsCopy, [{ opacity: 1 }, { opacity: 0 }], DUR.dotsOut, { easing: EASE_IN })
+          .finished.then(gone(dotsCopy), gone(dotsCopy));
+      }
+    }
+    // A copy of `el` laid in the frame where it is now, for it to leave
+    // from after the real one has gone (null when nothing would be seen).
+    function copyAt(el){
+      if(!on() || !el || !seen(el)) return null;
+      var r = box(el), g = inertCopy(el);
+      g.classList.add("motion-msg");
+      g.style.left = r.x + "px"; g.style.top = r.y + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      return g;
+    }
+    // Something on its way out fades as a copy (`ms`, `in`): the dots when
+    // they stop, "Sending…" once the message is in, a "Not sent" line on a
+    // retry. The real one is already gone.
+    function fadeCopy(el, ms){ fadeAway(copyAt(el), ms); }
+    function fadeAway(g, ms){
+      if(!g) return;
+      if(!g.isConnected) frameEl().appendChild(g);
+      run(g, [{ opacity: 1 }, { opacity: 0 }], ms, { easing: EASE_IN }).finished.then(gone(g), gone(g));
+    }
+    // Something that has just appeared fades up (`ms`, `out`) - `from` its
+    // starting opacity, for a bubble that dims rather than appears.
+    function fadeUp(el, ms, from, to, delay){
+      if(!on() || !el || !seen(el)) return;
+      run(el, [{ opacity: from === undefined ? 0 : from }, { opacity: to === undefined ? 1 : to }], ms,
+          { fill: delay ? "backwards" : "none", delay: delay || 0 });
+    }
+    // A like on a vibe: the heart on the card's corner arrives as an icon
+    // does (vibe-reply-like: C) - .3 -> 1 out of a 3 px blur, 300 ms.
+    function react(el){
+      if(!on() || !el || !seen(el)) return;
+      run(el, [{ opacity: 0, transform: "scale(.3)", filter: "blur(3px)" },
+               { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }], DUR.swap,
+          { easing: EASE_SWAP, delay: DUR.column, fill: "backwards" });
+    }
+    // A chat list read off the network (chat-to-top: A): each row glides
+    // from where it was to where it is (FLIP, 280 ms `in-out`), the one
+    // rising drawn over the rest; a chat that was not there fades down into
+    // its place (-8 px, `enterMs`, `out`). Rows that were or are past the
+    // edge of the list's scroller just appear, as does all of it while its
+    // screen is still moving.
+    function reorder(before, root, sel, keyOf, o){
+      o = o || {};
+      if(!on() || !root || !before) return;
+      var sc = root.closest(".scroll") || root, sb = box(sc);
+      function inView(b){ return b.y + b.h > sb.y && b.y < sb.y + sb.h; }
+      var after = layout(root, sel, keyOf);
+      Object.keys(after).forEach(function(k){
+        var a = after[k], b = before[k];
+        if(!a.shown || moving(a.el) || !inView(a.b)) return;
+        if(!b){
+          if(o.enter === false) return;
+          runAdd(a.el, [{ opacity: 0, transform: "translateY(-8px)" }, { opacity: 1, transform: "translateY(0px)" }],
+                 o.enterMs || DUR.rowNew, { easing: EASE, fill: "backwards" });
+          return;
+        }
+        var dy = b.b.y - a.b.y;
+        if(!b.shown || !inView(b.b) || Math.abs(dy) < 1) return;
+        if(dy > 0) a.el.classList.add("motion-risen");
+        run(a.el, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], DUR.reorder,
+            { easing: EASE_IO, fill: "none", add: true }).finished
+          .then(function(){ a.el.classList.remove("motion-risen"); }, function(){ a.el.classList.remove("motion-risen"); });
       });
     }
+    // Two faces of one grid cell crossing (share-pick: C): the face now
+    // shown fades in while a copy of the one before fades out, 150 ms `out`.
+    function crossFade(cell, oldFace, newFace){
+      if(!on() || !cell || !onActive(cell) || !newFace) return;
+      if(oldFace){
+        var g = inertCopy(oldFace);
+        g.hidden = false;
+        g.classList.add("motion-xfade");
+        cell.appendChild(g);
+        run(g, [{ opacity: 1 }, { opacity: 0 }], DUR.colour, { easing: EASE }).finished.then(gone(g), gone(g));
+      }
+      run(newFace, [{ opacity: 0 }, { opacity: 1 }], DUR.colour, { fill: "none" });
+    }
+    // New message's faces gather (new-chat-pick: B): a copy of the picked
+    // face travels on a 15% arc into its place in the stack beside "Group
+    // with…" (360 ms `in-out`), shrinking to its size; the slot it lands in
+    // is opened as it goes (the words beside it glide over, 200 ms). The
+    // stack's face is in the page from the tap, shown when the copy lands.
+    function gather(face, item){
+      if(!on() || !face || !item || !onActive(face) || !seen(item)) return;
+      var s = box(face), e = box(item), g = inertCopy(face);
+      g.classList.add("motion-face");
+      g.style.left = s.x + "px"; g.style.top = s.y + "px";
+      g.style.width = s.w + "px"; g.style.height = s.h + "px";
+      frameEl().appendChild(g);
+      item.style.visibility = "hidden";
+      var k = e.w / (s.w || 1);
+      var frames = arcFrames(e.x - s.x, e.y - s.y, 0.15, function(t){ return { transform: "scale(" + (1 + (k - 1) * t) + ")" }; });
+      var land = function(){ item.style.visibility = ""; g.remove(); };
+      run(g, frames, DUR.arc, { easing: EASE_IO }).finished.then(land, land);
+    }
+    // And back to its face when unpicked: a copy leaves the stack (already
+    // closed up) and returns, growing and fading as it lands (240 ms).
+    function ungather(r, face, item){
+      if(!on() || !r || !face || !item || !onActive(face)) return;
+      var e = box(face), g = inertCopy(item);
+      g.classList.add("motion-face");
+      g.style.left = r.x + "px"; g.style.top = r.y + "px";
+      g.style.width = r.w + "px"; g.style.height = r.h + "px";
+      frameEl().appendChild(g);
+      var k = e.w / (r.w || 1);
+      var frames = arcFrames(e.x - r.x, e.y - r.y, 0.15, function(t){
+        return { transform: "scale(" + (1 + (k - 1) * t) + ")", opacity: t < 0.7 ? 1 : (1 - t) / 0.3 };
+      });
+      run(g, frames, DUR.unpick, { easing: EASE_IO }).finished.then(gone(g), gone(g));
+    }
 
-    // An unread count pops in, bumps when it goes up, shrinks away when
-    // cleared. Hidden at once on clearing; a copy does the shrinking.
-    function badge(b, text, show){
-      var was = !b.hidden, before = b.textContent, live = on() && b.closest(".screen.active:not(.arriving)");
-      if(!show){
-        if(was && live && seen(b)){
-          var g = inertCopy(b);
-          g.removeAttribute("data-msg-badge");
-          b.parentNode.insertBefore(g, b);
-          run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(0)" }], 160,
-              { easing: EASE_IN }).finished.then(gone(g), gone(g));
-        }
-        b.hidden = true;
-        b.textContent = text;
+    // The Messages tab's count (unread-badge: A). The badge holds the new
+    // number from its first frame; a changed one rolls - the old, a clipped
+    // copy over the badge, goes 14 px the way the number went while the new
+    // comes after it (300 ms `in-out`); it fades in growing from .7 (220 ms
+    // `out`) and leaves as a copy shrinking to .7 (160 ms `in`). Only the
+    // tab bar on a settled screen moves; a change made while it was not is
+    // owed, and plays when that screen has landed (`owed`). The app's first
+    // paint (`still`) moves nothing.
+    function badge(b, text, show, still){
+      var was = !b.hidden, before = b.textContent;
+      if(was === show && (!show || before === text)) return;
+      var live = on() && !still && !!b.closest(".screen.active:not(.arriving)") && seen(b);
+      var r = was && live ? box(b) : null;
+      if(still || !on()) delete b._owed;
+      else if(!live && b._owed === undefined) b._owed = { shown: was, text: before };
+      b.hidden = !show;
+      b.textContent = show ? text : "";
+      if(live) badgeMove(b, was, before, r);
+    }
+    function badgeMove(b, was, before, r){
+      var show = !b.hidden, text = b.textContent;
+      if(was && !show){
+        if(!r){ b.hidden = false; b.textContent = before; r = seen(b) ? box(b) : null; b.textContent = ""; b.hidden = true; }
+        if(!r) return;
+        var g = document.createElement("div");
+        g.className = "motion-badge gone";
+        g.setAttribute("aria-hidden", "true");
+        g.textContent = before;
+        g.style.left = r.x + "px"; g.style.top = r.y + "px";
+        g.style.width = r.w + "px"; g.style.height = r.h + "px";
+        frameEl().appendChild(g);
+        run(g, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.7)" }], DUR.badgeOut,
+            { easing: EASE_IN }).finished.then(gone(g), gone(g));
         return;
       }
-      b.hidden = false;
-      b.textContent = text;
-      if(!live || !seen(b)) return;
+      if(!show || !seen(b)) return;
       if(!was){
-        run(b, [{ opacity: 0, transform: "scale(0)" }, { opacity: 1, transform: "scale(1.25)", offset: 0.6 },
-                { opacity: 1, transform: "scale(1)" }], 300, { easing: EASE, fill: "none" });
-      } else if((parseInt(text, 10) || 0) > (parseInt(before, 10) || 0)){
-        run(b, [{ transform: "scale(1)" }, { transform: "scale(1.3)", offset: 0.4 }, { transform: "scale(1)" }], 220,
-            { easing: EASE, fill: "none" });
+        run(b, [{ opacity: 0, transform: "scale(.7)" }, { opacity: 1, transform: "scale(1)" }], DUR.badgeIn,
+            { fill: "none" });
+        return;
       }
+      if(before === text) return;
+      var dir = (parseInt(text, 10) || 0) >= (parseInt(before, 10) || 0) ? 1 : -1;
+      var nu = document.createElement("span");
+      nu.textContent = text;
+      b.textContent = "";
+      b.appendChild(nu);
+      var rb = box(b), clip = document.createElement("div"), old = document.createElement("span");
+      clip.className = "motion-badge";
+      clip.setAttribute("aria-hidden", "true");
+      clip.style.left = rb.x + "px"; clip.style.top = rb.y + "px";
+      clip.style.width = rb.w + "px"; clip.style.height = rb.h + "px";
+      old.textContent = before;
+      clip.appendChild(old);
+      frameEl().appendChild(clip);
+      var settle = function(){ if(nu.parentNode === b && b.childNodes.length === 1) b.textContent = nu.textContent; };
+      run(nu, [{ transform: "translateY(" + (14 * dir) + "px)" }, { transform: "translateY(0px)" }], DUR.roll,
+          { easing: EASE_IO, fill: "backwards" }).finished.then(settle, settle);
+      run(old, [{ transform: "translateY(0px)" }, { transform: "translateY(" + (-14 * dir) + "px)" }], DUR.roll,
+          { easing: EASE_IO }).finished.then(gone(clip), gone(clip));
+    }
+    // What a screen's badges owe, played once it has landed.
+    function owed(screen){
+      if(!screen) return;
+      screen.querySelectorAll("[data-msg-badge]").forEach(function(b){
+        var o = b._owed;
+        if(!o) return;
+        delete b._owed;
+        if(on() && (seen(b) || (o.shown && b.hidden))) badgeMove(b, o.shown, o.text, null);
+      });
     }
 
     // Follow and unfollow change the button on the tap - a tick draws in and
@@ -7481,7 +7817,9 @@
     // (queue: A, the review's "popLayout"). `redraw` takes it out for real,
     // at once; a copy laid over where it was does the leaving, out of the
     // list's flow. `selector` names the list's rows, before and after.
-    function removeRow(row, redraw, selector){
+    // `gapAt` holds the gap's closing until the row has slid (a chat:
+    // delete-chat, §644 - "the slide, then the removal").
+    function removeRow(row, redraw, selector, gapAt){
       var rows = Array.prototype.slice.call(document.querySelectorAll(selector)), k = rows.indexOf(row);
       if(!on() || !row || k < 0 || !onActive(row)){ redraw(); return; }
       // Read before the redraw: where the row and those below it were.
@@ -7494,14 +7832,14 @@
       g.classList.add("motion-row");
       g.style.left = at.left + "px"; g.style.top = at.top + "px"; g.style.width = at.width + "px";
       parent.appendChild(g);
-      run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], 180,
+      run(g, [{ transform: "translateX(0%)", opacity: 1 }, { transform: "translateX(-45%)", opacity: 0 }], DUR.rowOut,
           { easing: EASE_IN }).finished.then(gone(g), gone(g));
       now.forEach(function(r, i){
         if(i < k || i + 1 >= tops.length) return;
         var dy = tops[i + 1] - r.getBoundingClientRect().top;
         if(Math.abs(dy) < 1) return;
-        run(r, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], 200,
-            { fill: "none", add: true });
+        run(r, [{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0px)" }], DUR.reflow,
+            { fill: gapAt ? "backwards" : "none", delay: gapAt || 0, add: true });
       });
     }
 
@@ -8567,12 +8905,12 @@
     }
     // Something that just moved in its row glides from where it was
     // (FLIP), 220 ms `in-out`.
-    function slideFrom(el, before){
+    function slideFrom(el, before, ms){
       if(!on() || !before || !seen(el)) return;
       var now = box(el), dx = before.x - now.x, dy = before.y - now.y;
       if(Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
       runAdd(el, [{ transform: "translate(" + dx + "px, " + dy + "px)" }, { transform: "translate(0px, 0px)" }],
-             DUR.pillFlip, { easing: EASE_IO, fill: "none" });
+             ms || DUR.pillFlip, { easing: EASE_IO, fill: "none" });
     }
     // A control that has just gone leaves as a copy drawn where it was (in
     // `host`, which must be positioned): .9 and a fade, 150 ms `in`.
@@ -8649,11 +8987,14 @@
     return { on: on, screen: screen, still: still, celebrate: celebrate, watchOverlays: watchOverlays,
              arrive: arrive, arriveRails: arriveRails, toQueue: toQueue, roll: roll,
              swapIcon: swapIcon, riseBar: riseBar, dropBar: dropBar, retitle: retitle, picture: picture,
-             growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory, popMessages: popMessages,
+             growStory: growStory, shrinkStory: shrinkStory, turnStory: turnStory,
              ringFade: ringFade, storyHome: storyHome, cubeDrag: cubeDrag, cubeSet: cubeSet, cubeLetGo: cubeLetGo,
              sendWords: sendWords, intoLoader: intoLoader, handOff: handOff, layout: layout, relist: relist,
              changed: changed, fillBar: fillBar, deal: deal, turnIcon: turnIcon, moving: moving,
              badge: badge, follow: follow, removeRow: removeRow, steps: steps,
+             column: column, columnCarry: columnCarry, dotsToMessage: dotsToMessage, copyAt: copyAt,
+             fadeCopy: fadeCopy, fadeAway: fadeAway, fadeUp: fadeUp, react: react, reorder: reorder, crossFade: crossFade,
+             gather: gather, ungather: ungather, landed: landed,
              glide: glide, deckLayout: deckLayout, mixDeck: mixDeck, panels: panels, chips: chips,
              chipLayout: chipLayout, followCategory: followCategory, pending: pending, newMixLands: newMixLands,
              blocks: blocks, joinRow: joinRow, putBack: putBack, shuffleRows: shuffleRows, liftRow: liftRow,
@@ -19729,6 +20070,9 @@
   var LOGOUT_SPLASH_MS = 500;
 
   function logOut(){
+    // A delete or a leave waiting on its Undo (§644) is this account's: it
+    // goes now, under this session, not later under the next one's.
+    flushSnackCommit();
     showSplash(LOGOUT_SPLASH_MS);
     fetch("/api/auth/logout", { method: "POST" })
       .then(function(){ return refreshAuth(); })
@@ -19760,9 +20104,18 @@
         threadMessages = [];
         currentThread = null;
         threadTyping = false;
+        dropTypingRow();
+        resetSending();
         // The chat list draws what it holds while it refreshes (§142), so it
-        // must hold nothing of the last account's; history likewise.
+        // must hold nothing of the last account's; history likewise - nor
+        // the chats it kept in memory (§644), nor the count on the tab,
+        // which the polls stopping never cleared.
         inboxThreads = [];
+        inboxLoaded = false;
+        threadMemory = {};
+        threadsGone = {};
+        threadLeaving = null;
+        paintMessageBadges(0, true);
         var oldList = document.getElementById("threadList");
         if(oldList) oldList.innerHTML = "";
         historyNow = null;
@@ -20687,13 +21040,8 @@
   // badge is current (the hub's Messages card it also filled went in §341).
   function loadHubMessages(){
     if(!AUTH.authenticated) return;
-    fetch("/api/messages")
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){
-        if(!d) return;
-        inboxThreads = d.threads || [];
-        setUnreadDot(d.unread || 0);
-      })
+    fetchInbox()
+      .then(function(d){ setUnreadDot(d.unread || 0); })
       .catch(function(){});
   }
 
@@ -23548,28 +23896,87 @@
   var inboxThreads = [];
   var currentThread = null;      // { user_id, name, handle }
   var threadMessages = [];
+  //: Whether `/api/messages` has answered this session. The inbox is read
+  //: when the app opens, beside the notifications' first call, so Messages
+  //: draws on its first frame (chat-loading: C, §644) - memory only, never
+  //: storage, the same line `logOut` draws for everything else of theirs.
+  var inboxLoaded = false;
+  //: Each chat opened this session as last drawn, by thread id: reopening
+  //: one draws it at once and the two-second poll tops it up from its
+  //: cursor. Emptied on log-out.
+  var threadMemory = {};
+  //: Chats deleted or left and not yet sent (delete-chat: B, §644): held
+  //: off the list for the Undo's five seconds, whatever a re-read says.
+  var threadsGone = {};
+  //: A chat on its way off the list - drawn, inert, while the list slides
+  //: back into view, then slid out (`takeLeavingRow`).
+  var threadLeaving = null;
+  //: The count the Messages tab shows now, so opening a chat can lower it.
+  var unreadTotal = 0;
 
   function messageGate(){
     return '<div class="pf-empty">Create a free account to message friends and send them episodes.'
       + gateActions() + '</div>';
   }
 
-  function renderThreadList(){
+  // A loader that says nothing for 300 ms and, once it has shown, stays at
+  // least 500 ms, so a quick answer never flashes it (chat-loading, §644 -
+  // the async button's rule, §642). `show` draws it; the function returned
+  // is given what to draw instead, and draws it when the loader may go.
+  function lateLoader(show){
+    var shownAt = 0, over = false;
+    var t = setTimeout(function(){
+      if(over) return;
+      shownAt = Date.now();
+      show();
+    }, Motion.DUR.spinnerAfter);
+    return function(draw){
+      over = true;
+      clearTimeout(t);
+      var hold = shownAt ? Math.max(0, shownAt + Motion.DUR.spinnerMin - Date.now()) : 0;
+      if(hold) setTimeout(draw, hold); else draw();
+    };
+  }
+
+  // The inbox, read. A chat deleted or left under its Undo stays off it.
+  function fetchInbox(){
+    return fetch("/api/messages")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        inboxThreads = (d.threads || []).filter(function(t){ return !threadsGone[t["with"]]; });
+        inboxLoaded = true;
+        return d;
+      });
+  }
+
+  // `fromPoll`: the notifications poll asking because something changed -
+  // the list on screen is already what memory holds, so only the answer
+  // redraws it.
+  function renderThreadList(fromPoll){
     var el = document.getElementById("threadList");
     if(!el) return;
     if(!AUTH.authenticated){ el.innerHTML = messageGate(); return; }
-    // "Loading" only when there is nothing to show yet: a refresh of a list
-    // already on screen should not blank it for a round trip.
-    if(!inboxThreads.length) el.innerHTML = '<div class="pf-empty">Loading…</div>';
-    fetch("/api/messages")
-      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+    // What is in hand is drawn at once; the answer reconciles it, moving
+    // only what changed (chat-to-top: A). With nothing in hand yet,
+    // "Loading" waits 300 ms.
+    var loader = null;
+    if(inboxLoaded){ if(!fromPoll) renderThreadRows(); }
+    else loader = lateLoader(function(){
+      if(!inboxLoaded) el.innerHTML = '<div class="pf-empty">Loading…</div>';
+    });
+    fetchInbox()
       .then(function(d){
-        inboxThreads = d.threads || [];
-        paintMessageBadges(d.unread || 0);
-        renderThreadRows();
+        var draw = function(){
+          paintMessageBadges(d.unread || 0);
+          renderThreadRows({ fetched: true });
+        };
+        if(loader) loader(draw); else draw();
       })
       .catch(function(){
-        el.innerHTML = '<div class="pf-empty">Could not load your messages.</div>';
+        var fail = function(){
+          if(!inboxLoaded) el.innerHTML = '<div class="pf-empty">Could not load your messages.</div>';
+        };
+        if(loader) loader(fail); else fail();
       });
   }
 
@@ -23586,11 +23993,37 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
-  // Drawn from what has already been fetched, filtered by the search field.
-  // Separate from `renderThreadList` so typing redraws rather than refetches.
-  function renderThreadRows(){
+  // A redraw from the network waits while a finger is on the list, so the
+  // chat under a thumb cannot change between press and lift (§644).
+  var threadListPressed = false, threadListOwed = false;
+  (function(){
     var el = document.getElementById("threadList");
     if(!el) return;
+    el.addEventListener("pointerdown", function(){ threadListPressed = true; });
+    function up(){
+      if(!threadListPressed) return;
+      threadListPressed = false;
+      if(!threadListOwed) return;
+      threadListOwed = false;
+      // After the click this lift may make, so the row it lands on is the
+      // one that was pressed.
+      setTimeout(function(){ renderThreadRows({ fetched: true }); }, 0);
+    }
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+  })();
+  function threadRowKey(el){ return el.getAttribute("data-thread"); }
+
+  // Drawn from what has already been fetched, filtered by the search field.
+  // Separate from `renderThreadList` so typing redraws rather than refetches.
+  // `o.fetched`: the network's answer, so a chat that moved glides there
+  // (chat-to-top: A, §644) - never for the search box's keys or a first
+  // draw. `o.undo`: a chat put back by Undo fades down into its place.
+  function renderThreadRows(o){
+    o = o || {};
+    var el = document.getElementById("threadList");
+    if(!el) return;
+    if(o.fetched && threadListPressed){ threadListOwed = true; return; }
     var box = document.getElementById("msgSearch");
     var term = ((box && box.value) || "").trim().toLowerCase();
     var shown = inboxThreads.map(function(t, i){ return { t: t, i: i }; });
@@ -23602,6 +24035,13 @@
                 + (last.query || "") + " " + (last.topic || "")).toLowerCase().indexOf(term) !== -1;
       });
     }
+    // A chat just deleted, left or blocked from inside it is still drawn -
+    // inert - while the list slides back, and slides out once it has
+    // (delete-chat, §644): never drawn again by a re-read in between.
+    var leaving = threadLeaving && !term && !inboxThreads.some(function(t){ return t["with"] === threadLeaving.id; })
+      ? threadLeaving : null;
+    if(leaving) shown.splice(Math.min(leaving.at, shown.length), 0, { t: leaving.t, i: -1, leaving: true });
+    var before = (o.fetched || o.undo) && Motion.on() ? Motion.layout(el, ".thread-row:not(.leaving)", threadRowKey) : null;
     if(!shown.length){
       el.innerHTML = '<div class="pf-empty">' + (term
         ? 'Nothing in your messages matches that.'
@@ -23619,13 +24059,18 @@
       var lead = who && last.kind !== "system" ? escapeHtml(who) + ": " : "";
       var preview = last.kind === "episode"
         ? yfIcon("share", 13) + '<span>' + lead
-          + (last.text === "\u2764\ufe0f" ? "Liked a vibe"
+          + (last.text === "❤️" ? "Liked a vibe"
              : last.text ? "Replied to a vibe: " + escapeHtml(last.text) : "Shared an episode")
           + (last.topic ? " · " + escapeHtml(last.topic) : "") + '</span>'
         : last.kind === "system" && t.group
           ? '<span>' + escapeHtml((who || "Someone") + " " + (last.text || "")) + '</span>'
           : '<span>' + lead + escapeHtml(last.text || "") + '</span>';
-      return '<div class="thread-row" onclick="openThread(' + row.i + ')">'
+      // A row is a button a keyboard can reach (Enter or Space opens it).
+      return '<div class="thread-row' + (row.leaving ? ' leaving" inert aria-hidden="true"' : '"')
+        + ' data-thread="' + escapeHtml(t["with"] || "") + '"'
+        + (row.leaving ? '' : ' role="button" tabindex="0" onclick="openThreadRow(this)"'
+           + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){ event.preventDefault(); openThreadRow(this); }"')
+        + '>'
         + personAvHTML(t)
         + '<div class="tr-body"><div class="tr-top"><div class="tr-name">'
         + escapeHtml(t.name || ("@" + (t.handle || ""))) + '</div>'
@@ -23634,6 +24079,37 @@
         + (t.unread ? '<span class="tr-dot" aria-label="' + t.unread + ' unread"></span>' : '')
         + '</div>';
     }).join("");
+    if(before && Object.keys(before).length){
+      Motion.reorder(before, el, ".thread-row:not(.leaving)", threadRowKey,
+                     o.undo ? { enterMs: Motion.DUR.undoIn } : null);
+    }
+    if(leaving && !leaving.scheduled){
+      leaving.scheduled = true;
+      Motion.landed(takeLeavingRow);
+    }
+  }
+
+  // The chat on its way out slides off once the list has landed: the slide,
+  // then the gap closes (removeRow, §298). Undone meanwhile, nothing moves.
+  function takeLeavingRow(){
+    var t = threadLeaving;
+    if(!t) return;
+    var row = document.querySelector("#threadList .thread-row.leaving");
+    var redraw = function(){
+      if(threadLeaving === t) threadLeaving = null;
+      renderThreadRows();
+    };
+    if(!row){ redraw(); return; }
+    Motion.removeRow(row, redraw, "#threadList .thread-row", Motion.DUR.rowOut);
+  }
+
+  function openThreadRow(el){
+    var id = el && el.getAttribute("data-thread");
+    inboxThreads.some(function(t, i){
+      if(t["with"] !== id) return false;
+      openThread(i);
+      return true;
+    });
   }
 
   function openThread(i){
@@ -23644,23 +24120,79 @@
                      members: t.members || [] });
   }
 
+  // Read on the tap (read-clears: B, §644): the server marks a chat read
+  // when it is opened, which almost never fails, so the list you come back
+  // to is already plain and the tab's count is lower at once.
+  function markThreadRead(id){
+    inboxThreads.forEach(function(t){
+      if(t["with"] !== id || !t.unread) return;
+      paintMessageBadges(Math.max(0, unreadTotal - t.unread));
+      t.unread = 0;
+    });
+  }
+
   //: Their published interests, for the chat header's chips - the same
   //: `/api/person` answer their profile is drawn from, so the chips here and
   //: the chips there cannot disagree.
   var threadInterests = [];
 
   function openThreadWith(person){
-    currentThread = person;
+    var body = document.getElementById("thread-body");
+    // A banner for another chat, tapped inside one, replaces the chat in
+    // place: one chat on the stack, so Back goes back (§644). It used to
+    // push a second, and Back looked dead.
+    var inPlace = threadScreenOpen();
+    stopThreadPolling();
+    var id = String(person.user_id || "");
+    // Opened again under its Undo: the delete is not sent.
+    delete threadsGone[id];
+    var mem = threadMemory[id];
+    var now = {};
+    Object.keys(person).forEach(function(k){ now[k] = person[k]; });
+    // What the server last said about this chat (a group's members and
+    // picture) over what the door that opened it knew.
+    if(mem && mem.person) Object.keys(mem.person).forEach(function(k){ now[k] = mem.person[k]; });
+    currentThread = now;
     threadInterests = [];
+    threadTyping = false;
+    dropTypingRow();
+    resetSending();
     paintThreadHead();
+    // Their interests' room is kept from the first frame (header-chips: B).
+    var room = document.getElementById("threadChipsRoom");
     document.getElementById("threadChips").innerHTML = "";
+    if(room){
+      room.classList.add("still");
+      room.classList.toggle("closed", !!now.group || !now.handle);
+      void room.offsetHeight;
+      room.classList.remove("still");
+    }
     var input = document.getElementById("threadInput");
-    if(input) input.placeholder = person.group ? "Message the group" : "Message " + firstName(person);
-    document.getElementById("thread-body").innerHTML =
-      '<div class="pf-empty">Loading…</div>';
-    navigate("thread");
-    loadThread();
-    loadThreadInterests(person);
+    if(input) input.placeholder = now.group ? "Message the group" : "Message " + firstName(now);
+    // A chat opened before this session is drawn as it was, at once, and
+    // the poll tops it up; one never opened says "Loading" only past 300 ms
+    // (chat-loading: C, §644).
+    threadShown = { thread: "", keys: {} };
+    if(mem){
+      threadMessages = mem.messages.slice();
+      threadCursor = mem.head;
+      renderThreadBody();
+    } else {
+      threadMessages = [];
+      threadCursor = 0;
+      body.innerHTML = "";
+    }
+    if(inPlace) Motion.fadeUp(body, Motion.DUR.colour);
+    else navigate("thread");
+    // Drawn before the screen was shown, so pinned to its newest message
+    // now that it has a height.
+    if(mem) pinThread(body);
+    // After the push, so the tab's count is lowered while it is out of
+    // sight and rolls down once the list is back (unread-badge: A).
+    markThreadRead(id);
+    if(mem){ pollThread(); startThreadPolling(); }
+    else loadThread();
+    loadThreadInterests(now);
   }
 
   // The header: a person's face and "View profile", or a group's name and
@@ -23672,27 +24204,41 @@
     nameEl.classList.toggle("is-explicit", !!person.explicit);
     paintPersonAv(document.getElementById("thread-av"), person);
     var sub = document.getElementById("thread-sub");
-    // "1 person" at one, as the app says it (§584).
+    // "1 person" at one, as the app says it (§584). A group opened from its
+    // banner does not know its members until the chat answers, and says so
+    // rather than "0 people".
     var memberCount = (person.members || []).length;
     if(sub) sub.textContent = person.group
-      ? memberCount + (memberCount === 1 ? " person" : " people") + " · See who’s here"
+      ? (memberCount ? memberCount + (memberCount === 1 ? " person" : " people") + " · " : "") + "See who’s here"
       : "View profile";
     var photoBtn = document.getElementById("threadPhotoBtn");
     if(photoBtn) photoBtn.hidden = !person.group;
   }
 
+  // The chips fade into the room kept for them, 30 ms apart; someone who
+  // shows none closes it (190 ms) - and a reader at the bottom of the chat
+  // stays there.
   function loadThreadInterests(person){
     if(!person || !person.handle || person.group) return;
     var who = person.user_id;
+    var room = document.getElementById("threadChipsRoom");
+    var close = function(){
+      if(!currentThread || currentThread.user_id !== who || !room) return;
+      room.classList.add("closed");
+    };
     fetch("/api/person?handle=" + encodeURIComponent(person.handle))
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        if(!d || !currentThread || currentThread.user_id !== who) return;
+        if(!d || !currentThread || currentThread.user_id !== who){ if(!d) close(); return; }
         threadInterests = interestRows(d);
-        document.getElementById("threadChips").innerHTML =
-          interestChipsHTML(threadInterests, "openThreadInterest");
+        if(!threadInterests.length){ close(); return; }
+        var el = document.getElementById("threadChips");
+        el.innerHTML = interestChipsHTML(threadInterests, "openThreadInterest");
+        Array.prototype.forEach.call(el.children, function(chip, i){
+          if(i < 8) Motion.fadeUp(chip, Motion.DUR.colour, 0, 1, i * Motion.DUR.stagger);
+        });
       })
-      .catch(function(){});
+      .catch(close);
   }
 
   function openThreadInterest(i){
@@ -23755,7 +24301,7 @@
       items.push({ label: "Report " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
                    action: function(){ reportContent({ kind: "person", target: other.handle }); } });
       items.push({ label: "Block " + escapeHtml(other.name || ("@" + other.handle)), danger: true,
-                   action: function(){ blockPerson(other.handle, other.name, function(){ goBack(); }); } });
+                   action: function(){ blockPerson(other.handle, other.name, function(){ dropChat(other.user_id); }); } });
     }
     showActionSheet(items);
   }
@@ -23855,65 +24401,100 @@
       })
       .catch(function(err){ toast(err.message); });
   }
+  // Delete chat and Leave group (delete-chat: B, §644): no "are you
+  // sure?" - the chat goes from the list at once, slides out once the list
+  // has slid back into view, and "Chat deleted · Undo" waits five seconds
+  // before anything is sent. Deleting is this listener's alone
+  // (`MessageStore.clear`: the other person keeps all of it, and a message
+  // afterwards opens what reads as a new thread); leaving tells the others,
+  // so it too waits until the line has gone (time up, replaced, or the page
+  // hidden). Block keeps its question - it changes things for the other
+  // person.
   function confirmLeaveGroup(){
     var g = currentThread;
     if(!g || !g.group) return;
-    showActionSheet([
-      { group: "Leave " + escapeHtml(g.name) + "? You won’t get its messages any more, and the others are told." },
-      { label: "Leave group", danger: true, action: function(){
-          fetch("/api/messages/groups/" + encodeURIComponent(g.user_id), { method: "DELETE" })
-            .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-            .then(function(d){
-              inboxThreads = inboxThreads.filter(function(t){ return t["with"] !== g.user_id; });
-              setUnreadDot(d.unread);
-              stopThreadPolling();
-              currentThread = null;
-              threadMessages = [];
-              if(threadScreenOpen()) goBack();
-              toast("You left the group");
-            })
-            .catch(function(){ toast("Could not leave that group"); });
-        } }
-    ]);
+    goneChat(g, "leave");
   }
-
-  // Deletes the conversation for this listener only. The other person keeps
-  // all of it, and a message to them afterwards opens what reads as a new
-  // thread - see `MessageStore.clear`.
   function confirmDeleteChat(){
     if(!currentThread) return;
-    var who = currentThread;
-    showActionSheet([
-      { group: "Delete this chat? It goes from your messages only \u2014 "
-               + (who.group ? "everybody else" : escapeHtml(firstName(who)))
-               + " still has it." },
-      { label: "Delete chat", danger: true, action: function(){ deleteChat(who); } }
-    ]);
+    goneChat(currentThread, "delete");
+  }
+  function deleteChat(who){ goneChat(who, "delete"); }
+
+  function goneChat(who, how){
+    var id = who.user_id, at = -1, t = null;
+    inboxThreads.forEach(function(x, i){ if(x["with"] === id){ at = i; t = x; } });
+    threadsGone[id] = true;
+    inboxThreads = inboxThreads.filter(function(x){ return x["with"] !== id; });
+    if(t && t.unread) paintMessageBadges(Math.max(0, unreadTotal - t.unread));
+    var mem = threadMemory[id];
+    delete threadMemory[id];
+    leaveChatScreen(id, t, at);
+    snack(how === "leave" ? "You left the group" : "Chat deleted", {
+      label: "Undo",
+      run: function(){
+        delete threadsGone[id];
+        if(threadLeaving && threadLeaving.id === id) threadLeaving = null;
+        if(t && !inboxThreads.some(function(x){ return x["with"] === id; })){
+          inboxThreads.splice(Math.min(at, inboxThreads.length), 0, t);
+        }
+        if(mem) threadMemory[id] = mem;
+        if(messagesListOpen()) renderThreadRows({ undo: true });
+      },
+      done: function(){
+        // Undone, or opened again meanwhile: nothing to send.
+        if(!threadsGone[id]) return;
+        var req = how === "leave"
+          ? fetch("/api/messages/groups/" + encodeURIComponent(id), { method: "DELETE" })
+          : fetch("/api/messages/thread?with=" + encodeURIComponent(id), { method: "DELETE" });
+        req.then(function(r){
+            return r.json().then(function(d){
+              if(!r.ok) throw new Error(d.detail || d.error
+                || (how === "leave" ? "Could not leave that group" : "Could not delete that chat"));
+              return d;
+            });
+          })
+          .then(function(d){
+            delete threadsGone[id];
+            if(d && typeof d.unread === "number") setUnreadDot(d.unread);
+          })
+          .catch(function(err){
+            // It is still there: back on the list, and said.
+            delete threadsGone[id];
+            toast(err.message || (how === "leave" ? "Could not leave that group" : "Could not delete that chat"));
+            if(messagesListOpen()) renderThreadList(); else fetchInbox().catch(function(){});
+          });
+      }
+    });
   }
 
-  function deleteChat(who){
-    fetch("/api/messages/thread?with=" + encodeURIComponent(who.user_id),
-          { method: "DELETE" })
-      .then(function(r){
-        return r.json().then(function(d){
-          if(!r.ok) throw new Error(d.detail || d.error || "Could not delete that chat");
-          return d;
-        });
-      })
-      .then(function(d){
-        inboxThreads = inboxThreads.filter(function(t){ return t["with"] !== who.user_id; });
-        setUnreadDot(d.unread);
-        if(threadScreenOpen() && currentThread && currentThread.user_id === who.user_id){
-          stopThreadPolling();
-          currentThread = null;
-          threadMessages = [];
-          goBack();   // which re-reads the list
-        } else {
-          renderThreadRows();
-        }
-        toast("Chat deleted");
-      })
-      .catch(function(err){ toast(err.message); });
+  // Blocked from inside the chat: the server has taken it off the list
+  // already, and it leaves the list the same way, without an Undo.
+  function dropChat(id){
+    var at = -1, t = null;
+    inboxThreads.forEach(function(x, i){ if(x["with"] === id){ at = i; t = x; } });
+    inboxThreads = inboxThreads.filter(function(x){ return x["with"] !== id; });
+    delete threadMemory[id];
+    leaveChatScreen(id, t, at);
+  }
+
+  // Out of a chat that has gone: the list is drawn from memory before the
+  // back-slide with the chat still on it, inert, and it slides out once the
+  // list has landed - never drawn again by the re-read in between.
+  function leaveChatScreen(id, t, at){
+    threadLeaving = t ? { id: id, t: t, at: Math.max(0, at) } : null;
+    if(threadScreenOpen() && currentThread && currentThread.user_id === id){
+      stopThreadPolling();
+      currentThread = null;
+      threadMessages = [];
+      threadTyping = false;
+      dropTypingRow();
+      resetSending();
+      goBack();   // which draws the list, then re-reads it
+    } else if(messagesListOpen()){
+      renderThreadRows();
+    }
+    if(!messagesListOpen()) threadLeaving = null;
   }
 
   // The composer's (+): send them an episode. The episodes on offer are ones
@@ -23949,32 +24530,113 @@
   function sendEpisodeToThread(ep){
     if(!currentThread) return;
     var draft = { id: 0, mine: true, kind: "episode", query: ep.query,
-                  minutes: ep.minutes || BROWSE_MINUTES, title: ep.title || "", pending: true };
+                  minutes: ep.minutes || BROWSE_MINUTES, title: ep.title || "",
+                  episode: ep.episode || "", pending: true, to: currentThread.user_id };
     threadMessages.push(draft);
-    renderThreadBody();
+    renderThreadBody({ bottom: true });
+    postDraft(draft);
+  }
+
+  // A message typed or an episode shared, sent - and sent again from its
+  // "Not sent · Tap to retry" (send-failed: C, §644). Past a second
+  // without an answer, "Sending…" says so under the last bubble
+  // (send-confirm: B); answered, the server's row takes the draft's place.
+  function postDraft(draft){
+    var payload = draft.kind === "episode"
+      ? { to: draft.to, query: draft.query, minutes: draft.minutes, title: draft.title || "",
+          episode: draft.episode || "" }
+      : { to: draft.to, text: draft.text };
+    armSending();
     fetch("/api/messages", {
       method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ to: currentThread.user_id, query: ep.query,
-                             minutes: ep.minutes || BROWSE_MINUTES, title: ep.title || "",
-                             episode: ep.episode || "" })
+      body: JSON.stringify(payload)
     }).then(function(r){
       return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.detail || d.error || "Could not share that");
+        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
         return d;
       });
     }).then(function(d){
+      // Replaced in place rather than re-fetching: it now carries the id the
+      // poll de-duplicates on, so the same message cannot arrive twice.
       var at = threadMessages.indexOf(draft);
       if(at !== -1 && d.message){
-        d.message.topic = d.message.topic || "";
+        if(draft.kind === "episode") d.message.topic = d.message.topic || "";
         threadMessages[at] = d.message;
       } else if(at !== -1){ draft.pending = false; }
-      renderThreadBody();
+      settleSending();
+      if(at !== -1) renderThreadBody();
     }).catch(function(err){
-      var at = threadMessages.indexOf(draft);
-      if(at !== -1) threadMessages.splice(at, 1);
-      renderThreadBody();
-      toast(err.message);
+      // It stays in the chat where it was typed, faded, marked "Not sent ·
+      // Tap to retry", and the box stays clear (send-failed: C, the owner's
+      // pick of 11.16). This reverses the old rule, which took it back off
+      // the screen and put the words back in the box with a toast; the line
+      // beside it is what keeps it from reading as a message that went.
+      draft.pending = false;
+      draft.failed = true;
+      draft.why = (err && err.message) || "Could not send that";
+      draft.justFailed = true;
+      settleSending();
+      if(threadMessages.indexOf(draft) !== -1) renderThreadBody();
     });
+  }
+
+  function retryThreadMessage(i){
+    var m = threadMessages[i];
+    if(!m || !m.failed || !currentThread) return;
+    var line = document.querySelector('#thread-body .msg-failed[data-mi="' + i + '"]');
+    if(line) Motion.fadeCopy(line, Motion.DUR.lineOut);
+    m.failed = false;
+    m.why = "";
+    m.pending = true;
+    m.retried = true;
+    m.to = m.to || currentThread.user_id;
+    renderThreadBody();
+    postDraft(m);
+  }
+
+  // "Sending…", only for a send that has taken over a second (send-confirm:
+  // B, §644): it fades in under the last bubble (150 ms) and leaves as a
+  // copy once nothing is waiting (120 ms).
+  var sendingShown = false, sendingTimer = null, sendingNode = null;
+  function isPendingMessage(m){ return !!m.pending; }
+  function sendingLineEl(){
+    if(!sendingNode){
+      sendingNode = document.createElement("div");
+      sendingNode.className = "msg-sending";
+      sendingNode.id = "threadSending";
+      sendingNode.setAttribute("role", "status");
+      sendingNode.textContent = "Sending…";
+    }
+    return sendingNode;
+  }
+  function armSending(){
+    if(sendingTimer || sendingShown) return;
+    sendingTimer = setTimeout(function(){
+      sendingTimer = null;
+      var body = document.getElementById("thread-body");
+      if(!body || !threadScreenOpen() || !threadMessages.some(isPendingMessage)) return;
+      sendingShown = true;
+      var atBottom = threadAtBottom(body);
+      var el = sendingLineEl(), dots = document.getElementById("threadTypingRow");
+      if(dots && dots.parentNode === body) body.insertBefore(el, dots); else body.appendChild(el);
+      if(atBottom) pinThread(body);
+      Motion.fadeUp(el, Motion.DUR.colour);
+    }, Motion.DUR.sendingAfter);
+  }
+  function settleSending(){
+    if(threadMessages.some(isPendingMessage)) return;
+    clearTimeout(sendingTimer);
+    sendingTimer = null;
+    if(!sendingShown) return;
+    sendingShown = false;
+    var el = document.getElementById("threadSending");
+    if(el){ Motion.fadeCopy(el, Motion.DUR.lineOut); el.remove(); }
+  }
+  function resetSending(){
+    clearTimeout(sendingTimer);
+    sendingTimer = null;
+    sendingShown = false;
+    if(sendingNode) sendingNode.remove();
   }
 
   // Where this conversation has been read up to, so a poll asks for what is
@@ -23994,25 +24656,39 @@
 
   function loadThread(){
     if(!currentThread) return;
+    var who = currentThread.user_id, body = document.getElementById("thread-body");
     threadCursor = 0;
-    fetch("/api/messages/thread?with=" + encodeURIComponent(currentThread.user_id))
+    var loader = lateLoader(function(){
+      if(currentThread && currentThread.user_id === who && !threadMessages.length){
+        body.innerHTML = '<div class="pf-empty">Loading…</div>';
+      }
+    });
+    fetch("/api/messages/thread?with=" + encodeURIComponent(who))
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
-        threadMessages = d.messages || [];
-        threadCursor = d.head || 0;
-        if(d["with"]){
-          currentThread = d["with"];
-          // The picture may only be known now - a conversation opened by
-          // handle arrives with a name and nothing else.
-          paintThreadHead();
-        }
-        threadTyping = !!d.typing;
-        renderThreadBody();
-        startThreadPolling();
+        loader(function(){
+          // They moved to another conversation while this was in flight.
+          if(!currentThread || currentThread.user_id !== who) return;
+          // Anything typed while it loaded stays, after what was there.
+          var local = threadMessages.filter(function(m){ return !m.id; });
+          threadMessages = (d.messages || []).concat(local);
+          threadCursor = d.head || 0;
+          if(d["with"]){
+            currentThread = d["with"];
+            // The picture may only be known now - a conversation opened by
+            // handle arrives with a name and nothing else.
+            paintThreadHead();
+          }
+          threadTyping = !!d.typing;
+          renderThreadBody();
+          startThreadPolling();
+        });
       })
       .catch(function(){
-        document.getElementById("thread-body").innerHTML =
-          '<div class="pf-empty">Could not open that conversation.</div>';
+        loader(function(){
+          if(!currentThread || currentThread.user_id !== who || threadMessages.length) return;
+          body.innerHTML = '<div class="pf-empty">Could not open that conversation.</div>';
+        });
       });
   }
 
@@ -24031,6 +24707,14 @@
         // They moved to another conversation while this was in flight.
         if(!d || !currentThread || currentThread.user_id !== who) return;
         threadCursor = d.head || threadCursor;
+        // A group's name, picture and who is in it, as they are now - it
+        // was set only when the chat opened, so it went stale when someone
+        // left.
+        if(currentThread.group && d["with"] && d["with"].user_id === who
+           && JSON.stringify(d["with"]) !== JSON.stringify(currentThread)){
+          currentThread = d["with"];
+          paintThreadHead();
+        }
         // Before the early return, so the dots come and go on an empty poll
         // too - which is almost every poll while somebody is typing. Only a
         // message from *them* ends their typing: your own coming back from
@@ -24041,9 +24725,8 @@
         threadTyping = typingNow;
         var added = (d.messages || []).length ? appendThreadMessages(d.messages) : false;
         // `appendThreadMessages` redraws only for a new message, so a change
-        // in the dots alone has to redraw here, or they stay on screen after
-        // the state says they have gone.
-        if(typingChanged && !added) renderThreadBody();
+        // in the dots alone is drawn here - the row itself comes and goes.
+        if(typingChanged && !added) paintTyping();
       })
       // A poll that fails is a poll that failed. The next one is two seconds
       // away, and putting an error in front of somebody mid-conversation
@@ -24088,12 +24771,44 @@
 
   // Whether the other person is typing to this listener, off the thread poll
   // (§127). Drawn as the last bubble, and gone the moment their message lands.
+  // One element for as long as the chat is open, never redrawn, so it can
+  // arrive and leave (typing-dots: B, §644): it comes up with the chat as a
+  // message does and fades in; it leaves as a copy fading out; and when
+  // their message lands, the message grows out of it (`renderThreadBody`).
   var threadTyping = false;
-  function typingRowHTML(){
-    return threadTyping
-      ? '<div class="msg-row in" id="threadTypingRow"><div class="msg-bubble msg-typing"'
-        + ' aria-label="Typing"><i></i><i></i><i></i></div></div>'
-      : '';
+  var typingNode = null;
+  function typingRowEl(){
+    if(!typingNode){
+      var d = document.createElement("div");
+      d.innerHTML = '<div class="msg-row in" id="threadTypingRow"><div class="msg-bubble msg-typing"'
+        + ' aria-label="Typing"><i></i><i></i><i></i></div></div>';
+      typingNode = d.firstChild;
+    }
+    return typingNode;
+  }
+  function dropTypingRow(){ if(typingNode) typingNode.remove(); }
+  function paintTyping(){
+    var body = document.getElementById("thread-body");
+    if(!body) return;
+    var row = document.getElementById("threadTypingRow");
+    var oldH = threadHeight(body), atBottom = threadAtBottom(body);
+    var carry = Motion.columnCarry(body);
+    if(threadTyping && !row){
+      row = typingRowEl();
+      body.appendChild(row);
+      if(atBottom){
+        pinThread(body);
+        Motion.column(body, threadHeight(body) - oldH, carry);
+      }
+      Motion.fadeUp(row.firstChild, Motion.DUR.colour);
+    } else if(!threadTyping && row){
+      Motion.fadeCopy(row.firstChild, Motion.DUR.lineOut);
+      row.remove();
+      if(atBottom){
+        pinThread(body);
+        Motion.column(body, threadHeight(body) - oldH, carry);
+      }
+    }
   }
 
   // Telling the other side "I am typing". At most one note every couple of
@@ -24316,23 +25031,46 @@
     return w ? '<div class="thread-warn" role="note">' + escapeHtml(w) + '</div>' : "";
   }
 
-  function renderThreadBody(){
+  // `o.bottom`: the listener's own send, which always shows itself.
+  function renderThreadBody(o){
+    o = o || {};
     var body = document.getElementById("thread-body");
-    if(!threadMessages.length){
-      body.innerHTML = threadWarnHTML() + '<div class="pf-empty">Nothing here yet. Say something, '
-        + 'or share an episode with the (+).</div>' + typingRowHTML();
-      return;
-    }
-    var who = currentThread || {};
-    var lastDay = "", lastFrom = "";
+    if(!body || !currentThread) return;
+    var who = currentThread;
     // Which messages are new since the last draw of this thread, so only
-    // they pop in (§298). Keyed on what they say, not their id, so a sent
-    // message is the same one before and after the server numbers it. The
-    // first draw of a thread pops nothing.
+    // they come in (§298). Keyed on what they say, not their id, so a sent
+    // message is the same one before and after the server numbers it - with
+    // its spaces as the server keeps them (`messages.clean_text`), or a
+    // double-spaced message came in twice. The first draw of a thread moves
+    // nothing.
     var threadId = String(who.user_id || who.id || who.handle || "");
     var shownBefore = threadShown.thread === threadId ? threadShown.keys : null;
+    var first = !shownBefore;
+    // Where the reader is (chat-bubbles: A, §644): the chat follows a new
+    // message only when they were already at the bottom; anywhere else their
+    // place is kept. Every redraw used to jump to the bottom - a save, an
+    // acknowledgement, the dots - mid-history too.
+    var oldH = threadHeight(body), oldTop = body.scrollTop;
+    var atBottom = oldH - oldTop - body.clientHeight < 24;
+    var carry = first ? 0 : Motion.columnCarry(body);
+    // Their dots, if their message is about to take their place.
+    var dotsRow = document.getElementById("threadTypingRow");
+    var dotsBubble = dotsRow && dotsRow.parentNode === body && !threadTyping ? dotsRow.firstChild : null;
+    var dots = dotsBubble && atBottom && !first ? { w: dotsBubble.offsetWidth, h: dotsBubble.offsetHeight } : null;
+    var dotsCopy = dotsBubble ? Motion.copyAt(dotsBubble) : null;
+    if(!threadMessages.length){
+      body.innerHTML = threadWarnHTML() + '<div class="pf-empty">Nothing here yet. Say something, '
+        + 'or share an episode with the (+).</div>';
+      threadShown = { thread: threadId, keys: {} };
+      placeThreadExtras(body);
+      Motion.fadeAway(dotsCopy, Motion.DUR.lineOut);
+      rememberThread(threadId);
+      return;
+    }
+    var lastDay = "", lastFrom = "";
     var keys = {}, counts = {}, fresh = threadMessages.map(function(m){
-      var k = (m.mine ? "o" : "i") + "|" + (m.kind || "") + "|" + (m.text || "") + "|" + (m.query || "");
+      var k = (m.mine ? "o" : "i") + "|" + (m.kind || "") + "|" + String(m.text || "").replace(/\s+/g, " ").trim()
+        + "|" + (m.query || "");
       counts[k] = (counts[k] || 0) + 1;
       k += "#" + counts[k];
       keys[k] = true;
@@ -24341,17 +25079,20 @@
     threadShown = { thread: threadId, keys: keys };
     body.innerHTML = threadWarnHTML() + threadMessages.map(function(m, i){
       var dirCls = (m.mine ? "out" : "in") + fresh[i];
+      // Everything drawn for message `i` carries it, so its name and day
+      // line move with it.
+      var mi = ' data-mi="' + i + '"';
       // A group (10.6 #4): its own lines centred, and a name over the first
       // of each run of bubbles from one person.
       if(who.group && m.kind === "system"){
         lastFrom = "";
-        return '<div class="msg-system">' + escapeHtml((m.mine ? "You" : firstName(m.from))
+        return '<div class="msg-system' + fresh[i] + '"' + mi + '>' + escapeHtml((m.mine ? "You" : firstName(m.from))
           + " " + (m.text || "")) + '</div>';
       }
       var fromLabel = "";
       if(who.group && !m.mine){
         var name = firstName(m.from);
-        if(name !== lastFrom) fromLabel = '<div class="msg-from">' + escapeHtml(name) + '</div>';
+        if(name !== lastFrom) fromLabel = '<div class="msg-from' + fresh[i] + '"' + mi + '>' + escapeHtml(name) + '</div>';
         lastFrom = name;
       } else lastFrom = "";
       var day = "";
@@ -24361,54 +25102,110 @@
         if(key !== lastDay){
           lastDay = key;
           var today = key === new Date().toDateString();
-          day = '<div class="msg-day">' + (today ? "TODAY " + yfWhen(m.at)
+          day = '<div class="msg-day' + fresh[i] + '"' + mi + '>' + (today ? "TODAY " + yfWhen(m.at)
                 : escapeHtml(d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }).toUpperCase()))
                 + '</div>';
         }
       }
+      var state = (m.pending ? " pending" : "") + (m.failed ? " failed" : "");
+      // Not sent (send-failed: C): the line under it, and a tap sends again.
+      var failedLine = m.failed
+        ? '<button type="button" class="msg-failed' + fresh[i] + '"' + mi + ' onclick="retryThreadMessage(' + i + ')"'
+          + ' aria-label="Not sent' + (m.why ? ": " + escapeHtml(m.why) : "") + '. Tap to retry">'
+          + 'Not sent · Tap to retry</button>'
+        : "";
       if(m.kind === "episode"){
         // A share: costs nothing to send and nothing to hold, because the row
         // points at a question whose script already exists. The generation
         // happens when *they* press Listen, against their own allowance.
         // A reply to a vibe, or a like on one (§282), carries words; a
-        // plain share carries none.
-        var liked = m.text === "\u2764\ufe0f";
+        // plain share carries none. A like is a heart on the card's corner
+        // (vibe-reply-like: C, §644), as a reaction is.
+        var liked = m.text === "❤️";
         var sender = firstName(who.group ? m.from : who);
         var label = liked ? (m.mine ? "You liked their vibe" : sender + " liked your vibe")
           : m.text ? (m.mine ? "You replied to their vibe" : sender + " replied to your vibe")
           : (m.mine ? "You shared an episode" : sender + " shared an episode");
         var meta = (m.topic ? escapeHtml(m.topic) + " · " : "") + (m.minutes || BROWSE_MINUTES) + " min";
         var saved = savedHas(m.query, m.minutes);
-        var card = day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "") + '">'
+        var card = day + fromLabel + '<div class="msg-row ' + dirCls + state + '"' + mi + '>'
           + '<div class="yf-ep"><div class="yf-ep-lab">' + yfIcon("share", 12)
           + '<span>' + escapeHtml(label) + '</span></div>'
-          + '<div class="yf-ep-card"><div class="yf-ep-meta">' + meta + '</div>'
+          + '<div class="yf-ep-card">'
+          + (liked ? '<span class="msg-react" role="img" aria-label="Liked">❤️</span>' : '')
+          + '<div class="yf-ep-meta">' + meta + '</div>'
           + '<div class="yf-ep-title">' + escapeHtml(m.title || m.query) + '</div>'
           + '<div class="yf-ep-acts">'
           + '<button class="yf-btn gold" onclick="playSharedEpisode(' + i + ')">'
           + yfPlaySVG(11) + 'Listen</button>'
           + '<button class="yf-btn" onclick="goDeeperOnShared(' + i + ')">GO DEEPER</button>'
           + '<button class="yf-round' + (saved ? " saved" : "") + '" onclick="saveSharedEpisode(' + i
-          + ')" aria-label="Save for later">' + yfIcon("bookmark", 14) + '</button>'
-          + '</div></div></div></div>';
-        if(m.text){
-          card += '<div class="msg-row ' + dirCls + '"><div class="msg-bubble' + (liked ? ' msg-like' : '') + '">'
+          + ', this)" aria-label="Save for later" aria-pressed="' + saved + '">' + yfIcon("bookmark", 14) + '</button>'
+          + '</div></div></div></div>' + failedLine;
+        if(m.text && !liked){
+          card += '<div class="msg-row ' + dirCls + '"' + mi + '><div class="msg-bubble">'
             + escapeHtml(m.text) + '</div></div>';
         }
         // The receipt is a fact from this listener's own log - they finished
         // it - and so it is drawn only for an episode shared *to* them.
         if(m.finished){
-          card += '<div class="yf-receipt">' + yfIcon("check", 13)
+          card += '<div class="yf-receipt' + fresh[i] + '"' + mi + '>' + yfIcon("check", 13)
             + '<span>You finished it · ' + (m.minutes || BROWSE_MINUTES) + ' min</span></div>';
         }
         return card;
       }
-      return day + fromLabel + '<div class="msg-row ' + dirCls + (m.pending ? " pending" : "")
-        + '"><div class="msg-bubble">'
-        + escapeHtml(m.text || "") + '</div></div>';
-    }).join("") + typingRowHTML();
-    body.scrollTop = body.scrollHeight;
-    Motion.popMessages(body.querySelectorAll(".msg-row.msg-new"));
+      return day + fromLabel + '<div class="msg-row ' + dirCls + state + '"' + mi
+        + '><div class="msg-bubble"' + (m.failed ? ' onclick="retryThreadMessage(' + i + ')"' : '') + '>'
+        + escapeHtml(m.text || "") + '</div></div>' + failedLine;
+    }).join("");
+    placeThreadExtras(body);
+    if(first || atBottom || o.bottom) pinThread(body);
+    else body.scrollTop = oldTop;
+    // Their message grows out of the dots (typing-dots: B), in place of
+    // rising with the rest.
+    var grown = dots ? body.querySelector(".msg-row.in.msg-new > .msg-bubble") : null;
+    if(!first && atBottom) Motion.column(body, threadHeight(body) - oldH, carry, grown ? grown.parentNode : null);
+    if(grown) Motion.dotsToMessage(grown, dots, dotsCopy);
+    else Motion.fadeAway(dotsCopy, Motion.DUR.lineOut);
+    body.querySelectorAll(".msg-new .msg-react").forEach(function(el){ Motion.react(el); });
+    threadMessages.forEach(function(m, i){
+      if(!m.justFailed && !m.retried) return;
+      var row = body.querySelector('.msg-row[data-mi="' + i + '"]');
+      var what = row && (row.querySelector(".msg-bubble") || row.querySelector(".yf-ep"));
+      if(m.justFailed){
+        Motion.fadeUp(what, Motion.DUR.colour, 1, 0.55);
+        Motion.fadeUp(body.querySelector('.msg-failed[data-mi="' + i + '"]'), Motion.DUR.colour);
+      } else {
+        Motion.fadeUp(what, Motion.DUR.lineOut, 0.55, 1);
+      }
+      delete m.justFailed;
+      delete m.retried;
+    });
+    rememberThread(threadId);
+  }
+  // How tall the chat is as laid out - not `scrollHeight`, which the rows
+  // rising (a transform) make taller for as long as they move, so a second
+  // message mid-rise would read as the reader having left the bottom.
+  function threadHeight(body){
+    var last = body.lastElementChild;
+    if(!last) return body.clientHeight;
+    var cs = getComputedStyle(body), ls = getComputedStyle(last);
+    return Math.max(body.clientHeight, last.offsetTop + last.offsetHeight
+                    + (parseFloat(ls.marginBottom) || 0) + (parseFloat(cs.paddingBottom) || 0));
+  }
+  function threadAtBottom(body){ return threadHeight(body) - body.scrollTop - body.clientHeight < 24; }
+  function pinThread(body){ body.scrollTop = Math.max(0, threadHeight(body) - body.clientHeight); }
+  // "Sending…" and the dots: the same two elements after every redraw.
+  function placeThreadExtras(body){
+    if(sendingShown) body.appendChild(sendingLineEl());
+    if(threadTyping) body.appendChild(typingRowEl());
+  }
+  function rememberThread(threadId){
+    if(!threadId) return;
+    threadMemory[threadId] = {
+      messages: threadMessages.filter(function(m){ return !m.pending; }),
+      head: threadCursor, person: currentThread
+    };
   }
 
   function savedHas(query, minutes){
@@ -24417,11 +25214,30 @@
     });
   }
 
-  function saveSharedEpisode(i){
+  // The card's bookmark fills on the tap and is put back if the server says
+  // no (§644): only that button changes - it used to wait for the server
+  // and then redraw the whole chat.
+  function saveSharedEpisode(i, btn){
     var m = threadMessages[i];
     if(!m || !m.query) return;
     if(!AUTH.authenticated){ toast("Save for Later needs an account"); return; }
     var on = savedHas(m.query, m.minutes);
+    var items = (savedCache && savedCache.items) || [];
+    var keep = items.slice();
+    var paint = function(saved){
+      if(!btn) return;
+      btn.classList.toggle("saved", saved);
+      btn.setAttribute("aria-pressed", saved ? "true" : "false");
+    };
+    if(on){
+      savedCache.items = items.filter(function(it){
+        return !(it.query === m.query && Number(it.minutes) === Number(m.minutes));
+      });
+    } else {
+      savedCache.items = [{ query: m.query, minutes: m.minutes || BROWSE_MINUTES,
+                            title: m.title || "" }].concat(items);
+    }
+    paint(!on);
     var req = on
       ? fetch("/api/saved?q=" + encodeURIComponent(m.query) + "&minutes=" + (m.minutes || BROWSE_MINUTES),
               { method: "DELETE" })
@@ -24433,20 +25249,14 @@
         });
     req.then(function(r){ if(!r.ok) throw new Error(); })
       .then(function(){
-        var items = (savedCache && savedCache.items) || [];
-        if(on){
-          savedCache.items = items.filter(function(it){
-            return !(it.query === m.query && Number(it.minutes) === Number(m.minutes));
-          });
-        } else {
-          savedCache.items = [{ query: m.query, minutes: m.minutes || BROWSE_MINUTES,
-                                title: m.title || "" }].concat(items);
-        }
-        renderThreadBody();
         if(on) snack("Removed from Saved for Later");
         else snack("Saved for Later", { label: "Open", run: openSaved });
       })
-      .catch(function(){ toast("Could not save that"); });
+      .catch(function(){
+        savedCache.items = keep;
+        paint(on);
+        toast("Could not save that");
+      });
   }
 
   // Go Deeper on a shared card, before it has been played: the follow-up is
@@ -24498,35 +25308,10 @@
     // it is a promise about somebody else's attention, and this app has a
     // rule against inventing that.
     typingSentAt = 0;   // the server clears it on send; the next keystroke re-announces
-    var draft = { id: 0, mine: true, kind: "text", text: val, pending: true };
+    var draft = { id: 0, mine: true, kind: "text", text: val, pending: true, to: currentThread.user_id };
     threadMessages.push(draft);
-    renderThreadBody();
-
-    fetch("/api/messages", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ to: currentThread.user_id, text: val })
-    }).then(function(r){
-      return r.json().then(function(d){
-        if(!r.ok) throw new Error(d.detail || d.error || "Could not send that");
-        return d;
-      });
-    }).then(function(d){
-      // Replaced in place rather than re-fetching: it now carries the id the
-      // poll de-duplicates on, so the same message cannot arrive twice.
-      var at = threadMessages.indexOf(draft);
-      if(at !== -1 && d.message){ threadMessages[at] = d.message; }
-      else if(at !== -1){ draft.pending = false; }
-      renderThreadBody();
-    }).catch(function(err){
-      // Taken back off the screen, because leaving it there would be the app
-      // showing somebody a message that was never sent.
-      var at = threadMessages.indexOf(draft);
-      if(at !== -1) threadMessages.splice(at, 1);
-      renderThreadBody();
-      input.value = val;
-      sizeComposer(input);
-      toast(err.message);
-    });
+    renderThreadBody({ bottom: true });
+    postDraft(draft);
   }
 
   function openNewChatModal(){
@@ -24575,37 +25360,77 @@
     }
     el.innerHTML = newChatPeople.map(function(person, i){
       var on = newChatPicked.indexOf(i) !== -1;
-      return '<div class="share-contact' + (on ? " on" : "") + '" onclick="startChatWith(' + i + ')"'
+      return '<div class="share-contact' + (on ? " on" : "") + '" data-pick="' + i + '" onclick="startChatWith(' + i + ')"'
         + ' role="checkbox" aria-checked="' + on + '">'
-        + personAvHTML(person) + '<span class="pick">✓</span><div class="nm">'
+        + personAvHTML(person) + '<span class="pick" aria-hidden="true">✓</span><div class="nm">'
         + escapeHtml((person.name || person.handle || "").split(" ")[0]) + '</div></div>';
     }).join("");
   }
+  // Who is in: their faces in a stack beside the words, the group's name
+  // opening under them at two (an expander), and the button's words
+  // crossing in one cell - nothing is redrawn but the stack.
   function paintNewChatPicked(){
     var n = newChatPicked.length;
     var names = newChatPicked.map(function(i){ return firstName(newChatPeople[i]); });
-    document.getElementById("newChatPicked").textContent = n
+    document.getElementById("newChatWords").textContent = n
       ? (n === 1 ? "Chat with " + names[0] : "Group with " + names.join(", "))
       : "";
-    document.getElementById("newChatGroupName").hidden = n < 2;
-    document.getElementById("newChatGo").textContent = n >= 2 ? "Start group" : "Start chat";
+    document.getElementById("newChatStack").innerHTML = newChatPicked.map(function(i){
+      return personAvHTML(newChatPeople[i]).replace('<div class="av', '<div data-pick="' + i + '" class="av');
+    }).join("");
+    var room = document.getElementById("newChatNameRoom");
+    room.classList.toggle("open", n >= 2);
+    room.inert = n < 2;
+    var go = document.getElementById("newChatGo");
+    go.classList.toggle("group", n >= 2);
+    go.setAttribute("aria-label", n >= 2 ? "Start group" : "Start chat");
   }
 
   function closeNewChatModal(){
     document.getElementById("newChatOverlay").classList.remove("active");
   }
-  // A tap picks or unpicks; nothing opens until Start chat.
+  // A tap picks or unpicks; nothing opens until Start chat. The face is
+  // toggled, not redrawn - a redraw cut its press short - and a copy of it
+  // travels into the stack, or back out of it (new-chat-pick: B, §644).
   function startChatWith(i){
     if(!newChatPeople[i]) return;
     var at = newChatPicked.indexOf(i);
+    var face = document.querySelector('#newChatContacts .share-contact[data-pick="' + i + '"]');
+    var words = document.getElementById("newChatWords");
+    var wordsWas = Motion.on() && words.textContent ? Motion.box(words) : null;
+    var item = document.querySelector('#newChatStack [data-pick="' + i + '"]');
+    var itemWas = item && Motion.on() ? Motion.box(item) : null;
+    var stackWas = {};
+    document.querySelectorAll("#newChatStack [data-pick]").forEach(function(el){
+      stackWas[el.getAttribute("data-pick")] = Motion.box(el);
+    });
     if(at === -1) newChatPicked.push(i); else newChatPicked.splice(at, 1);
-    paintNewChatContacts();
+    if(face){
+      face.classList.toggle("on", at === -1);
+      face.setAttribute("aria-checked", at === -1 ? "true" : "false");
+    } else {
+      paintNewChatContacts();
+    }
     paintNewChatPicked();
+    var faceAv = face && face.querySelector(".av");
+    if(at === -1){
+      Motion.gather(faceAv, document.querySelector('#newChatStack [data-pick="' + i + '"]'));
+    } else {
+      Motion.ungather(itemWas, faceAv, item);
+    }
+    // The slot opens or closes: what is beside it glides over (200 ms).
+    document.querySelectorAll("#newChatStack [data-pick]").forEach(function(el){
+      Motion.slideFrom(el, stackWas[el.getAttribute("data-pick")], Motion.DUR.slot);
+    });
+    if(wordsWas && words.textContent) Motion.slideFrom(words, wordsWas, Motion.DUR.slot);
   }
   function startGroupChat(){
     var ids = newChatPicked.map(function(i){ return newChatPeople[i].user_id; });
     var btn = document.getElementById("newChatGo");
+    if(btn.disabled) return;
     btn.disabled = true;
+    // The async button (§642): a spinner only once it has taken 300 ms.
+    var done = Motion.pending(btn);
     fetch("/api/messages/groups", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ user_ids: ids,
@@ -24616,11 +25441,12 @@
         return d;
       });
     }).then(function(d){
+      done();
       btn.disabled = false;
       closeNewChatModal();
       openThreadWith(d.group);
     }).catch(function(err){
-      btn.disabled = false;
+      done(function(){ btn.disabled = false; });
       toast(err.message);
     });
   }
@@ -25281,6 +26107,9 @@
     var seq = ++shareSheetSeq;
     var bar = document.getElementById("shareConfirm");
     if(bar) bar.hidden = true;
+    // The bottom row is the sheet's plain Cancel again (share-pick: C).
+    var idle = document.getElementById("shareIdle");
+    if(idle) idle.hidden = false;
     resetShareFind();
     groupSection.hidden = true;
     document.getElementById("shareGroups").innerHTML = "";
@@ -25687,20 +26516,33 @@
     drawShareChoice();
   }
 
+  // The ring grows in on the face (CSS), and the sheet's bottom row turns
+  // into "Cancel | Share with @maya" in its own cell, the two crossing over
+  // 150 ms (share-pick: C, §644) - so nothing above it moves. Choosing
+  // someone else crosses the label the same way.
   function drawShareChoice(){
     document.querySelectorAll("#shareContacts .share-contact, #shareGroups .share-contact").forEach(function(el){
       el.classList.toggle("selected", +el.getAttribute("data-contact") === shareChosen);
     });
     var bar = document.getElementById("shareConfirm");
+    var idle = document.getElementById("shareIdle");
     var person = shareContacts[shareChosen];
     if(!bar) return;
+    var btn = document.getElementById("shareConfirmBtn");
+    var wasFace = !bar.hidden ? bar : idle && !idle.hidden ? idle : null;
+    var wasLabel = btn ? btn.textContent : "";
+    var oldCopy = wasFace && Motion.on() ? wasFace.cloneNode(true) : null;
     bar.hidden = !person;
+    if(idle) idle.hidden = !!person;
     if(person){
-      var btn = document.getElementById("shareConfirmBtn");
       btn.disabled = shareSending;
       btn.textContent = "Share with " + (person.group ? (person.name || "the group")
                                          : person.handle ? "@" + person.handle
                                          : (person.name || "them"));
+    }
+    var nowFace = person ? bar : idle;
+    if(oldCopy && (nowFace !== wasFace || (person && btn.textContent !== wasLabel))){
+      Motion.crossFade(document.getElementById("shareBottom"), oldCopy, nowFace);
     }
   }
 
@@ -28139,10 +28981,15 @@
       .then(function(d){
         if(!d) return;
         notifCursor = d.head || 0;
-        setUnreadDot(d.unread);
+        // The count that was there before the app opened is drawn still -
+        // nothing at rest on a first paint plays an entrance (§644).
+        setUnreadDot(d.unread, true);
         notifTimer = setInterval(pollNotifications, NOTIF_POLL_MS);
       })
       .catch(function(){});
+    // And the inbox, beside it, so Messages draws on its first frame
+    // (chat-loading: C, §644).
+    if(AUTH.authenticated) fetchInbox().catch(function(){});
   }
 
   function stopNotificationPolling(){
@@ -28157,10 +29004,16 @@
       .then(function(d){
         if(!d) return;
         notifCursor = d.head || notifCursor;
+        var unreadMoved = typeof d.unread === "number" && d.unread !== unreadTotal;
+        // The badge first, then the list it is about (§644's staging).
         setUnreadDot(d.unread);
         // A message arriving while the list is open puts its conversation
-        // on the list now, rather than on the next visit (§142).
-        if((d.messages || []).length && messagesListOpen()) renderThreadList();
+        // on the list now, rather than on the next visit (§142); with the
+        // list shut, the inbox in hand is brought up to date for when it
+        // opens (chat-loading: C).
+        var news = (d.messages || []).length || unreadMoved;
+        if(news && messagesListOpen()) renderThreadList(true);
+        else if(news && AUTH.authenticated) fetchInbox().catch(function(){});
         (d.messages || []).forEach(function(m){
           // Not while you are already looking at that conversation. A banner
           // announcing a message that is on screen underneath it is the app
@@ -28175,8 +29028,13 @@
             group: m.group || null,
             title: m.group ? ((m.from && m.from.name) || "Someone") + " in " + m.group.name
                            : (m.from && m.from.name) || "Someone",
+            // A like or a reply on a vibe is a card carrying words: the
+            // banner says which, as the list does (§644) - it said
+            // "Shared:" for both.
             text: m.kind === "episode"
-              ? "Shared: " + (m.title || m.query || "an episode")
+              ? (m.text === "\u2764\ufe0f" ? "Liked your vibe" + (m.title ? " · " + m.title : "")
+                 : m.text ? "Replied to your vibe: " + m.text
+                 : "Shared: " + (m.title || m.query || "an episode"))
               : (m.text || "")
           });
         });
@@ -28315,15 +29173,18 @@
   // The unread badge on the Messages tab. Drawn from the same poll that
   // raises the banners, so an unread count and a notification cannot be two
   // different claims about the same inbox.
-  function setUnreadDot(unread){
-    paintMessageBadges(unread);
+  function setUnreadDot(unread, still){
+    paintMessageBadges(unread, still);
   }
   // The unread count on the Messages tab, on every copy of the tab bar
   // (§181). It was on YourFAM's tab while messages lived behind the profile.
-  function paintMessageBadges(unread){
-    // Every copy of the tab bar; the one on screen pops, bumps or shrinks (§298).
+  function paintMessageBadges(unread, still){
+    unread = Math.max(0, unread || 0);
+    unreadTotal = unread;
+    // Every copy of the tab bar; the one on a settled screen rolls its count,
+    // and the others owe the change until theirs is seen (unread-badge: A).
     document.querySelectorAll("[data-msg-badge]").forEach(function(b){
-      Motion.badge(b, unread > 9 ? "9+" : String(unread || ""), unread > 0);
+      Motion.badge(b, unread > 9 ? "9+" : String(unread || ""), unread > 0, still);
     });
   }
 

@@ -38986,3 +38986,95 @@ Deeper sending the line under the finger, the lock's swap, "type your own"
 in its cell, nothing left), and the voice check's ring per word and drained
 fill. **Not verified here:** iPhone Safari's `path()` clip interpolation and
 animated `circle()`, a real microphone's result rate, and a real finger.
+
+## 644. Motion, round three: Messages (2026-11-17)
+
+The fifth of six phases (`docs/motion/round-three/BUILD.md`): the 13 picks
+in `messages.json` - the inbox (`screen-messages`), a chat (`screen-thread`),
+the Messages tab's count, the share sheet and New message. Every time is a
+named token on `:root` (`--dur-column`, `--dur-dots-grow`,
+`--dur-sending-after`, `--dur-reorder`, `--dur-badge-in`, `--dur-arc`,
+`--dur-undo-in` ...), read by `Motion.DUR`. Several picks change behaviour,
+built as the owner picked them.
+
+| Animation | Pick | Built |
+|---|---|---|
+| New bubbles | A: column rises | `Motion.column`: when the reader was at the bottom, every row starts the chat's growth lower and rises into place, 220 ms `out`, transform only - the new bubble comes up from behind the box at full opacity, never scaled; a burst's new messages 40 ms apart, the first six. A second message mid-rise turns it round from where it is (`columnCarry`). `popMessages` and its .6 -> 1.04 pop are gone. Names and day lines carry their message (`data-mi`) and move with it |
+| Typing dots | B: dots become the message | One `#threadTypingRow` element for the chat, never redrawn: it comes up with the column and fades in (150 ms), leaves as a copy (120 ms `in`). When their message lands, the new bubble is clipped to the dots' box at its tail and opens to its own, 240 ms `in-out`, its words fading in at 80-200 ms, a copy of the dots fading over 80 ms. The loop is an opacity wave (no bob) with phase offsets, kept under reduced motion |
+| Sent, then confirmed | B: "Sending…" line | No dim at all (the 55% flicker is gone). Past one second without an answer, "Sending…" fades in under the last bubble (150 ms `out`) and leaves as a copy (120 ms `in`) when nothing is waiting. Cards and bubbles alike |
+| Chat to the top | A: glide into place | `data-thread` on every row; only a redraw from the network (`renderThreadRows({ fetched })`) moves: `Motion.reorder` glides each row from where it was (280 ms `in-out`), the risen one drawn over the rest; a new chat fades down 8 px (240 ms). Never for the search box's keys, a first draw, rows past the scroller's edge, or a screen still moving; a redraw waits while a finger is on the list (applied after the click) |
+| Unread count | A: rolling count | The badge holds the new number from the first frame; a clipped copy of the old (`.motion-badge`) leaves 14 px the way the number went while the new follows, 300 ms `in-out`, `tabular-nums`; in from .7 with a fade (220 ms `out`), out as a copy to .7 (160 ms `in`). A change while that tab bar was not on a settled screen is owed (`b._owed`) and played once the screen lands - push, pop or tab (`owed`). The app's first paint is still (`setUnreadDot(d.unread, true)`) |
+| Read clears | B: already read | `markThreadRead` on open: the row's unread is 0 and the count lowered at once - after the push, so the drop is owed and rolls when the list is back |
+| Header chips | B: room kept | `#threadChipsRoom`, a grid row 34 px from the first frame for a one-to-one chat (closed at once for a group or no handle); the chips fade in 150 ms, 30 ms apart; someone who shows none closes it, 190 ms `in-out` (the grid expander). One sideways line, so the room is always one height |
+| Opening | C: already in hand | The inbox is read beside the notifications' first call, and again when the poll's count moves or a message arrives with the list shut (`fetchInbox`); each chat opened is kept in memory (`threadMemory`, emptied by `logOut`), drawn at once on reopening and topped up by an immediate poll from its cursor. A chat never opened, or the inbox before its first answer, says "Loading…" only past 300 ms and keeps it 500 ms (`lateLoader`) |
+| Share: pick | C: bottom row becomes Share | The confirm moved into the sheet's bottom row: `#shareIdle` (Cancel) and `#shareConfirm` (Cancel / Share with @maya) share one grid cell and cross over 150 ms, the old face a copy (`Motion.crossFade`); choosing someone else crosses the label. The ring is its own circle (`::after`), .9 -> 1 and a fade, 150 ms |
+| Like or reply to a vibe | C: heart on the card | A like is a 22 px heart on the card's corner (`.msg-react`), arriving .3 -> 1 out of a 3 px blur, 300 ms `--ease-swap`, after the card rises; the separate 30 px heart row is gone. A reply is still the card and a bubble |
+| New message: pick | B: faces gather | The tapped face is toggled, never redrawn (its press is no longer cut); a copy arcs 15% into its place in a stack beside "Group with…" (360 ms `in-out`, shrinking to 22 px), the words beside it gliding as the slot opens (200 ms); unpicked, a copy returns (240 ms). The tick swaps like an icon; the group's name opens as an expander (250 / 190 ms); "Start chat" / "Start group" cross in one cell; Start group is an async button |
+| Send failed | C: stays, marked Not sent | The bubble stays, fading to .55 (150 ms), with "Not sent · Tap to retry" in coral under it (150 ms `out`); the box stays clear. A tap on the line or the bubble sends it again: the line leaves as a copy (120 ms) and the bubble comes back up. A shared episode that fails does the same |
+| Delete chat | B: delete with Undo | No confirmation for Delete chat or Leave group: the chat is off the list and memory at once (`threadsGone` keeps re-reads from bringing it back), the list is drawn from memory before the back-slide with the chat on it, inert, and once the pop has landed (`Motion.landed`) it slides out (180 ms) and then the gap closes (200 ms, `removeRow`'s new `gapAt`). "Chat deleted · Undo" / "You left the group · Undo" for 5 s; the request goes when the line goes (`action.done`), and a refusal puts it back and says so; Undo fades it down into its place (220 ms). Block keeps its question and leaves the list the same way, without Undo |
+
+**The code's rule reversed (send-failed: C).** `sendThreadMessage` took a
+failed message back off the screen - "leaving it there would be the app
+showing somebody a message that was never sent" - and put the words back in
+the box with a toast. The owner picked iMessage's convention: it stays,
+marked "Not sent · Tap to retry", which is what keeps it from reading as
+sent. The comment says so; `rule:op-social-live` has a `> **Current:**`
+note.
+
+**Bugs fixed with them:** every chat redraw (a save, an acknowledgement, the
+dots) jumped the scroll to the bottom, mid-history too; a deleted or left
+chat showed again on the list during Back; a banner for another chat tapped
+inside a chat pushed a second chat (Back looked dead) - it now replaces the
+chat in place and fades the new one in (150 ms); the Messages count stayed
+on the tab after log-out; a like's banner read "Shared: <title>" (now "Liked
+your vibe", and a reply's "Replied to your vibe: ..."); a group opened from
+its banner read "0 people"; a group's header went stale when someone left
+(the poll refreshes it); a double-spaced message came back with a new key;
+chat rows could not be opened from a keyboard; saving a shared card waited
+for the server and redrew the chat (it now fills on the tap and only that
+button changes).
+
+**Where the pick needed a judgement.** The chat is measured as laid out
+(`threadHeight`), not by `scrollHeight`, which the rising rows' transforms
+inflate - a second message mid-rise read as the reader having scrolled away.
+The listener's own send always shows itself (it jumps to the bottom, without
+the rise, if they had scrolled up). In a short chat that does not scroll,
+the column has nowhere to go, so the new rows rise by their own height. The
+dots' arrival and plain exit came from the notes (B's spec gives only the
+hand-over). The dots' phase offsets run -0.3 / -0.15 / 0 s, so the wave
+still reads left to right (the notes' -0.15 / -0.3 on dots 2 and 3 would
+run it backwards). "Not sent" keeps the server's reason in its label for a
+screen reader; the line on screen is the pick's words. The badge's exit
+shrinks to .7 as its entrance grows from it. The chat's gap closes after the
+slide (the pick's staging), where the queue keeps both at once. A delete
+still waiting on its Undo is sent at log-out, under that account. The
+loader holds an answer that lands in its first 500 ms for the rest of them
+(the async button's rule).
+
+**Rule text changed:** `rule:motion` (a `> **Current:**` note) and
+`rule:op-social-live` (a failed send stays; the inbox at app open; chats in
+memory; read on the tap; Undo on delete and leave). CLAUDE.md's lines are
+still true.
+
+**Not built:** findings outside the picks - 44 px zones for the composer's
+buttons, ⋯, back, card buttons and header chips; wide rows opting out of the
+squeeze; cross-fading the ⋯ sheet's contents; a picture on a shared card;
+naming a group in the app's own card rather than `window.prompt`; muting the
+send arrow on an empty box; the guest (+) toast that is never read. Header
+chips' C (fetch on press) was not picked; the room is B's. The iOS client's
+`Motion.swift` is separate work (`ios/FAM/PARITY.md`).
+
+Tests: `tests/test_motion_round_three_644.py` (and §641's ceiling test now
+names the dots' loop and "Sending…"'s second as waits); the smoke run's
+"Messages' round-three motion holds nothing and leaves nothing behind" (the
+count rolling with the new number in it, a redraw keeping the reader's place
+and the column rising from the bottom unscaled, a message growing out of the
+dots, "Sending…" only past a second, a failed send staying marked with the
+box clear and going again, a chat kept in memory reopening at its newest
+message, a banner's chat replacing the open one, a chat
+read on the tap, Delete going back with Undo and the chat sliding out with
+nothing sent and Undo putting it back, a reorder gliding and the keys' not,
+the share sheet's bottom row turning in place, New message's face toggled
+and gathering, nothing left). **Not verified here:** a real phone's scroll
+with the column rising under momentum, Safari's `clip-path` on a bubble,
+and a real finger on the list.

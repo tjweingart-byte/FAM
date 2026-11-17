@@ -2108,6 +2108,30 @@
   > swap under a finger. "Type your own" becomes the field in its own place;
   > a file being read has a moving line (kept with reduced motion); the
   > Private lock swaps on the icon spring.
+  > **Current:** Messages' picks (PROBLEMS.md §644, the owner's 13 of
+  > 11.16), on the same terms. **New messages no longer pop from their
+  > tail:** when the reader is at the bottom the chat rises by the new
+  > message's height (220 ms, 40 ms apart in a burst, nothing scaled or
+  > faded), and **a chat follows a new message only when the reader was
+  > already at the bottom** - anywhere else their place is kept. Their
+  > message grows out of the typing dots, whose wave is opacity only and
+  > keeps going with reduced motion. A send shows nothing until a second
+  > has passed, then "Sending…" under it; **a send that fails stays in the
+  > chat, faded, marked "Not sent · Tap to retry"**. **The unread count
+  > rolls its number** (up as it grows, 300 ms) and fades in from .7 rather
+  > than popping and bumping; a change made while its tab bar was out of
+  > sight plays when that screen has landed, and the app's first paint is
+  > still. A chat is read on the tap. A chat moving to the top of the list
+  > glides there (280 ms) and a new one fades down into it - only for the
+  > network's answer, never the search box's keys or a first draw, and
+  > never under a finger. The header keeps its chips' room from the first
+  > frame. **Delete chat and Leave group have no confirmation**: the chat
+  > goes at once, slides out when the list has slid back, and Undo stays
+  > five seconds before anything is sent (Block keeps its question). The
+  > share sheet's own Cancel row becomes "Cancel | Share with @maya" in its
+  > cell; a like on a vibe is a heart on the card's corner; New message's
+  > picked faces arc into a stack beside "Group with…". Reduced motion:
+  > all of it instant, the dots still pulsing.
 <!-- rule:speed-pitch -->
 - **A speed change must not change the voice.** *(§95, `fam-audio.js`.)*
   `playbackRate` on a buffer source resamples, so 1.5x came back a fifth

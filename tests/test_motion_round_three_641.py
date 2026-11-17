@@ -36,9 +36,11 @@ def test_every_new_time_is_a_token_read_by_motion():
     for name, ms in re.findall(r"--dur-([a-z-]+):(\d+)ms", INDEX):
         # Search (§643): the loader's beat and the ring inside it, the
         # reduced-motion pulse and the reading line are loading indicators'
-        # loops; "ack" is how long a colour holds.
+        # loops; "ack" is how long a colour holds. Messages (§644): the
+        # typing dots' loop is an activity indicator, and "Sending…" waits
+        # a second before it says anything.
         if name in ("develop", "label", "faces", "mark", "sheen", "sheen-delay", "spinner-min",
-                    "beat", "beat-ring", "ring-pulse", "read-bar", "ack") \
+                    "beat", "beat-ring", "ring-pulse", "read-bar", "ack", "typing", "sending-after") \
                 or name.endswith("-at"):   # a delay before a movement (§642), not the movement
             continue    # a wait's look, a word on screen, or a hold - not a movement
         assert int(ms) <= 450, (name, ms)

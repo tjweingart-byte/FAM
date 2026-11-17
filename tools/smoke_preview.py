@@ -2879,6 +2879,198 @@ def main() -> int:
             assert left == 0, f"{left} of search's motion copies were left behind"
             page.evaluate("setTab('home')")
 
+        def messages_motion_holds_nothing():
+            """§644: Messages' round-three picks. The tab's count rolls with
+            the new number in it from the first frame; a chat keeps the
+            reader's place on a redraw and only follows when they were at the
+            bottom, the column rising with no scale; their message grows out
+            of the dots; a slow send says "Sending…" only past a second; a
+            failed one stays, marked "Not sent · Tap to retry", and goes
+            again; the chips' room is kept; a banner for another chat
+            replaces it in place; a chat is read on the tap; Delete goes with
+            Undo, sending nothing until the line goes; a reorder glides; the
+            share sheet's bottom row turns into Share in its own cell; New
+            message's faces gather - and nothing drawn for any of it is left
+            behind."""
+            ensure_account()
+            page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
+                          " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
+                          ".forEach(function(e){ e.classList.remove('active'); }); hideSnack();")
+            assert page.evaluate("Motion.DUR.column") == 220 and page.evaluate("Motion.DUR.reorder") == 280
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(700)
+            # The count: the new number is the badge's from the first frame,
+            # and a rise rolls under a clipped copy of the old.
+            page.evaluate("paintMessageBadges(1)")
+            page.wait_for_timeout(400)
+            rolled = page.evaluate("""() => { paintMessageBadges(3);
+                var b = document.querySelector('#screen-messages [data-msg-badge]');
+                return { text: b.textContent, copy: document.querySelectorAll('.motion-badge').length }; }""")
+            assert rolled == {"text": "3", "copy": 1}, f"the count did not roll with 3 in it at once: {rolled}"
+            page.wait_for_timeout(450)
+            page.evaluate("paintMessageBadges(0)")
+            assert page.evaluate("document.querySelector('#screen-messages [data-msg-badge]').hidden")
+            page.wait_for_timeout(300)
+            # A chat: the reader's place is kept, and the column follows only
+            # from the bottom.
+            page.evaluate("openMessages()")
+            page.wait_for_timeout(300)
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_selector("#screen-thread.active", timeout=8000)
+            page.wait_for_timeout(900)
+            room = page.evaluate("getComputedStyle(document.getElementById('threadChipsRoom')).gridTemplateRows")
+            assert room in ("34px", "0px"), room
+            page.evaluate("""() => { stopThreadPolling(); var now = Date.now() / 1000;
+                for(var k = 0; k < 30; k++) threadMessages.push({ id: 900000 + k, mine: k % 2 === 0, kind: 'text',
+                  text: 'filler ' + k, at: now }); renderThreadBody(); }""")
+            page.wait_for_timeout(400)
+            kept = page.evaluate("""() => { var b = document.getElementById('thread-body'); b.scrollTop = 0;
+                renderThreadBody(); return b.scrollTop; }""")
+            assert kept == 0, f"a redraw yanked the chat to the bottom: {kept}"
+            rose = page.evaluate("""() => { var b = document.getElementById('thread-body'); b.scrollTop = b.scrollHeight;
+                appendThreadMessages([{ id: 900100, mine: false, kind: 'text', text: 'rising', at: Date.now() / 1000 }]);
+                var rows = b.querySelectorAll('.msg-row'), last = rows[rows.length - 1];
+                var frames = last.getAnimations().map(function(a){ return JSON.stringify(a.effect.getKeyframes()); }).join();
+                return { bottom: threadHeight(b) - b.scrollTop - b.clientHeight < 2, moving: !!frames.length,
+                         scaled: frames.indexOf('scale') >= 0 }; }""")
+            assert rose["bottom"] and rose["moving"] and not rose["scaled"], f"the column did not rise: {rose}"
+            page.wait_for_timeout(400)
+            # Their message grows out of the dots.
+            grown = page.evaluate("""() => { threadTyping = true; paintTyping();
+                var up = !!document.getElementById('threadTypingRow');
+                threadTyping = false;
+                appendThreadMessages([{ id: 900101, mine: false, kind: 'text', text: 'grown from the dots', at: Date.now() / 1000 }]);
+                var rows = document.querySelectorAll('#thread-body .msg-row.in'), bub = rows[rows.length - 1].firstChild;
+                var clip = bub.getAnimations().some(function(a){
+                  return JSON.stringify(a.effect.getKeyframes()).indexOf('inset') >= 0; });
+                return { up: up, gone: !document.getElementById('threadTypingRow'), clip: clip }; }""")
+            assert grown == {"up": True, "gone": True, "clip": True}, f"the message did not grow from the dots: {grown}"
+            page.wait_for_timeout(400)
+            # A slow send: nothing for a second, then "Sending…".
+            page.evaluate("""() => { window.__msgFetch = window.__msgFetch || window.fetch;
+                window.fetch = function(u, o){ if(String(u) === '/api/messages' && o && o.method === 'POST'){
+                    return new Promise(function(res){ setTimeout(function(){
+                      res(new Response(JSON.stringify({ message: null }), { status: 200 })); }, 1600); }); }
+                  return window.__msgFetch.apply(this, arguments); }; }""")
+            page.fill("#threadInput", "slow one")
+            page.evaluate("sendThreadMessage()")
+            page.wait_for_timeout(500)
+            assert not page.query_selector("#threadSending"), "Sending… came before a second"
+            page.wait_for_timeout(800)
+            assert page.query_selector("#threadSending"), "a slow send never said Sending…"
+            page.wait_for_timeout(900)
+            assert not page.query_selector("#threadSending"), "Sending… stayed after the answer"
+            # A failed send stays, marked, and the box stays clear.
+            page.evaluate("""() => { window.fetch = function(u, o){ if(String(u) === '/api/messages' && o && o.method === 'POST')
+                    return Promise.resolve(new Response(JSON.stringify({ detail: 'No' }), { status: 400 }));
+                  return window.__msgFetch.apply(this, arguments); }; }""")
+            page.fill("#threadInput", "this one fails")
+            page.evaluate("sendThreadMessage()")
+            page.wait_for_timeout(400)
+            failed = page.evaluate("""() => ({ row: document.querySelectorAll('#thread-body .msg-row.failed').length,
+                line: (document.querySelector('#thread-body .msg-failed') || {}).textContent,
+                box: document.getElementById('threadInput').value }) """)
+            assert failed == {"row": 1, "line": "Not sent · Tap to retry", "box": ""}, f"a failed send: {failed}"
+            page.evaluate("window.fetch = window.__msgFetch; document.querySelector('#thread-body .msg-failed').click()")
+            page.wait_for_timeout(900)
+            assert not page.query_selector("#thread-body .msg-row.failed"), "a retried message stayed Not sent"
+            # A chat kept in memory reopens at its newest message.
+            page.evaluate("stopThreadPolling(); goBack()")
+            page.wait_for_timeout(500)
+            page.evaluate("openThreadWith({user_id:'u_beth', name:'Beth Solomon', handle:'beth'})")
+            page.wait_for_timeout(500)
+            assert page.evaluate("""() => { var b = document.getElementById('thread-body');
+                return threadHeight(b) - b.scrollTop - b.clientHeight < 2; }"""), \
+                "a chat reopened from memory was not at its newest message"
+            # A banner for another chat replaces this one in place.
+            depth = page.evaluate("stack.filter(function(s){ return s === 'thread'; }).length")
+            page.evaluate("openThreadWith({user_id:'u_nadia', name:'Nadia Okoro', handle:'nadia'})")
+            page.wait_for_timeout(500)
+            assert page.evaluate("stack.filter(function(s){ return s === 'thread'; }).length") == depth == 1, \
+                "a second chat was pushed over the first"
+            page.evaluate("stopThreadPolling(); goBack()")
+            page.wait_for_timeout(600)
+            # Read on the tap; Delete with Undo, nothing sent before the line goes.
+            if page.evaluate("inboxThreads.length") >= 1:
+                read = page.evaluate("""() => { inboxThreads[0].unread = 2; paintMessageBadges(2); openThread(0);
+                    return [inboxThreads[0].unread, unreadTotal]; }""")
+                assert read == [0, 0], f"the chat was not read on the tap: {read}"
+                page.wait_for_timeout(700)
+                page.evaluate("""() => { stopThreadPolling(); window.__deletes = 0;
+                    window.fetch = function(u, o){ if(o && o.method === 'DELETE') window.__deletes++;
+                      return window.__msgFetch.apply(this, arguments); }; }""")
+                gone = page.evaluate("""() => { var id = currentThread.user_id; confirmDeleteChat();
+                    return { id: id, screen: document.querySelector('.screen.active').id,
+                             listed: inboxThreads.some(function(t){ return t['with'] === id; }),
+                             leaving: document.querySelectorAll('#threadList .thread-row.leaving').length,
+                             undo: document.getElementById('snackAct').textContent }; }""")
+                assert gone["screen"] == "screen-messages" and not gone["listed"] and gone["undo"] == "Undo", \
+                    f"Delete did not go back with an Undo: {gone}"
+                assert gone["leaving"] == 1, f"the deleted chat was not drawn leaving: {gone}"
+                page.wait_for_timeout(900)
+                assert page.evaluate("document.querySelectorAll('#threadList .thread-row.leaving').length") == 0
+                page.click("#snackAct")
+                page.wait_for_timeout(400)
+                back = page.evaluate("""(id) => ({ listed: inboxThreads.some(function(t){ return t['with'] === id; }),
+                    drawn: !!document.querySelector('#threadList .thread-row[data-thread="' + id + '"]'),
+                    deletes: window.__deletes }) """, gone["id"])
+                assert back == {"listed": True, "drawn": True, "deletes": 0}, f"Undo did not put it back: {back}"
+                page.evaluate("window.fetch = window.__msgFetch; 0")
+            # A reorder off the network glides; the search box's does not.
+            if page.evaluate("inboxThreads.length") >= 2:
+                moved = page.evaluate("""() => { inboxThreads.unshift(inboxThreads.pop()); renderThreadRows({ fetched: true });
+                    return Array.prototype.some.call(document.querySelectorAll('#threadList .thread-row'),
+                      function(r){ return r.getAnimations().length; }); }""")
+                assert moved, "a chat moving to the top jumped"
+                page.wait_for_timeout(400)
+                still = page.evaluate("""() => { inboxThreads.push(inboxThreads.shift()); renderThreadRows();
+                    return Array.prototype.some.call(document.querySelectorAll('#threadList .thread-row'),
+                      function(r){ return r.getAnimations().length; }); }""")
+                assert not still, "a redraw from the keys moved the rows"
+            # The share sheet: the bottom row becomes Share in its own cell.
+            if "live" not in target.name:
+                page.evaluate("showScreen('player'); nowBarState = {query: 'why bonds move', title: 'Bonds', minutes: 3};"
+                              " openShareModal()")
+                page.wait_for_selector("#shareContacts .share-contact", timeout=8000)
+                page.wait_for_timeout(400)
+                share = page.evaluate("""() => { var cell = document.getElementById('shareBottom'), h = cell.offsetHeight,
+                    top = cell.getBoundingClientRect().top;
+                    document.querySelector('#shareContacts .share-contact').click();
+                    return { idle: document.getElementById('shareIdle').hidden,
+                             confirm: !document.getElementById('shareConfirm').hidden,
+                             same: Math.abs(cell.offsetHeight - h) < 1 && Math.abs(cell.getBoundingClientRect().top - top) < 1,
+                             copy: cell.querySelectorAll('.motion-xfade').length }; }""")
+                assert share == {"idle": True, "confirm": True, "same": True, "copy": 1}, \
+                    f"the share sheet's bottom row did not turn into Share in place: {share}"
+                page.wait_for_timeout(300)
+                page.evaluate("cancelShareContact(); closeShareModal(); hideNowBar(); openMessages()")
+                page.wait_for_timeout(500)
+            # New message: the face is toggled, not redrawn, and gathers.
+            page.evaluate("openNewChatModal()")
+            page.wait_for_timeout(900)
+            if page.evaluate("document.querySelectorAll('#newChatContacts .share-contact').length") >= 2:
+                picked = page.evaluate("""() => { var f = document.querySelectorAll('#newChatContacts .share-contact');
+                    window.__face = f[0]; f[0].click();
+                    var one = { same: window.__face.isConnected, on: f[0].classList.contains('on'),
+                                stack: document.querySelectorAll('#newChatStack .av').length,
+                                flying: document.querySelectorAll('.motion-face').length };
+                    f[1].click();
+                    one.group = document.getElementById('newChatGo').classList.contains('group');
+                    one.name = document.getElementById('newChatNameRoom').classList.contains('open');
+                    return one; }""")
+                assert picked == {"same": True, "on": True, "stack": 1, "flying": 1, "group": True, "name": True}, \
+                    f"New message's faces did not gather: {picked}"
+                page.wait_for_timeout(500)
+                page.evaluate("document.querySelectorAll('#newChatContacts .share-contact')[1].click()")
+                page.wait_for_timeout(400)
+            page.evaluate("closeNewChatModal()")
+            page.wait_for_timeout(500)
+            left = page.evaluate("""() => document.querySelectorAll('.motion-msg, .motion-badge, .motion-face,'
+                + ' .motion-xfade, .motion-row, #threadList .thread-row.leaving').length""")
+            assert left == 0, f"{left} of Messages' motion copies were left behind"
+            page.evaluate("hideSnack(); openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def asks_before_words_go_to_ai():
             """App Store 5.1.2(i) (consent.py): with no yes on record a search
             shows the server's notice and sends nothing; Allow sends it."""
@@ -5091,6 +5283,8 @@ def main() -> int:
               myfam_motion_holds_nothing)
         check("search's round-three motion holds nothing and leaves nothing behind",
               search_motion_holds_nothing)
+        check("Messages' round-three motion holds nothing and leaves nothing behind",
+              messages_motion_holds_nothing)
         check("A search asks before its words go to the AI", asks_before_words_go_to_ai)
         check("A shared name asks which one, then plays the choice",
               asks_which_reading_of_a_shared_name)

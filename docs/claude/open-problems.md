@@ -878,6 +878,15 @@ the door. `private` tells the page to say the account is private.
    written row in for it - it used to wait for the POST and then re-fetch the
    whole conversation, which is where "a few seconds of latency when I send"
    came from.
+   > **Current (PROBLEMS.md §644):** a send that fails now **stays in the
+   > chat**, faded and marked "Not sent · Tap to retry", and the box stays
+   > clear - it used to be taken back off the screen with the words put
+   > back in the box. The inbox is read when the app opens, beside the
+   > notifications' first call, and each chat opened is kept in memory for
+   > the session (never storage; emptied on log-out), so both draw on their
+   > first frame and the poll tops a chat up from its cursor. A chat is
+   > marked read on the tap. Delete chat and Leave group wait five seconds
+   > for an Undo before they are sent.
    None of this generates anything, which is the point of the section:
    `social.py` stores a **vibe** as a row pointing at a query whose script
    already exists. *(The product's word is VIBE!; the codebase's is `echo`,
