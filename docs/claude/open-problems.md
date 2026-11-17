@@ -835,6 +835,24 @@ friends and get none.
    taste model has was being thrown away by exactly the behaviour it should
    reward. A share rather than a number of seconds, because "the last thirty
    seconds" is most of a one-minute episode and nothing of a ten-minute one.
+<!-- rule:private-mode -->
+**Private mode, and a profile for followers** *(PROBLEMS.md §637, the
+owner's direction)*. A switch at the **top of Settings** (`private_mode`
+on the account's preferences, off by default): while it is on, **nobody
+sees what that listener plays or searches** - no face on a friend's card or
+the player (`_mark_friends_listened`), no place on the friends rail (the
+circle is passed through `_listening_shown` before `rank_friends` reads it),
+and never named as a searcher, **whatever `searches_public` says**. What
+they **vibe still reaches the people who follow them**: a vibe is the act of
+showing somebody an episode. `PreferenceStore.private_among` reads many at
+once and **fails closed** - a store that cannot be read counts everybody as
+private. Separately, for everybody: **a profile's vibes and interests are
+for its followers** - `/api/person` sends a listener who does not follow
+the person `vibes: []`, no interests and `locked: true` (name, face, place,
+counts and public mixes stay), and `/api/vibe/posts`, a vibe's likes and
+replies are 404 to them. Being followed by them is not enough; following is
+the door. `private` tells the page to say the account is private.
+
 <!-- rule:op-social-live -->
 > **Current (PROBLEMS.md §168):** New mixes are **public** by default since §153 - "Mixes are private by default" below is stale (see [op-dailyfam-mixes]).
 

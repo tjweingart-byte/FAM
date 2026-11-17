@@ -38471,3 +38471,49 @@ in the topic files, and every one of those sections is cited in
 `docs/claude/` at the rule the line's ID points to. No rule, ID or word of
 a rule changed; references that are part of a sentence ("§499, reversing
 §171 there") stay. The core is 38,847 bytes.
+
+## 637. Private mode, and a profile's vibes and interests for followers only (2026-11-17)
+
+The owner: a listener can set private mode in Settings so nobody can see
+what they search; followers still see what they vibe, and otherwise nothing
+of what they listen to shows publicly. And somebody viewing a profile they
+do not follow should not see that person's interests or what they reposted
+(vibed). Then: "This should be at the top of the settings page."
+
+**The preference.** `private_mode` on `preferences` (a column added off for
+every older row), written through `/api/preferences`, drawn as the first
+row of Settings for an account. `PreferenceStore.private_among(ids)` answers
+for a whole circle in one read and **fails closed**.
+
+**Where a listener's listening was shown, and what each does now:**
+
+- a friend's face on a DailyFAM card, View more, the player's "who
+  listened" (`/api/listened`) and a post's `heard` - all
+  `_mark_friends_listened`: private friends are taken out before the event
+  log is asked;
+- the friends rail on myFAM and its sections and the Explore rails - all
+  three `SOCIAL.circle_of` reads go through `_listening_shown`, so neither a
+  private listener's plays nor episodes they authored put a tile there;
+- the player's searcher handle: private mode overrides `searches_public`.
+
+Vibes are left alone: the story row, the vibes filter on a topic and the
+"a friend vibed this" tag are vibes, which the owner kept for followers.
+Crowd rows (most played, trending searches, the A-Z) never named anybody
+and still do not.
+
+**A profile for followers.** `/api/person` withholds `vibes` and the
+interests from anybody who does not follow the person and says `locked`;
+the count, mixes, place and friends number stay, so the page is not a
+broken one. `_vibe_post_owner` and `_visible_vibe` add the same condition,
+so the posts, likes and replies cannot be read round it. The web page draws
+no interest line and "Follow to see their vibes and interests." on the
+Vibes tab; a private account's page says so in its foot note.
+
+Four tests assumed a stranger could read vibes or interests (§547's posts,
+§174's pinned row, §345's tiles); each now follows first and keeps its own
+point. Rule: `private-mode` in `docs/claude/open-problems.md`.
+
+Not done: the iOS app has no Settings row yet and draws a locked profile
+as "Nothing vibed yet" - the server enforces both, so the app shows less,
+never more. Not verified by hand in a browser beyond the preview build.
+
