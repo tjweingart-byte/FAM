@@ -305,10 +305,12 @@ struct CaptionsPill: View {
 // MARK: - The captions card (`#ccPanel`, §519)
 
 /// Over the picture, inset 8 / 12: a dark blurred card, "Captions" in copper
-/// mono, copy and X on the right, and the sentence being said - one at a
-/// time, Bricolage 24 semibold - centred in what is left, cross-fading as
-/// the next one comes. The right padding leaves room for share / VIBE! /
-/// save, which stay on top. A swipe down closes it.
+/// mono, copy and X on the right, and everything said so far (11.16 notes):
+/// the spoken sentences dimmed, the one being said last, Bricolage 24
+/// semibold, in a box that scrolls. It follows the voice until the listener
+/// scrolls back, and again once they return to the newest line; nothing
+/// ahead of the voice is drawn. The right padding leaves room for share /
+/// VIBE! / save, which stay on top. A swipe down closes it.
 struct CaptionsCard: View {
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
@@ -331,8 +333,8 @@ struct CaptionsCard: View {
         .shadow(color: .black.opacity(0.3), radius: 14, y: 18)
         .contentShape(RoundedRectangle(cornerRadius: 18))
         // Swipe down to close (> 40 pt), as the web's `ccSwipe` - but not a
-        // swipe that starts while a long sentence is scrolled down: that
-        // one scrolls the text back up.
+        // swipe that starts while the text is scrolled down: that one
+        // scrolls back through what was said.
         .simultaneousGesture(DragGesture(minimumDistance: 14)
             .onChanged { _ in
                 if swipeFromScrolled == nil { swipeFromScrolled = textScrolled }
@@ -346,8 +348,14 @@ struct CaptionsCard: View {
             })
     }
 
-    /// The sentence is scrolled away from its top (`cc-text.scrollTop > 0`).
+    /// The text is scrolled away from its top (`cc-text.scrollTop > 0`).
     @State private var textScrolled = false
+    /// Whether the captions follow the voice (`captionFollow`): false from
+    /// the moment the listener scrolls back, true again at the newest line.
+    @State private var follow = true
+    /// Our own scroll to the newest line is under way (`captionScrolling`):
+    /// that is not the listener reading back.
+    @State private var settling = false
     /// Whether the swipe in progress started with the text scrolled.
     @State private var swipeFromScrolled: Bool?
 
@@ -383,59 +391,107 @@ struct CaptionsCard: View {
         now.captionIndex(at: player.position, total: player.total) ?? 0
     }
 
-    private var currentText: String {
+    /// The lines drawn, oldest first: every sentence said so far and the
+    /// one being said, last (`renderCaptions`). One line of words while
+    /// there is no script to show.
+    private var spokenLines: [String] {
         // What the web's card says while captions are off (`renderCaptions`),
         // here only as the card fades out.
-        if !now.captionsOn { return "Displayed here when captions are turned on." }
+        if !now.captionsOn { return ["Displayed here when captions are turned on."] }
         if now.sentences.isEmpty {
-            return now.captionsDone
+            return [now.captionsDone
                 ? "No transcript for this one \u{2014} an episode you attached a file to is never stored, so there is nothing to read back."
-                : "Catching up with the script\u{2026}"
+                : "Catching up with the script\u{2026}"]
         }
         let i = min(max(currentIndex, 0), now.sentences.count - 1)
-        return now.sentences[i]
+        return Array(now.sentences.prefix(i + 1))
     }
 
     /// The sentence key: one per sentence, -1 for the placeholder, so the
-    /// cross-fade runs only when the sentence changes.
+    /// box is moved only when the sentence changes.
     private var sentenceKey: Int {
         now.sentences.isEmpty ? -1 : currentIndex
     }
 
+    /// The end of the text, which the box is scrolled to.
+    private static let endID = "ccEnd"
+    /// The gap between two sentences (`.cc-said{ margin-bottom:0.55em }`).
+    private static let lineGap: CGFloat = 13
+
+    private func lineText(_ line: String, current: Bool) -> some View {
+        Text(line)
+            .font(FAMFont.heading(24, .semibold))
+            .tracking(-0.24)
+            .lineSpacing(24 * 0.28 - 4)
+            .foregroundStyle(Self.light)
+            // `.cc-said{ opacity:0.5 }`: said already.
+            .opacity(current ? 1 : 0.5)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var sentenceArea: some View {
-        GeometryReader { geo in
-            ScrollView(showsIndicators: false) {
-                ZStack(alignment: .leading) {
-                    Text(currentText)
-                        .font(FAMFont.heading(24, .semibold))
-                        .tracking(-0.24)
-                        .lineSpacing(24 * 0.28 - 4)
-                        .foregroundStyle(Self.light)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .id(sentenceKey)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: 4)),
-                            removal: .opacity.combined(with: .offset(y: -4))))
-                }
-                .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .leading)
-                .animation(.easeInOut(duration: 0.32), value: sentenceKey)
-                .background(GeometryReader { inner in
-                    // Where the text's top sits in the scroll view: above
-                    // it once a long sentence is scrolled down.
-                    let top = inner.frame(in: .named("ccScroll")).minY
-                    Color.clear.onChange(of: top) { _, y in
-                        let scrolled = y < -1
-                        if scrolled != textScrolled { textScrolled = scrolled }
+        let lines = spokenLines
+        return GeometryReader { geo in
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: Self.lineGap) {
+                        // The first sentence sits in the middle of the box,
+                        // as the one sentence always did (`.cc-text::before`).
+                        Color.clear.frame(height: max(0, geo.size.height * 0.3 - Self.lineGap))
+                        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                            lineText(line, current: index == lines.count - 1)
+                                .transition(.opacity)
+                        }
+                        Color.clear.frame(height: 1).id(Self.endID)
                     }
-                })
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .animation(.easeInOut(duration: 0.32), value: sentenceKey)
+                    .background(GeometryReader { inner in
+                        // Where the text sits in the scroll view: its top
+                        // above the box once it is scrolled down, its end
+                        // below the box once the listener scrolls back.
+                        let frame = inner.frame(in: .named("ccScroll"))
+                        Color.clear.onChange(of: frame) { old, new in
+                            textMoved(from: old, to: new, box: geo.size.height)
+                        }
+                    })
+                }
+                .coordinateSpace(name: "ccScroll")
+                // Text that fits does not bounce, so the swipe is the card's.
+                .scrollBounceBehavior(.basedOnSize)
+                .onChange(of: sentenceKey) { _, _ in
+                    if follow { toVoice(proxy, animated: true) }
+                }
+                // Turned on part-way through: it opens at the newest line.
+                .onAppear { toVoice(proxy, animated: false) }
             }
-            .coordinateSpace(name: "ccScroll")
-            // A sentence that fits does not bounce, so the swipe is the card's.
-            .scrollBounceBehavior(.basedOnSize)
         }
-        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    /// `captionToVoice`: the box scrolled to the sentence being said.
+    private func toVoice(_ proxy: ScrollViewProxy, animated: Bool) {
+        settling = true
+        DispatchQueue.main.async {
+            if animated {
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+            } else {
+                proxy.scrollTo(Self.endID, anchor: .bottom)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { settling = false }
+    }
+
+    /// `captionScrolled`: within 28 pt of the end the captions follow the
+    /// voice; further back the listener is reading and they stay put. The
+    /// text growing by a sentence, and our own scroll to it, are neither.
+    private func textMoved(from old: CGRect, to new: CGRect, box: CGFloat) {
+        let away = new.minY < -1
+        if away != textScrolled { textScrolled = away }
+        guard !settling, abs(new.height - old.height) < 0.5 else { return }
+        let atEnd = new.maxY - box < 28
+        if atEnd != follow { follow = atEnd }
     }
 
     private func copy() {

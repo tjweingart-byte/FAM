@@ -2726,9 +2726,9 @@ struct PersonPage: Decodable {
     /// Their friends - only for a friend of theirs; nil otherwise.
     let friends: [PersonFriend]?
     /// True when this listener does not follow them: vibes and interests
-    /// are withheld, not empty (§637).
+    /// are withheld, not empty (§638).
     let locked: Bool?
-    /// They are in private mode (§637).
+    /// They are in private mode (§638).
     let `private`: Bool?
 }
 
@@ -3002,7 +3002,7 @@ struct MyPreferences: Decodable {
     let catalogue: [Subject]?
     let searchesPublic: Bool?
     let privateSearch: Bool?
-    /// Private mode (§637): plays and searches shown to nobody.
+    /// Private mode (§638): plays and searches shown to nobody.
     let privateMode: Bool?
     let introDone: Bool?
     /// The tour was finished or skipped on this account (§594): written by

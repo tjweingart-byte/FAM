@@ -37,7 +37,7 @@ struct SettingsView: View {
             YouBackRow(title: "Settings") { back() }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Private mode leads the page, as the web's (§637).
+                    // Private mode leads the page, as the web's (§638).
                     if model.listener?.authenticated == true {
                         privateModeRow
                     }
@@ -175,7 +175,7 @@ struct SettingsView: View {
 
     // MARK: - Private mode
 
-    /// `private_mode` (§637): what this listener plays and searches is shown
+    /// `private_mode` (§638): what this listener plays and searches is shown
     /// to nobody; their vibes still reach the people who follow them. The
     /// web's row and note, word for word.
     private var privateModeRow: some View {

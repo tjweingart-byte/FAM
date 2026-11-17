@@ -55,8 +55,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   searched in the last 2h whose episodes are still current; cache only. [trending-searches]
 - **Search is Google's shape**: mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
-  every return to the app; **Private** is a third bubble. [search-bar]
-- **Private search**: charcoal; on till off (bubble=Settings)
+  every return to the app; **Private** is a lock. [search-bar]
+- **Private search**: a lock; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos [autocorrect-at-send]
@@ -86,7 +86,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
   §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right, CC pill,
-  captions on the picture, ⋯ menu; no "exclude from taste"; searcher
+  captions on the picture, off per episode, ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest; each row
@@ -213,13 +213,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   private; `loadMixes` takes the bank before the 401; dormant after 48h
   unplayed. [op-dailyfam-mixes] [mix-dormancy]
 - **A mix is made by naming it**, filled on its page; plays
-  best first. [mix-made-by-naming] Long typed topics are named short.
+  best first; Edit topics: X. [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
 - **Push**: one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
   once admin-approved; team finals; written first; quiet 22-8. [mix-listen-time]
 - Faces on DailyFAM only, Instagram's, yours first; vibes first; a
-  swipe goes to the next friend's, the picture to the profile; Friends has
+  swipe goes to the next friend's, the picture to the profile; Friends | Following tabs,
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
 - **Made for you**: subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no

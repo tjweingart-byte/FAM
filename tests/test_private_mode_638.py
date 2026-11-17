@@ -1,4 +1,4 @@
-"""Private mode, and a profile's vibes and interests for followers only (§637).
+"""Private mode, and a profile's vibes and interests for followers only (§638).
 
 The owner: a listener can turn on private mode in Settings so nobody sees
 what they search or listen to - followers still see what they vibe - and

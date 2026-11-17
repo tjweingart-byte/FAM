@@ -600,8 +600,7 @@ private struct TourCoverCount: ViewModifier {
 }
 
 extension View {
-    /// This view is one the tour may put its hole round; nil marks nothing
-    /// (a still copy of a page, as searchFAM's blind draws).
+    /// This view is one the tour may put its hole round; nil marks nothing.
     func tourTarget(_ target: TourTarget?) -> some View {
         modifier(TourTargetReader(target: target))
     }

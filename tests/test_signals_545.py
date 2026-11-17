@@ -240,7 +240,10 @@ def test_the_card_and_the_mix_draw_r5_and_q5():
     # signal reaches it as the headline's colour and icon. Q5 is unchanged.
     assert "function mixCardAHTML(m, open)" in INDEX
     assert 'h.why === "update" ? "update" : h.why === "trending"' in INDEX
-    assert "function mixBubblesHTML(since)" in INDEX
+    # Q5's two day bubbles were removed at the owner's direction (11.16
+    # notes); the tag and the outline are what is left of it.
+    assert "mixBubblesHTML" not in INDEX
+    assert "since you last listened" in INDEX
     assert 'onclick="playWhatChanged()"' in INDEX and "or play all " in INDEX
 
 

@@ -438,7 +438,7 @@ class Preferences:
     #: The first run's tour finished or skipped (§594): either way it is not
     #: offered again by itself. Settings starts it over on request.
     tour_done: bool = False
-    #: Private mode (§637): nothing this listener plays or searches is shown
+    #: Private mode (§638): nothing this listener plays or searches is shown
     #: to anybody else - no face on a friend's card, no place on the friends
     #: rail, never named as a searcher whatever `searches_public` says. What
     #: they vibe still reaches the people who follow them, because a vibe is
@@ -561,7 +561,7 @@ class PreferenceStore:
                              " tour_done INTEGER NOT NULL DEFAULT 0")
             except sqlite3.OperationalError:
                 pass  # already there
-            # §637: off for every older row - nobody is made private for them.
+            # §638: off for every older row - nobody is made private for them.
             try:
                 conn.execute("ALTER TABLE preferences ADD COLUMN"
                              " private_mode INTEGER NOT NULL DEFAULT 0")
@@ -615,7 +615,7 @@ class PreferenceStore:
         )
 
     def private_among(self, user_ids: Iterable[str]) -> set[str]:
-        """Which of these listeners are in private mode (§637), in one read.
+        """Which of these listeners are in private mode (§638), in one read.
 
         For the places that draw many people at once - a circle, the faces
         on a page of cards. **Fails closed**: if the store cannot be read,

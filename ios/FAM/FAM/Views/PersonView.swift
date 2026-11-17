@@ -362,7 +362,7 @@ struct PersonView: View {
             if tab == 0 {
                 let vibes = page.vibes ?? []
                 if page.locked == true {
-                    // §637: vibes and interests are for the people who follow them.
+                    // §638: vibes and interests are for the people who follow them.
                     SocialNote(text: "Follow to see their vibes and interests.")
                 } else if vibes.isEmpty {
                     SocialNote(text: "Nothing vibed yet.")
@@ -542,7 +542,7 @@ struct PersonView: View {
         if !id.isEmpty { flipped = true }
         Task {
             await social.follow(userID: id, handle: id.isEmpty ? h : "")
-            // Their vibes and interests open with the follow (§637).
+            // Their vibes and interests open with the follow (§638).
             await load()
             flipped = false
             working = false

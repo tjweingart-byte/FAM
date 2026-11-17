@@ -3595,12 +3595,12 @@ def _mutual(me: str, other: str) -> bool:
 
 def _follows(me: str, other: str) -> bool:
     """Whether `me` follows `other` - what opens their vibes and interests
-    to `me` (§637, `profile-followers-only`)."""
+    to `me` (§638, `profile-followers-only`)."""
     return bool(me and other and me != other and SOCIAL.is_following(me, other))
 
 
 def _listening_shown(user_ids) -> list[str]:
-    """These listeners, without anybody in private mode (§637): the ones
+    """These listeners, without anybody in private mode (§638): the ones
     whose plays may be shown to another person - a face on a card, a place
     on the friends rail. Order kept. One read for all of them."""
     ids = [u for u in user_ids if u]
@@ -3838,7 +3838,7 @@ async def person_profile(request: Request,
         shown = [{"id": tag, "label": topics_mod.TAG_LABELS[tag], "kind": "facet"}
                  for tag in topics_mod.facets_only(prefs.public_interests)
                  ][:topics_mod.PROFILE_INTEREST_SLOTS]
-    # **Vibes and interests are for the people who follow them** (§637, the
+    # **Vibes and interests are for the people who follow them** (§638, the
     # owner's direction): somebody who does not follow gets the page - name,
     # face, place, numbers, public mixes - with both lists empty and
     # `locked` saying why, so the client can say "Follow to see" rather than
@@ -3883,9 +3883,9 @@ async def person_profile(request: Request,
         # to show, as typed - city, state, country, whichever they gave.
         "location": prefs.location.label,
         # True when this listener does not follow them, so `vibes` and
-        # `interests` above are withheld rather than empty (§637).
+        # `interests` above are withheld rather than empty (§638).
         "locked": locked,
-        # Whether they are in private mode: the page says so (§637).
+        # Whether they are in private mode: the page says so (§638).
         "private": prefs.private_mode,
         "follows": SOCIAL.follow_counts(target),
         **_person_friends(me, target),
@@ -8915,7 +8915,7 @@ class PreferenceRequest(BaseModel):
     private_search: Optional[bool] = None
     #: §594: the first run's tour finished or skipped.
     tour_done: Optional[bool] = None
-    #: §637: private mode - their listening shown to nobody.
+    #: §638: private mode - their listening shown to nobody.
     private_mode: Optional[bool] = None
 
 
@@ -9703,7 +9703,7 @@ def _mark_friends_listened(user: str, tiles: list[dict],
         return []
     try:
         people = {p["user_id"]: p for p in SOCIAL.friends(user)}
-        # Nobody in private mode (§637): their listening is shown to no one.
+        # Nobody in private mode (§638): their listening is shown to no one.
         open_ = set(_listening_shown(people))
         people = {uid: p for uid, p in people.items() if uid in open_}
         untiled = ([uid for uid in people if PREFS.get(uid).searches_public]
@@ -10118,7 +10118,7 @@ async def episode_card(request: Request,
             if author and author in apart:
                 break
             shows = PREFS.get(author) if author and author != listener else None
-            # Private mode outranks the older switch (§637).
+            # Private mode outranks the older switch (§638).
             if shows and shows.searches_public and not shows.private_mode:
                 handle = SOCIAL.person(author).get("handle") or ""
                 searcher = "@" + handle if handle else ""
