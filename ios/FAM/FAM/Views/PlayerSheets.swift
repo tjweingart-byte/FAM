@@ -34,6 +34,18 @@ struct GoDeeperSheet: View {
     /// The AI question is up over the sheet (`withAiConsent`): one ask at a time.
     @State private var asking = false
     @FocusState private var typing: Bool
+    /// The line the chip shows (`goDeeperShown`, §643): a new `<<NEXT:>>`
+    /// line is not drawn while a finger is on the chip or for 300 ms after
+    /// it lifts, and what is sent is what was on screen at touch-down
+    /// (`goDeeperHold`) - never a line swapped in under the finger.
+    @State private var shownLine = ""
+    @State private var held = false
+    @State private var holdUntil = Date.distantPast
+    @State private var pressedLine: String?
+
+    /// The chip's line: the one shown, else (before the first frame has
+    /// kept one) the suggestion.
+    private var chipLine: String { shownLine.isEmpty ? suggestion : shownLine }
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
 
@@ -66,7 +78,7 @@ struct GoDeeperSheet: View {
                 .monoLabel(9.5, tracking: 0.76)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 8)
-            if !suggestion.isEmpty {
+            if !chipLine.isEmpty {
                 chip.padding(.bottom, 10)
             }
             TextField("", text: $typed, prompt: Text("Or type your own follow-up").foregroundColor(FAMColor.textFaint))
@@ -92,6 +104,7 @@ struct GoDeeperSheet: View {
             }
         }
         .onAppear {
+            if shownLine.isEmpty { shownLine = suggestion }
             now.goDeeperOpen = true
             // The episode's own length, rounded to a half and kept to 1-5
             // (`offeredMinutes`).
@@ -99,6 +112,7 @@ struct GoDeeperSheet: View {
             minutes = min(max(m, 1), 5)
         }
         .onDisappear { now.goDeeperOpen = false }
+        .onChange(of: suggestion) { _, _ in adoptSuggestion() }
         .task {
             // A shared episode's own predicted follow-up, from what is kept.
             guard let base else { return }
@@ -107,12 +121,32 @@ struct GoDeeperSheet: View {
         }
     }
 
+    /// A new suggestion is drawn only when no finger is on the chip and
+    /// 300 ms have passed since one lifted (`GO_DEEPER_HOLD_MS`).
+    private func adoptSuggestion() {
+        let next = suggestion
+        guard next != shownLine else { return }
+        let wait = holdUntil.timeIntervalSinceNow
+        if held || wait > 0 {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64((max(wait, 0) + 0.05) * 1_000_000_000))
+                adoptSuggestion()
+            }
+            return
+        }
+        shownLine = next
+    }
+
     private var chip: some View {
-        Button { go(suggestion, typed: false) } label: {
+        Button {
+            let line = pressedLine ?? chipLine
+            pressedLine = nil
+            go(line, typed: false)
+        } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(thread.isEmpty ? "Follow the thread" : "Pick up the thread")
                     .monoLabel(8, tracking: 0.64)
-                Text(suggestion)
+                Text(chipLine)
                     .font(FAMFont.body(12, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.leading)
@@ -126,6 +160,18 @@ struct GoDeeperSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
         }
         .buttonStyle(.press)
+        // What the chip showed at touch-down is what is sent.
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                if !held {
+                    held = true
+                    pressedLine = chipLine
+                }
+            }
+            .onEnded { _ in
+                held = false
+                holdUntil = Date().addingTimeInterval(0.3)
+            })
     }
 
     private var lengthRow: some View {
@@ -152,13 +198,15 @@ struct GoDeeperSheet: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    /// Continue with nothing typed sends the line on the chip (§643).
     private func confirm() {
         let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = chipLine
         if words.isEmpty {
-            if suggestion.isEmpty { typing = true; return }
-            go(suggestion, typed: false)
+            if line.isEmpty { typing = true; return }
+            go(line, typed: false)
         } else {
-            go(words, typed: words != suggestion)
+            go(words, typed: words != line)
         }
     }
 
@@ -173,7 +221,7 @@ struct GoDeeperSheet: View {
             shut()
             now.goDeeperOpen = false
             let chosen = minutes
-            let suggested = suggestion
+            let suggested = chipLine
             let send = onGo
             let ensure = now.ensureConsent
             Task { @MainActor in
@@ -193,7 +241,7 @@ struct GoDeeperSheet: View {
             guard allowed else { return }
             shut()
             now.goDeeperOpen = false
-            now.followUp(words, minutes: minutes, typed: typed)
+            now.followUp(words, minutes: minutes, typed: typed, suggested: chipLine)
         }
     }
 }

@@ -43,6 +43,11 @@ final class YouModel: ObservableObject {
     @Published private(set) var blockedCount: Int?
     /// Vibes (0) or Mixes (1) on the hub; kept across redraws (`profileShelf`).
     @Published var shelfTab = 0
+    /// Saved for Later rows and vibes taken off under their Undo
+    /// (`savedPendingRemove`, `vibePendingRemove`, §646): a shelf read
+    /// again inside the five seconds leaves them off.
+    @Published var savedPendingRemove: Set<String> = []
+    @Published var vibePendingRemove: Set<Int> = []
 
     let api: FAMAPI
     let safety: SafetyAPI
@@ -62,6 +67,8 @@ final class YouModel: ObservableObject {
 
     /// Signing out forgets everything about the listener.
     func reset() {
+        savedPendingRemove = []
+        vibePendingRemove = []
         profile = nil
         profileState = .idle
         prefs = nil

@@ -250,6 +250,101 @@ struct SetRow: View {
     }
 }
 
+/// A Settings on/off row (§645's settings-switches A, `settingsSwitch`): no
+/// chevron and no value - a real switch, its knob sliding 200 ms. It flips
+/// on the tap and the saved state is drawn after: a refusal flips it back
+/// (§647). Tapped twice, the last tap wins. `asks`: the row moves only on
+/// the answer (Send my questions to AI asks first).
+struct SetSwitchRow: View {
+    let label: String
+    /// What is saved.
+    let isOn: Bool
+    let asks: Bool
+    /// The change; true when it was kept.
+    let change: (Bool) async -> Bool
+    /// The tap's state, until the saved one says the same.
+    @State private var shown: Bool?
+    @State private var seq = 0
+
+    init(label: String, isOn: Bool, asks: Bool = false, change: @escaping (Bool) async -> Bool) {
+        self.label = label
+        self.isOn = isOn
+        self.asks = asks
+        self.change = change
+    }
+
+    var body: some View {
+        let on = shown ?? isOn
+        Button(action: flip) {
+            HStack(spacing: 10) {
+                Text(label)
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                FAMSwitch(on: on)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(minHeight: 45)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.bottom, 8)
+        }
+        .buttonStyle(.press)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
+        .onChange(of: isOn) { _, now in
+            if shown == now { shown = nil }
+        }
+    }
+
+    private func flip() {
+        let next = !(shown ?? isOn)
+        seq += 1
+        let mine = seq
+        if !asks { shown = next }
+        Task {
+            let kept = await change(next)
+            guard mine == seq else { return }
+            if !kept {
+                // Refused: back to what is saved, moving.
+                shown = nil
+                return
+            }
+            // Kept: the saved state takes over when it says so - or after a
+            // moment, whatever it says.
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if mine == seq { shown = nil }
+        }
+    }
+}
+
+/// The switch itself (`.mix-switch`'s look): 44 x 26, copper when on, the
+/// knob sliding 200 ms in-out; at once with Reduce Motion.
+struct FAMSwitch: View {
+    let on: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack(alignment: on ? .trailing : .leading) {
+            Capsule()
+                .fill(on ? FAMColor.copper : FAMColor.borderStrong)
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .padding(3)
+                .shadow(color: Color.black.opacity(0.18), radius: 1.5, x: 0, y: 1)
+        }
+        .frame(width: 44, height: 26)
+        .animation(reduceMotion ? nil : Motion.easeInOut(Motion.Dur.switchKnob), value: on)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Geist 11 / 16.5 faint, padding 2 2 4, straight under its row.
 struct SetNote: View {
     let text: String

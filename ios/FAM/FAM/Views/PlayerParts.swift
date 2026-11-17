@@ -314,6 +314,7 @@ struct CaptionsPill: View {
 struct CaptionsCard: View {
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let ink = Color(red: 18 / 255, green: 15 / 255, blue: 28 / 255)
     private static let light = Color(hex: 0xF4EFE4)
@@ -440,13 +441,20 @@ struct CaptionsCard: View {
                         // as the one sentence always did (`.cc-text::before`).
                         Color.clear.frame(height: max(0, geo.size.height * 0.3 - Self.lineGap))
                         ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                            // The new sentence warms from the dimmed colour
+                            // (`ccIn`, §640/§646): nothing fades from
+                            // nothing, nothing moves.
                             lineText(line, current: index == lines.count - 1)
-                                .transition(.opacity)
+                                .transition(.asymmetric(
+                                    insertion: .modifier(active: CaptionWarm(dim: true),
+                                                         identity: CaptionWarm(dim: false)),
+                                    removal: .identity))
                         }
                         Color.clear.frame(height: 1).id(Self.endID)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .animation(.easeInOut(duration: 0.32), value: sentenceKey)
+                    // Colour only, 150 ms; none with Reduce Motion.
+                    .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: sentenceKey)
                     .background(GeometryReader { inner in
                         // Where the text sits in the scroll view: its top
                         // above the box once it is scrolled down, its end
@@ -956,5 +964,14 @@ struct LimitCard: View {
             text += " on " + day.string(from: when)
         }
         return "Resets " + text + " in your time"
+    }
+}
+
+/// A caption arriving at the dimmed colour of the ones already said.
+private struct CaptionWarm: ViewModifier {
+    let dim: Bool
+
+    func body(content: Content) -> some View {
+        content.opacity(dim ? 0.5 : 1)
     }
 }

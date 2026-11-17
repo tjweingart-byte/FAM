@@ -17,6 +17,7 @@ import UIKit
 struct SearchView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var tab: Tab
     @ObservedObject var attach: AttachModel
     @ObservedObject var voice: VoiceSearchModel
@@ -151,6 +152,9 @@ struct SearchView: View {
         .onChange(of: model.searchPrefill) { _, prefill in
             takePrefill(prefill)
         }
+        .onChange(of: model.searchRestore) { _, asked in
+            takeRestore(asked)
+        }
     }
 
     private func takePrefill(_ prefill: String?) {
@@ -260,7 +264,10 @@ struct SearchView: View {
         .padding(.bottom, 6)
         .frame(minHeight: 52)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: radius))
-        .overlay(RoundedRectangle(cornerRadius: radius).stroke(FAMColor.border))
+        // The edge turns copper while the box has the caret (§643,
+        // `.fam-input-box:focus-within`, 120 ms).
+        .overlay(RoundedRectangle(cornerRadius: radius).stroke(typing ? FAMColor.copper : FAMColor.border))
+        .animation(reduceMotion ? nil : .easeOut(duration: Motion.Dur.focus), value: typing)
         // `#searchBar`: the tour's "Ask anything".
         .tourTarget(.searchBar)
     }
@@ -285,26 +292,36 @@ struct SearchView: View {
             }
     }
 
+    /// The mic and the go arrow share one 40 pt slot left of attach and
+    /// cross on the icon swap as the box fills or empties; attach never
+    /// moves (§643's bar-focus-go C). With no speech recognition the slot
+    /// is there only while go is.
     private var buttons: some View {
         HStack(spacing: 2) {
-            if VoiceSearchModel.available {
-                barIcon(SearchIcons.mic, label: "Search by voice") { openVoice() }
+            if VoiceSearchModel.available || goShown {
+                ZStack {
+                    if VoiceSearchModel.available {
+                        barIcon(SearchIcons.mic, label: "Search by voice") { openVoice() }
+                            .modifier(SlotFace(shown: !goShown))
+                    }
+                    Button { go(words) } label: {
+                        GoArrow(size: 13)
+                            .foregroundStyle(FAMColor.ink)
+                            .frame(width: 36, height: 36)
+                            .background(FAMColor.copper, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.press)
+                    .padding(2)
+                    .accessibilityLabel("Search")
+                    .modifier(SlotFace(shown: goShown))
+                }
+                .frame(width: 40, height: 40)
+                .animation(reduceMotion ? nil : Motion.easeSwap(Motion.Dur.swap), value: goShown)
             }
             // Always drawn (`#attachBtn`); past what one search can carry a
             // tap says so instead of opening the menu.
             barIcon(SearchIcons.attach, label: "Add a document, photo or link") { openAttach() }
-            if goShown {
-                Button { go(words) } label: {
-                    GoArrow(size: 13)
-                        .foregroundStyle(FAMColor.ink)
-                        .frame(width: 36, height: 36)
-                        .background(FAMColor.copper, in: Circle())
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.press)
-                .padding(2)
-                .accessibilityLabel("Search")
-            }
         }
     }
 
@@ -324,10 +341,9 @@ struct SearchView: View {
     /// measured in the width they would have beside the buttons.
     private func isTall(barWidth: CGFloat) -> Bool {
         guard !words.isEmpty else { return false }
-        var shown = 0
-        if VoiceSearchModel.available { shown += 1 }
-        shown += 1
-        if goShown { shown += 1 }
+        // The shared mic / go slot, then attach.
+        var shown = 1
+        if VoiceSearchModel.available || goShown { shown += 1 }
         let buttonsWidth = CGFloat(shown) * 40 + CGFloat(max(shown - 1, 0)) * 2
         let gap: CGFloat = shown > 0 ? 6 : 0
         let textWidth = max(barWidth - 18 - 6 - gap - buttonsWidth, 40)
@@ -546,6 +562,13 @@ struct SearchView: View {
         typing = false
         let length = minutes
         sending = true
+        // The loader opens on the press (§643): the speller's wait runs
+        // under its first step - once the AI question is answered and no
+        // file is still reading, as the web's `openGenOverlayNow`.
+        let seq = model.cancelSeq
+        if !typed.isEmpty && model.consent.current?.given == true && !attach.pending {
+            model.loading.openEarly()
+        }
         Task {
             var query = ""
             var title = ""
@@ -556,12 +579,27 @@ struct SearchView: View {
                 title = fixed.title
             }
             sending = false
-            // Not if, during the wait, they kept typing or went elsewhere.
-            guard words.trimmingCharacters(in: .whitespacesAndNewlines) == typed, tab == .search else { return }
-            if await model.sendSearch(query: query, title: title, minutes: length) {
+            // Not if the loader was cancelled meanwhile (`genCancelSeq`), or
+            // they kept typing or went elsewhere.
+            guard seq == model.cancelSeq,
+                  words.trimmingCharacters(in: .whitespacesAndNewlines) == typed, tab == .search else {
+                model.loading.closeEarly()
+                return
+            }
+            if await model.sendSearch(query: query, title: title, minutes: length, typed: typed) {
                 if words.trimmingCharacters(in: .whitespacesAndNewlines) == typed { setWords("") }
             }
         }
+    }
+
+    /// Cancel's question and attachments, back in the bar unless it already
+    /// holds something new (`restoreAskedSearch`).
+    private func takeRestore(_ asked: AskedSearch?) {
+        guard let asked else { return }
+        model.searchRestore = nil
+        guard words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, attach.isEmpty else { return }
+        setWords(asked.text)
+        attach.restore(asked.slots)
     }
 
     private func setWords(_ value: String) {
@@ -698,4 +736,19 @@ struct WordFix: Equatable {
     let start: Int
     let from: String
     let to: String
+}
+
+/// One face of the mic / go slot: the one not shown shrinks to .3 behind a
+/// 3 pt blur and fades, and takes no taps (the icon swap's states).
+private struct SlotFace: ViewModifier {
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(shown ? 1 : 0.3)
+            .blur(radius: shown ? 0 : 3)
+            .opacity(shown ? 1 : 0)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+    }
 }

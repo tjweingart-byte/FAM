@@ -474,16 +474,24 @@ final class VoiceSearchModel: ObservableObject {
         }
     }
 
-    /// `stopVoiceCountdown(asButton)`: a full, still button that waits, or
-    /// an empty one.
+    /// `stopVoiceCountdown(asButton)` (§643's search-now B): a button that
+    /// waits - its fill drained from where it had got back to the pale
+    /// button over 260 ms, since stopping must not look like sending - or
+    /// an empty one at once. Reduce Motion: empty on one frame.
     func stopCount(asButton: Bool) {
+        let wasCounting = counting
         countToken += 1
         countTask?.cancel()
         countTask = nil
         counting = false
+        if asButton && wasCounting && !Motion.reduced {
+            // Retargeted from the sweep's current place (`Motion.drain`).
+            withAnimation(Motion.easeInOut(Motion.Dur.drain)) { fill = 0 }
+            return
+        }
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) { fill = asButton ? 1 : 0 }
+        withTransaction(still) { fill = 0 }
     }
 
     /// The X beside Search now: "not by itself", not "not at all".

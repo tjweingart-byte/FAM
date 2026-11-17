@@ -35,9 +35,11 @@ struct MyFAMView: View {
                 // Mixes | Categories (§550, the owner's 11.11 note, "like
                 // Groups | Messages"), outside the scroller with the wordmark.
                 PlayfamTabs(tab: mixes.playfamTab) { showTab($0) }
-                // "Create new mix": on Mixes only.
-                if mixes.state == .ready && mixes.playfamTab == .mixes {
-                    Button { path.append(.new) } label: {
+                // "Create new mix": on Mixes only - but its room is kept on
+                // Categories and from the first frame, so the page never
+                // jumps 42 pt as the mixes answer or the tab turns (§642).
+                let onMixes = mixes.playfamTab == .mixes
+                Button { path.append(.new) } label: {
                         HStack(spacing: 7) {
                             WebIcon(path: Icons.plus, size: 13, line: 2.4)
                             Text("Create new mix")
@@ -51,7 +53,9 @@ struct MyFAMView: View {
                     }
                     .buttonStyle(.press)
                     .padding(.bottom, 10)
-                }
+                    .opacity(onMixes ? 1 : 0)
+                    .allowsHitTesting(onMixes)
+                    .accessibilityHidden(!onMixes)
                 ScrollViewReader { proxy in
                 ScrollView {
                   VStack(alignment: .leading, spacing: 0) {
@@ -63,9 +67,10 @@ struct MyFAMView: View {
                         if mixes.categoryState.finding {
                             CategoryFind(state: $mixes.categoryState)
                         } else if let node = mixes.categoryState.node {
+                            // One panel kept across nodes: the last one stays,
+                            // inert, while the next loads (§642, §646).
                             CategoryPanel(node: node, subs: $mixes.categorySubs,
                                           root: mixes.categoryState.root ?? node)
-                                .id(node)
                         } else {
                             CategoryHome(state: $mixes.categoryState)
                         }

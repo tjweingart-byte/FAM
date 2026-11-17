@@ -117,6 +117,9 @@ struct RootView: View {
             .onChange(of: scenePhase) { _, new in
                 if new == .background {
                     wentAway = true
+                    // An Undo line's held request goes as the app leaves
+                    // the screen (`flushSnackCommit` on `pagehide`).
+                    model.nowPlaying.flushCommit()
                     // The next background refresh of the DailyFAM page
                     // (`FeedRefresh`): only for an account let in.
                     FeedRefresh.schedule()

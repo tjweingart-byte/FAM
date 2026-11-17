@@ -139,6 +139,12 @@ struct CategoryPanel: View {
     @State private var page: CategoryEpisodes?
     @State private var failed = false
     @State private var following = false
+    /// The node `page` is for; while another loads, the last page stays,
+    /// inert (`aria-busy`, `inert`, §642/§646).
+    @State private var pageNode = ""
+    /// The first page has waited 300 ms: "Loading…" may show.
+    @State private var slow = false
+    private var busy: Bool { page != nil && pageNode != node }
     @Environment(\.dynamicTypeSize) private var typeSize
 
     static let tones: [String: Color] = [
@@ -186,25 +192,42 @@ struct CategoryPanel: View {
                     .buttonStyle(.press)
                 }
                 .frame(maxWidth: .infinity)
-            } else {
+            } else if slow {
                 note("Loading today’s episodes…")
             }
         }
         .padding(.horizontal, 18)
+        // Play all, Follow and the rows do nothing while the next loads.
+        .allowsHitTesting(!busy)
         .task(id: node) { await load() }
     }
 
     private func load() async {
         failed = false
+        if page == nil {
+            // The line only after 300 ms (`lateLoader`).
+            slow = false
+            let asked = node
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if page == nil && node == asked { slow = true }
+            }
+        }
         do {
             let answer = try await model.api.categoryEpisodes(node)
+            if Task.isCancelled { return }
             page = answer
+            pageNode = node
             // The level below comes from the category's own answer only,
             // so narrowing to one of its subs keeps the row
             // (`if(node === catPage.root)`).
             if root.isEmpty || node == root { subs = answer.subcategories }
         } catch {
+            // A load overtaken by the next node's says nothing.
+            if Task.isCancelled { return }
             failed = true
+            page = nil
+            pageNode = ""
         }
     }
 
@@ -307,6 +330,7 @@ struct CategoryPanel: View {
             guard mixes.categories?.saved == true else { return }
             guard !following else { return }
             following = true
+            // Following on the tap (§642); refused, it flips back.
             Task { _ = await mixes.toggleFollow(node); following = false }
         } label: {
             Text(on ? "Following" : "Follow")

@@ -84,6 +84,9 @@ final class SocialModel: ObservableObject {
     var say: (String) -> Void = { _ in }
     /// Ask the tab bar to show a tab.
     var requestTab: (Tab) -> Void = { _ in }
+    /// The app's Undo line (`nowPlaying.undoLine`): the text, what Undo
+    /// does, and the request held until the line goes.
+    var undoLine: (String, @escaping () -> Void, @escaping () async -> Void) -> Void = { _, _, _ in }
     /// Close the full-screen player if it is up; true when it was. A
     /// banner is drawn over the player too, and its tap must not open a
     /// conversation underneath it.
@@ -121,6 +124,18 @@ final class SocialModel: ObservableObject {
     /// The conversation on screen, whose messages raise no banner.
     var chatOnScreen: String?
 
+    /// Chats deleted or left under their Undo (`threadsGone`): a re-read of
+    /// the inbox never brings them back.
+    private var threadsGone: Set<String> = []
+    /// Their unread, still in the server's count until the request goes.
+    private var goneUnread: [String: Int] = [:]
+    /// Chats read on the tap (`markThreadRead`, §644): drawn read, and
+    /// counted off the badge, before the server says so.
+    @Published private(set) var readOnTap: Set<String> = []
+    /// Every chat opened this session (`threadMemory`), drawn at once on
+    /// reopening; emptied at sign-out.
+    private var chatMemory: [String: ChatModel] = [:]
+
     private var cursor = 0
     private var bootstrapped = false
     private var bannerQueue: [SocialBanner] = []
@@ -147,9 +162,14 @@ final class SocialModel: ObservableObject {
         banner = nil
         follower = nil
         followingBack = false
+        followShown = [:]
         newChatOpen = false
         cursor = 0
         bootstrapped = false
+        threadsGone = []
+        goneUnread = [:]
+        readOnTap = []
+        chatMemory = [:]
         bannerQueue = []
         bannerTask?.cancel()
         raised = []
@@ -165,6 +185,18 @@ final class SocialModel: ObservableObject {
         // the same chat once more, so the back arrow led into it again
         // once per tap).
         if case let .thread(chat) = route, returnToThread(chat.with) { return }
+        // Another chat opened from inside a chat (its banner) replaces the
+        // open one, so Back goes to the list (§644).
+        if case .thread = route {
+            if cover != nil, let last = coverPath.last, case .thread = last {
+                coverPath[coverPath.count - 1] = route
+                return
+            }
+            if cover == nil, onMessagesTab, let last = messagesPath.last, case .thread = last {
+                messagesPath[messagesPath.count - 1] = route
+                return
+            }
+        }
         if cover != nil {
             coverPath.append(route)
         } else if onMessagesTab {
@@ -271,17 +303,110 @@ final class SocialModel: ObservableObject {
     // MARK: - The inbox
 
     /// `renderThreadList`: "Loading…" only when nothing is drawn yet; a
-    /// refresh keeps the old list.
+    /// refresh keeps the old list. Read beside the notifications' first
+    /// call and whenever the count moves (`fetchInbox`, §644), so the list
+    /// is in hand when Messages opens.
     func loadInbox() async {
         if threads.isEmpty { inboxState = .loading }
         do {
             let page = try await api.inbox()
-            threads = page.threads
-            unread = page.unread
+            let gone = threadsGone
+            threads = page.threads.filter { !gone.contains($0.with) }
+            // A chat read on the tap stays read only while it is the one on
+            // screen; elsewhere the server's count stands.
+            readOnTap = readOnTap.filter { $0 == chatOnScreen }
+            // What the gone chats still hold in the server's count.
+            for t in page.threads where gone.contains(t.with) { goneUnread[t.with] = t.unread ?? 0 }
+            unread = withoutHeld(page.unread) ?? 0
             inboxState = .loaded
         } catch {
             if threads.isEmpty { inboxState = .failed }
         }
+    }
+
+    /// The server's count less the chats read on the tap or gone under
+    /// their Undo, which it does not know about yet.
+    func withoutHeld(_ n: Int?) -> Int? {
+        guard var n else { return nil }
+        for t in threads where readOnTap.contains(t.with) { n -= t.unread ?? 0 }
+        for k in goneUnread.values { n -= k }
+        return max(0, n)
+    }
+
+    /// A row's unread count as drawn: none once it was tapped.
+    func unreadCount(_ t: InboxThread) -> Int {
+        readOnTap.contains(t.with) ? 0 : (t.unread ?? 0)
+    }
+
+    /// A chat is read on the tap (`markThreadRead`): its row reads 0 and the
+    /// Messages count drops at once.
+    func markRead(_ with: String) {
+        guard !readOnTap.contains(with), let row = threads.first(where: { $0.with == with }),
+              let n = row.unread, n > 0 else { return }
+        readOnTap.insert(with)
+        unread = max(0, unread - n)
+    }
+
+    /// The conversation kept for `open.with`, or a new one kept from now
+    /// (`threadMemory`).
+    func chat(for open: ChatOpen) -> ChatModel {
+        if let kept = chatMemory[open.with] { return kept }
+        let made = ChatModel(api: api, who: open)
+        made.onScreen = { [weak self, weak made] in
+            guard let self, let made else { return false }
+            return self.chatOnScreen == made.who.with
+        }
+        chatMemory[open.with] = made
+        return made
+    }
+
+    /// Delete chat / Leave group (§644's delete-chat B): no question - the
+    /// chat is off the list and out of memory at once, the screen goes
+    /// back, and "Chat deleted" / "You left the group" carries Undo for 5 s;
+    /// the request goes only when the line goes, and a refusal puts the
+    /// chat back and says so (`goneChat`).
+    func goneChat(_ with: String, group: Bool) {
+        let at = threads.firstIndex { $0.with == with }
+        let row = at.map { threads[$0] }
+        let n = row.map { unreadCount($0) } ?? 0
+        let kept = chatMemory[with]
+        threadsGone.insert(with)
+        goneUnread[with] = n
+        withAnimation(Motion.anim(Motion.easeIn(Motion.Dur.rowOut))) {
+            threads.removeAll { $0.with == with }
+        }
+        chatMemory[with] = nil
+        unread = max(0, unread - n)
+        back()
+        let refused = group ? "Could not leave that group" : "Could not delete that chat"
+        undoLine(group ? "You left the group" : "Chat deleted", { [weak self] in
+            guard let self else { return }
+            self.threadsGone.remove(with)
+            self.goneUnread[with] = nil
+            if let kept { self.chatMemory[with] = kept }
+            guard let row, !self.threads.contains(where: { $0.with == with }) else { return }
+            withAnimation(Motion.anim(Motion.easeOut(Motion.Dur.undoIn))) {
+                self.threads.insert(row, at: min(at ?? 0, self.threads.count))
+            }
+            self.unread += n
+        }, { [weak self] in
+            guard let self else { return }
+            do {
+                let answer: UnreadAnswer
+                if group {
+                    answer = try await self.api.leaveGroup(with)
+                } else {
+                    answer = try await self.api.deleteChat(with: with)
+                }
+                self.goneUnread[with] = nil
+                self.setUnread(self.withoutHeld(answer.unread))
+            } catch {
+                self.threadsGone.remove(with)
+                self.goneUnread[with] = nil
+                self.say(SocialModel.sentence(error, else: refused))
+                await self.loadInbox()
+            }
+        })
     }
 
     func setUnread(_ n: Int?) {
@@ -353,8 +478,15 @@ final class SocialModel: ObservableObject {
     }
 
     func isFollowing(_ userID: String) -> Bool {
-        graph?.following.contains { $0.userId == userID } ?? false
+        // A tap not yet answered reads as it asked (§645).
+        if let shown = followShown[userID] { return shown }
+        return graph?.following.contains { $0.userId == userID } ?? false
     }
+
+    /// Follow / Unfollow tapped and not yet answered, by id: every Follow
+    /// button for them reads the tap at once, put back if refused
+    /// (`Motion.followButton`, §645).
+    @Published private(set) var followShown: [String: Bool] = [:]
 
     func followsMe(_ userID: String) -> Bool {
         graph?.followers.contains { $0.userId == userID } ?? false
@@ -381,29 +513,36 @@ final class SocialModel: ObservableObject {
     /// Your handle, for an invite's "I'm @handle".
     var myHandle: String { me?.handle ?? "" }
 
-    /// `followPerson`: by id, then the graph re-read. Returns whether it worked.
+    /// `followPerson`: by id, then the graph re-read. Returns whether it
+    /// worked. Following on the tap; no line on success - "Following" /
+    /// "Unfollowed" are gone, only a refusal is said (§645). `quiet` is
+    /// kept for the callers that passed it.
     @discardableResult
     func follow(userID: String = "", handle: String = "", quiet: Bool = false) async -> Bool {
+        if !userID.isEmpty { followShown[userID] = true }
         do {
             try await api.follow(userID: userID, handle: handle)
             await loadGraph()
-            if !quiet { say("Following") }
+            if !userID.isEmpty { followShown[userID] = nil }
             return true
         } catch {
+            if !userID.isEmpty { followShown[userID] = nil }
             say(SocialModel.sentence(error, else: "Could not follow that person"))
             return false
         }
     }
 
-    /// `unfollowPerson`: immediate, then the graph re-read.
+    /// `unfollowPerson`: "Follow" on the tap, then the graph re-read.
     @discardableResult
     func unfollow(_ userID: String) async -> Bool {
+        followShown[userID] = false
         do {
             try await api.unfollow(userID: userID)
             await loadGraph()
-            say("Unfollowed")
+            followShown[userID] = nil
             return true
         } catch {
+            followShown[userID] = nil
             say("Could not unfollow")
             return false
         }
@@ -426,6 +565,8 @@ final class SocialModel: ObservableObject {
             }
             await loadGraph()
             Task { await loadMe() }
+            // The inbox beside the first call, so Messages opens on it.
+            Task { await loadInbox() }
             checkNewFollowers()
         } else {
             await poll()
@@ -448,9 +589,12 @@ final class SocialModel: ObservableObject {
     private func poll() async {
         guard let page = try? await api.notifications(since: cursor, bootstrap: false) else { return }
         cursor = max(cursor, page.head)
-        unread = page.unread
-        // The Messages list on screen re-reads itself when a message lands.
-        if !page.messages.isEmpty && onMessagesTab && messagesPath.isEmpty && cover == nil {
+        let now = withoutHeld(page.unread) ?? page.unread
+        let moved = now != unread
+        unread = now
+        // The inbox is read again when a message lands or the count moves,
+        // the list on screen or not (`fetchInbox`, §644).
+        if !page.messages.isEmpty || moved {
             Task { await loadInbox() }
         }
         for m in page.messages {
@@ -482,13 +626,19 @@ final class SocialModel: ObservableObject {
         return ChatOpen(with: id, name: from.name ?? "", handle: from.handle ?? "", avatar: from.avatar ?? "")
     }
 
-    /// An episode - a share, or a reply to or a like on a vibe, which
-    /// carry one too - is "Shared: <title|query|an episode>"; anything
-    /// else is its words (`pollNotifications`).
+    /// An episode message (`pollNotifications`, §644): a like on a vibe is
+    /// "Liked your vibe · <title>", a reply "Replied to your vibe: <words>",
+    /// a share "Shared: <title|query|an episode>"; anything else is its
+    /// words.
     static func bannerText(_ m: ChatMessage) -> String {
         guard m.kind == "episode" else { return m.text ?? "" }
         let title = m.title ?? ""
         let query = m.query ?? ""
+        let words = m.text ?? ""
+        if words == FAMAPI.storyLike {
+            return "Liked your vibe" + (title.isEmpty ? "" : " \u{00B7} " + title)
+        }
+        if !words.isEmpty { return "Replied to your vibe: " + words }
         return "Shared: " + (!title.isEmpty ? title : (!query.isEmpty ? query : "an episode"))
     }
 
@@ -586,27 +736,31 @@ final class SocialModel: ObservableObject {
     /// The follow-back in flight, so a second tap sends nothing.
     @Published private(set) var followingBack = false
 
-    /// Follow back from the popup (`followBack`): the popup stays up until
-    /// the server says yes - a refusal is only the toast, the server's
-    /// sentence, else "Could not follow them back" - then "You and <Name>
-    /// are friends now" ("they" with no name).
+    /// Follow back from the popup (`followBack`, §645): the popup closes on
+    /// the tap and every Follow for them reads Following; then "You and
+    /// <Name> are friends now" ("they" with no name). A refusal puts them
+    /// back and says the server's sentence, else "Could not follow them
+    /// back".
     func followBack(_ p: FollowPerson) {
         guard !followingBack else { return }
         followingBack = true
+        if follower?.userId == p.userId { follower = nil }
+        followShown[p.userId] = true
         Task {
             do {
                 try await api.follow(userID: p.userId)
                 followingBack = false
-                if follower?.userId == p.userId { follower = nil }
                 let name = (p.name ?? "").isEmpty ? "they" : (p.name ?? "")
                 say("You and \(name) are friends now")
                 await loadGraph()
+                followShown[p.userId] = nil
                 Task { await loadMe() }
                 // The next follower waits for this popup to have gone.
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 checkNewFollowers()
             } catch {
                 followingBack = false
+                followShown[p.userId] = nil
                 say(SocialModel.sentence(error, else: "Could not follow them back"))
             }
         }
@@ -648,7 +802,10 @@ final class SocialModel: ObservableObject {
 
 /// One conversation on screen (`openThreadWith`, `sendThreadMessage`): the
 /// whole thread on open, then every 2 s what arrived after `head`, kept
-/// in step by row id; sends drawn at once at 55%, replaced in place.
+/// in step by row id; sends drawn at once and replaced in place, "Sending…"
+/// under them past a second, a refused one kept, faded, "Not sent · Tap to
+/// retry" (§644). Kept in memory by `SocialModel.chat(for:)` while signed
+/// in, so a chat opened again is drawn at once (`threadMemory`).
 @MainActor
 final class ChatModel: ObservableObject {
     /// `THREAD_POLL_MS`, the typing note's pace (`TYPING_NOTE_MS`).
@@ -659,6 +816,12 @@ final class ChatModel: ObservableObject {
         let id: String
         var message: ChatMessage
         var pending: Bool
+        /// Refused: it stays, faded, "Not sent · Tap to retry" (§644).
+        var failed = false
+        /// The server's reason, for VoiceOver ("Not sent: <why>").
+        var why = ""
+        /// The episode id an episode send carried, for a retry.
+        var episode = ""
     }
 
     let api: FAMAPI
@@ -671,6 +834,15 @@ final class ChatModel: ObservableObject {
     @Published var draft = ""
     /// Rows that arrived since the last draw, which pop in (`popMessages`).
     @Published private(set) var fresh: Set<String> = []
+    /// "Sending…" under the last bubble: only once a send has waited a
+    /// second (`armSending`, §644).
+    @Published private(set) var sendingShown = false
+    /// The open has waited 300 ms with nothing drawn: "Loading…" may show
+    /// (`lateLoader`).
+    @Published private(set) var slowLoad = false
+    /// Whether this chat is the one on screen: a failure off screen is said
+    /// on the bottom line too ("Not sent: …").
+    var onScreen: () -> Bool = { true }
 
     private var head = 0
     private var lastTypingNote = Date.distantPast
@@ -681,8 +853,10 @@ final class ChatModel: ObservableObject {
     }
 
     /// Open, then top up every 2 s while on screen. A failed poll is silent.
+    /// A chat kept in memory is drawn at once and topped up from its
+    /// cursor at once (`threadMemory`).
     func run() async {
-        if state != .loaded { await load() }
+        if state != .loaded { await load() } else { await poll() }
         while !Task.isCancelled {
             try? await Task.sleep(nanoseconds: UInt64(Self.pollSeconds * 1_000_000_000))
             if Task.isCancelled { break }
@@ -697,11 +871,22 @@ final class ChatModel: ObservableObject {
     }
 
     func load(quiet: Bool = false) async {
-        if rows.isEmpty && !quiet { state = .loading }
+        if rows.isEmpty && !quiet {
+            state = .loading
+            // "Loading…" only past 300 ms (`lateLoader`).
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard let self, self.state == .loading else { return }
+                self.slowLoad = true
+            }
+        }
+        defer { slowLoad = false }
         do {
             let page = try await api.chat(with: who.with)
             take(page.with)
-            rows = page.messages.map { Row(id: "m\($0.id)", message: $0, pending: false) }
+            // A refused send stays where it was typed (§644).
+            let kept = rows.filter { $0.failed || $0.pending }
+            rows = page.messages.map { Row(id: "m\($0.id)", message: $0, pending: false) } + kept
             head = page.head
             typing = page.typing ?? false
             state = .loaded
@@ -760,8 +945,9 @@ final class ChatModel: ObservableObject {
     }
 
     /// `sendThreadMessage`: an empty box does nothing; the bubble is drawn
-    /// at once; a refusal takes it away, puts the words back, and says the
-    /// server's sentence.
+    /// at once and the box stays clear. A refusal keeps the bubble, faded,
+    /// marked "Not sent · Tap to retry" (§644's send-failed C, reversing the
+    /// words put back in the box).
     func sendText() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -772,37 +958,71 @@ final class ChatModel: ObservableObject {
         let row = Row(id: "d" + UUID().uuidString, message: ChatMessage(draftText: text), pending: true)
         rows.append(row)
         fresh = [row.id]
-        let to = who.with
-        Task {
-            do {
-                let sent = try await api.sendMessage(to: to, text: text)
-                settle(row.id, sent.message)
-            } catch {
-                rows.removeAll { $0.id == row.id }
-                if draft.isEmpty { draft = text } else { draft = text + "\n" + draft }
-                say(SocialModel.sentence(error, else: "Could not send that"))
-            }
-        }
+        post(row)
     }
 
     /// The composer's (+): an episode, with the id of the one heard.
     func sendEpisode(query: String, minutes: Double, title: String, episode: String) {
         let row = Row(id: "d" + UUID().uuidString,
                       message: ChatMessage(draftText: "", query: query, minutes: minutes, title: title),
-                      pending: true)
+                      pending: true, episode: episode)
         rows.append(row)
         fresh = [row.id]
+        post(row)
+    }
+
+    /// A tap on "Not sent · Tap to retry" or its bubble: the same draft
+    /// again (`retryThreadMessage`).
+    func retry(_ id: String) {
+        guard let at = rows.firstIndex(where: { $0.id == id }), rows[at].failed else { return }
+        rows[at].failed = false
+        rows[at].why = ""
+        rows[at].pending = true
+        post(rows[at])
+    }
+
+    /// One draft to the server (`postDraft`): words, or an episode.
+    private func post(_ row: Row) {
         let to = who.with
+        let m = row.message
+        let isEpisode = !(m.query ?? "").isEmpty
+        armSending()
         Task {
             do {
-                let sent = try await api.sendMessage(to: to, query: query, minutes: minutes,
-                                                     title: title, episode: episode)
+                let sent: SentMessage
+                if isEpisode {
+                    sent = try await api.sendMessage(to: to, query: m.query ?? "", minutes: m.minutes ?? 0,
+                                                     title: m.title ?? "", episode: row.episode)
+                } else {
+                    sent = try await api.sendMessage(to: to, text: m.text ?? "")
+                }
                 settle(row.id, sent.message)
             } catch {
-                rows.removeAll { $0.id == row.id }
-                say(SocialModel.sentence(error, else: "Could not share that"))
+                let why = SocialModel.sentence(error, else: isEpisode ? "Could not share that"
+                                                                       : "Could not send that")
+                if let at = rows.firstIndex(where: { $0.id == row.id }) {
+                    rows[at].pending = false
+                    rows[at].failed = true
+                    rows[at].why = why
+                }
+                // Off screen, the failure is said too (§646).
+                if !onScreen() { say("Not sent: " + why) }
             }
+            settleSending()
         }
+    }
+
+    /// "Sending…" once a send has waited a second; gone when none waits.
+    private func armSending() {
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Motion.Dur.sendingAfter * 1_000_000_000))
+            guard let self else { return }
+            if self.rows.contains(where: \.pending) { self.sendingShown = true }
+        }
+    }
+
+    private func settleSending() {
+        if !rows.contains(where: \.pending) { sendingShown = false }
     }
 
     /// The draft becomes the server's row in place. A poll that already

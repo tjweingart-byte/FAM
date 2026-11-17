@@ -193,7 +193,34 @@ struct AttachChip: View {
         .frame(minHeight: 28)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(failed ? FAMColor.coral : FAMColor.borderStrong))
+        // Being read: a 2 pt copper strip runs along its foot, 1.2 s a pass
+        // (§643's attach-chip C) - a progress indicator, so it keeps going
+        // with Reduce Motion.
+        .overlay(alignment: .bottom) {
+            if slot.pending { ReadingLine() }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9))
         .opacity(slot.pending ? 0.6 : 1)
+    }
+}
+
+/// `.attach-chip.working::after`: a copper strip the chip's width, from
+/// off its left edge to off its right, linear, over and over.
+private struct ReadingLine: View {
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let phase = t.truncatingRemainder(dividingBy: 1.2) / 1.2
+                Rectangle()
+                    .fill(FAMColor.copper)
+                    .frame(width: geo.size.width, height: 2)
+                    .offset(x: CGFloat(-1 + 2 * phase) * geo.size.width)
+            }
+        }
+        .frame(height: 2)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

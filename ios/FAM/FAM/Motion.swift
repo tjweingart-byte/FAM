@@ -8,8 +8,125 @@ import UIKit
 // is on, new rails arrive tile by tile. Nothing waits on any of it
 // (`motion`, `latency-start-earlier`): the button acts on release as it
 // always did, the new tab is live from its first frame, a tile is tappable
-// while it arrives. With Reduce Motion on, a tab change is the web's 120 ms
-// crossfade and nothing else moves.
+// while it arrives. Round three (§640): every curve and time is a named
+// token (`Motion` below, the web's `:root` `--ease-*`, `--dur-*`,
+// `--spring-*`), and with Reduce Motion on every movement is off, fades
+// included - a screen change and a sheet are instant - and only loading
+// indicators keep a gentle opacity pulse.
+
+/// The web's motion tokens (`:root` in static/index.html, read alike by its
+/// CSS and `Motion.DUR`), so the app and the web share one set of numbers.
+enum Motion {
+    /// `--ease-out` (.32,.72,0,1): things arriving, and most settling.
+    static func easeOut(_ duration: Double) -> Animation {
+        .timingCurve(0.32, 0.72, 0, 1, duration: duration)
+    }
+    /// `--ease-in` (.55,0,1,.45): things leaving.
+    static func easeIn(_ duration: Double) -> Animation {
+        .timingCurve(0.55, 0, 1, 0.45, duration: duration)
+    }
+    /// `--ease-in-out` (.77,0,.175,1): things moving on screen.
+    static func easeInOut(_ duration: Double) -> Animation {
+        .timingCurve(0.77, 0, 0.175, 1, duration: duration)
+    }
+    /// `--ease-swap` (.25,.1,0,1): an icon or a word changing in place.
+    static func easeSwap(_ duration: Double) -> Animation {
+        .timingCurve(0.25, 0.1, 0, 1, duration: duration)
+    }
+    /// `--spring-soft`: .5 s, bounce .15 (a dot landing, a settle).
+    static var springSoft: Animation { .spring(duration: 0.5, bounce: 0.15) }
+    /// `--spring-icon`: .35 s, no bounce (the icon swap).
+    static var springIcon: Animation { .spring(duration: 0.35, bounce: 0) }
+
+    /// `--dur-*`, in seconds.
+    enum Dur {
+        static let pressDown = 0.09, pressUp = 0.22
+        static let colour = 0.15
+        static let tab = 0.16
+        static let page = 0.34, pageBack = 0.26
+        static let modalIn = 0.22, modalOut = 0.16
+        static let sheetIn = 0.28, sheetOut = 0.2
+        static let toastIn = 0.24, toastOut = 0.17
+        static let fadeIn = 0.24, fadeOut = 0.2, handOver = 0.12
+        static let flight = 0.36
+        static let barIn = 0.26, barOut = 0.19
+        static let icon = 0.35, spring = 0.45, settleDelay = 0.03
+        static let title = 0.24, picture = 0.24
+        static let label = 0.9
+        static let nextUp = 0.28
+        static let step = 0.26, roll = 0.3
+        static let tour = 0.34
+        static let arrive = 0.35, arriveLead = 0.09, stagger = 0.03
+        static let cardIn = 0.26, cardOut = 0.15, reflow = 0.2
+        static let spinnerAfter = 0.3, spinnerMin = 0.5
+        static let storyHide = 0.15, storyShow = 0.2, storySpring = 0.4
+        static let reply = 0.22
+        static let swap = 0.3
+        static let knob = 0.22, shackle = 0.18
+        static let tick = 0.22, tickAt = 0.08
+        static let focus = 0.12
+        static let drain = 0.26
+        static let column = 0.22
+        static let sendingAfter = 1.0, lineOut = 0.12
+        static let rowOut = 0.18, undoIn = 0.22
+        static let follow = 0.26
+        static let photoDevelop = 0.32
+        static let switchKnob = 0.2
+        static let undoBack = 0.2
+        /// A line with an action (Undo, Open) stays this long
+        /// (`SNACK_ACTION_MS`).
+        static let undoLine = 5.0
+    }
+
+    /// The system's Reduce Motion, for code outside a view.
+    static var reduced: Bool { UIAccessibility.isReduceMotionEnabled }
+
+    /// `animation`, or none under Reduce Motion (round three: all off).
+    static func anim(_ animation: Animation, reduce: Bool = Motion.reduced) -> Animation? {
+        reduce ? nil : animation
+    }
+}
+
+// MARK: - The icon swap (`--spring-icon`, §640)
+
+/// One state of an icon in a swap: the leaving one shrinks to .3 behind a
+/// 3 pt blur and fades; the arriving one comes the other way.
+private struct IconSwapState: ViewModifier {
+    let away: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(away ? 0.3 : 1)
+            .blur(radius: away ? 3 : 0)
+            .opacity(away ? 0 : 1)
+    }
+}
+
+extension AnyTransition {
+    /// The shared icon swap (play / pause, save, the lock, mic / go): both
+    /// icons cross at the same moment. Reduce Motion: on one frame.
+    static var iconSwap: AnyTransition {
+        if Motion.reduced { return .identity }
+        return .modifier(active: IconSwapState(away: true), identity: IconSwapState(away: false))
+    }
+}
+
+/// An icon that crosses to its next state on the icon spring when `key`
+/// changes - one cell, so nothing beside it moves.
+struct IconSwap<Key: Hashable, Icon: View>: View {
+    let key: Key
+    @ViewBuilder let icon: () -> Icon
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            icon()
+                .id(key)
+                .transition(reduceMotion ? .identity : .iconSwap)
+        }
+        .animation(reduceMotion ? nil : Motion.springIcon, value: key)
+    }
+}
 
 /// Every button (`PRESSABLE` on the web): down to about 8 pt smaller - a
 /// big row barely moves, a small button visibly does, never below 0.9 -
@@ -155,10 +272,11 @@ extension Tab {
     }
 }
 
-/// One tab's page in the tab stack (`Motion.screen(…, "tab")`): the old
-/// page slides 18 pt toward the side away from the new tab as it fades,
-/// the new one comes in from the new tab's side. Only the page moves; the
-/// tab bar and the mini player stay where they are.
+/// One tab's page in the tab stack (`Motion.screen(…, "tab")`, round
+/// three's C, §640): the old page is gone on the first frame; the new one's
+/// content nudges 12 pt in from the new tab's side over 160 ms. Only the
+/// page moves; the tab bar and the mini player stay where they are. Reduce
+/// Motion: the page is simply there.
 struct TabPage: ViewModifier {
     let me: Tab
     let current: Tab
@@ -167,13 +285,12 @@ struct TabPage: ViewModifier {
     func body(content: Content) -> some View {
         let on = me == current
         let side: CGFloat = me.order > current.order ? 1 : -1
-        let shift: CGFloat = (on || reduceMotion) ? 0 : 18 * side
-        let curve: Animation = reduceMotion ? .easeInOut(duration: 0.12)
-                                            : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)
+        let shift: CGFloat = (on || reduceMotion) ? 0 : 12 * side
         content
-            .animation(curve) { page in
-                page.opacity(on ? 1 : 0).offset(x: shift)
+            .animation(on && !reduceMotion ? Motion.easeOut(Motion.Dur.tab) : nil) { page in
+                page.offset(x: shift)
             }
+            .opacity(on ? 1 : 0)
             .allowsHitTesting(on)
     }
 }
@@ -244,43 +361,14 @@ extension View {
     }
 }
 
-// MARK: - The tab icon pops (`tabPop`)
+// MARK: - The tab icon no longer pops (`tabPop` deleted, §640)
 
-/// The newly chosen tab's icon (`.tabbar .tab.active .dot svg`): from 0.7
-/// and 2 pt low, up past full size to 1.12 and 1 pt high at 60 %, settling
-/// at 420 ms on the web's overshooting curve. Only on a change to it -
-/// never on the first draw - and still with Reduce Motion.
+/// Round three (§640): the tab icon never pops. Kept as a no-op so the tab
+/// bar's call reads as before.
 struct TabIconPop: ViewModifier {
     let on: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var scale: CGFloat = 1
-    @State private var lift: CGFloat = 0
 
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(scale)
-            .offset(y: lift)
-            .onChange(of: on) { _, now in
-                guard now, !reduceMotion else { return }
-                var still = Transaction()
-                still.disablesAnimations = true
-                withTransaction(still) {
-                    scale = 0.7
-                    lift = 2
-                }
-                // 0 → 60 %: 252 ms out to the overshoot; 60 → 100 %: back.
-                withAnimation(.timingCurve(0.3, 1.6, 0.5, 1, duration: 0.252)) {
-                    scale = 1.12
-                    lift = -1
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.252) {
-                    withAnimation(.timingCurve(0.3, 1.6, 0.5, 1, duration: 0.168)) {
-                        scale = 1
-                        lift = 0
-                    }
-                }
-            }
-    }
+    func body(content: Content) -> some View { content }
 }
 
 extension View {
@@ -431,7 +519,7 @@ extension View {
 /// - close with the mini player there: the player's picture flies into the
 ///   mini player's (340 ms, ease-in-out) while the player fades (200 ms)
 /// - close without it: slid away to the right (260 ms)
-/// - Reduce Motion: a 120 ms crossfade either way
+/// - Reduce Motion: instant either way (round three, §640)
 ///
 /// The player is live and tappable from its first frame; audio started on
 /// the tap. Nothing here holds anything (`motion`).
@@ -455,7 +543,7 @@ final class PlayerStage: ObservableObject {
 
     /// How long the close takes before the cover can go.
     func closeDuration(reduceMotion: Bool) -> Double {
-        if reduceMotion { return 0.12 }
+        if reduceMotion { return 0 }
         return into == nil ? 0.26 : 0.34
     }
 }
@@ -534,8 +622,9 @@ struct PlayerEntrance<Content: View>: View {
                 withAnimation(.easeOut(duration: 0.24)) { shown = 1 }
             }
         } else if reduceMotion {
+            // Round three: instant (§640).
             flyingKind = .none
-            withAnimation(.easeInOut(duration: 0.12)) { shown = 1 }
+            shown = 1
         } else {
             flyingKind = .none
             let curve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)
@@ -555,7 +644,7 @@ struct PlayerEntrance<Content: View>: View {
 
     private func close() {
         if reduceMotion {
-            withAnimation(.easeInOut(duration: 0.12)) { shown = 0 }
+            shown = 0
             return
         }
         if let into = stage.into, stage.pictureFrame != .zero {
@@ -649,8 +738,8 @@ extension EnvironmentValues {
 /// from the bottom, which is iOS's cover and not a screen. The cover is
 /// shown and hidden without iOS's slide; what is seen moving is drawn
 /// here.
-/// The screen is live from its first frame. Reduce Motion: a 120 ms
-/// crossfade in, gone at once.
+/// The screen is live from its first frame. Reduce Motion: in and gone at
+/// once (round three, §640).
 final class PushedState: ObservableObject {
     @Published var leaving = false
     /// 0 with nothing pushed, 1 with the screen fully in: the pushed
@@ -660,9 +749,10 @@ final class PushedState: ObservableObject {
     /// in another presentation, so it is given the same curve itself).
     var curve: Animation? = nil
 
-    /// The push's own curve (320 ms) and the pop's (260 ms).
-    static let pushCurve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)
-    static let popCurve = Animation.easeInOut(duration: 0.26)
+    /// The push's own curve (340 ms) and the pop's (260 ms), both
+    /// `--ease-out` (round three, §640).
+    static let pushCurve = Motion.easeOut(Motion.Dur.page)
+    static let popCurve = Motion.easeOut(Motion.Dur.pageBack)
     static let settleCurve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)
 
     func move(to value: CGFloat, _ curve: Animation?) {
@@ -686,7 +776,7 @@ private struct PushedScreen<Content: View>: View {
             .offset(x: reduceMotion ? 0 : (1 - state.shown) * width)
             .allowsHitTesting(!state.leaving)
             .onAppear {
-                state.move(to: 1, reduceMotion ? .easeInOut(duration: 0.12) : PushedState.pushCurve)
+                state.move(to: 1, reduceMotion ? nil : PushedState.pushCurve)
             }
             .onChange(of: state.leaving) { _, leaving in
                 guard leaving else {
@@ -828,8 +918,8 @@ private var windowBottomInset: CGFloat {
 /// over 150 ms, the card dropping 8 pt. A sheet is the web's
 /// `.sheet-card`: the surface, 20 pt top corners and a strong top border,
 /// at most 82 % of the screen, sized to what it holds; a tap on the dim
-/// closes it. Reduce Motion: the dim and card
-/// fade in over 120 ms, nothing lifts, closing is at once. The card is
+/// closes it. Reduce Motion: there at once, nothing lifts, closing is at
+/// once (round three, §640). The card is
 /// live from its first frame.
 private struct OverlayCard<Content: View>: View {
     @ObservedObject var state: OverlayState
@@ -857,7 +947,7 @@ private struct OverlayCard<Content: View>: View {
         .allowsHitTesting(!state.leaving)
         .onPreferenceChange(ModalLayoutKey.self) { modal = $0 }
         .onAppear {
-            withAnimation(reduceMotion ? .easeInOut(duration: 0.12)
+            withAnimation(reduceMotion ? nil
                                        : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { shown = true }
         }
         .onChange(of: state.leaving) { _, leaving in
@@ -1001,12 +1091,9 @@ struct FadesIn<Content: View>: View {
 extension AnyTransition {
     /// A card coming and going as the web's modals do (`mo-lift`, `mo-drop`):
     /// in over 200 ms, lifting 14 pt as it fades; out over 150 ms, easing
-    /// in, dropping 8 pt. Reduce Motion: a 120 ms fade in, gone at once.
+    /// in, dropping 8 pt. Reduce Motion: there and gone at once (§640).
     static func famCard(reduceMotion: Bool) -> AnyTransition {
-        if reduceMotion {
-            return .asymmetric(insertion: AnyTransition.opacity.animation(.easeInOut(duration: 0.12)),
-                               removal: .identity)
-        }
+        if reduceMotion { return .identity }
         return .asymmetric(
             insertion: AnyTransition.opacity.combined(with: .offset(y: 14))
                 .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)),
@@ -1016,10 +1103,7 @@ extension AnyTransition {
 
     /// The dim behind it (`mo-in`, `mo-out`): 200 ms in, 150 ms out.
     static func famDim(reduceMotion: Bool) -> AnyTransition {
-        if reduceMotion {
-            return .asymmetric(insertion: AnyTransition.opacity.animation(.easeInOut(duration: 0.12)),
-                               removal: .identity)
-        }
+        if reduceMotion { return .identity }
         return .asymmetric(
             insertion: AnyTransition.opacity.animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)),
             removal: AnyTransition.opacity.animation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)))

@@ -363,6 +363,9 @@ struct StoryViewer: View {
     @State private var moved = false
     @State private var pressing = false
     @State private var pressID = 0
+    /// A drag down under way (`storyDrag`), and how far it has come.
+    @State private var pullingDown = false
+    @State private var dragY: CGFloat = 0
     @State private var reply = ""
     @State private var liked: [String: Bool] = [:]
     @State private var reporting = false
@@ -420,12 +423,18 @@ struct StoryViewer: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
-                .animation(.easeOut(duration: 0.2), value: held)
+                // Held, the chrome hides in 150 ms and returns in 200 ms;
+                // at once with Reduce Motion (§641).
+                .animation(reduceMotion ? nil : (held ? Motion.easeIn(Motion.Dur.storyHide)
+                                                      : Motion.easeOut(Motion.Dur.storyShow)), value: held)
             }
         }
         // The cube's turn between friends, over the dark behind it.
         .rotation3DEffect(.degrees(turn), axis: (x: 0, y: 1, z: 0), anchor: turnAnchor, perspective: 0.55)
         .offset(x: turnShift)
+        // Pulled down to close (§641): 1:1, shrinking to .85 over 300 pt.
+        .scaleEffect(1 - 0.15 * min(dragY, 300) / 300)
+        .offset(y: dragY)
         // The friend turned away from, a copy that takes no touches, turning
         // out about its far edge as the next one turns in about its near one.
         .overlay {
@@ -744,12 +753,35 @@ struct StoryViewer: View {
                     }
                 }
                 if abs(value.translation.width) > 12 || abs(value.translation.height) > 12 { moved = true }
+                // Plainly downward: the story follows the finger (§641).
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if !typing && !turning && !closing
+                    && (pullingDown || (dy > 10 && dy > abs(dx) * 1.2)) {
+                    pullingDown = true
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { dragY = max(0, dy) }
+                }
             }
             .onEnded { value in
                 let wasHeld = held
                 pressing = false
                 pressID += 1
                 held = false
+                if pullingDown {
+                    pullingDown = false
+                    // Past 80 pt, or flicked over 0.1 pt/ms: it shrinks
+                    // into the face from where it is; else back home.
+                    if dragY > 80 || value.velocity.height > 100 {
+                        close()
+                    } else {
+                        withAnimation(reduceMotion ? nil : .spring(duration: Motion.Dur.storySpring, bounce: 0)) {
+                            dragY = 0
+                        }
+                    }
+                    return
+                }
                 if wasHeld { return }
                 // A tap away from the reply box only puts the keyboard away.
                 if typing {
@@ -780,7 +812,7 @@ struct StoryViewer: View {
     /// And while FAM is not in front (the web's `visibilitychange`), and
     /// while it turns to another friend or closes.
     private var paused: Bool {
-        if held || typing || storyMenu || addingTopic || reporting { return true }
+        if held || typing || storyMenu || addingTopic || reporting || pullingDown { return true }
         if confirm != nil || resharing != nil || sharing != nil { return true }
         return scenePhase != .active || turning || closing
     }
@@ -1058,6 +1090,8 @@ struct StoryViewer: View {
                 try await model.api.reply(to: to, text: text, story: s)
                 model.nowPlaying.say("Sent to \(name)")
             } catch {
+                // The words go back in the box if it is still empty (§641).
+                if reply.isEmpty { reply = text }
                 model.nowPlaying.say((error as? FAMError)?.errorDescription ?? "Could not send that")
             }
         }

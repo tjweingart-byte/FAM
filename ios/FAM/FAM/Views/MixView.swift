@@ -45,6 +45,11 @@ struct MixView: View {
     /// One removal at a time: a second X waits for the first's answer, so
     /// its list is never built from a mix the server has already changed.
     @State private var removing = false
+    /// Public / Private as tapped, until the server's answer for the last
+    /// tap (`toggleMixVisibility`).
+    @State private var shownPublic: Bool?
+    @State private var visibilitySeq = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var mix: Mix? { mixes.mix(id) }
 
@@ -596,14 +601,25 @@ struct MixView: View {
                 ForEach(rows) { s in
                     SubjectRow(subject: s, sub: mixes.subjectSub(s), added: false,
                                label: "Add \(s.label) to this mix") {
+                        // In the mix on the tap (§642's rec-joins): the
+                        // suggestion leaves at once and is put back if the
+                        // server refuses.
+                        let before = shown
+                        withAnimation(Motion.anim(Motion.easeInOut(0.25))) {
+                            shown.removeAll { $0 == s.id }
+                        }
                         Task {
-                            if await mixes.update(id, ["add": ["f:" + s.id]]) != nil {
+                            if await mixes.setTopic(mix: id, topic: "f:" + s.id, add: true) != nil {
                                 model.nowPlaying.say("Added \(s.label) to \(mix.name)")
                                 // Topped back up to five (`recommendedHTML`).
                                 refill()
+                            } else {
+                                withAnimation(Motion.anim(Motion.easeInOut(0.25))) { shown = before }
                             }
                         }
                     }
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .opacity.combined(with: .offset(y: -12))))
                 }
             }
             .padding(.top, 13)
@@ -724,31 +740,45 @@ struct MixView: View {
         mixes.reminderNote
     }
 
+    /// Public / Private (§642's visibility-switch): flipped on the tap - the
+    /// knob slides 220 ms in-out, the lock swaps, the words change in place
+    /// - and slid back to what the server has if it refuses. Tapped twice,
+    /// only the last tap's answer paints (§646).
     private func visibilityRow(_ mix: Mix) -> some View {
-        Button {
+        let on = shownPublic ?? mix.public
+        return Button {
+            let next = !(shownPublic ?? mix.public)
+            shownPublic = next
+            visibilitySeq += 1
+            let mine = visibilitySeq
             Task {
-                if await mixes.update(id, ["public": !mix.public]) != nil {
-                    model.nowPlaying.say(mix.public ? "Private again" : "On your profile now")
+                let saved = await mixes.update(id, ["public": next])
+                guard mine == visibilitySeq else { return }
+                shownPublic = nil
+                if saved != nil {
+                    model.nowPlaying.say(next ? "On your profile now" : "Private again")
                 }
             }
         } label: {
             HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(mix.public ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
-                    Text(mix.public ? "Public will be displayed on your profile" : "Only you can see this mix")
-                        .font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
+                ZStack(alignment: .leading) {
+                    words(isPublic: true).opacity(on ? 1 : 0)
+                    words(isPublic: false).opacity(on ? 0 : 1)
                 }
+                .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: on)
                 Spacer()
-                ZStack(alignment: mix.public ? .trailing : .leading) {
-                    Capsule().fill(mix.public ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
-                    Circle().fill(mix.public ? FAMColor.ink : FAMColor.textMuted)
+                ZStack(alignment: on ? .trailing : .leading) {
+                    Capsule().fill(on ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
+                    Circle().fill(on ? FAMColor.ink : FAMColor.textMuted)
                         .frame(width: 18, height: 18)
-                        .overlay(Image(systemName: mix.public ? "lock.open" : "lock")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(mix.public ? FAMColor.copper : FAMColor.surface))
+                        .overlay(IconSwap(key: on) {
+                            Image(systemName: on ? "lock.open" : "lock")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(on ? FAMColor.copper : FAMColor.surface)
+                        })
                         .padding(3)
                 }
-                .animation(.easeOut(duration: 0.16), value: mix.public)
+                .animation(reduceMotion ? nil : Motion.easeInOut(Motion.Dur.knob), value: on)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 13)
@@ -757,9 +787,19 @@ struct MixView: View {
         }
         .buttonStyle(.press)
         .padding(.top, 10)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Public")
-        .accessibilityValue(mix.public ? "On" : "Off")
-        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
+    }
+
+    /// The row's words for one state, both laid out so the row never moves.
+    private func words(isPublic: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(isPublic ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
+            Text(isPublic ? "Public will be displayed on your profile" : "Only you can see this mix")
+                .font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
+        }
     }
 
     // MARK: - The ⋯ menu
@@ -1307,12 +1347,17 @@ struct SubjectRow: View {
             }
             Spacer(minLength: 4)
             Button(action: action) {
-                Text(added ? "✓" : "+")
-                    .font(.system(size: 15))
-                    .foregroundStyle(added ? FAMColor.ink : FAMColor.text)
+                // + and ✓ share one cell and cross on the icon swap; the
+                // fill and edge turn over 150 ms (§642's topic-toggle).
+                IconSwap(key: added) {
+                    Text(added ? "✓" : "+")
+                        .font(.system(size: 15))
+                        .foregroundStyle(added ? FAMColor.ink : FAMColor.text)
+                }
                     .frame(width: 30, height: 30)
                     .background(added ? FAMColor.copper : Color.clear, in: Circle())
                     .overlay(Circle().stroke(added ? FAMColor.copper : FAMColor.borderStrong))
+                    .animation(Motion.anim(Motion.easeOut(Motion.Dur.colour)), value: added)
             }
             .buttonStyle(.press)
             .accessibilityLabel(label)

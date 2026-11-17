@@ -244,8 +244,11 @@ struct AddTopicsView: View {
         .task { await mixes.loadForPage() }
     }
 
+    /// In the mix as the last tap left it (§642: + and ✓ change on the
+    /// tap), else as the server has it.
     private func inMix(_ topicID: String) -> Bool {
-        mix?.items.contains { $0.id.lowercased() == topicID.lowercased() } ?? false
+        if let shown = mixes.topicShown(mix: id, topic: topicID) { return shown }
+        return mix?.items.contains { $0.id.lowercased() == topicID.lowercased() } ?? false
     }
 
     @ViewBuilder
@@ -303,10 +306,12 @@ struct AddTopicsView: View {
         }
     }
 
+    /// Flipped on the tap; refused, flipped back with the server's words
+    /// (`addTopicToMix`, §642).
     private func toggle(_ topicID: String, label: String) async {
         guard let mix else { return }
         let adding = !inMix(topicID)
-        if await mixes.update(id, [adding ? "add" : "remove": [topicID]]) != nil {
+        if await mixes.setTopic(mix: id, topic: topicID, add: adding) != nil {
             model.nowPlaying.say(adding ? "Added \(label) to \(mix.name)" : "Removed \(label) from \(mix.name)")
         }
     }

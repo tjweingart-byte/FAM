@@ -267,7 +267,7 @@ final class TourModel: ObservableObject {
         cardStep = -1
         cardOpacity = 0
         cardLift = 0
-        withAnimation(.easeOut(duration: reduced ? 0.12 : 0.24)) { visible = true }
+        withAnimation(reduced ? nil : .easeOut(duration: 0.24)) { visible = true }
         watchTask?.cancel()
         watchTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -360,9 +360,9 @@ final class TourModel: ObservableObject {
             }
             return
         }
-        withAnimation(.easeIn(duration: reduce ? 0.06 : 0.12)) { cardOpacity = 0 }
+        withAnimation(reduce ? nil : .easeIn(duration: 0.12)) { cardOpacity = 0 }
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: reduce ? 60_000_000 : 120_000_000)
+            try? await Task.sleep(nanoseconds: reduce ? 0 : 120_000_000)
             // A newer card is on its way.
             guard let self, self.running, mine == self.seq else { return }
             self.showCard(i, first: false)
@@ -371,7 +371,7 @@ final class TourModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 16_000_000)
                 guard self.running, mine == self.seq else { return }
             }
-            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: reduce ? 0.12 : 0.22)) {
+            withAnimation(reduce ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22)) {
                 self.cardOpacity = 1
                 self.cardLift = 0
             }
@@ -433,7 +433,7 @@ final class TourModel: ObservableObject {
             close()
             return
         }
-        withAnimation(.easeIn(duration: reduced ? 0.12 : 0.22)) { visible = false }
+        withAnimation(reduced ? nil : .easeIn(duration: 0.22)) { visible = false }
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 240_000_000)
             guard let self, !self.running else { return }

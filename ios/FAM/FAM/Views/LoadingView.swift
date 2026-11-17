@@ -113,7 +113,45 @@ final class LoadingModel: ObservableObject {
     private var startedAt = Date()
     private var handedAt: Date?
 
+    /// Opened on the press (§643's loader-arrives B): the five steps are on
+    /// screen while the speller's wait runs under step one - which is what
+    /// the speller is doing. Nothing is asked yet; `start` takes the open
+    /// screen over, and the first step's 0.5 s still counts from the
+    /// request. A cancel meanwhile (`stop`) leaves nothing to send.
+    func openEarly() {
+        run += 1
+        let mine = run
+        glide = nil
+        dial = nil
+        ask = nil
+        server = [false, false, false, false]
+        audioReady = false
+        releasing = false
+        shown = 0
+        since = Date()
+        shownAt = Date()
+        visible = true
+        early = true
+        deadline = nil
+        handedAt = nil
+        startedAt = Date()
+        hold(until: startedAt.addingTimeInterval(Self.quiet), words: Self.serverSilent)
+        Task { await self.watchDeadline(mine) }
+    }
+
+    /// Opened on the press and not yet taken over by a request.
+    private(set) var early = false
+
+    /// An early screen no request took over (the send was dropped): gone.
+    func closeEarly() {
+        guard early, visible else { return }
+        stop()
+    }
+
     func start(ask: @escaping () async -> Progress?, glide: Glide? = nil, dial: Dial? = nil) {
+        // A search's screen already up since the press keeps when it came.
+        let adopted = early && visible && glide == nil && dial == nil
+        early = false
         run += 1
         let mine = run
         self.glide = glide
@@ -124,7 +162,7 @@ final class LoadingModel: ObservableObject {
         releasing = false
         shown = 0
         since = Date()
-        shownAt = Date()
+        if !adopted { shownAt = Date() }
         visible = true
         deadline = nil
         handedAt = nil
@@ -174,6 +212,7 @@ final class LoadingModel: ObservableObject {
 
     func stop() {
         run += 1
+        early = false
         visible = false
     }
 

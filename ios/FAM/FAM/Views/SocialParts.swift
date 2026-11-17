@@ -748,7 +748,7 @@ struct SocialScreen: View {
     var body: some View {
         switch route {
         case .thread(let open):
-            ChatScreen(api: model.api, open: open)
+            ChatScreen(chat: model.social.chat(for: open))
         case .person(let open):
             PersonView(open: open)
         case .friends:
@@ -835,10 +835,17 @@ enum FAMBlock {
 // MARK: - Follow's tick (`Motion.follow`)
 
 /// The tick on "✓ Following": drawn in over 220 ms after 80 ms
-/// (`M4 12.5l5 5L20 7`, stroke 3, 11 pt); whole at once under Reduce Motion.
+/// (`M4 12.5l5 5L20 7`, stroke 3, 11 pt); whole at once under Reduce Motion,
+/// and whole when Following is simply what was there (`drawsIn: false`).
 struct FollowTick: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var drawn: CGFloat = 0
+    @State private var drawn: CGFloat
+    let drawsIn: Bool
+
+    init(drawsIn: Bool = true) {
+        self.drawsIn = drawsIn
+        _drawn = State(initialValue: drawsIn ? 0 : 1)
+    }
 
     private static let path: Path = {
         var p = Path()
@@ -855,11 +862,39 @@ struct FollowTick: View {
             .frame(width: 11, height: 11)
             .accessibilityHidden(true)
             .onAppear {
+                guard drawsIn, drawn < 1 else { return }
                 if reduceMotion {
                     drawn = 1
                 } else {
-                    withAnimation(.easeOut(duration: 0.22).delay(0.08)) { drawn = 1 }
+                    withAnimation(Motion.easeOut(Motion.Dur.tick).delay(Motion.Dur.tickAt)) { drawn = 1 }
                 }
             }
+    }
+}
+
+/// Follow / Following, one look everywhere (§645's follow-button C,
+/// `Motion.followLabel`): Follow filled copper with ink words, bold;
+/// Following an outline in the text colour with its tick always before the
+/// word - drawn in when the tap turned it on (`justFollowed`). The colour
+/// turns over 150 ms (none with Reduce Motion). No line is said on success.
+struct FollowPill: View {
+    let following: Bool
+    var justFollowed = false
+    var size: CGFloat = 12.5
+    var height: CGFloat = 34
+    var padding: CGFloat = 16
+
+    var body: some View {
+        let weight: FAMFont.Weight = following ? .medium : .bold
+        HStack(spacing: 5) {
+            if following { FollowTick(drawsIn: justFollowed) }
+            Text(following ? "Following" : "Follow").font(FAMFont.body(size, weight))
+        }
+        .foregroundStyle(following ? FAMColor.text : FAMColor.ink)
+        .padding(.horizontal, padding)
+        .frame(minHeight: height)
+        .background(following ? Color.clear : FAMColor.copper, in: Capsule())
+        .overlay(Capsule().stroke(following ? FAMColor.borderStrong : Color.clear))
+        .animation(Motion.anim(Motion.easeOut(Motion.Dur.colour)), value: following)
     }
 }

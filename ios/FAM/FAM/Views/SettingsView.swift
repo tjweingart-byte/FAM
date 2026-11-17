@@ -115,8 +115,9 @@ struct SettingsView: View {
     private var appearanceGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "Appearance")
-            SetRow(label: "Dark mode", value: FAMTheme.isDark(theme) ? "On" : "Off") {
-                theme = FAMTheme.isDark(theme) ? FAMTheme.light : FAMTheme.dark
+            SetSwitchRow(label: "Dark mode", isOn: FAMTheme.isDark(theme)) { on in
+                theme = on ? FAMTheme.dark : FAMTheme.light
+                return true
             }
         }
     }
@@ -131,7 +132,10 @@ struct SettingsView: View {
             SetRow(label: "My Vibes") { model.youPath.append(.myVibe) }
             SetRow(label: "Save for Later") { model.youPath.append(.saved) }
             SetRow(label: "Default speed", value: FAMAPI.minutes(player.rate) + "x") { sheet = .speed }
-            SetRow(label: "Keep the voice's pitch", value: player.keepsPitch ? "On" : "Off") { togglePitch() }
+            SetSwitchRow(label: "Keep the voice's pitch", isOn: player.keepsPitch) { on in
+                setPitch(on)
+                return true
+            }
             // Always drawn (`renderSettings`), the label falling back as the
             // web's `voiceLabel` does; a tap with no bank says so.
             SetRow(label: "Voice for your searches", value: voiceValue) { openVoices() }
@@ -167,8 +171,7 @@ struct SettingsView: View {
         }
     }
 
-    private func togglePitch() {
-        let on = !player.keepsPitch
+    private func setPitch(_ on: Bool) {
         player.setKeepsPitch(on)
         model.nowPlaying.say(on ? "Speed changes keep the voice's pitch" : "Speed changes will shift the voice's pitch")
     }
@@ -181,19 +184,19 @@ struct SettingsView: View {
     private var privateModeRow: some View {
         let on = you.prefs?.privateMode ?? false
         return VStack(alignment: .leading, spacing: 0) {
-            SetRow(label: "Private mode", value: on ? "On" : "Off") { setPrivateMode(!on) }
+            SetSwitchRow(label: "Private mode", isOn: on) { next in await setPrivateMode(next) }
             SetNote(text: "While it\u{2019}s on, nobody sees what you listen to or search \u{2014} not on friends\u{2019} cards, the friends rail or the player. People who follow you still see what you vibe.")
         }
     }
 
-    private func setPrivateMode(_ on: Bool) {
-        Task {
-            if await you.savePreference(["private_mode": on]) {
-                model.nowPlaying.say(on ? "Private mode is on" : "Private mode is off")
-            } else {
-                model.nowPlaying.say("Could not save that")
-            }
+    /// Flipped on the tap by its row; refused, the row flips back (§647).
+    private func setPrivateMode(_ on: Bool) async -> Bool {
+        if await you.savePreference(["private_mode": on]) {
+            model.nowPlaying.say(on ? "Private mode is on" : "Private mode is off")
+            return true
         }
+        model.nowPlaying.say("Could not save that")
+        return false
     }
 
     // MARK: - Account settings
@@ -203,14 +206,13 @@ struct SettingsView: View {
             SetGroup(text: "Account settings")
             SetRow(label: "Subscription", value: you.planLabel ?? "\u{2014}") { openPlans() }
             // The same switch as searchFAM's Private bubble (§285).
-            SetRow(label: "Private search", value: model.privateSearch ? "On" : "Off") {
-                model.setPrivateSearch(!model.privateSearch)
+            SetSwitchRow(label: "Private search", isOn: model.privateSearch) { on in
+                model.setPrivateSearch(on)
+                return true
             }
             SetNote(text: "While it\u{2019}s on, every search and Go Deeper you start stays out of the episode library, off your friends\u{2019} DailyFAM and your listening history, and doesn\u{2019}t teach your feed.")
-            SetRow(label: "Show my name on episodes I searched",
-                   value: (you.prefs?.searchesPublic ?? false) ? "On" : "Off") {
-                setSearchesPublic(!(you.prefs?.searchesPublic ?? false))
-            }
+            SetSwitchRow(label: "Show my name on episodes I searched",
+                         isOn: you.prefs?.searchesPublic ?? false) { on in await setSearchesPublic(on) }
             SetNote(text: "When it\u{2019}s on, anyone who opens an episode you searched can see your @handle in the player\u{2019}s menu.")
             SetRow(label: "Signed in as", value: model.listener?.email ?? "")
             SetRow(label: "Sign-in methods", value: methodsValue) { model.youPath.append(.signInMethods) }
@@ -342,7 +344,7 @@ struct SettingsView: View {
         }
         items.append(YouSheetItem(label: "Voice", group: true))
         items.append(YouSheetItem(label: "Keep the voice's pitch" + (player.keepsPitch ? tick : "")) {
-            togglePitch()
+            setPitch(!p.keepsPitch)
         })
         return items
     }
@@ -466,15 +468,14 @@ struct SettingsView: View {
         sheet = .plans
     }
 
-    private func setSearchesPublic(_ on: Bool) {
-        Task {
-            if await you.savePreference(["searches_public": on]) {
-                model.nowPlaying.say(on ? "Your @handle shows on episodes you searched"
-                                        : "Episodes you searched no longer name you")
-            } else {
-                model.nowPlaying.say("Could not save that")
-            }
+    private func setSearchesPublic(_ on: Bool) async -> Bool {
+        if await you.savePreference(["searches_public": on]) {
+            model.nowPlaying.say(on ? "Your @handle shows on episodes you searched"
+                                    : "Episodes you searched no longer name you")
+            return true
         }
+        model.nowPlaying.say("Could not save that")
+        return false
     }
 
     private func deleteAccount() {
@@ -534,13 +535,13 @@ struct NotificationRows: View {
                 SetNote(text: push.reason ?? MixesModel.iPhoneLater)
             } else if let p = mixes.pushPrefs {
                 SetRow(label: "Daily reminder", value: mixes.dailyTimeSummary) { openDaily() }
-                SetRow(label: "Big stories", value: p.breaking ? "On" : "Off") {
-                    let on = !p.breaking
-                    Task { await mixes.setPushSwitch("breaking", on: on) }
+                SetSwitchRow(label: "Big stories", isOn: p.breaking) { on in
+                    await mixes.setPushSwitch("breaking", on: on)
+                    return mixes.pushPrefs?.breaking == on
                 }
-                SetRow(label: "Your teams\u{2019} final scores", value: p.finals ? "On" : "Off") {
-                    let on = !p.finals
-                    Task { await mixes.setPushSwitch("finals", on: on) }
+                SetSwitchRow(label: "Your teams\u{2019} final scores", isOn: p.finals) { on in
+                    await mixes.setPushSwitch("finals", on: on)
+                    return mixes.pushPrefs?.finals == on
                 }
                 SetNote(text: "One reminder a day when all your mixes are ready. Big stories reach you on their own when they name something you follow; a story for everyone is checked by a person first. Nothing arrives between 10 PM and 8 AM except your daily reminder.")
                 SetNote(text: MixesModel.iPhoneLater + " Your choices here are kept, and reach any browser where you allowed FAM\u{2019}s notifications.")
@@ -600,12 +601,15 @@ struct PrivacyRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "Privacy and safety")
-            SetRow(label: "Send my questions to AI", value: aiValue) {
+            // Asks first, and moves on the answer (§645).
+            SetSwitchRow(label: "Send my questions to AI", isOn: consent.current?.given == true,
+                         asks: true) { _ in
                 open(consent.current?.given == true ? .aiOff : .aiAsk)
+                return true
             }
             SetNote(text: "FAM writes episodes for what you ask with Anthropic\u{2019}s Claude, and searches for sources with Parallel and Perplexity. Turn this off and you can still listen to everything FAM writes ahead.")
-            SetRow(label: "Count me in FAM\u{2019}s totals", value: counted ? "On" : "Off") {
-                open(.counting(!counted))
+            SetSwitchRow(label: "Count me in FAM\u{2019}s totals", isOn: counted) { on in
+                await setCounting(on)
             }
             SetNote(text: "FAM counts what groups of listeners hear, by age group, gender and region, only in groups of 100 or more. You\u{2019}re never picked out, and none of it is shown or sent to anyone.")
             SetRow(label: "Blocked people", value: blockedValue) { open(.blocked) }
@@ -618,6 +622,18 @@ struct PrivacyRows: View {
     }
 
     private var counted: Bool { you.activation?.counting?.counted ?? false }
+
+    /// Flipped on the tap; refused, back with the web's sentence.
+    private func setCounting(_ on: Bool) async -> Bool {
+        do {
+            try await you.api.setCounted(on, version: you.activation?.counting?.version)
+            _ = await you.loadActivation()
+            return true
+        } catch {
+            you.say("Couldn\u{2019}t save that. Try again.", nil, nil)
+            return false
+        }
+    }
 
     /// "Allowed", "Off", "Not asked yet", or nothing while it loads.
     private var aiValue: String {
@@ -640,8 +656,9 @@ struct WakeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SetRow(label: "Say \u{201C}Hey FAM\u{201D} to search", value: wake.isOn ? "On" : "Off") {
-                wake.set(!wake.isOn)
+            SetSwitchRow(label: "Say \u{201C}Hey FAM\u{201D} to search", isOn: wake.isOn) { on in
+                wake.set(on)
+                return true
             }
             SetNote(text: "Say \u{201C}Hey FAM\u{201D} or \u{201C}What\u{2019}s up FAM\u{201D} to search by voice. While it\u{2019}s on, the microphone listens whenever FAM is open on your screen and nothing is playing. iPhone lets no app listen in the background, so it stops when you leave FAM.")
         }

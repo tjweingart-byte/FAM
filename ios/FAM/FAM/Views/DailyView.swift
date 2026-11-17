@@ -661,7 +661,10 @@ struct TileCard: View {
             // The web's words, with the toggle's state as a trait
             // (`aria-label` "Save {title} for later", `aria-pressed`).
             actButton(on: saved, label: "Save \(tile.title) for later") {
-                WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
+                // Lit on the tap, crossing on the icon spring (§641).
+                IconSwap(key: saved) {
+                    WebIcon(path: Icons.bookmark, size: 13, line: 2.2)
+                }
             } action: {
                 model.toggleSave(tile)
             }
@@ -1273,14 +1276,17 @@ struct PickUpBlock: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(.default, play)
             .overlay(alignment: .topTrailing) {
+                // The 20 pt X in a 44 pt zone (`.gd-x::after`, §641), its
+                // glyph still 4 pt in from the corner.
                 Button { model.dismissPickUp(query: dismissKey) } label: {
                     WebIcon(path: Icons.close, size: 9, line: 3)
                         .foregroundStyle(FAMColor.textMuted)
                         .frame(width: 20, height: 20)
-                        .contentShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.press)
-                .padding(4)
+                .padding(-8)
                 .accessibilityLabel("Dismiss \(title)")
             }
     }
@@ -1305,6 +1311,9 @@ struct SectionView: View {
     @State private var dealt = 0
     /// Which cards of which page have arrived already.
     @State private var arrivals = ArrivalBook()
+    /// The rail's own tiles, drawn from the first frame of the push until
+    /// the first page lands (`openSection`'s preview, §641).
+    @State private var preview: [Tile]?
 
     /// Made for you cycles through what is written (`SECTION_CYCLES`).
     private var cycles: Bool { key == "from_history" }
@@ -1372,9 +1381,11 @@ struct SectionView: View {
                             }
                             // The first group sits right under the reason.
                             .padding(.top, n == 0 ? 0 : 14)
-                            // Grouped pages draw without the arrival, as the web's.
-                            grid(group.topics, arrive: false)
+                            // Trending's grouped grid arrives too (§641).
+                            grid(group.topics)
                         }
+                    } else if page == nil, let preview, !failed {
+                        grid(preview, arrive: false)
                     } else {
                         grid(page?.topics ?? [])
                     }
@@ -1390,6 +1401,13 @@ struct SectionView: View {
         }
         .background(FAMColor.background)
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            // The rail's own tiles ride in with the push (§641).
+            if page == nil && preview == nil {
+                let tiles = model.rails.first(where: { $0.key == key })?.topics ?? []
+                if !tiles.isEmpty { preview = tiles }
+            }
+        }
         .task { if page == nil { await load() } }
     }
 
@@ -1409,7 +1427,7 @@ struct SectionView: View {
 
     private var reason: String {
         if failed { return "Could not load this section. Everything else still works, and this fills in when the server is back." }
-        guard let page else { return "Loading…" }
+        guard let page else { return preview == nil ? "Loading…" : "" }
         if cycles && page.caughtUp == true { return "" }
         if page.topics.isEmpty && page.caughtUp != true { return page.emptyReason ?? "Nothing in this section yet." }
         let ready = page.ready ?? 0
@@ -1421,20 +1439,22 @@ struct SectionView: View {
     /// the rails. Faces resolve against this page's own `friend_faces`.
     private func grid(_ tiles: [Tile], arrive: Bool = true) -> some View {
         let shown = tiles.filter { !model.notInterestedIDs.contains($0.id) }
-        let faces = page?.friendFaces ?? []
+        let faces = page?.friendFaces ?? (page == nil ? model.friendFaces : [])
         let round = dealt
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 11), GridItem(.flexible())], spacing: 11) {
             ForEach(Array(shown.enumerated()), id: \.element.id) { i, tile in
-                sectionCard(tile, faces: faces, at: arrive ? i : 8, round: round)
+                sectionCard(tile, faces: faces, at: arrive ? i : 6, round: round)
             }
         }
     }
 
-    /// The first eight cards of every page dealt arrive (`Motion.arrive`).
+    /// The first six cards of every page dealt arrive, 30 ms apart
+    /// (`Motion.arrive`, §641); a card already drawn by the preview does not.
     @ViewBuilder private func sectionCard(_ tile: Tile, faces: [FriendFace], at n: Int, round: Int) -> some View {
         let card = TileCard(tile: tile, railKey: key, faces: faces, width: nil)
-        if n < 8 {
-            card.modifier(ArriveOnce(key: "section:\(round):" + tile.id, delay: Double(n) * 0.04, book: arrivals))
+        if n < 6 {
+            card.modifier(ArriveOnce(key: "section:\(round):" + tile.id, delay: Double(n) * Motion.Dur.stagger,
+                                     book: arrivals))
         } else {
             card
         }
@@ -1491,6 +1511,10 @@ struct SectionView: View {
                 wrappedNote = "The last of this rail. Refresh starts again from the top."
             } else {
                 wrappedNote = ""
+            }
+            // The preview's cards are already on screen: they stay put.
+            if dealt == 0, let preview {
+                for tile in preview { arrivals.seen.insert("section:1:" + tile.id) }
             }
             page = next
             dealt += 1

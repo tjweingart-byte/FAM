@@ -264,29 +264,13 @@ struct PersonView: View {
                 Button {
                     if shownFollowing { unfollow() } else { follow() }
                 } label: {
-                    HStack(spacing: 5) {
-                        if flipped {
-                            FollowTick()
-                        }
-                        Text(shownFollowing ? "Following" : "Follow")
-                            .font(FAMFont.body(12, .medium))
-                    }
-                    .foregroundStyle(FAMColor.text)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 34)
-                    .overlay(Capsule().stroke(FAMColor.borderStrong))
-                    .animation(.easeOut(duration: 0.26), value: flipped)
+                    FollowPill(following: shownFollowing, justFollowed: flipped, size: 12, padding: 14)
                 }
                 .buttonStyle(.press)
                 .disabled(working)
             } else if !handle.isEmpty {
                 Button { follow() } label: {
-                    Text("Follow")
-                        .font(FAMFont.body(12, .bold))
-                        .foregroundStyle(FAMColor.ink)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 34)
-                        .background(FAMColor.copper, in: Capsule())
+                    FollowPill(following: false, size: 12, padding: 14)
                 }
                 .buttonStyle(.press)
                 .disabled(working)
@@ -488,16 +472,14 @@ struct PersonView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press)
+            // Follow / Following as everywhere else (§645).
             if isFollowing {
-                Text("Following").monoLabel(9.5, tracking: 0.38)
+                FollowPill(following: true, justFollowed: followedHandles.contains(f.handle),
+                           size: 11, height: 28, padding: 12)
+                    .accessibilityLabel("Following")
             } else {
                 Button { followFriend(f) } label: {
-                    Text("Follow")
-                        .font(FAMFont.body(11, .bold))
-                        .foregroundStyle(FAMColor.ink)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 28)
-                        .background(FAMColor.copper, in: Capsule())
+                    FollowPill(following: false, size: 11, height: 28, padding: 12)
                 }
                 .buttonStyle(.press)
             }
