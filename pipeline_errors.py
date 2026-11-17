@@ -687,6 +687,17 @@ EXPLAIN = (
          "Nothing wrong; the episode started one sentence later.",
          "The writer breaking an opening rule.",
          "A good example in examples/ teaches it better than another rule.")),
+    ("writer", r"^material check",
+     _ex("The material check removed a sentence",
+         "The writer spoke about its own notes or what it could see ('the "
+         "latest price we have', 'I don't have a confirmed result'); the guard "
+         "dropped the sentence before it was spoken.",
+         "Nothing wrong was said. If that sentence also carried the figure, "
+         "the episode is missing it.",
+         "The writer dating a moving figure by its own notes, most often a "
+         "price on a question about a market.",
+         "If it is most market episodes, the writer's instructions on time "
+         "are where it is fixed (PROBLEMS.md §630-§633).")),
     ("writer", r"^score check",
      _ex("The score check removed a sentence",
          "The writer said a score that is not on the scoreboard; the guard "

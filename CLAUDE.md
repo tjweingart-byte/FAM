@@ -43,30 +43,30 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   followed subjects `f:nfl` / `f:nfl~Eagles`, never audio; a 05:00 ET
   edition writes active mixes with EI; public mixes searchable, (+)
   copies one; the server owns the date and length a tap sends). **Explore is
-  gone** (§499). myFAM and DailyFAM are personalised. [three-surfaces]
+  gone**. myFAM and DailyFAM are personalised. [three-surfaces]
 - **Decouple script generation from synthesis in time**: pre-generate scripts
-  and briefs for likely taps. Cached episodes keep audio (§132); idle
-  always-on workers voice edition scripts ahead, listener first (§610). [decouple-script-audio]
+  and briefs for likely taps. Cached episodes keep audio; idle
+  always-on workers voice edition scripts ahead, listener first. [decouple-script-audio]
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
   **on by default** (§107; `=0` restores the old cache). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap**; nor
-  does motion fill one (§292). [latency-start-earlier] [motion]
+  does motion fill one. [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
-  searched in the last 2h whose episodes are still current; cache only (§190, §192). [trending-searches]
-- **Search is Google's shape** (§190): mic and attach inside the bar's right;
+  searched in the last 2h whose episodes are still current; cache only. [trending-searches]
+- **Search is Google's shape**: mic and attach inside the bar's right;
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
-  every return to the app; **Private** is a third bubble (§282). [search-bar]
-- **Private search** (§282/§285): charcoal; on till off (bubble=Settings)
+  every return to the app; **Private** is a third bubble. [search-bar]
+- **Private search**: charcoal; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
-  fixes typos (§247) [autocorrect-at-send]
-- The from-knowledge cover half on search is deleted (§108); search's wait is
+  fixes typos [autocorrect-at-send]
+- The from-knowledge cover half on search is deleted; search's wait is
   in front of the first word and honest - five loading steps from the
-  server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them (§148). [search-no-cover]
-- DailyFAM's picture develops or gathers friends (§592); mixes glide; audio never held [browse-loaders]
+  server's marks, each ≥2s (first ≥0.5s, §263), audio held to the fifth; a replay skips them. [search-no-cover]
+- DailyFAM's picture develops or gathers friends; mixes glide; audio never held [browse-loaders]
 - **The spec: type a question, and within about a second audio starts giving
   the answer.** Seconds in front of the first word are wrong. [one-sentence-spec]
-- **Amended for search only**, at the owner's direction (§82, §108, §129): EI
+- **Amended for search only**, at the owner's direction: EI
   runs before search; nothing is written before retrieval finishes; the writer
   reasons first (`EFFORT=low`). myFAM and DailyFAM pay none of it -
   their briefs/scripts are built before the tap. `EPISODE_INTELLIGENCE=0`
@@ -74,43 +74,43 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   material. [spec-amended-for-search]
 - A slow answer is a scheduling choice. [slow-is-scheduling]
 - Prefetch-on-typing-pause was removed at the user's request; never re-add. [no-typing-prefetch]
-- **Rails written whole** 05:00/17:00 ET (§359): every held story, sports
+- **Rails written whole** 05:00/17:00 ET: every held story, sports
   kept to the next; draws warm briefs. [myfam-warms-briefs] [rails-edition]
-- **9.30 interface packet** (§181): sign-up rotates today's top three kept
+- **9.30 interface packet**: sign-up rotates today's top three kept
   episodes; myFAM's header button (a bookshelf, §203) opens the A-Z of others'
   cached episodes; Messages is a tab where Explore was; the player's (+) adds
   the episode's topic to a mix. [interface-181]
-- **Tour** once per account, Skip on any card (§594-5) [tour]
+- **Tour** once per account, Skip on any card [tour]
 
-- **The player is Spotify's layout** (§190): Home logo (§255), picture (4:3, §192;
+- **The player is Spotify's layout**: Home logo, picture (4:3, §192;
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
   §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
-  DEEPER pill at the top, share/vibe/save on the right (§192), CC pill,
-  captions on the picture (§519), ⋯ menu; no "exclude from taste"; searcher
+  DEEPER pill at the top, share/vibe/save on the right, CC pill,
+  captions on the picture, ⋯ menu; no "exclude from taste"; searcher
   if `searches_public`. [player-layout]
 - **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
-  lettered (`/api/myfam/catalog`); typing shows the closest (§193); each row
-  says the day it was made, then a date past six days (§499). [dailyfam-catalogue]
-- **Categories are a tab** (§500/§550): myFAM is Mixes | Categories; chips
+  lettered (`/api/myfam/catalog`); typing shows the closest; each row
+  says the day it was made, then a date past six days. [dailyfam-catalogue]
+- **Categories are a tab**: myFAM is Mixes | Categories; chips
   filter in place; today's cache. [your-categories]
-- **A queue** (§190): Add to / Go to Queue from the player's and a DailyFAM
+- **A queue**: Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
-  (§519). [queue]
+ . [queue]
 
-- **exploreFAM is out of the app** (§499): no reel, pill or swipe; a
+- **exploreFAM is out of the app**: no reel, pill or swipe; a
   category plays in the player; `/api/explore`, comments kept for old
   clients; no dislike anywhere. [explore-reel]
-- **VIBE! is a story editor** (§213): a clamped layout, never an image;
-  Your story only (§250); holding pauses; your story rings your face; (+)
-  posts a note, no episode (§297); a vibe is deleted whole (story ⋯ or grid
-  hold, §499); a grid tap: posts (§547). [vibe-caption] [vibe-posts]
-- **A friend's vibe** has a reply / heart / share-to-your-story row (§282); a
+- **VIBE! is a story editor**: a clamped layout, never an image;
+  Your story only; holding pauses; your story rings your face; (+)
+  posts a note, no episode; a vibe is deleted whole (story ⋯ or grid
+  hold, §499); a grid tap: posts. [vibe-caption] [vibe-posts]
+- **A friend's vibe** has a reply / heart / share-to-your-story row; a
   reply or like is a message carrying the episode. [story-reply]
-- **Group chats** (§213): one row per message to a `g:` thread; graph only. [group-chats]
+- **Group chats**: one row per message to a `g:` thread; graph only. [group-chats]
 
-- **Names swapped for the listener** (§185): the rails screen *shows*
+- **Names swapped for the listener**: the rails screen *shows*
   "DailyFAM", the mixes screen *shows* "myFAM"; code, ids and docs keep the
-  old names; tabs dailyFAM/myFAM/yourFAM (§519). [names-swapped]
+  old names; tabs dailyFAM/myFAM/yourFAM. [names-swapped]
 
 ## What an episode is (`product.md`)
 
@@ -124,24 +124,24 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   no forecasting; say anything unresolved inside the piece. [endings-do-not-tease]
 - Every sentence carries information; atmosphere alone is cut. [every-sentence-informs]
 - **Titled by what it turned out to be about**: C3P0's title while he works
-  (§375), else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
+ , else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
   derived title first, then swapped; `titleOverridden` never replaced; own column;
-  a written live-story tile takes the episode's title, summary, category (§189). [title-from-content]
+  a written live-story tile takes the episode's title, summary, category. [title-from-content]
 - `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
   script, served free by `/api/next`, offered by Go Deeper; the script never
   gestures at it. Every Go Deeper shows a suggestion - that
-  line, else one built from the title - a box, and a 1-5 minute length (§170);
-  opening it never stops the episode, and one ending under it starts nothing (§186). [next-is-prediction]
+  line, else one built from the title - a box, and a 1-5 minute length;
+  opening it never stops the episode, and one ending under it starts nothing. [next-is-prediction]
 - After an episode: four recommendations, first auto-starts in **15s**; the lead
-  is Go Deeper's own suggestion, played as its follow-up (§178), then album next,
+  is Go Deeper's own suggestion, played as its follow-up, then album next,
   then `topics.rank_next_up` over both inventories; a search box above Back
   stops the countdown; not on Explore / Explore New. [post-episode-grid]
-- **One episode, one category** (§209): Nando's stored node (§371), else the
+- **One episode, one category**: Nando's stored node, else the
   writer's `<<CATEGORY:>>`, via `app._episode_category` for tile, picture,
   ranking and tags; events name the heard episode; a written live story ranks under it;
   the writer sees its branch's names; nodes match as in-order phrases; each
   write is audited (`categories_report.py --audit`). [one-category]
-- **Category gaps** (§235): beneath the phrases, the nearest node by meaning
+- **Category gaps**: beneath the phrases, the nearest node by meaning
   (`category_near`); a writer's category unplaced on 2+ episodes is minted;
   a town's question is offered the local branch; scenes paint geography,
   not names. [category-gaps] Tree fixes: §585. [tree-review]
@@ -150,18 +150,18 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 ## The writing problem (`product.md`)
 
 - **The scripts are not good enough; the writing is the product.** The ending
-  rewrite (§48) and the §108 opening changes are unheard - listen for them first. [writing-is-the-problem]
+  rewrite and the §108 opening changes are unheard - listen for them first. [writing-is-the-problem]
 - `python write.py "<query>" --minutes 3` is the writing loop. [write-py-loop]
-- Quality came from inputs, not the prompt (§82): EI decides the query, the
+- Quality came from inputs, not the prompt: EI decides the query, the
   packet dates and grades sources, `DEPTH_BANDS` says what minutes are for. [inputs-not-prompt]
-- **Two packets** (§311/§313): archive recall in the search results,
+- **Two packets**: archive recall in the search results,
   sports and markets too; old figures only when dated. [two-packets]
-- The third cause (§108): two texts under two conditions; everything trading
+- The third cause: two texts under two conditions; everything trading
   the opening for latency is gone. [third-cause-opening]
 - `write.py` prints the brief above the script - diagnose brief vs script
   separately; `--no-ei` compares; `tools/ei_eval.py` is the milestone. [brief-above-script]
 - **`examples/` is the strongest lever**: add an example over a rule. [examples-lever]
-- **Quality per tree node** (§309): code, listening, a grader trusted once
+- **Quality per tree node**: code, listening, a grader trusted once
   it matches the owner. [episode-quality]
 
 ## Open problems (`open-problems.md`)
@@ -170,13 +170,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Chatterbox speaks, or a placeholder **tone** and everything says so. No hosted
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
-  respelled for the voice (§165): EI's brief, the writer's `<<SAY: Name =
+  respelled for the voice: EI's brief, the writer's `<<SAY: Name =
   respelling>>` lines and Wikipedia (§289, over both) feed a lexicon; an
   admin fix is never overridden; only the voice's text changes -
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
-  `verify_voice.py --fingerprint` measures drift (§176). [op-voice]
-- **Voice bank** (§147, §447): searchFAM alone picks; others draw one per episode;
+  `verify_voice.py --fingerprint` measures drift. [op-voice]
+- **Voice bank**: searchFAM alone picks; others draw one per episode;
   a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
@@ -187,11 +187,11 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   (05:00/17:00 ET), ten stories written ahead, no fallback, never the live pool;
   it is ranked by `topics.rank_world` on popularity and country only - no
   taste, fatigue, engagement or learned order. Its cards carry no place; its
-  View more is grouped by continent, Worldwide first, no Antarctica (§174).
-  Crowd rails hold cached episodes only (§141); friends rail reads the follow
-  graph and is empty rather than strangers, and ends in "Find new friends" (§182). `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
+  View more is grouped by continent, Worldwide first, no Antarctica.
+  Crowd rails hold cached episodes only; friends rail reads the follow
+  graph and is empty rather than strangers, and ends in "Find new friends". `DOMAIN_WEIGHT`/`DOMAIN_SHELF_LIFE`,
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
-- **Taste model** (§121/§122/§126): share, vibe and save are signals;
+- **Taste model**: share, vibe and save are signals;
   `ENGAGEMENT_WEIGHT` is global per tile, bounded, never on `rank_most_played`
   or `rank_missed`; location joins `familiar_words` and `LOCAL_BOOST`, country
   never ranks; `categories.py` grows the vocabulary (multi-wording and
@@ -202,48 +202,48 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Empty deployment**: `taste_source` is `startup` ("Start here") until one
   play; only Made for you is topped up to its floor; the most-played row holds plays only
   and `tools/seed_demo.py` fills it for a demo. [op-empty-deployment]
-- **Scoring** (§114, §155): subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
+- **Scoring**: subtag-aware `_affinity`, `RELEVANCE_FLOOR`; a live
   story reaches Made for you **only when it names something followed** - the
   floor tops up from evergreen tiles, **never the live pool**. Non-search
-  episodes are `BROWSE_MINUTES` (1.5) but a Go Deeper's 1-5 (§170); View more /
-  Refresh deal 16 (§363); no wheel, language picker, interest cap;
+  episodes are `BROWSE_MINUTES` (1.5) but a Go Deeper's 1-5; View more /
+  Refresh deal 16; no wheel, language picker, interest cap;
   impressions only damp (`FATIGUE_WEIGHT`); `FILL_ORDER` skips `UNSHELVED`.
   One bank: personalise order, not inventory. [op-taste-scoring]
 - **DailyFAM mixes**: topic ids, never audio; **public by default**, copies
   private; `loadMixes` takes the bank before the 401; dormant after 48h
-  unplayed (§359). [op-dailyfam-mixes] [mix-dormancy]
-- **A mix is made by naming it** (§498), filled on its page; plays
-  best first (§616). [mix-made-by-naming] Long typed topics are named short.
+  unplayed. [op-dailyfam-mixes] [mix-dormancy]
+- **A mix is made by naming it**, filled on its page; plays
+  best first. [mix-made-by-naming] Long typed topics are named short.
   [mix-topic-title] Joint: members edit topics only. [joint-mixes]
-- **Push** (§562): one "myFAM is ready" a day per person, at their time or a
+- **Push**: one "myFAM is ready" a day per person, at their time or a
   learnt one, after the edition, backs off; big stories to followers, all
   once admin-approved; team finals; written first; quiet 22-8. [mix-listen-time]
-- Faces on DailyFAM only, Instagram's, yours first (§297); vibes first; a
+- Faces on DailyFAM only, Instagram's, yours first; vibes first; a
   swipe goes to the next friend's, the picture to the profile; Friends has
   "Invite new users +"; no (+) in YourFAM's header. [friends-vibes-first]
-- **Made for you** (§187): subjects and familiar words vouch only in their own
+- **Made for you**: subjects and familiar words vouch only in their own
   field; variety never gives way (≤2 per heading, capped top-up); no
   minor-league game from another continent unless followed; market moves on
-  any money taste; ranks every held story. Weights (§202): search 1.5, play 1,
+  any money taste; ranks every held story. Weights: search 1.5, play 1,
   finish 1.5, skip -0.5, pick 2.2, share 2, save 2, vibe 2.5, mix add 2,
-  not interested -1.5 (§499). [mfy-field-variety]
-- **Taste is a subject tree** (§202): the most specific subject takes the
+  not interested -1.5. [mfy-field-variety]
+- **Taste is a subject tree**: the most specific subject takes the
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
   phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
-- **Chosen interests never fade** (§202): added after normalisation at
+- **Chosen interests never fade**: added after normalisation at
   `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
   named subjects both count. [interests-constant]
 - **"Not interested" only in a tile's ⋯** (§499, reversing §171 there):
   `not_interested` (-1.5) keeps that tile off every rail, Trending and the
   post-episode grid; no card button; `hide` stays retired. [no-not-interested]
-- **Pick up where you left off** (§174): episodes under **60% heard** (the real
+- **Pick up where you left off**: episodes under **60% heard** (the real
   length once the player has it, else the minutes) and finished episodes'
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows asymmetric; friend = mutual, derived; cards show the
-  friends' faces (§393). [op-follow-graph] [friends-listened]
+  friends' faces. [op-follow-graph] [friends-listened]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
-  only what they published: place (§219), friend count, friends to friends (§285) (a handle resolves for anyone, a bare id only within
+  only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
   badge cleared by the Friends tab; **85% through counts as finished**. [op-friend-profile]
 - Social updates itself: message cursor is a **row id, never a timestamp**,
@@ -255,13 +255,13 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   changeable; identity step after sign-up only; `identityMode`/`introMode` decide
   X, button label and return target; a settings row is an editor, never the
   first run again; interests are **one sideways-scrolling line** under Edit
-  profile / Saved for Later on yours and a friend's page (§178) - Edit profile
-  holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too (§341/§345); showing ≠ liking;
+  profile / Saved for Later on yours and a friend's page - Edit profile
+  holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too; showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
   are actionable sentences; an attached episode is **never cached**. [op-attachments]
 - Identity: server-minted session; account = credentials on that id, never
-  the device - a signed-in browser's sign-up gets a fresh id (§190); listening
+  the device - a signed-in browser's sign-up gets a fresh id; listening
   works with no account; email/phone/Google/Apple; **reset** emails a code
   to the account's address (`mail.py`, §244; `/reset`, §297). [op-identity]
 
@@ -269,15 +269,15 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 
 Audio and the opening
 - **A first play streams as voiced** (PCM, or Opus if decoded, §242); **a
-  replay may be a signed R2 link** (§252). Kept audio is Opus 24 kbps (§237) in R2,
-  `scripts.db` its name only (§293); readable only while its script
+  replay may be a signed R2 link**. Kept audio is Opus 24 kbps in R2,
+  `scripts.db` its name only; readable only while its script
   is, production voice, whole episodes; a week for all, then saved, shared or
   vibed moves to `kept/` (IA), the rest is deleted. `OfflineShelf` keeps
-  finished episodes on the device, `sw.js` the shell (§161). [no-audio-files]
+  finished episodes on the device, `sw.js` the shell. [no-audio-files]
 - **Duration is a ceiling, not a quota** - end early rather than pad (`ALLOW_TOPUPS=1` restores). [duration-ceiling]
 - **Two transport gestures, both stay**: draggable bar (clamped to what is
   written) and ±15s. One transport: `setPlayState` alone moves audio and redraws
-  all four players. Leaving the player never stops it; the mini bar's X does (§250). [transport]
+  all four players. Leaving the player never stops it; the mini bar's X does. [transport]
 - **Nothing speaks before its material has arrived, and no setting buys that
   back**: the writer holds brief and evidence before its first token; no tools
   on the speaking call; EI on every episode. Only work *before* the tap may be
@@ -294,10 +294,10 @@ Audio and the opening
 
 Research and truth
 - **Every episode is researched** (`SEARCH_MODE=always`). Empty search is a
-  ladder - Perplexity, Parallel (also the second look), GDELT (§357) - defined once in
-  `research.ladder()`; **no model web search** (§135); no rung raises;
+  ladder - Perplexity, Parallel (also the second look), GDELT - defined once in
+  `research.ladder()`; **no model web search**; no rung raises;
   every fallback recorded; sim-league pages and (on sports) unknown outlets
-  are screened out (§178); nothing is refused for want of evidence (§256);
+  are screened out; nothing is refused for want of evidence;
   EI writes `Brief.broader`. [always-researched]
 - **EI decides what to search for, before the search**; the brief never asserts
   a fact; **a layer that adds quality must not subtract availability** - every
@@ -310,38 +310,38 @@ Research and truth
   are evidence of no outcome; take the smaller true reading on contradiction. [started-not-finished]
 - **A missed search establishes nothing about the world**: volatile things are
   never supplied from memory; settled things may be or are omitted; the gap is
-  unannounced (§256); never
+  unannounced; never
   "doesn't exist". [missed-not-absent]
 - **Live facts** (`live_facts.py`): **never confidently invent a current fact
   without authoritative, fresh evidence; never infer one from absence.** Closed
   status vocabulary, set by evidence; resolution from the provider's catalogue,
   never a model; seven lookup outcomes; stale data withheld in code; schedule
-  records (§178); no score without a provider. [live-facts] Player
-  reports (§275) by the scoreboard; unlisted≠fit. [player-facts]
-  Code routes named teams/listings (§265); it only asks. [live-route]
-- **A score or market figure is checked before it is spoken** (§259, §269). [score-guard]
-- **Sports BALLDONTLIE's (§419), markets Tiingo's** (§418) [sports-balldontlie]
-  Tiingo: ends "Market data powered by Tiingo.", 1st source (§566). [tiingo-credit]
+  records; no score without a provider. [live-facts] Player
+  reports by the scoreboard; unlisted≠fit. [player-facts]
+  Code routes named teams/listings; it only asks. [live-route]
+- **A score or market figure is checked before it is spoken**. [score-guard]
+- **Sports BALLDONTLIE's, markets Tiingo's** [sports-balldontlie]
+  Tiingo: ends "Market data powered by Tiingo.", 1st source. [tiingo-credit]
 - **Ask outside services when somebody is looking and there is something to
-  see** (§191): sports sweep only `balldontlie_scores.SWEPT`, only while one
-  of their games is on, only if myFAM was drawn recently or (§563) names
+  see**: sports sweep only `balldontlie_scores.SWEPT`, only while one
+  of their games is on, only if myFAM was drawn recently or names
   a finals follower's team; others on demand; Tiingo every 2h;
   a refused endpoint is not re-asked that day. [sweep-on-demand]
-- **The listener's clock, never the server's** (§186): `listener_clock` from
+- **The listener's clock, never the server's**: `listener_clock` from
   the device's `X-FAM-TZ` (Settings can pin one), never a location; prefetch
   and editions use the edition's zone; the zone is not in `key_for`. [listener-clock]
-- **Local news** (§194): a town's question goes town outlets (RSS, collected
+- **Local news**: a town's question goes town outlets (RSS, collected
   ahead) -> county -> the search backend on known outlets, never GDELT; only what names the
   place is evidence; an empty town opens with `local_news.gap_line`, composed
   in code, then weather, then county news. [local-news-ladder]
-- **Weather** (§194): NWS first, Open-Meteo second; fetched on demand, then
+- **Weather**: NWS first, Open-Meteo second; fetched on demand, then
   swept at 05:00/17:00 in each asked place's own time; US warnings asked live;
   worded as a forecast, never an outcome; never prefetched. [weather]
 - **GDELT is read from its 15-minute export files, never its search API**
-  (§211): one job downloads them; readers use the copy;
+ : one job downloads them; readers use the copy;
   nothing a listener does reaches GDELT; polls on GDELT's clock, a named
-  file waited for (§220), a failing one written off (§289). [gdelt-exports]
-- **A forecast beside every outcome-dependent question** (§211):
+  file waited for, a failing one written off. [gdelt-exports]
+- **A forecast beside every outcome-dependent question**:
   `live_facts.forecast` asks Polymarket by subject; `plan.forecast`, never
   `plan.live`, never evidence. [forecast-beside]
 - Every research path records who it read (provenance). [provenance-all-paths]
@@ -353,10 +353,10 @@ Research and truth
 Caching and prefetch
 - **Kept a week** (`CACHE_LIFE_SECONDS`, from `sourced_at`); **current** per
   `ttl_for`; replay surfaces play anything kept, writers ask `get(key)`. [cache-week]
-- **A heard episode is kept** (§173): history stores `episode_id` (key +
+- **A heard episode is kept**: history stores `episode_id` (key +
   sourced, `X-FAM-Episode`), replays with `?episode=`, never writing; a
   re-write archives the old row and audio; history pins two weeks; volatile
-  window 2h. [heard-is-kept] Sent/saved/vibed: kept while the row is (§612). [sent-is-kept]
+  window 2h. [heard-is-kept] Sent/saved/vibed: kept while the row is. [sent-is-kept]
 - **TTL comes from what the script was built on, not the question's words**
   - live status -> `outcome_dependent` -> window -> keyword floor; `in_progress`
   and a sports `recap`/`update` short of `final` never current (§182; an
@@ -371,9 +371,9 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **Brief: Haiku 5.5, medium** (§261), untimed (§602, §603); **writer: Haiku, low; high ahead** (§272, §522);
+- **Brief: Haiku 5.5, medium**, untimed; **writer: Haiku, low; high ahead**;
   composer, placer, thumbnails `MODEL`; priced per model. [small-calls-haiku]
-- **Writer savings change no word and cost no episode** (§179): its
+- **Writer savings change no word and cost no episode**: its
   instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
   DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same
   `_ScriptReader`, and whatever a batch does not answer in time is written
@@ -384,9 +384,9 @@ Browse surfaces
   gives a guest live + bank and an account live + the startup set - a swap,
   never a subtraction. Every rail shows four (`SECTION_SIZE`); only Made for you
   is topped up (`RAIL_MINIMUM`) - most-played, missed, Trending and friends
-  never invent a tile. Trending is the GNews edition (§139) ranked by
+  never invent a tile. Trending is the GNews edition ranked by
   `rank_world` (outlet count and place: `trending_score`, `WORLD_LOCAL_SLOTS`);
-  the live pool's sports sweep on demand while a followed game is on, markets and news every 2h (§191); a
+  the live pool's sports sweep on demand while a followed game is on, markets and news every 2h; a
   guest's page is the bank and a guest tap plays only kept audio (403 -> sign-up,
   before the GPU); picker and Explore New keep the whole bank; the gate governs
   what is *offered*, not what is *reported*; `_has_account` defaults False. [bank-for-guests]
@@ -401,7 +401,7 @@ Browse surfaces
   `popular_facets`; tiles claim no results or digits. [card-hook-startup]
 - **What you missed last week** is a rail, not a popup (cached episodes
   others heard 3-7 days ago, unheard by you; no live-feed or top-up, §141). [missed-rail]
-- **Heard, not tapped** (§433): crowd rows and faces count 30s/30% (server
+- **Heard, not tapped**: crowd rows and faces count 30s/30% (server
   clock) or a finish; people first. [heard-not-tapped]
 - Trending is chosen before any personal rail, from its own edition, so it never
   competes with Made for you for tiles. [trending-floor]
@@ -411,44 +411,44 @@ Browse surfaces
   a fact about the deployment, never "nothing is trending". [two-crowd-rows]
 - A composed story names its **category** (resolved against the tree in code;
   it decides picture and facet word, and corrects a news story's tags) and its query names the cluster's
-  **anchors** (`pin_query`, names never headlines) (§188). [trending-category-pin]
+  **anchors** (`pin_query`, names never headlines). [trending-category-pin]
 
 Accounts, tiers, sharing
 - **An account gates what is kept, never what is heard**; a guest's events are
   never logged (`app._remembers`); the app opens on sign-up; "Continue as
-  guest" withdrawn until public (§197); the Profile tab is a door for guests; every gate uses
+  guest" withdrawn until public; the Profile tab is a door for guests; every gate uses
   `gateActions()` - one sign-up screen. [account-gates-kept]
 - **Waitlist** (§183, `WAITLIST.md`): `WAITLIST=1` closes the app to all but
   `active` accounts, enforced server-side; new accounts start `waitlisted`;
-  one account, granting flips `status`; email only; let in, email signs in (§619); place counted in FAM; Viral Loops via
+  one account, granting flips `status`; email only; let in, email signs in; place counted in FAM; Viral Loops via
   the outbox, never loses a signup; waitlisted hidden from discovery except
-  friends and the status page's search (§282); a shared episode plays for anyone (only it); the landing
-  page plays the three sign-up samples as replays (§190), own picture only (§214); a `/waitlist` join is
-  always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there (§192);
-  a guest at the address gets the app's sign-in/sign-up, not `/waitlist` (§231). [waitlist-gate]
+  friends and the status page's search; a shared episode plays for anyone (only it); the landing
+  page plays the three sign-up samples as replays, own picture only; a `/waitlist` join is
+  always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there;
+  a guest at the address gets the app's sign-in/sign-up, not `/waitlist`. [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
   checkout [tiers-off]; 5 invites: free month [free-month];
-  let in: mail+text a claim link, month at launch (§587) [waitlist-notice]
+  let in: mail+text a claim link, month at launch [waitlist-notice]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every
   feature (`entitlements.FEATURES`; moving one is a line plus its test); episodes
   and Explore replays counted separately; a cache hit still counts as an episode. [tier-spend]
 - **Save for later is a pointer and a toggle**; download is gone; folders are
-  the listener's own (§162), never made for them. [save-pointer]
+  the listener's own, never made for them. [save-pointer]
 - **A shared link lands on one episode** (`/s/<id>`): other controls are
   `data-door`s; the key equals the sharer's; head rendered server-side; opens
-  counted by the page; its join note always goes to `/waitlist` (§319) -
+  counted by the page; its join note always goes to `/waitlist` -
   other doors need `APP_STORE_URL`; no `user_id`; host from the request;
-  picture own or cover, Facebook wide, post photo, clip (§621-3). [share-link] [link-picture] [post-photo] [post-clip]
-- FAM never posts; link per group (§624). [no-social-posting] [community-outreach] [post-kit]
-- **App review** (§222): Report everywhere, block both ways (`moderation.py`, `/admin`);
-  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked (§224); Terms ticked at sign-up (§228). [app-review-safety]
+  picture own or cover, Facebook wide, post photo, clip. [share-link] [link-picture] [post-photo] [post-clip]
+- FAM never posts; link per group. [no-social-posting] [community-outreach] [post-kit]
+- **App review**: Report everywhere, block both ways (`moderation.py`, `/admin`);
+  a listener's words reach Anthropic only after a yes (`consent.py`); photos checked; Terms ticked at sign-up. [app-review-safety]
 - **Authorship is provenance, never identity**: `PodcastPipeline.author`, never
   on `EpisodePlan` or in `key_for`; first writer keeps it; prefetch writes none. [authorship-provenance]
 - **Type: Bricolage Grotesque (headings), Geist (body), Geist Mono (labels)**
-  (§204); daily/my/your one rule, centred (§363), web light, app dark (§546). [typefaces]
-- **Larger phone text never breaks a screen** (§499): heights are floors,
+ ; daily/my/your one rule, centred, web light, app dark. [typefaces]
+- **Larger phone text never breaks a screen**: heights are floors,
   headings never share a squeezed row. [large-text]
 - **A speed change must not change the voice** (WSOLA; bypassed at 1x; default 1x). [speed-pitch]
 - **A control with nothing behind it is worse than no control**; never fabricate people. [no-dead-controls]
@@ -465,7 +465,7 @@ Operations and honesty
   `topics.category_tree`, not just rows); it re-applies the seed; accounts,
   credentials and metering are never wiped. [wipe-derived]
 - **Failures must be visible** (/admin, §269); announcing is not enough if the
-  thing keeps a record; a feedback report names its APIs, never keys (§282). [failures-visible]
+  thing keeps a record; a feedback report names its APIs, never keys. [failures-visible]
 - `/api/health` reports `build` and `search_mode_source`; anything settable in
   two places belongs there. [server-says-build]
 - **Verify, do not inspect** - readiness checks perform the real action. [verify-not-inspect]
@@ -483,7 +483,7 @@ Operations and honesty
   `DATABASE_URL` is set, §243). [storage-durability]
 - **Staging spends nothing and cannot be configured to** (`spend_guard.py`):
   paid keys removed, GDELT/Polymarket off, `FAM_SECRETS` unread, nothing
-  leaves the machine but its own private database (§243); replay only. [zero-spend-staging]
+  leaves the machine but its own private database; replay only. [zero-spend-staging]
 - **Every installed client keeps working**: `X-FAM-Client`, `releases/registry.json`
   (supported/deprecated/retired -> 426), a contract per release replayed in
   CI; fix a break by keeping the old field, never by editing the contract;
@@ -492,7 +492,7 @@ Operations and honesty
 - Metering records cost at spend time per listener; never one blended cost. [metering]
 - A credential is never typed by a human (precedence env > `FAM_SECRETS` >
   .env > ~/.fam/env). [credentials-fetched]
-- **Agents call models only via `agents/models.py`** (§347-8): pinned
+- **Agents call models only via `agents/models.py`**: pinned
   `vendor:model-id`, not `MODEL`; listener words to consented vendors only;
   owner-signed rules; off by default. [agent-model-layer]
 
@@ -502,12 +502,12 @@ Operations and honesty
 - Every feature is an API before it is a screen. [api-before-screen]
 - Nothing new on the audio path may assume a browser; `fam-audio.js` is the spec. [audio-no-browser]
 - `_listener` must be satisfiable by a header (bearer token in the Keychain). [listener-header]
-- First plays stream, replays may be R2 links (§252); account deletion required. [ios-pressures]
+- First plays stream, replays may be R2 links; account deletion required. [ios-pressures]
 - Server side built (`ACCOUNTS.md`); payment and delivery are not. [ios-server-built]
 - Order: hear the production voice -> deploy with a GPU -> Swift lock-screen spike. [ios-order]
 - Open decisions: where to deploy (bandwidth) [dec-deploy]; accounts - answered
   [dec-accounts]; local vs hosted voices [dec-voices]; warming scripts - answered,
-  capped (§568) [dec-prefetch]; embeddings help the ranker, not the
+  capped [dec-prefetch]; embeddings help the ranker, not the
   cache, and `learned_rank` may reorder what cleared the floor, never admit
   below it [dec-embedding].
 
@@ -544,10 +544,10 @@ Every change ends the same way, without being asked [ship-loop]:
 - The share landing page has its own smoke run (`tools/smoke_landing.py`); CI
   runs all three; a check added to `dev.sh` must be added to
   `.github/workflows/ci.yml` by hand. [landing-smoke]
-- CI runs Python 3.12, this container 3.11: reproduce in 3.12 first. [ci-python]
+- CI runs Python 3.12, this container 3.13: reproduce in 3.12 first. [ci-python]
 - **Check CI on `Main` before starting work** (`mcp__github__actions_list` on `ci.yml`). [ci-green-first]
 - Fonts differ here and in CI; suspect them. [fonts-env]
-- No API key here: writing quality and latency unverified. [no-api-key]
+- Keys may be set here; spending needs the owner's yes. [no-api-key]
 - `tools/shots.py`, `stall_probe.py`, `compare_search.py`: claims were wrong without. [shots-probes]
 - Deleting CSS broke the app twice: `tools/check_css.py`, `tools/shots.py`. [css-deletion]
 - A top-level name declared twice in `static/index.html` silently wins (`tools/check_js.py`). [js-dup-names]

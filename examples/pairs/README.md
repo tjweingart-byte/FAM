@@ -21,3 +21,8 @@ They are made **before launch only**, on a developer's machine, by
 frozen scripts, and land in `~/.fam/teaching_pairs/`. Read each and move the
 ones worth teaching here by hand. No episode a listener hears is ever
 rewritten. `python tools/teaching_pairs.py --check` checks the files.
+
+**None is committed here.** Six were (§626) and were taken back out after
+they were measured (§629, §630): they are in `../candidates/pairs/`, with
+what the measurement found. The writer is shown at most six, in file-name
+order, so a seventh file here is never read.

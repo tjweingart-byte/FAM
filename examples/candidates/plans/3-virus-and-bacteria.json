@@ -1,0 +1,107 @@
+{
+ "example": "3-virus-and-bacteria",
+ "teaches": "One thing against another: open on the difference that decides it; each side in its own terms; then why the difference has the consequence it has; land on a concrete fact, never on which to choose or what to do.",
+ "packet": [
+  {
+   "packet": "plugin",
+   "title": "Bacteria and viruses compared",
+   "published": "reference",
+   "sentences": [
+    "A bacterium is a complete living cell, with a cell wall, its own machinery for making energy and proteins, and its own DNA.",
+    "Given warmth and nutrients a bacterium divides in two, and some species do so about every twenty minutes.",
+    "Most bacteria are harmless, and trillions live in the human gut, where many help with digestion.",
+    "Bacteria cause illness by multiplying where they should not be or by releasing toxins.",
+    "A virus is genetic material inside a protein shell, around a hundred times smaller than a bacterium.",
+    "A virus cannot grow or copy itself outside a living cell.",
+    "A virus enters a host cell and uses the cell's machinery to make copies of itself, which then spread to neighbouring cells.",
+    "Strep throat is caused by bacteria, and the common cold is caused by a virus."
+   ]
+  },
+  {
+   "packet": "plugin",
+   "title": "How antibiotics, antivirals and vaccines work",
+   "published": "reference",
+   "sentences": [
+    "Penicillin, the first antibiotic, disrupts the bacterial cell wall, so the cell swells and bursts.",
+    "Other antibiotics block the machinery bacteria use to make proteins, which differs from the machinery in human cells.",
+    "Antibiotics do not work on viruses, which have no cell wall and no protein machinery of their own.",
+    "Antiviral drugs are harder to develop because a virus copies itself inside human cells, so stopping it risks harming the cell.",
+    "Tamiflu blocks the protein that influenza uses to release itself from an infected cell, and it works only against influenza.",
+    "One antibiotic can work against dozens of species of bacteria, while an antiviral usually works against one virus or one family.",
+    "A vaccine trains the immune system, which attacks both bacteria and viruses.",
+    "There are childhood vaccines against whooping cough, which is caused by a bacterium, and measles, which is caused by a virus.",
+    "An antibiotic taken during a viral infection still kills susceptible bacteria in the body and leaves resistant ones to multiply.",
+    "Anyone with a sore throat that lasts more than a week should see a doctor.",
+    "Researchers expect new classes of antibiotic to reach clinics in the coming decade.",
+    "Viruses were first seen under an electron microscope in the nineteen-thirties."
+   ]
+  }
+ ],
+ "answer": {
+  "answers": "what separates a virus from a bacterium, and why it decides the medicine",
+  "summary": [
+   "P1.1",
+   "P1.5",
+   "P1.6",
+   "P1.7",
+   "P2.1",
+   "P2.3",
+   "P2.4",
+   "P2.6",
+   "P2.7",
+   "P2.9"
+  ],
+  "opening": [
+   "P1.1",
+   "P1.6",
+   "P1.8"
+  ],
+  "beats": [
+   {
+    "purpose": "the bacterium in its own terms: a whole cell that lives alone",
+    "sentences": [
+     "P1.1",
+     "P1.2",
+     "P1.3",
+     "P1.4"
+    ]
+   },
+   {
+    "purpose": "but the virus has none of that, so it borrows a cell",
+    "sentences": [
+     "P1.5",
+     "P1.6",
+     "P1.7"
+    ]
+   },
+   {
+    "purpose": "therefore: what an antibiotic hits, and why a virus gives it nothing to hit",
+    "sentences": [
+     "P2.1",
+     "P2.2",
+     "P2.3"
+    ]
+   },
+   {
+    "purpose": "but drugs against viruses exist, and are narrow because of where a virus copies itself",
+    "sentences": [
+     "P2.4",
+     "P2.5",
+     "P2.6"
+    ]
+   },
+   {
+    "purpose": "a vaccine gets round the difference, because it works through the immune system",
+    "sentences": [
+     "P2.7",
+     "P2.8"
+    ]
+   }
+  ],
+  "landing": [
+   "P2.9"
+  ],
+  "thin": false,
+  "missing": []
+ }
+}

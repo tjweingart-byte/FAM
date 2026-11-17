@@ -37848,3 +37848,626 @@ admin opens - a person still sends the pieces. Egan's first message is
 unchanged and pitches a link. Opens are a total, not a history by day.
 
 Tests: `tests/test_post_kit_624.py`.
+
+## 625. Candidates for the writer's examples: a three-minute comparison, and six before-and-after pairs from real drafts (2026-11-16)
+
+The owner, on a list of things worth having the session's stronger model
+build while it is available: "start on build 3" - a model's writing samples
+turned into what a weaker model follows. In FAM that is `examples/`
+([examples-lever]): the writer is Haiku 5.5 and matches examples more
+closely than rules.
+
+**What was missing.** No example at three minutes (1, 2, 4, 5 only), the
+first length past the two-minute band. `examples/pairs/` empty since §522,
+though the writer's instructions show up to six. Four examples with no
+worked plan (not done here).
+
+**Nothing the writer reads has changed.** Everything is in
+`examples/candidates/`, which no loader reads; the owner picks by ear and
+moves what is worth teaching (`examples/candidates/README.md`). The folder
+is in the repository because the session's machine is thrown away and
+`~/.fam/` goes with it.
+
+**The example** (`3-virus-and-bacteria.txt`, 510 words). A comparison -
+shape 10 in `docs/story_shapes.md`, "none - a gap" - on settled facts: opens
+on the difference that decides it, each side in its own terms, why the
+medicine divides, lands on what an antibiotic taken for a cold does do. No
+advice. By the code's measures it sits with the house examples (hook 1.0,
+flow 0.92, repetition 1.0, ear 1.0). A first draft claimed the measles
+vaccine came decades before any antiviral drug; it did not (both 1963), and
+the line is gone.
+
+**The pairs** (`pairs/`, six). `tools/editor_eval.py --freeze` researched 18
+of its fixed questions today into `~/.fam/editor_eval_fable/`, and `--run
+--arms none,none_low --no-grade` had the writer draft each twice (36
+scripts, $0.10). `teaching_pairs.candidates` ranked them by the flaws the
+code names. The six most flawed across facets - oil prices, Apple, the box
+office, the Eagles, Nvidia, the WTA Finals - were rewritten **by hand in the
+session from the same packet**, in place of the tool's Opus call, and put
+through the tool's own two gates:
+
+| pair | words | code flaws | grade (Opus, mean of six) | unsupported claims |
+|---|---|---|---|---|
+| oil prices | 286 → 229 | 4 → 0 | 3.67 → 4.17 | 3 → 0 |
+| Apple | 270 → 253 | 3 → 0 | 3.33 → 4.17 | 0 → 0 |
+| box office | 310 → 220 | 3 → 1 | 2.33 → 4.33 | 3 → 0 |
+| Eagles | 209 → 173 | 2 → 0 | 2.67 → 3.83 | 1 → 0 |
+| Nvidia | 184 → 176 | 2 → 0 | 2.67 → 4.17 | 1 → 0 |
+| WTA Finals | 149 → 144 | 2 → 0 | 2.67 → 3.33 | 2 → 0 |
+
+No story or ear score fell. The one flaw left is `visual` on the film title
+"You Can See Everything", which the draft has too. The grader named an
+unsupported detail in three first rewrites (which tankers, "ahead of all of
+them", "did not recover") and one inferred cause; each was taken out and
+the pair graded again, and the table is the final text. Three WHY lines
+carry a flaw found by reading, in the tool's own words, that the code did
+not flag: a two-sentence recap ending (box office, Nvidia) and the next
+game said twice (Eagles).
+
+**What the drafts showed, beside the pairs** (36 scripts, not a
+measurement):
+- three speak about their own material - "the latest price we have",
+  "the reporting we have", "I don't have a confirmed result for that
+  return" - against [missed-not-absent] and the house rules;
+- two end mid-sentence ("As", "But"); not diagnosed - the cut may be the
+  tool's, not the writer's;
+- the Starship draft says the landing is unconfirmed while one wire-grade
+  source in its packet reports the catch and the others, dated the same
+  day or the next, still preview it. Left out of the pairs: a pair must not
+  teach which way that goes ([started-not-finished]);
+- the box-office draft gave Paramount a claim that was another outlet's
+  headline, and the Eagles draft read as one win where the packet has two.
+
+**Cost**, on the owner's key, with their yes: about $0.80 - research ~$0.20
+(estimated from §527's rate), writing $0.10, twenty Opus grades ~$0.50
+(estimated likewise).
+
+**If adopted:** six pairs add about 2,800 words to the writer's cached
+block, the example about 500. Whether that helps is §527's kind of
+question: run `tools/editor_eval.py` on the frozen questions with and
+without.
+
+**Also true, and not changed here:** [no-api-key] says there is no key in
+the build container. This environment has `FAM_ANTHROPIC_KEY` and the
+search keys, as §527 found; the rule's wording is the owner's to change.
+
+Tests: `tests/test_example_candidates_625.py` (there are candidates; none
+reaches the writer's instructions; the example is about its length; each
+pair parses, has fewer flaws by the code than its draft, is no longer than
+it, and carries a reason line).
+
+## 626. The owner adopted every candidate, and a project skill for how to work here (2026-11-16)
+
+The owner, on §625's table: "Adopt all of them and start on build 1."
+
+**Adopted.** `3-virus-and-bacteria.txt` is in `examples/` (facet `health`
+in `facets.json`) with a worked plan, `examples/plans/3-virus-and-bacteria.json`,
+written by hand in the session in place of `tools/editor_teaching.py
+--draft` and passing its `--check`. The six pairs are in `examples/pairs/`.
+`examples/candidates/` is gone. **The writer's cached instructions changed:
+32,899 characters to 52,252** (examples block about 4,960 words, pairs block
+about 2,860), read from the cache on every writer call after the first
+([writer-savings]); the first call after a deploy writes the larger block.
+`docs/story_shapes.md` names the example for the comparison shape, and
+[examples-lever] has a Current note.
+
+**Not measured.** Whether thirteen examples and six pairs change what the
+writer produces. §527 is the method: `tools/editor_eval.py` on the frozen
+questions with `TEACHING_PAIRS=0` and `=1`. The pairs' facts are a day old
+already and are not kept current; the writer is told never to borrow them.
+
+**One test assumed the folder was empty.**
+`test_no_examples_leaves_the_prompt_untouched` emptied the examples and
+expected the bare prompt; it now empties the pairs too, which is what it
+was about.
+
+**Build 1: `.claude/skills/fam-method/SKILL.md`.** The list's first item
+was a file in which the stronger model writes down how it works, for a
+weaker one to follow later. Here that is a project skill, loaded by any
+later session: how to find a rule's full text and its history before
+changing what it covers, how to find the tool that already exists, the
+order in which to suspect a weak episode's causes, the procedure that made
+§625's pairs, what to verify and how to say what was not, how to spend the
+owner's key, and what the ship loop's rules leave out. **It restates no
+rule**: it cites rule IDs, and says a rule always wins. Its examples are
+what happened in this session, including the two mistakes caught (a wrong
+date claim in the draft example, and details the grader called
+unsupported in three first rewrites).
+
+Tests: `tests/test_examples_adopted_626.py` (every committed pair is shown
+and no more than six; each is one the code prefers, no longer than its
+draft, with a reason line; no rewrite says what it does not have; an
+example at every whole minute, the three-minute one filed under health)
+replaces §625's candidates test. `tests/test_skill_fam_method_626.py`
+(the skill's frontmatter; every rule ID it cites exists in `docs/claude/`;
+every file and tool it names exists; it defers to the rules and stays
+short). **Not verified here:** that a later session on another model
+follows the skill, beyond the one trial noted with this change.
+
+## 627. Measuring what the adoption bought: two arms and a paired report, and the skill tried on another model (2026-11-16)
+
+The owner: "Run the comparison and start on build 6."
+
+**The tool** (`tools/editor_eval.py`). Two arms beside `none`:
+`none_unpaired` (`TEACHING_PAIRS` off) and `none_before_625` (that, and the
+example §626 added hidden - the writer's instructions as they were before
+§625). `--compare a,b` prints the paired difference by question on the
+grader's mean of six, each metric, unsupported claims and the ear score,
+with a 95% bootstrap interval over questions and better / worse / level
+counts. **The questions a pair was made from are left out** and reported
+apart (`seen_questions`, read from `examples/pairs/`, never a list): the
+writer has been shown their answers, so they would flatter the pairs.
+
+**The skill, tried.** `.claude/skills/fam-method` was given to a session on
+Opus 5.5 with a real task, read-only: "The writer keeps saying things like
+'I don't have a confirmed result' in episodes. Fix it." It did not add a
+line to the prompt; it read §94 and §288, found `OpeningGuard` and
+`MaterialGuard`, and diagnosed why they miss (§628). It also corrected the
+skill in three places, all checked and taken:
+- §625 and the skill said three of 36 drafts speak about their own
+  material. **It is four drafts and seven sentences** (the Nvidia draft at
+  low effort has three); three of the four are the low-effort arm and three
+  are about a moving price. §625's count came from one narrow pattern.
+- the skill named [missed-not-absent] as what forbids it; the wording is
+  the writer's own instructions, from §288;
+- the skill never said two checks for it already exist. It now says: find
+  the check that exists and ask why it missed.
+
+**Also stale, and not changed:** [ci-python] says this container runs
+Python 3.11; it runs 3.13.
+
+Tests: `tests/test_eval_findings_527.py` (each arm's instructions hold what
+they should and are taken back after; a comparison leaves out the questions
+the pairs were made from and gives the paired difference).
+
+## 628. The material check, widened: "the latest price we have", a late "I don't have", and apostrophes read as quote marks (2026-11-16)
+
+The owner, on §627's finding: "Widen the guard."
+
+**Three causes, all in `script_generator.py`.**
+1. *The plural.* §288's review narrowed `_MATERIAL_PHRASES` to the writer's
+   own "I", "me" or "my" because it had been eating reporting. The writer
+   now says "the latest price we have", "the reporting we have", "we don't
+   have a figure for this morning's trading".
+2. *The singular, late.* "I don't have a confirmed result" is in
+   `OpeningGuard`'s list, and that check stops after six sentences. It was
+   sentence 14.
+3. *Apostrophes as quote marks.* `_QUOTED`, which sets quoted speech aside
+   before either check, took any two apostrophes for a pair. "I don't have
+   anything reliable on the Dodgers' opener" - §94's own sentence - lost
+   everything between them and matched nothing. A single quote now opens
+   only where no letter comes before it and closes only where none follows.
+
+**Added to the material check**, so they are dropped anywhere in the piece:
+the writer's own "I don't / can't / couldn't have, confirm, verify, tell
+you, say, establish, find" (lower case after the "I", so "I Can't Tell You
+Why" is still a song); "nothing I can establish"; "the latest / most recent
+/ last ... price, score, result, update, reading we have"; "the reporting
+we have"; "we don't have a figure / price / number / result ...".
+Deliberately not bare "we have": "the best evidence we have suggests", "the
+oldest records we have", "the latest figures we have from the census" and
+"what we do know is that the universe is expanding" are the world, and are
+tests. **So one of the seven sentences still passes**: "What we do know is
+that the last price established is...".
+
+**The opening check sees them first** (`_ScriptReader.feed` / `finish` ask
+`OpeningGuard` before `MaterialGuard`, and `OpeningGuard` counts a material
+sentence as a disclaimer). Otherwise the sentence leaning on a dropped one
+("That would be worse than useless if you're about to repeat it...") was
+spoken alone - `test_the_pipeline_never_sees_the_dropped_sentences` caught
+that. A script that is nothing else is still spoken, never silence.
+
+**Replayed over 1,393 frozen sentences** (§625's 36 drafts and the first of
+§627's): six caught, the six intended, nothing else; no house example or
+pair rewrite trips either check.
+
+**What a drop costs, measured on the four drafts.** Nothing is said in a
+dropped sentence's place ([no-filler]). Three lose nothing: the figure is
+said again beside it. **The bitcoin draft loses its opening**, which
+carried the price, and now begins "Earlier that Sunday it had touched
+sixty-two thousand and eighty-six." The owner was told this trade before
+choosing. Each drop is an "opening check" or "material check" notice on
+/admin's errors, which is now the measure of how often it happens.
+
+**Not done:** the writer's instructions still say "the newest information
+you can establish", which these sentences echo almost word for word.
+Rewording it changes every episode ([writer-savings]) and is the owner's to
+read first. **Not verified here:** production's own rate; a title with two
+apostrophes inside the first six sentences is now read by the opening check
+as a title with one always was.
+
+Tests: `tests/test_material_guard_628.py` (the eight leaks caught; thirteen
+look-alikes about the world pass; an apostrophe inside a word is not a
+quote mark and quoted speech is still set aside; a late one is dropped with
+nothing in its place; a script of nothing else is spoken; at the opening
+the sentence leaning on it goes too; no example or pair rewrite trips
+either check). `tests/test_examples_adopted_626.py` now asks the check
+itself, not a list of phrases.
+
+## 629. The comparison, run: the adopted example and pairs did not help, and storytelling is marked lower (2026-11-16)
+
+§627's run, on the owner's key: all 50 fixed questions researched today into
+`~/.fam/editor_eval_620/`, each written three ways by the same writer
+(Haiku 5.5, high effort, no editor, 1.5 minutes) from the same packet, and
+graded blind by Opus 5.5. 150 scripts, no grade failures (one grade came
+back with no marks). The six questions a pair was made from are left out;
+44 remain.
+
+| Opus, mean over 44 | before §625 | + the example | + example and pairs |
+|---|---|---|---|
+| information | 3.18 | 3.19 | 3.34 |
+| flow | 3.23 | 3.21 | 3.14 |
+| depth | 3.34 | 3.40 | 3.27 |
+| repetition | 3.00 | 3.09 | 2.95 |
+| hook | 3.75 | 3.65 | 3.55 |
+| storytelling | 2.27 | 1.98 | 1.86 |
+| **mean of six** | **3.13** | **3.09** | **3.02** |
+| unsupported claims a script | 2.82 | 2.64 | 2.55 |
+| words | 269 | 268 | 263 |
+
+Paired by question, 95% bootstrap:
+
+| | mean of six | better / worse | storytelling | hook |
+|---|---|---|---|---|
+| example and pairs - before | -0.11 [-0.23, +0.01] | 10 / 25 | **-0.41 [-0.77, -0.05]** | -0.21 [-0.41, 0.00] |
+| example alone - before | -0.04 [-0.17, +0.08] | 18 / 17 | -0.30 [-0.61, 0.00] | -0.09 [-0.30, +0.12] |
+| pairs on top of the example | -0.06 [-0.19, +0.06] | 11 / 21 | -0.09 [-0.42, +0.26] | -0.12 [-0.33, +0.07] |
+
+- **Nothing improved past zero.** Information (+0.16) and unsupported
+  claims (-0.27 a script) lean the right way; neither interval clears zero.
+- **Storytelling is lower with both in, and the interval clears zero.**
+  Hook is at the edge the same way. The mean of six leans down, 25
+  questions worse to 10 better.
+- By kind of question (mean of six, both in, small counts): news -0.19
+  (17), evergreen -0.12 (10), sports +0.03 (5), money +0.28 (3).
+- On the six questions the pairs were made from the mean of six did not
+  move (0.00, six questions, wide interval): being shown the answer did not
+  help either.
+- The code's own measures barely differ (flow 0.60 / 0.68 / 0.62, ear 0.93
+  in all three): the pairs were chosen and gated by those measures and the
+  grader's mean, and neither predicted this.
+
+**Why, as inference, not measured:** the six rewrites are short, plain
+recaps with one figure to a sentence - what the code's checks reward - and
+half of the pairs block is drafts going wrong. A writer shown 2,860 words
+of that may be writing flatter. The example is an explainer; an explainer
+taught at editions of news may cost the same thing.
+
+**What this does not show.** The grader is not calibrated against the
+owner ([episode-quality]: a grade is trusted once it agrees with a person).
+One script per question per arm, so the run-to-run noise of the writer is
+inside these intervals, not measured apart. Editions at high effort only -
+not searchFAM at low effort, not three minutes, where the example's length
+is meant to teach. Every arm is marked far below §527's (3.1 against ~3.6;
+unsupported claims 2.6-2.8 a script against 0.4-0.6): today's packets and
+the grader's drift are not told apart, so only the differences within this
+run are read.
+
+**Not changed yet.** By §527's precedent - matched examples cost repetition
+and were switched off - the measured choice is to take both back out. The
+owner adopted them and decides.
+
+**Cost: $9.08, about double the estimate given.** Writing $0.58 and
+grading $8.15, both measured; research about $0.35, estimated. The
+estimate used §527's $0.025 a grade; these cost $0.054.
+
+## 630. The example and the pairs taken back out, and the writer told how to date a figure (2026-11-16)
+
+The owner, on §629's table and §628's "not done": "Take both back out and
+apply the rewording."
+
+**Taken back out.** `3-virus-and-bacteria.txt`, its worked plan and the six
+pairs are in `examples/candidates/` again, unloaded; its facet is out of
+`facets.json`. **The writer's cached instructions are what they were before
+§625 but for one phrase** (32,898 characters; twelve examples, no pairs).
+`examples/candidates/README.md` now says what the measurement found and
+what to run before anything there is moved in. [examples-lever] has a
+Current note: a candidate that passes the gates is not yet a gain.
+`tools/editor_eval.py` keeps its two arms and `--compare`; with nothing
+adopted they write as `none` does.
+
+**The rewording**, read by the owner first (three places in
+`script_generator.py`):
+- the request, beside the current time: "Prefer the newest information you
+  can establish" is now "Prefer the newest information the sources date.
+  Anything that moves - a price, a score, a count - is said with its own
+  time, as a fact about the world: "it closed Friday at ninety-five", never
+  "the latest price we have".";
+- the house rules: "Give the newest information you can establish" is "Give
+  the newest information the sources date" - one character shorter, so the
+  7,800 bound holds without a pass (7,793);
+- the evidence block's list of things never said about the sources gains
+  "the latest we have".
+§628's leaks echoed "you can establish" nearly word for word, and nothing
+told the writer the honest form of what it was reaching for. **Unmeasured**:
+whether the leaks fall. The four packets that leaked, written at low effort
+with and without, would say for about ten cents; the /admin "material
+check" notices will say in production.
+
+**The skill** (`.claude/skills/fam-method`) now carries the two lessons:
+measure before proposing an adoption, and price a run from a few scripts of
+its own.
+
+**The full check.** One run on this branch finished with 1 failure in 7,627:
+`test_the_writing_path_asks_for_a_warmed_brief_before_paying_for_one` reads
+`script_generator.py`'s source by line number, and the file was edited while
+the run was going. It passes alone. Runs now happen in a separate checkout
+(`git worktree`), so an edit cannot move a file under a test.
+
+Tests: `tests/test_example_candidates_630.py` (no candidate reaches the
+writer, has a facet or a loaded plan; no pair is committed where the writer
+reads it; the example is about its length; each pair is still one the code
+prefers and trips no check; the folder says what the measurement found)
+replaces §626's adopted-state test. `tests/test_writer_time_wording_630.py`
+(the echoed phrase is gone from both places; the request gives a moving
+figure its own time; the instruction's bad example is one the check drops;
+the evidence block names the plural). `tests/test_eval_findings_527.py`
+puts the example and pairs in for the length of the test to check the two
+arms hide them.
+
+## 631. The rewording tried for nothing on the four packets that leaked: fewer leaks, and the check catches none of what is left (2026-11-16)
+
+The owner: "stop spending money. Test the rewording on the four packets for
+as cheap as you can (or free)."
+
+**How, with no API spend.** The exact prompts the writer gets - cached
+instructions and request - were built in code for the four packets (oil,
+Nvidia, bitcoin, Starship), once as §630 left them and once with its three
+edits reversed. Sixteen Haiku runs inside the coding session, two a packet a
+wording, each told only to follow the file. **A stand-in, not the
+production call**: no effort setting, the session's own wrapper around the
+model, and it counts against the plan's usage (about 110,000 tokens a run,
+far more than the prompt itself). It reproduced the leak under the old
+wording, which is what makes it worth reading.
+
+**Read by hand** (sentences about what the writer has or can see):
+
+| | scripts that leak | leaking sentences | "establish" echoed |
+|---|---|---|---|
+| old wording | 5 of 8 | 12 | 4 times |
+| new wording | 2 of 8 | 4 | never |
+
+Under the new wording the price comes with its time as a fact in most
+scripts ("At a quarter past ten on Sunday morning, Eastern time, bitcoin was
+trading at..."; "that Friday close is the newest settled figure there is").
+Starship did not leak under either. Eight scripts a side is a direction, not
+a rate.
+
+**The check (§628) caught none of the sixteen leaking sentences.** They are
+in forms it does not list: "the newest price we can establish", "the last
+price we can date", "the last figure we can stand behind", "the last price
+we can put a time on", "not something we can see", "is not something we
+have", "not a figure I can give you". A first scan by pattern reported no
+leaks in either wording; reading the openings found them. Not widened here:
+"the oldest fossils we can date" is the world, so the new forms need tying
+to a price or figure, and that is a change to what episodes lose.
+
+**Also seen:** two new-wording scripts end by telling the listener how to
+take the number ("treat ninety-five forty-five as a reading from ten
+fifty-nine, not a live price"; "where prices stand this afternoon is not
+known yet") - not about the writer, but a gap said aloud
+([missed-not-absent]).
+
+## 632. The material check extended to what the writer "can" do with a figure (2026-11-16)
+
+The owner, on §631: "Extend the guard."
+
+**Added to `_MATERIAL_PHRASES`** (`script_generator.py`), each dropped
+anywhere in the piece:
+- "the newest / latest / last ... price, score, result, reading, figure,
+  number we can date, establish, confirm, see, stand behind, put a time
+  on, give you";
+- "where / what ... is not something (or a figure, a price) we, I or this
+  can ... / have" - only when the clause is about a thing in time (now,
+  this afternoon, where it stands, trading);
+- "nothing we can establish" and "what we can date / establish is" -
+  "establish" being the instruction's own old word (§630).
+
+Tied to a figure or to a moment on purpose. These pass and are tests: "the
+oldest fossils we can date", "the earliest eclipse we can date", "dark
+matter is not something we can see", "what dark matter is made of is not
+something we can see directly", "nothing we can find in the fossil record",
+"where the market stands today is not something anyone can know", the same
+words inside quotation marks, and the honest forms §630 asked for ("that
+Friday close is the newest settled figure there is").
+
+**Replayed.** §631's sixteen scripts: 16 of their 17 leaking sentences
+caught (reading found twelve under the old wording; the check found a
+thirteenth), none else in 233 sentences. **Still passing:** "The last
+figure we have is from that Sunday morning" - left alone because "the
+latest figures we have from the census are from 2020" is the world, and the
+two cannot be told apart by their words. Every frozen draft from §625 and
+§629, 2,868 sentences: nine caught, all nine about the writer's own access
+- §628's six, and three in §629's drafts that nobody had counted ("where
+the stock stands at this minute is not something I have"; "where they're
+trading this afternoon, I can't tell you"; "I can't tell you what the
+judges said ..., so I won't pretend to").
+
+**The cost is the same as §628's**: a dropped sentence takes its figure
+with it, and nothing is said in its place. Each drop is on /admin's errors.
+
+Tests: `tests/test_material_guard_628.py` (twelve more leaks caught, ten
+more look-alikes pass).
+
+## 633. The branch double-checked: what a second reader found in the guard, the comparison tool and the tests (2026-11-16)
+
+The owner: "Double check all changes that have been made in this branch,
+and let me know what else needs to be done." A pass of my own over the
+diff, then an independent review that ran the code beside Main's and
+replayed the 186 stored scripts and a 20,000-script fuzz. Every confirmed
+finding is fixed; the sections above are as they were written, and this
+one says where they were wrong.
+
+**The guard (§628, §632) - found by the review, all reproduced:**
+- *A dropped opening took the facts after it, and could be said again at
+  the end.* §628 had the opening check count "the latest price we have" as
+  a disclaimer, so "It was three to one, Dodgers" after it was dropped as
+  leaning on one - and when the opening window ran out with nothing
+  counted as spoken, `rescue()` spoke all six dropped sentences as the
+  episode's last line. That last fault was on Main too (six disclaimers,
+  then the episode). Now: only a real disclaimer starts that run; a
+  sentence the material check drops is un-counted (`OpeningGuard.retract`)
+  and starts none; past the window a sentence counts as spoken; and
+  `finish` asks for a rescue only when nothing at all was said.
+- *The middle of a quotation was dropped.* Sentences are split inside
+  quotation marks, so "I don't have an explanation for the second
+  quarter." between `"We got lucky.` and `We will fix it."` carried no
+  mark and matched. `MaterialGuard` now carries an open double quote from
+  one sentence to the next, and forgets a stray mark after four.
+- *History and science told with "we" were dropped* - "we don't have an
+  exact figure for the death toll at Pompeii", "the last reading we have
+  from Voyager 2", "what is happening now is not something we have seen
+  since 1929", "what we can establish is that Richard was in the Tower".
+  The plural patterns are narrower: a price, a score or an update "we
+  have"; "in / from the reporting we have"; "we don't have a figure" only
+  in a sentence about now; "where it stands ... is not something we can
+  see" only about where a thing stands or trades. "Nothing we can
+  establish" and "what we can date is" are gone - they echoed a word the
+  instructions no longer use (§630).
+- *Speech reported without quotation marks was dropped* ("I can't say
+  enough about this defense, Sirianni told reporters"; "one admission: I do
+  not have the answer"; a lyric after "sings"). The singular pattern stands
+  aside for those.
+- *Leaks that still passed* and are caught now: "the latest price I have",
+  "that is the latest we have" (the instructions' own bad example, which
+  the check did not match), "isn't something we can see", "I can't yet
+  confirm", "we can't tell you". An elision ("the '90s", "'em") no longer
+  opens a quotation that hid a leak to the next possessive; a quotation
+  may run to 600 characters.
+- Mine, before the review: "what happened this morning is not something we
+  can ignore" was dropped as the writer's access.
+
+**After the fixes:** the stored drafts, 2,868 sentences - ten dropped, all
+ten the writer's own access, order kept, nothing said twice. §631's sixteen
+scripts - 14 of the 17 leaking sentences caught (the three that pass are
+the two "establish" echoes and "the last figure we have is from that
+Sunday morning"). A 20,000-script fuzz - never silent, never out of order.
+**Still passing on purpose or for want of a safe pattern:** "the latest
+figure / number / data we have", "we have no figure for this morning",
+"we don't have this morning's figure", "I have no confirmed result", "what
+we can say is that...". **Still dropped wrongly, constructed not seen:** a
+sentence-case title ("...closed the set with I can't tell you why").
+
+**The comparison tool (§627):**
+- more unsupported claims was counted as "better" (the differences in §629
+  were right; that row's labels were not);
+- "mean of six" averaged whatever marks a grade had left, and the rows
+  were taken from the first script - a script short of a mark is now left
+  out, and every row is always printed (§629's numbers stand: its one
+  short grade was short of all six);
+- the candidates guide told the owner to compare `none` with
+  `none_before_625`, which have been identical since §630. A new arm,
+  `none_candidates`, puts `examples/candidates/` in front of the writer for
+  that arm only - in file-name order, no more pairs than it is shown - so
+  a candidate can be measured **before** it is adopted;
+- a results folder re-used across a change of instructions compared the
+  wrong things under the right names: each result now records a mark of
+  the instructions it was written from, and `--run` says when they differ;
+- `_Settings` left its swap in place when it failed part-way.
+
+**Tests:** four were pinned to the faulty behaviour or passed whatever the
+code did (an interval tested on identical differences; an assertion true
+on Main's pattern too; counts fixed at six; `TEACHING_PAIRS == []`). They
+are rewritten around the reviewer's sentences, exercise the interval, the
+failure path and the stale-result notice, and skip, not fail, when the
+candidates are legitimately moved. The wording test now builds a
+researched request, which is where the evidence and timing blocks are.
+
+**/admin** had no words for a "material check" notice; it has
+(`pipeline_errors.EXPLAIN`).
+
+**Costs, corrected.** §625 said about $0.80; its twenty grades were priced
+at 2.5 cents and cost about 5.4, so it was nearer $1.40. With §629's $9.08,
+the day's spend on the owner's key was about $10.50. Nothing since §629 has
+spent on it: §631's sixteen runs and both reviews ran inside the session.
+
+**Main merged** (its §619, the waitlist sign-in): this branch's sections
+are §625-§633, and the tests and the arm named after them moved with them.
+
+**Not changed, for the owner:**
+- the request's timing rules still say "the answer is that we do not have
+  it" (`script_generator.py`, the order-of-sources bullet), in every
+  researched episode - the phrase the guard drops. A rewording is a change
+  to every episode;
+- [no-api-key] and [ci-python] are out of date (keys are set here; Python
+  is 3.13);
+- whether the rewording (§630) lowers the leak in production is unmeasured
+  beyond §631's sixteen scripts; /admin's notices will show it.
+
+## 634. The last "we do not have it" out of the instructions, two rules brought up to date, Notion off the environment (2026-11-16)
+
+The owner, on §633's list: "Do 3, 4, and 5. Don't do 6, 7, 8. Do 9, not 10
+and 11."
+
+**3. The order-of-sources rule** in every researched request
+(`script_generator.py`) ended "Where the top of that order is silent on
+something, the answer is that we do not have it - not that the one below it
+is promoted." It now ends "leave it out - the one below it is not
+promoted." Same rule, without the phrase the material check drops. With
+§630's three edits, nothing in the writer's instructions speaks of what
+"we have" any more except as an example of what not to say - a test holds
+that on a researched request.
+
+**4. Two rules described another machine.** `CLAUDE.md` said "No API key
+here" and "this container 3.11". It says the keys may be set and spending
+needs the owner's yes, and 3.13. Their full text in
+`docs/claude/workflow.md` has Current notes: how to check, that each spend
+is asked for with an estimate (the day's runs cost about $10.50, double
+what was first quoted), and that time to first audio and the production
+voice are still unverified from here. `CLAUDE.md` is 39,996 bytes of its
+40,000.
+
+**5.** `app.notion.com` and `www.notion.so`, allowed on the Default
+environment to read the list this work began from, are removed.
+
+**Not done, at the owner's direction:** measuring the rewording in
+production (§633's list, 6), the leaks with no safe pattern (7), the
+candidates at three minutes and on search (8), the list's other builds
+(10), and a pull request (11).
+
+Tests: `tests/test_writer_time_wording_630.py` (the instructions never
+speak of what "we have" outside their own bad examples).
+
+**The final instructions tried on the four packets, again for nothing**
+(eight Haiku runs inside the session, two a packet, read by hand; the
+first attempt stopped at the plan's five-hour usage limit and was run again
+once it lifted). Every one of the eight opens on the figure with its time,
+as a fact. Two scripts leak, one sentence each, both on Nvidia ("where the
+shares are trading on Monday is not something this can tell you yet"; "...
+is not a figure I can give you") - and **the check drops both**, so none
+reaches a listener. Against §631: 13 leaking sentences in 5 of 8 scripts
+under the old wording, 4 in 2 of 8 after §630, 2 in 2 of 8 now. Eight
+scripts is a direction, not a rate.
+
+## 635. The plan for 2027, from an interview with the owner (2026-11-16)
+
+The last item taken from the list this work began with (§625): an
+interview that pushes back, ending in a month-by-month plan. Fourteen
+questions, one at a time. `docs/PLAN_2027.md` is the result, and holds what
+the owner said; the owner chose to keep it in the repository.
+
+**Two things the interview found in the code:**
+- **Nothing counts a returning listener.** The event log has every play;
+  no number anywhere says how many people listened this week and also
+  last. It is the number the plan is stated in, so it is the plan's first
+  item. A sign-up does not record which channel it came from either.
+- **[op-voice] is out of date**: it says nobody has heard an episode in the
+  production voice. The owner has heard about thirty in two weeks and
+  stopped none early. The rule's wording is the owner's to change.
+
+**Derived in the plan, not said by the owner:** the monthly targets between
+the owner's own numbers, and when the runway ends.
+
+No code changed. Not run: the full check, on a commit that adds a document,
+a log entry and a line to an index.
+
+## 636. CLAUDE.md trimmed, not its budget raised (2026-11-16)
+
+The owner asked why the core is held to 40,000 bytes and whether to raise
+it; it was at 39,996, so the next rule would not have fitted. Chosen:
+trim. **The 132 bare section references in the core - " (§190)",
+" (§282/§285)" - are out**, 1,149 bytes. Each is history, which §168 puts
+in the topic files, and every one of those sections is cited in
+`docs/claude/` at the rule the line's ID points to. No rule, ID or word of
+a rule changed; references that are part of a sentence ("§499, reversing
+§171 there") stay. The core is 38,847 bytes.
