@@ -440,7 +440,7 @@ struct MixView: View {
                 // tilt or dim.
                 topicRow(mix, item, index)
                     .animation(Motion.anim(.easeOut(duration: 0.15))) { row in
-                        row.scaleEffect(lifted ? 1.02 : 1)
+                        row.scaleEffect(lifted && !Motion.reduced ? 1.02 : 1)
                     }
                     .animation(Motion.anim(.spring(duration: 0.2, bounce: 0))) { row in
                         row.rotationEffect(.degrees(lifted ? dragTilt : 0))
