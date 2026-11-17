@@ -715,6 +715,17 @@ EXPLAIN = (
          "No live price reached the writer (often a Tiingo refusal or a spent allowance), so it "
          "estimated one.",
          "Look at live errors at the same time.")),
+    ("writer", r"^repeat check",
+     _ex("The repeat check removed a sentence",
+         "The writer said, word for word, a sentence the episode had already "
+         "said, at the start of its script or of the second writer call "
+         "that carries on from Shakespeare's plan; the guard dropped it "
+         "before it was spoken.",
+         "Nothing wrong; before this check the opening was heard twice.",
+         "The writer starting over, or the second writer call restating the "
+         "opening it was told had been spoken.",
+         "Nothing unless it is many episodes; then look at which path wrote "
+         "them (EDITOR_TANDEM).")),
     ("writer", r"^ran out of room",
      _ex("The writer ran out of room",
          "The script was cut off at the writer's token limit, which thinking "
@@ -822,6 +833,19 @@ EXPLAIN = (
          "Nothing: the episode was made without that agent.",
          "A typo in the setting, or a new model without a price row.",
          "Fix the setting, or add the model's price to metering.PRICES.")),
+    ("voice", r"^a chunk ran twice its length",
+     _ex("The voice took twice as long over a chunk",
+         "One chunk's speech lasted about twice what its words need. "
+         "Measured from the audio; the detail has the words and the seconds. "
+         "Reported once an episode, and nothing is changed.",
+         "Possibly a sentence said twice in a row (the first chunk is the "
+         "opening sentence on its own), or a long pause or stray sound.",
+         "The voice model read a short text again or carried on past its "
+         "end; it has no check of its own against that. A slow, plain "
+         "reading can also reach the threshold.",
+         "Play the episode with captions on: the caption shows the sentence "
+         "once while the voice says it twice. If these rows match what is "
+         "heard, the fix belongs in the voice worker.")),
     ("audio", r"^upload failed",
      _ex("An episode's audio was not kept",
          "The finished audio could not be uploaded to the bucket.",

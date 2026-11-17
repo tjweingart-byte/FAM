@@ -38,6 +38,13 @@ struct MixView: View {
     /// once, on Done - never on each turn of the wheel.
     @State private var pickingTime = false
     @State private var draftTime = Date()
+    /// "Edit topics" (11.16 notes): every topic's play button is an X that
+    /// takes it out of the mix. Ends on Done, on leaving the page, or when
+    /// the last topic goes.
+    @State private var editing = false
+    /// One removal at a time: a second X waits for the first's answer, so
+    /// its list is never built from a mix the server has already changed.
+    @State private var removing = false
 
     private var mix: Mix? { mixes.mix(id) }
 
@@ -53,10 +60,20 @@ struct MixView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         hero(mix)
                         actions(mix)
-                        addTopicsPill
+                        if isEditing(mix) {
+                            editBar
+                        } else {
+                            addTopicsPill
+                        }
                         if mix.items.isEmpty {
                             EmptyNote(text: "Nothing in this mix yet. Add the topics you want a fresh briefing on every day.")
                                 .padding(.top, 16)
+                        } else if isEditing(mix) {
+                            // Nothing plays from the page while it is edited.
+                            Text("Today’s edition · \(Self.today)")
+                                .monoLabel(8.5, tracking: 0.425)
+                                .padding(.bottom, 9)
+                            topicList(mix)
                         } else {
                             playSection(mix)
                             Text("Today’s edition · \(Self.today)")
@@ -88,6 +105,8 @@ struct MixView: View {
         // A topic added anywhere - Add topics, a member - leaves the five,
         // and the next takes its place.
         .onChange(of: mix?.items.count ?? 0) { _, _ in refill() }
+        // Leaving the page ends "Edit topics" (`openMix`: `mixEditing = false`).
+        .onDisappear { editing = false }
         .famSheet(item: $actionSheet) { spec in FAMActionSheet(spec: spec) }
         .famSheet(isPresented: $people) {
             if let mix {
@@ -269,6 +288,73 @@ struct MixView: View {
         .padding(.bottom, 16)
     }
 
+    // MARK: - Edit topics (11.16 notes)
+
+    /// Whether the page is drawn for editing: asked for, and with something
+    /// left to remove (`mixEditing && items.length > 0`).
+    private func isEditing(_ mix: Mix) -> Bool {
+        editing && !mix.items.isEmpty
+    }
+
+    /// `.mix-edit-bar`: what the X does, and Done.
+    private var editBar: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("Tap \u{00D7} to remove a topic from this mix")
+                .font(FAMFont.body(11.5))
+                .foregroundStyle(FAMColor.textMuted)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { editing = false } label: {
+                Text("Done")
+                    .font(FAMFont.body(12, .bold))
+                    .foregroundStyle(FAMColor.ink)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 32)
+                    .background(FAMColor.copper, in: Capsule())
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel("Done editing topics")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 10)
+        .padding(.vertical, 10)
+        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.borderStrong))
+        .padding(.bottom, 14)
+    }
+
+    /// `editMixTopics`: the ⋯ menu's row, the owner's and a member's
+    /// (`joint-mixes`: members edit topics).
+    private func editTopics() {
+        guard let mix else { return }
+        if mix.items.isEmpty {
+            model.nowPlaying.say("Nothing in this mix to remove yet")
+            return
+        }
+        editing = true
+    }
+
+    /// `removeMixTopic`: one whole-list write without the topic, as a
+    /// reorder's is. The last one out ends the edit.
+    private func removeTopic(_ mix: Mix, _ item: MixItem) {
+        guard !removing else { return }
+        let rest = shownItems(mix).filter { $0.id != item.id }
+        guard rest.count < mix.items.count else { return }
+        removing = true
+        reorderRun += 1
+        localOrder = nil
+        let gone = item.title.isEmpty ? "that" : item.title
+        Task {
+            if let saved = await mixes.update(id, ["topic_ids": rest.map(\.entry)]) {
+                if saved.items.isEmpty { editing = false }
+                let from = saved.name.isEmpty ? "this mix" : saved.name
+                model.nowPlaying.say("Removed \(gone) from \(from)")
+            }
+            removing = false
+        }
+    }
+
     // MARK: - Play
 
     /// Items that changed since this listener last heard them (§545).
@@ -373,6 +459,9 @@ struct MixView: View {
     }
 
     private func topicRow(_ mix: Mix, _ item: MixItem, _ index: Int) -> some View {
+        let editingNow = isEditing(mix)
+        let removeName: String = item.title.isEmpty ? "this topic" : item.title
+        let removeLabel: String = "Remove \(removeName) from this mix"
         let who = adder(mix, item)
         let lifted = dragging == index
         let signal = rowSignal(item)
@@ -406,19 +495,31 @@ struct MixView: View {
                 Text(subLine(who, item))
                     .font(FAMFont.body(9.5))
                     .foregroundStyle(FAMColor.textMuted)
-                if signal != nil, let since = item.since {
-                    MixBubbles(since: since, color: ring ?? FAMColor.sigTrending)
-                        .padding(.top, 5)
-                }
+                // The "Sat: ..." and "Today: ..." bubbles that sat here
+                // (§545's Q5) are gone (11.16 notes); the tag above the
+                // title and the row's outline still say what changed.
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button { model.playMix(mix, from: item.id) } label: {
-                PlayTriangle().fill(FAMColor.text).frame(width: 11, height: 11)
-                    .frame(width: 30, height: 30)
-                    .overlay(Circle().stroke(FAMColor.borderStrong))
+            if editingNow {
+                // Edit topics (11.16 notes): the play button becomes an X.
+                Button { removeTopic(mix, item) } label: {
+                    WebIcon(path: Icons.close, size: 12, line: 2.6)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .frame(width: 30, height: 30)
+                        .overlay(Circle().stroke(FAMColor.borderStrong))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel(removeLabel)
+            } else {
+                Button { model.playMix(mix, from: item.id) } label: {
+                    PlayTriangle().fill(FAMColor.text).frame(width: 11, height: 11)
+                        .frame(width: 30, height: 30)
+                        .overlay(Circle().stroke(FAMColor.borderStrong))
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Play this one")
             }
-            .buttonStyle(.press)
-            .accessibilityLabel("Play this one")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 11)
@@ -663,7 +764,7 @@ struct MixView: View {
 
     // MARK: - The ⋯ menu
 
-    /// `openMixMenu`: the owner's rows, or a member's three. A row closes
+    /// `openMixMenu`: the owner's rows, or a member's four. A row closes
     /// the sheet, then acts once it has gone (`FAMActionSheet`).
     private func openMenu() {
         guard let mix else { return }
@@ -679,6 +780,7 @@ struct MixView: View {
             rows.append(SheetAction(label: "Rename") { startRename(mix) })
             rows.append(SheetAction(label: mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { tapCover(mix) })
             rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            rows.append(SheetAction(label: "Edit topics") { editTopics() })
             rows.append(SheetAction(label: "Invite collaborators") { Task { await invite() } })
             if mix.joint { rows.append(SheetAction(label: "Make it yours alone") { askAlone() }) }
             rows.append(SheetAction(label: "Share mix") { Task { await shareTapped() } })
@@ -686,6 +788,7 @@ struct MixView: View {
             rows.append(SheetAction(label: "Delete mix", danger: true) { Task { await delete() } })
         } else {
             rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            rows.append(SheetAction(label: "Edit topics") { editTopics() })
             // Always offered to a member; with nobody listed it opens
             // nothing (`openMixPeople`'s `!(m.people && m.people.length)`).
             rows.append(SheetAction(label: "Who\u{2019}s in this mix") {

@@ -6,8 +6,8 @@ import UIKit
 /// §190, §192) as the 11.9 packet left it (§519). Top to bottom:
 ///
 /// - the Home mark (minimises, never stops), GO DEEPER, the ⋯ menu
-/// - the picture: 40 pt wider than the screen, 4:3, centred, faded into the
-///   page at top and bottom; the captions card over it when captions are
+/// - the picture: 40 pt wider than the screen, 4:3 (less tall where the
+///   stage is shorter), centred, faded into the page at top and bottom; the captions card over it when captions are
 ///   on; share / vibe / save stacked on its right, 34 pt up, above the card
 /// - the title (with the explicit E, wiped in when the writer's lands) and
 ///   the sources strip
@@ -47,7 +47,14 @@ struct PlayerView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
+                // The Home mark and GO DEEPER keep their place and stay on
+                // top (11.16 notes): in a window short for its width - the
+                // iPhone app on an iPad - the picture, as tall as 3/4 of
+                // the width whatever room the stage had, ran up over this
+                // row and took its taps, and there was no way out of the
+                // player. The picture now gives up height instead (`stage`).
                 topRow
+                    .zIndex(2)
                 stage
                 titleRow
                 ScrubberView()
@@ -56,6 +63,9 @@ struct PlayerView: View {
                     .padding(.bottom, 4)
                 controls
             }
+            // If the rows ever need more than the window has, what does not
+            // fit goes off the bottom, never the top.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             if !now.nextUp.isEmpty {
                 NextUpOverlay(onBack: backFromNextUp)
             }
@@ -205,9 +215,13 @@ struct PlayerView: View {
     private var stage: some View {
         GeometryReader { geo in
             let wide = geo.size.width + 40
+            // 4:3 where the stage has the height for it; in a shorter stage
+            // the picture is cropped to the stage rather than running over
+            // the top row and the title (11.16 notes).
+            let tall = max(0, min(wide * 3 / 4, geo.size.height))
             ZStack(alignment: .bottomTrailing) {
                 PlayerPicture(url: now.picture ?? player.picture)
-                    .frame(width: wide, height: wide * 3 / 4)
+                    .frame(width: wide, height: tall)
                     .background(FrameReporter(space: Self.space) { pictureFrame = $0 })
                     .background(GeometryReader { pic in
                         let frame = pic.frame(in: .global)
@@ -222,7 +236,7 @@ struct PlayerView: View {
                 if let friends = now.listenedFriends {
                     PlayerFriendsPill(friends: friends) { openFriends() }
                         .padding(.leading, 16)
-                        .padding(.top, friendsTop(stage: geo.size.height, picture: wide * 3 / 4))
+                        .padding(.top, friendsTop(stage: geo.size.height, picture: tall))
                         .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                         .transition(.opacity)
                 }
@@ -249,7 +263,7 @@ struct PlayerView: View {
     }
 
     /// `.p-friends`' top: 12 below the picture's top edge, never above 10
-    /// from the stage's (the picture can be taller than the stage).
+    /// from the stage's (the picture can be as tall as the stage).
     private func friendsTop(stage: CGFloat, picture: CGFloat) -> CGFloat {
         max(10, stage / 2 - picture / 2 + 12)
     }

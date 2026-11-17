@@ -230,6 +230,7 @@ def test_a_reply_stays_its_authors_to_delete_after_the_vibe_is_hidden(client):
     other = TestClient(appmod.app)
     with other:
         them = signed_in(other, "vp10@b.com", "Zed", "zedvp10")
+        other.post("/api/friends/follow", json={"handle": "ianvp9"})  # §637
         rid = other.post(f"/api/vibe/{eid}/replies", json={"text": "hi"}).json()["id"]
         client.post("/api/block", json={"handle": "zedvp10"})
         assert other.post(f"/api/vibe/replies/{rid}/like", json={"on": True}).status_code == 404
@@ -256,6 +257,8 @@ def test_a_close_friends_vibe_stays_out_of_a_strangers_reach(client):
     other = TestClient(appmod.app)
     with other:
         signed_in(other, "vp6@b.com", "Zed", "zedvp6")
+        # A follower, so the page opens (§637) - and still not that vibe.
+        other.post("/api/friends/follow", json={"handle": "ianvp5"})
         page = other.get("/api/vibe/posts", params={"handle": "ianvp5"}).json()
         assert all(p["id"] != eid for p in page["posts"])
         assert other.post(f"/api/vibe/{eid}/like", json={"on": True}).status_code == 404

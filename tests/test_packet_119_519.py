@@ -102,9 +102,10 @@ def test_captions_are_a_pill_and_read_over_the_picture():
     assert 'id="ccPanel"' in stage and 'id="cc-text"' in stage
     row2 = re.search(r'<div class="pc-row2">(.*?)</div>\n        </div>', INDEX, re.S).group(1)
     assert 'id="ccIcon"' in row2 and "Captions" in row2 and 'onclick="toggleCC()"' in row2
-    # Remembered between episodes, on this device only.
-    assert "rememberCaptions(true)" in _fn("toggleCC")
-    assert "captionsWanted()" in _fn("populatePlayer")
+    # §519 remembered them between episodes; the 11.16 notes reversed that:
+    # off at the start of every episode, nothing kept on the device.
+    assert "rememberCaptions" not in INDEX and "captionsWanted" not in INDEX
+    assert "forgetCaptionsSetting()" in _fn("populatePlayer")
 
 
 def test_everyone_is_unlimited_in_production_for_now():

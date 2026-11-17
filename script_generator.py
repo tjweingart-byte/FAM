@@ -585,6 +585,62 @@ class MaterialGuard:
         return False
 
 
+class RepeatGuard:
+    """Drop a sentence the episode has already said, word for word, at the
+    head of a writer call (the owner, 2026-11-16: "the beginning of some of
+    the episodes sometimes repeat the first sentence twice ... 'X. X.'").
+
+    The first complete sentence goes to the voice alone, the moment it
+    exists (`speech_assembly`), so a writer that says its opening again - a
+    call that starts over, or the tandem's second call (§456) restating what
+    it was told had been spoken - is heard as the same sentence twice in a
+    row. Nothing else stood between such a sentence and the voice.
+
+    Narrow on purpose, as `OpeningGuard` is: it looks only at the first
+    `WINDOW` sentences of each writer call, only at sentences of
+    `MIN_WORDS` or more ("No. No." is a writer's choice), and only for the
+    same words in the same order - punctuation and capitals aside. A drop is
+    logged and reported on /admin's errors; nothing is said in its place
+    (no-filler)."""
+
+    WINDOW = 4
+    MIN_WORDS = 4
+
+    def __init__(self) -> None:
+        self.said: set[str] = set()
+        self.seen = 0
+        self.dropped: list[str] = []
+
+    @staticmethod
+    def words(sentence: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9']+", (sentence or "").lower()))
+
+    def note(self, sentence: str) -> None:
+        """A sentence spoken that did not come through `allow`."""
+        key = self.words(sentence)
+        if len(key.split()) >= self.MIN_WORDS:
+            self.said.add(key)
+
+    def new_call(self) -> None:
+        """Another writer call carries on the episode: its head is watched
+        too, against everything already spoken."""
+        self.seen = 0
+
+    def allow(self, sentence: str) -> bool:
+        key = self.words(sentence)
+        at_head = self.seen < self.WINDOW
+        self.seen += 1
+        if len(key.split()) < self.MIN_WORDS:
+            return True
+        if at_head and key in self.said:
+            self.dropped.append(sentence.strip())
+            log.warning("dropped a sentence the episode had already said: %r",
+                        sentence.strip()[:120])
+            return False
+        self.said.add(key)
+        return True
+
+
 class OpeningGuard:
     """Hold back a disclaimer before it becomes the first thing spoken.
 
@@ -2230,6 +2286,9 @@ class _ScriptReader:
         self.guard = OpeningGuard()
         # Anywhere in the piece, never only at its head (§288).
         self.material = MaterialGuard()
+        # The opening is not said twice: last, so only a sentence that would
+        # have been spoken is remembered or dropped.
+        self.repeats = RepeatGuard()
         # A sports episode's scores, periods and results, held to the
         # scoreboard before they are spoken (§259).
         self.scores = score_guard.ScoreGuard(plan)
@@ -2309,6 +2368,7 @@ class _ScriptReader:
             county_news=getattr(local, "scope", "") == "county",
             unrelated=bool(getattr(local, "unrelated", False)))
         self.emitted_words += count_words(line)
+        self.repeats.note(line)
         return [line]
 
     def feed(self, text: str) -> list[str]:
@@ -2331,7 +2391,8 @@ class _ScriptReader:
             sentence = clean_for_speech(speech[: match.end()])
             speech = speech[match.end() :]
             if sentence and self.scores.allow(sentence) \
-                    and self.figures.allow(sentence) and self._may_say(sentence):
+                    and self.figures.allow(sentence) and self._may_say(sentence) \
+                    and self.repeats.allow(sentence):
                 self.emitted_words += count_words(sentence)
                 out.append(self._checked(sentence))
         self.buffer = speech + marker + rest
@@ -2362,7 +2423,7 @@ class _ScriptReader:
             log.info("writer cut off mid-sentence; not speaking %r", tail[-80:])
             tail = ""
         if tail and self.scores.allow(tail) and self.figures.allow(tail) \
-                and self._may_say(tail):
+                and self._may_say(tail) and self.repeats.allow(tail):
             out.append(self._checked(tail))
         # Nothing but disclaimer is still better than nothing at all - and
         # only then (§633): once anything has been said, a dropped opening
@@ -2401,6 +2462,7 @@ class _ScriptReader:
         # notice per check per episode on /admin's errors (§269).
         for check, dropped in (("opening check", self.guard.dropped),
                                ("material check", self.material.dropped),
+                               ("repeat check", self.repeats.dropped),
                                ("score check", self.scores.dropped),
                                ("figure check", self.figures.dropped)):
             if dropped:
@@ -3728,6 +3790,8 @@ class ScriptGenerator:
                 if handed:
                     set_aside = reader.buffer
                     reader.buffer = ""          # the first call's unfinished sentence
+                    # It was told what was spoken; said again, it is dropped.
+                    reader.repeats.new_call()
                     second = self._continuation_kwargs(
                         dataclasses.replace(plan, editor_outline=block), notes, spoken, reader)
                     second["model"] = model     # the same writer, billed as sent
