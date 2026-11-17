@@ -39,6 +39,9 @@ struct GoDeeperSheet: View {
     /// it lifts, and what is sent is what was on screen at touch-down
     /// (`goDeeperHold`) - never a line swapped in under the finger.
     @State private var shownLine = ""
+    /// A new suggestion writes itself in, left to right (round three,
+    /// §643 `go-deeper-box` B: 320 ms, the title's old wipe).
+    @State private var lineReveal: CGFloat = 1
     @State private var held = false
     @State private var holdUntil = Date.distantPast
     @State private var pressedLine: String?
@@ -134,7 +137,12 @@ struct GoDeeperSheet: View {
             }
             return
         }
+        let wipes = !shownLine.isEmpty && !Motion.reduced
         shownLine = next
+        if wipes {
+            lineReveal = 0
+            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.32)) { lineReveal = 1 }
+        }
     }
 
     private var chip: some View {
@@ -152,6 +160,11 @@ struct GoDeeperSheet: View {
                     .multilineTextAlignment(.leading)
                     .lineSpacing(12 * 0.35 - 3)
                     .fixedSize(horizontal: false, vertical: true)
+                    .mask(alignment: .leading) {
+                        GeometryReader { geo in
+                            Rectangle().frame(width: geo.size.width * lineReveal)
+                        }
+                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
@@ -192,6 +205,8 @@ struct GoDeeperSheet: View {
                 .padding(.vertical, 8)
                 .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
                 .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
+                // The lengths just recolour, 150 ms (round three).
+                .animation(Motion.anim(.easeOut(duration: 0.15)), value: on)
         }
         .buttonStyle(.press)
         .accessibilityLabel("\(FAMAPI.minutes(value)) minutes")
@@ -934,9 +949,9 @@ struct ActivityView: UIViewControllerRepresentable {
 /// first, Go Deeper's own suggestion, starts in 15 s, its copper bar
 /// emptying - the search box (touching it pauses the countdown for good)
 /// and "Back to search" / "Back to DailyFAM". The dim fades in over 200 ms
-/// (`mo-in`) while the card rises over 360 ms (`nextup-in`); it closes as
-/// every modal does, 150 ms with the card dropping 8 pt. Reduce Motion:
-/// the card does not move, the dim fades in over 120 ms, closing is at once.
+/// (`mo-in`) while the card rises 8 pt out of a 2 pt blur over 280 ms
+/// (round three); it closes as every modal does, 150 ms with the card
+/// dropping 8 pt. Reduce Motion: there and gone at once.
 struct NextUpOverlay: View {
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var model: AppModel
@@ -952,14 +967,16 @@ struct NextUpOverlay: View {
             Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
             card
                 .opacity(still ? 1 : 0)
-                .offset(y: still ? 0 : 12)
-                .scaleEffect(still ? 1 : 0.985)
+                .offset(y: still ? 0 : 8)
+                .blur(radius: still ? 0 : 2)
                 .dropsOnLeave()
         }
         .transition(.famOverlay(reduceMotion: reduceMotion))
         .onAppear {
             guard !reduceMotion else { shown = true; return }
-            withAnimation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36)) { shown = true }
+            // Round three (§640, `nextup` B): one soft 8 pt rise, a 2 pt
+            // blur clearing, 280 ms on `--ease-out`.
+            withAnimation(Motion.easeOut(Motion.Dur.nextUp)) { shown = true }
         }
         .task {
             await model.surveys.offerEpisode(id: model.player.episodeID, title: now.title,

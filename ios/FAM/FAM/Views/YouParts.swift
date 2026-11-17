@@ -472,30 +472,55 @@ struct StepMarks: View {
     /// The unfilled marks (`--border-strong` on the page): light's measured
     /// grey, or dark's border over the dark page.
     private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
-    /// The bar this step fills grows in from 0.3 over 260 ms (`Motion.steps`).
+    /// The bar this step fills grows in from 0 over 260 ms on
+    /// `--ease-in-out` (round three, §640 `signup-steps` B).
     @State private var grown = false
+    /// The number "Step n of 3" shows: the one before, rolled up to this
+    /// one as the step arrives (300 ms on `--ease-in-out`).
+    @State private var shownStep: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    init(step: Int) {
+        self.step = step
+        _shownStep = State(initialValue: (step > 1 && !Motion.reduced) ? step - 1 : step)
+    }
+
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(1...3, id: \.self) { i in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Self.track)
-                    if i <= step {
-                        Capsule()
-                            .fill(FAMColor.copper)
-                            .scaleEffect(x: (i == step && !grown) ? 0.3 : 1, y: 1, anchor: .leading)
+        VStack(spacing: 6) {
+            HStack(spacing: 5) {
+                ForEach(1...3, id: \.self) { i in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Self.track)
+                        if i <= step {
+                            Capsule()
+                                .fill(FAMColor.copper)
+                                .scaleEffect(x: (i == step && !grown) ? 0.001 : 1, y: 1, anchor: .leading)
+                        }
                     }
+                    .frame(width: 18, height: 3)
                 }
-                .frame(width: 18, height: 3)
             }
+            HStack(spacing: 0) {
+                Text("Step ")
+                Text("\(shownStep)")
+                    .monospacedDigit()
+                    .contentTransition(reduceMotion ? .identity : .numericText(value: Double(shownStep)))
+                Text(" of 3")
+            }
+            .font(FAMFont.mono(9.5))
+            .foregroundStyle(FAMColor.textMuted)
         }
         .onAppear {
             if reduceMotion {
                 grown = true
+                shownStep = step
             } else {
-                withAnimation(.easeOut(duration: 0.26)) { grown = true }
+                withAnimation(Motion.easeInOut(0.26)) { grown = true }
+                withAnimation(Motion.easeInOut(Motion.Dur.roll)) { shownStep = step }
             }
+        }
+        .onChange(of: step) { _, now in
+            withAnimation(Motion.anim(Motion.easeInOut(Motion.Dur.roll), reduce: reduceMotion)) { shownStep = now }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)

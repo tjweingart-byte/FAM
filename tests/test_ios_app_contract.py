@@ -892,7 +892,8 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert ".buttonStyle(.plain)" not in _swift("Views", "FrontDoor.swift")
     assert ".transition(.identity)" in _swift("Views", "VibePosts.swift")
     motion = _swift("Motion.swift")
-    assert ".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)" in motion
+    # Round three (§649): the fold keeps its 180 ms wait, on `--ease-in-out`.
+    assert "Motion.easeInOut(Motion.Dur.reflow).delay(Motion.Dur.rowOut)" in motion
     assert motion.count("if UIAccessibility.isReduceMotionEnabled") >= 2
     parts = _swift("Views", "SocialParts.swift")
     assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts

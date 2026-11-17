@@ -503,9 +503,14 @@ struct PlayfamTabs: View {
             button(.categories, "Categories")
         }
         // The hairline under both; the copper rule of the one on is drawn
-        // over it (`margin-bottom:-1px`).
+        // over it (`margin-bottom:-1px`) - one rule that slides between
+        // them (round three, §642 `playfam-tabs` B: 240 ms on
+        // `--ease-in-out`).
         .background(alignment: .bottom) {
             Rectangle().fill(FAMColor.border).frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            SlidingRule(count: 2, index: tab == .mixes ? 0 : 1, height: 2.5, duration: 0.24)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 12)
@@ -519,15 +524,11 @@ struct PlayfamTabs: View {
             Text(label)
                 .font(FAMFont.body(15, .semibold))
                 .foregroundStyle(on ? FAMColor.text : FAMColor.textMuted)
+                .animation(Motion.anim(.easeInOut(duration: 0.15)), value: on)
                 .lineLimit(1)
                 .padding(.top, 8)
                 .padding(.bottom, 9 + 2.5)
                 .frame(maxWidth: .infinity, minHeight: 42)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(on ? FAMColor.copper : Color.clear)
-                        .frame(height: 2.5)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)

@@ -361,6 +361,9 @@ struct YouView: View {
             tabButton("Mixes", 1)
         }
         .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        // One underline that slides to the tab (round three, §645
+        // `shelf-switch` A: 250 ms on `--ease-in-out`).
+        .overlay(alignment: .bottom) { SlidingRule(count: 2, index: you.shelfTab, duration: 0.25) }
         .padding(.top, 20)
     }
 
@@ -371,9 +374,6 @@ struct YouView: View {
                 .monoLabel(10.5, color: on ? FAMColor.text : FAMColor.textFaint, tracking: 1.89)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 34)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(on ? FAMColor.copper : Color.clear).frame(height: 2)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)
@@ -384,11 +384,15 @@ struct YouView: View {
         [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)]
     }
 
+    /// The grid nudges out the way the tab moved and the other slides in
+    /// (110 ms out, 200 ms in after 90 ms).
     @ViewBuilder private func grid(_ p: MyProfile) -> some View {
         if you.shelfTab == 0 {
-            vibesGrid(p)
+            VStack(spacing: 0) { vibesGrid(p) }
+                .transition(.tabSwap(forward: you.shelfTab == 1))
         } else {
-            mixesGrid(p)
+            VStack(spacing: 0) { mixesGrid(p) }
+                .transition(.tabSwap(forward: you.shelfTab == 1))
         }
     }
 

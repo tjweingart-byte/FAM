@@ -12,6 +12,8 @@ struct CatalogView: View {
     @State private var words = ""
     @State private var found: [CatalogEpisode]?
     @State private var searching = false
+    /// Still searching 300 ms on: the note replaces the dimmed rows.
+    @State private var slowSearch = false
     @State private var searchFailed = false
     @State private var searchTask: Task<Void, Never>?
 
@@ -99,8 +101,10 @@ struct CatalogView: View {
     }
 
     @ViewBuilder private var searchResults: some View {
-        if searching {
-            // "Searching…" in place of the list on every search (`runMyFamSearch`).
+        if searching && ((found?.isEmpty ?? true) || slowSearch) {
+            // "Searching…" only with nothing to keep, or past 300 ms
+            // (round three, §643 `lists-arrive` A: the last results stay,
+            // dimmed, while the next are asked).
             note("Searching…")
         } else if searchFailed {
             note("Could not search right now. Try again in a moment.")
@@ -114,6 +118,8 @@ struct CatalogView: View {
                 }
             }
             ForEach(found, id: \.self) { row($0) }
+                .opacity(searching ? 0.6 : 1)
+                .animation(Motion.anim(.easeOut(duration: 0.15)), value: searching)
         }
     }
 
@@ -283,12 +289,17 @@ struct CatalogView: View {
             try? await Task.sleep(nanoseconds: 250_000_000)
             if Task.isCancelled { return }
             searching = true
+            slowSearch = false
             searchFailed = false
-            found = nil
+            let asked = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if !Task.isCancelled && searching { slowSearch = true }
+            }
+            defer { asked.cancel() }
             do {
                 let rows = try await model.api.searchCatalog(q)
                 if Task.isCancelled { return }
-                found = rows
+                withAnimation(Motion.anim(.easeOut(duration: 0.15))) { found = rows }
                 searchFailed = false
             } catch {
                 if Task.isCancelled { return }

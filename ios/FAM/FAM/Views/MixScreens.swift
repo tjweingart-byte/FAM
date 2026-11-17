@@ -191,7 +191,16 @@ struct NewMixView: View {
         do {
             let mix = try await model.api.createMix(name: trimmed, cover: cover)
             mixes.keep(mix)
-            path = [.mix(mix.id)]
+            // Not pushed: the new mix's page fades in over the form (round
+            // three, §642 `create-mix` B; `MixView.justMade`).
+            if Motion.reduced {
+                path = [.mix(mix.id)]
+            } else {
+                MixView.justMade = mix.id
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { path = [.mix(mix.id)] }
+            }
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that mix"))
         }

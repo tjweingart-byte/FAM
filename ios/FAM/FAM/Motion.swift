@@ -222,8 +222,9 @@ extension View {
 // MARK: - A removed row slides out, then folds (`removeRow`)
 
 /// A row taken out of a list (the queue, Saved for Later): it slides 45 %
-/// of its width to the left and fades over 180 ms, easing in; the rows
-/// under it close the gap over the next 200 ms (`rowFold`).
+/// of its width to the left and fades over 180 ms on `--ease-in`; the rows
+/// under it close the gap over the next 200 ms on `--ease-in-out`
+/// (`rowFold`; round three's `saved-remove` A).
 struct RowGone: ViewModifier {
     let gone: Bool
 
@@ -243,7 +244,7 @@ extension AnyTransition {
         if UIAccessibility.isReduceMotionEnabled { return .identity }
         return .asymmetric(insertion: .opacity,
                            removal: AnyTransition.modifier(active: RowGone(gone: true), identity: RowGone(gone: false))
-                               .animation(.timingCurve(0.4, 0, 1, 1, duration: 0.18)))
+                               .animation(Motion.easeIn(Motion.Dur.rowOut)))
     }
 }
 
@@ -253,7 +254,7 @@ extension Animation {
     /// easing of its own). Reduce Motion: nil, the list just redraws.
     static var rowFold: Animation? {
         if UIAccessibility.isReduceMotionEnabled { return nil }
-        return .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)
+        return Motion.easeInOut(Motion.Dur.reflow).delay(Motion.Dur.rowOut)
     }
 }
 
@@ -311,25 +312,38 @@ final class ArrivalBook {
 }
 
 /// `Motion.arrive`: a new tile rises 8 pt and fades in over 260 ms, each
-/// one 40 ms after the one before (eight at most). Tappable throughout.
+/// one 30-40 ms after the one before. Tappable throughout. The rails'
+/// round-three arrival (§641, `rails-arrive` B) passes `blur` 2 and 350 ms;
+/// Refresh's deal (`section-refresh` B) comes from the side (`dx` 24, no
+/// rise). Reduce Motion: there at once.
 struct ArriveOnce: ViewModifier {
     let key: String
     let delay: Double
     let book: ArrivalBook
+    var rise: CGFloat = 8
+    var dx: CGFloat = 0
+    var blur: CGFloat = 0
+    var duration: Double = 0.26
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown: Bool
 
-    init(key: String, delay: Double, book: ArrivalBook) {
+    init(key: String, delay: Double, book: ArrivalBook,
+         rise: CGFloat = 8, dx: CGFloat = 0, blur: CGFloat = 0, duration: Double = 0.26) {
         self.key = key
         self.delay = delay
         self.book = book
+        self.rise = rise
+        self.dx = dx
+        self.blur = blur
+        self.duration = duration
         _shown = State(initialValue: book.seen.contains(key))
     }
 
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 8)
+            .offset(x: shown ? 0 : dx, y: shown ? 0 : rise)
+            .blur(radius: shown ? 0 : blur)
             .onAppear {
                 if shown { return }
                 let first = !book.seen.contains(key)
@@ -338,7 +352,7 @@ struct ArriveOnce: ViewModifier {
                     shown = true
                     return
                 }
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26).delay(delay)) {
+                withAnimation(Motion.easeOut(duration).delay(delay)) {
                     shown = true
                 }
             }
@@ -346,15 +360,25 @@ struct ArriveOnce: ViewModifier {
 }
 
 extension View {
-    /// The first three tiles of each rail arrive one after another in
-    /// reading order - along a rail, then the next rail down, each heading
-    /// before its tiles - `slot` places this one in that order (40 ms a
-    /// step, eight steps at most). `index` is its place along its rail:
-    /// past the third (and anything seen before) it just appears.
+    /// The rails' arrival (round three, §641 `rails-arrive` B), in reading
+    /// order as the web's `arriveRails` reckons it on a phone: each rail in
+    /// view (the first three) puts its heading at its clock and its tiles
+    /// 90 ms after it, 30 ms apart; only the first three tiles of a rail
+    /// are on screen at the start, and six tiles at most arrive, so the
+    /// first two rails' tiles and the first three headings arrive - 350 ms
+    /// on `--ease-out`, 8 pt up out of a 2 pt blur. `index` is the tile's
+    /// place along its rail (-1 for the heading). Anything drawn before on
+    /// this phone just appears.
     @ViewBuilder
-    func arriving(_ key: String, index: Int, slot: Int, book: ArrivalBook) -> some View {
-        if index < 3 {
-            modifier(ArriveOnce(key: key, delay: Double(min(slot, 8)) * 0.04, book: book))
+    func arriving(_ key: String, index: Int, rail order: Int, book: ArrivalBook) -> some View {
+        // Each rail in view with arriving tiles spends a lead and three
+        // steps: 90 + 3 x 30 ms.
+        let clock = Double(min(order, 2)) * (Motion.Dur.arriveLead + 3 * Motion.Dur.stagger)
+        if index < 0 && order < 3 {
+            modifier(ArriveOnce(key: key, delay: clock, book: book, blur: 2, duration: Motion.Dur.arrive))
+        } else if index >= 0 && index < 3 && order < 2 {
+            modifier(ArriveOnce(key: key, delay: clock + Motion.Dur.arriveLead + Double(index) * Motion.Dur.stagger,
+                                book: book, blur: 2, duration: Motion.Dur.arrive))
         } else {
             self
         }
@@ -432,6 +456,9 @@ final class PlayerMotion {
     /// Each DailyFAM card's frame, by tile id: a tile queued from its ⋯
     /// flies from the card (`addToQueue`'s `[data-topic]`).
     var tiles: [String: CGRect] = [:]
+    /// The search loader's chevrons, in the window: the iris into the
+    /// player opens from their middle (§643 `loader-to-player` C).
+    var chevrons: CGRect = .zero
 
     func pressed(_ spot: PictureSpot?) { tapped = (spot, Date()) }
     func pressedButton(_ frame: CGRect) { button = (frame, Date()) }
@@ -540,11 +567,15 @@ final class PlayerStage: ObservableObject {
     /// The picture the open grows from, and the one the close shrinks into.
     var from: PictureSpot?
     var into: PictureSpot?
+    /// The search loader handed over (§643 `loader-to-player` C): the
+    /// player opens through a hole growing from this point, in the window
+    /// - the loader's chevrons - over 340 ms on `--ease-in-out`.
+    var iris: CGPoint?
 
     /// How long the close takes before the cover can go.
     func closeDuration(reduceMotion: Bool) -> Double {
         if reduceMotion { return 0 }
-        return into == nil ? 0.26 : 0.34
+        return into == nil ? 0.26 : 0.36
     }
 }
 
@@ -559,6 +590,9 @@ struct PlayerEntrance<Content: View>: View {
     @State private var flight: CGFloat = 0
     @State private var flying: (from: PictureSpot, to: PictureSpot)?
     @State private var entered = false
+    /// The iris's radius while it opens; nil draws the player whole.
+    @State private var irisRadius: CGFloat?
+    @State private var irisCentre: CGPoint = .zero
 
     private var width: CGFloat { UIScreen.main.bounds.width }
 
@@ -567,6 +601,7 @@ struct PlayerEntrance<Content: View>: View {
             .environment(\.playerPictureHidden, flying != nil)
             .opacity(opacity)
             .offset(x: offset)
+            .mask { irisMask }
             .overlay {
                 // The copy is placed in the window's points, whatever this
                 // layer's own origin is.
@@ -599,7 +634,20 @@ struct PlayerEntrance<Content: View>: View {
         !reduceMotion && flyingKind == .none
     }
 
-    private enum Kind { case none, grow, shrink }
+    private enum Kind { case none, grow, shrink, iris }
+
+    /// The hole the player shows through while the iris opens.
+    @ViewBuilder private var irisMask: some View {
+        if let r = irisRadius {
+            GeometryReader { geo in
+                let origin = geo.frame(in: .global).origin
+                RoundHole(centre: CGPoint(x: irisCentre.x - origin.x, y: irisCentre.y - origin.y), radius: r)
+            }
+            .ignoresSafeArea()
+        } else {
+            Rectangle().ignoresSafeArea()
+        }
+    }
     @State private var flyingKind: Kind = .none
 
     private var opacity: CGFloat {
@@ -613,13 +661,37 @@ struct PlayerEntrance<Content: View>: View {
     }
 
     private func open() {
-        if !reduceMotion, let from = stage.from {
+        if !reduceMotion, let centre = stage.iris {
+            // The loader opens from its chevrons outward; the player is
+            // whole under it from the first frame.
+            flyingKind = .iris
+            shown = 1
+            let screen = UIScreen.main.bounds
+            let far = [CGPoint(x: 0, y: 0), CGPoint(x: screen.maxX, y: 0),
+                       CGPoint(x: 0, y: screen.maxY), CGPoint(x: screen.maxX, y: screen.maxY)]
+                .map { (($0.x - centre.x) * ($0.x - centre.x) + ($0.y - centre.y) * ($0.y - centre.y)).squareRoot() }
+                .max() ?? screen.height
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) {
+                irisCentre = centre
+                irisRadius = 0.5
+            }
+            DispatchQueue.main.async {
+                withAnimation(Motion.easeInOut(0.34)) { irisRadius = far + 2 }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+                withTransaction(still) { irisRadius = nil }
+            }
+        } else if !reduceMotion, let from = stage.from {
             flyingKind = .grow
             DispatchQueue.main.async {
                 // The player's picture has been laid out by now.
                 let to = PictureSpot(url: from.url, frame: stage.pictureFrame, radius: 0)
-                if to.frame != .zero { fly(from, to, duration: 0.38, curve: .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.38)) }
-                withAnimation(.easeOut(duration: 0.24)) { shown = 1 }
+                // Round three (§640 `player-open` A): 360 ms on
+                // `--ease-in-out` both ways; the player fades in over 240.
+                if to.frame != .zero { fly(from, to, duration: 0.36, curve: Motion.easeInOut(0.36)) }
+                withAnimation(Motion.easeOut(0.24)) { shown = 1 }
             }
         } else if reduceMotion {
             // Round three: instant (§640).
@@ -627,14 +699,14 @@ struct PlayerEntrance<Content: View>: View {
             shown = 1
         } else {
             flyingKind = .none
-            let curve = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)
+            let curve = Motion.easeOut(Motion.Dur.page)
             withAnimation(curve) { shown = 1 }
             stage.underCurve = curve
             stage.under = 1
             // Once it is in, the page under is put back where it was,
             // unseen (the web's push ends by cancelling its animations), so
             // a close that shrinks into the mini player finds it in place.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.page) {
                 guard stage.phase != .closing else { return }
                 stage.underCurve = nil
                 stage.under = 0
@@ -650,11 +722,11 @@ struct PlayerEntrance<Content: View>: View {
         if let into = stage.into, stage.pictureFrame != .zero {
             flyingKind = .shrink
             let from = PictureSpot(url: into.url, frame: stage.pictureFrame, radius: 0)
-            fly(from, into, duration: 0.34, curve: .easeInOut(duration: 0.34))
-            withAnimation(.easeOut(duration: 0.2)) { shown = 0 }
+            fly(from, into, duration: 0.36, curve: Motion.easeInOut(0.36))
+            withAnimation(Motion.easeIn(0.2)) { shown = 0 }
         } else {
             flyingKind = .none
-            let curve = Animation.easeInOut(duration: 0.26)
+            let curve = Motion.easeOut(Motion.Dur.pageBack)
             withAnimation(curve) { shown = 0 }
             // The pop: the page under comes back from 28 % left as this goes.
             stage.underCurve = nil
@@ -913,9 +985,9 @@ private var windowBottomInset: CGFloat {
 }
 
 /// Every sheet and modal (`.sheet-overlay`, `.modal-overlay` and
-/// `Motion.watchOverlays`): the dim (`rgba(10,9,15,.62)`) fades in over
-/// 200 ms and the card lifts 14 pt into place as it does; closing, both go
-/// over 150 ms, the card dropping 8 pt. A sheet is the web's
+/// `Motion.watchOverlays`): the dim (`rgba(10,9,15,.62)`) fades in as a
+/// sheet slides up from the bottom edge (280 ms) or a modal grows from .97
+/// (220 ms); closing, 200 / 160 ms on `--ease-in` (round three). A sheet is the web's
 /// `.sheet-card`: the surface, 20 pt top corners and a strong top border,
 /// at most 82 % of the screen, sized to what it holds; a tap on the dim
 /// closes it. Reduce Motion: there at once, nothing lifts, closing is at
@@ -940,30 +1012,36 @@ private struct OverlayCard<Content: View>: View {
                 .onTapGesture { if !modal { close() } }
                 .accessibilityHidden(true)
             card
-                .opacity(shown ? 1 : 0)
+                // Round three (§640 `sheets` A): a sheet slides all the way
+                // up from the bottom edge (280 ms on `--ease-out`) and back
+                // down (200 ms on `--ease-in`); a centred modal fades in
+                // from .97 (220 ms) and out (160 ms). The dim follows.
+                .opacity(modal ? (shown ? 1 : 0) : 1)
+                .scaleEffect(modal && !shown && !reduceMotion ? 0.97 : 1)
                 .offset(y: lift)
         }
         .ignoresSafeArea(.container, edges: .bottom)
         .allowsHitTesting(!state.leaving)
         .onPreferenceChange(ModalLayoutKey.self) { modal = $0 }
         .onAppear {
-            withAnimation(reduceMotion ? nil
-                                       : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { shown = true }
+            withAnimation(reduceMotion ? nil : Motion.easeOut(modal ? Motion.Dur.modalIn : Motion.Dur.sheetIn)) {
+                shown = true
+            }
         }
         .onChange(of: state.leaving) { _, leaving in
             if !leaving {
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { shown = true }
+                withAnimation(Motion.anim(Motion.easeOut(Motion.Dur.modalIn), reduce: reduceMotion)) { shown = true }
                 return
             }
             guard !reduceMotion else { return }
-            withAnimation(.timingCurve(0.4, 0, 1, 1, duration: 0.15)) { shown = false }
+            withAnimation(Motion.easeIn(modal ? Motion.Dur.modalOut : Motion.Dur.sheetOut)) { shown = false }
         }
     }
 
-    /// 14 pt low on the way in, 8 pt low on the way out, none still.
+    /// A sheet below the screen's bottom edge until it is shown.
     private var lift: CGFloat {
-        if reduceMotion || shown { return 0 }
-        return state.leaving ? 8 : 14
+        if reduceMotion || shown || modal { return 0 }
+        return UIScreen.main.bounds.height
     }
 
     /// One chain for both shapes, so a card that turns out to be a modal
@@ -1020,7 +1098,7 @@ private struct OverlayCover<Item: Identifiable, Card: View>: ViewModifier {
             withTransaction(still) { held = item }
         } else if held != nil, !state.leaving {
             state.leaving = true
-            let wait = reduceMotion ? 0 : 0.15
+            let wait = reduceMotion ? 0 : Motion.Dur.sheetOut
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
                 guard self.item == nil, mine == run else { return }
                 withTransaction(still) { held = nil }
@@ -1224,5 +1302,192 @@ private struct UpTo: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
+// MARK: - Round three, phase B: shared pieces (§649)
+
+/// A line whose words or numbers changed since it was last drawn (round
+/// three, §641 `changed-since` B): the digits roll to their new value
+/// (320 ms on `--ease-in-out`) and the line warms to copper and back over
+/// 600 ms, so it is found on a long page. Not on its first draw. Reduce
+/// Motion: the new words at once, no warmth.
+struct RollingText: View {
+    let text: String
+    var font: Font
+    var color: Color = FAMColor.textMuted
+    var tracking: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var warm = false
+    @State private var run = 0
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .tracking(tracking)
+            .monospacedDigit()
+            .foregroundStyle(warm ? FAMColor.copper : color)
+            .contentTransition(reduceMotion ? .identity : .numericText())
+            .animation(reduceMotion ? nil : Motion.easeInOut(0.32), value: text)
+            .onChange(of: text) { old, _ in
+                guard !reduceMotion, !old.isEmpty else { return }
+                run += 1
+                let mine = run
+                withAnimation(.easeInOut(duration: 0.3)) { warm = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    guard mine == run else { return }
+                    withAnimation(.easeInOut(duration: 0.3)) { warm = false }
+                }
+            }
+    }
+}
+
+/// A tile put away (§641 `remove-tile` B): it tips back 20° about its top
+/// edge and shrinks to .9 as it fades.
+private struct FoldAway: ViewModifier {
+    let gone: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .rotation3DEffect(.degrees(gone ? 20 : 0), axis: (x: 1, y: 0, z: 0),
+                              anchor: .top, perspective: 0.5)
+            .scaleEffect(gone ? 0.9 : 1)
+            .opacity(gone ? 0 : 1)
+    }
+}
+
+extension AnyTransition {
+    /// Taking a tile away (Not interested, Pick up's X): it folds away over
+    /// 220 ms on `--ease-in` while the others close in; one put back by
+    /// Undo rises 8 pt as it fades in. Reduce Motion: at once.
+    static var foldAway: AnyTransition {
+        if Motion.reduced { return .identity }
+        return .asymmetric(
+            insertion: AnyTransition.offset(y: 8).combined(with: .opacity)
+                .animation(Motion.easeOut(Motion.Dur.cardIn)),
+            removal: AnyTransition.modifier(active: FoldAway(gone: true), identity: FoldAway(gone: false))
+                .animation(Motion.easeIn(0.22)))
+    }
+}
+
+extension Animation {
+    /// The others closing in after a tile is taken away: 240 ms on
+    /// `--ease-in-out`. Reduce Motion: none.
+    static var tileGap: Animation? {
+        Motion.anim(Motion.easeInOut(0.24))
+    }
+}
+
+/// A tab's underline that slides between tabs (§642 `playfam-tabs` B,
+/// §645 `shelf-switch` A): one copper rule under a row of equal tabs,
+/// moved to the chosen one. Reduce Motion: it jumps.
+struct SlidingRule: View {
+    let count: Int
+    let index: Int
+    var height: CGFloat = 2
+    var inset: CGFloat = 0
+    var duration: Double = 0.24
+    var color: Color = FAMColor.copper
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width / CGFloat(max(count, 1))
+            Capsule()
+                .fill(color)
+                .frame(width: max(0, width - 2 * inset), height: height)
+                .offset(x: width * CGFloat(index) + inset)
+                .animation(reduceMotion ? nil : Motion.easeInOut(duration), value: index)
+        }
+        .frame(height: height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The page under a pair of tabs nudging toward the new tab's side
+/// (§642/§645): the new content comes 18 pt in from that side as it fades
+/// (200 ms on `--ease-out`, after 90 ms), the old leaving 18 pt the other
+/// way (110 ms on `--ease-in`). Reduce Motion: swapped at once.
+extension AnyTransition {
+    static func tabSwap(forward: Bool) -> AnyTransition {
+        if Motion.reduced { return .identity }
+        let side: CGFloat = forward ? 1 : -1
+        return .asymmetric(
+            insertion: AnyTransition.offset(x: 18 * side).combined(with: .opacity)
+                .animation(Motion.easeOut(0.2).delay(0.09)),
+            removal: AnyTransition.offset(x: -18 * side).combined(with: .opacity)
+                .animation(Motion.easeIn(0.11)))
+    }
+}
+
+/// A small dot or badge appearing and going (§642 `morning-dot` A): in from
+/// .5 as it fades (240 ms on `--ease-out`), away to .5 (160 ms on
+/// `--ease-in`). Reduce Motion: at once.
+extension AnyTransition {
+    static var dotPop: AnyTransition {
+        if Motion.reduced { return .identity }
+        return .asymmetric(
+            insertion: AnyTransition.scale(scale: 0.5).combined(with: .opacity)
+                .animation(Motion.easeOut(0.24)),
+            removal: AnyTransition.scale(scale: 0.5).combined(with: .opacity)
+                .animation(Motion.easeIn(0.16)))
+    }
+}
+
+/// A circle at `centre` (in its own space) of `radius`, the radius
+/// animating: the iris's hole and voice search's opening.
+struct RoundHole: Shape {
+    var centre: CGPoint
+    var radius: CGFloat
+
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: 2 * radius, height: 2 * radius))
+    }
+}
+
+/// Shows its content only inside a circle about a point in the window
+/// (voice search growing out of the mic, §643 `voice-sheet` B).
+struct CircleReveal: ViewModifier, Animatable {
+    let centre: CGPoint
+    var radius: CGFloat
+
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.mask {
+            GeometryReader { geo in
+                let origin = geo.frame(in: .global).origin
+                RoundHole(centre: CGPoint(x: centre.x - origin.x, y: centre.y - origin.y), radius: radius)
+            }
+            .ignoresSafeArea()
+        }
+    }
+}
+
+extension AnyTransition {
+    /// Opens as a circle out of `centre` (20 pt to past the farthest
+    /// corner, 300 ms on `--ease-out`) and closes back into it (240 ms on
+    /// `--ease-in-out`). Reduce Motion: at once.
+    static func circleOut(from centre: CGPoint) -> AnyTransition {
+        if Motion.reduced { return .identity }
+        let screen = UIScreen.main.bounds
+        let far = [CGPoint(x: 0, y: 0), CGPoint(x: screen.maxX, y: 0),
+                   CGPoint(x: 0, y: screen.maxY), CGPoint(x: screen.maxX, y: screen.maxY)]
+            .map { (($0.x - centre.x) * ($0.x - centre.x) + ($0.y - centre.y) * ($0.y - centre.y)).squareRoot() }
+            .max() ?? screen.height
+        let shut = CircleReveal(centre: centre, radius: 20)
+        let open = CircleReveal(centre: centre, radius: far + 2)
+        return .asymmetric(
+            insertion: AnyTransition.modifier(active: shut, identity: open).animation(Motion.easeOut(0.3)),
+            removal: AnyTransition.modifier(active: shut, identity: open).animation(Motion.easeInOut(0.24)))
     }
 }

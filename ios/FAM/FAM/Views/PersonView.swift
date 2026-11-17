@@ -64,7 +64,14 @@ struct PersonView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         hero
-                        if let page { stats(page, proxy: proxy) }
+                        // The numbers row and the interests line keep their
+                        // place from the first frame and fill in (round
+                        // three, §645 `person-fill` A).
+                        if let page {
+                            stats(page, proxy: proxy).transition(.opacity)
+                        } else {
+                            reservedStats
+                        }
                         actions.padding(.top, 14)
                         interests
                         tabs.id("tabs")
@@ -87,7 +94,28 @@ struct PersonView: View {
         }
         .background(FAMColor.background)
         .toolbar(.hidden, for: .navigationBar)
+        .animation(Motion.anim(.easeOut(duration: 0.15)), value: page == nil)
         .task { await load() }
+    }
+
+    /// The numbers row before the page answers: its place, with dashes.
+    private var reservedStats: some View {
+        HStack(spacing: 0) {
+            ForEach(["friends", "vibes", "mixes"], id: \.self) { word in
+                VStack(spacing: 2) {
+                    Text("\u{2013}")
+                        .font(FAMFont.heading(21, .semibold))
+                        .foregroundStyle(FAMColor.textFaint)
+                    Text(word)
+                        .font(FAMFont.body(12))
+                        .foregroundStyle(FAMColor.textMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(.top, 16)
+        .accessibilityHidden(true)
     }
 
     /// The ⋯, Report, Block and Unfollow, kept out of `body`.
@@ -288,7 +316,22 @@ struct PersonView: View {
 
     @ViewBuilder private var interests: some View {
         let labels = page?.interestLabels ?? []
-        if !labels.isEmpty {
+        if page == nil {
+            // Reserved: the line's height, three faint chips.
+            VStack(alignment: .leading, spacing: 9) {
+                Text("Interests").monoLabel(10, color: FAMColor.textFaint, tracking: 1.6)
+                HStack(spacing: 7) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Capsule().fill(FAMColor.surface2).frame(width: 74, height: 26)
+                    }
+                }
+                .padding(.vertical, 1)
+                .padding(.horizontal, 1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 16)
+            .accessibilityHidden(true)
+        } else if !labels.isEmpty {
             let common = social.inCommon(labels)
             VStack(alignment: .leading, spacing: 9) {
                 Text("Interests").monoLabel(10, color: FAMColor.copper, tracking: 1.6)
@@ -318,6 +361,8 @@ struct PersonView: View {
             tabButton("Mixes", 1)
         }
         .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        // One underline that slides (round three, §645 `shelf-switch` A).
+        .overlay(alignment: .bottom) { SlidingRule(count: 2, index: tab, duration: 0.25) }
         .padding(.top, 20)
     }
 
@@ -328,9 +373,6 @@ struct PersonView: View {
                 .monoLabel(10.5, color: on ? FAMColor.text : FAMColor.textFaint, tracking: 1.89)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 34)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(on ? FAMColor.copper : Color.clear).frame(height: 2)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)

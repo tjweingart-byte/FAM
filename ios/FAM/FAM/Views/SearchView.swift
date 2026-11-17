@@ -28,6 +28,14 @@ struct SearchView: View {
     @State private var minutes = SearchView.defaultMinutes
     @State private var trending: [TrendingSearch] = []
     @State private var trendFetchedAt = Date.distantPast
+    /// The trending searches already drawn, so only new ones arrive.
+    @State private var trendBook = ArrivalBook()
+    /// The bubbles saying "set" (round three, §643 `bubble-ack` B): the
+    /// length's hand turns once, the voice's bars hop; under Reduce Motion
+    /// the icon is copper for a second instead.
+    @State private var lengthTurns: Double = 0
+    @State private var voiceHop = false
+    @State private var acked: String?
     @FocusState private var typing: Bool
     @State private var library = false
 
@@ -362,22 +370,19 @@ struct SearchView: View {
         let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 8))
                                                   : AnyLayout(HStackLayout(spacing: 10))
         return layout {
-            bubble("Length", icon: SearchIcons.length, iconSize: 14,
-                   label: "Episode length") { sheet = .length }
-            bubble("Voice", icon: SearchIcons.voice, iconSize: 14,
-                   label: "Voice for your searches") { openVoiceMenu() }
+            bubble("Length", label: "Episode length", action: { sheet = .length }) { lengthIcon }
+            bubble("Voice", label: "Voice for your searches", action: { openVoiceMenu() }) { voiceIcon }
             privateLock
         }
     }
 
     /// `.search-bubble`: 44 tall, radius 22, surface, the border, Geist 14
     /// semibold with a muted icon; the label never shows the choice.
-    private func bubble(_ title: String, icon: Path, iconSize: CGFloat,
-                        label: String, action: @escaping () -> Void) -> some View {
+    private func bubble<Icon: View>(_ title: String, label: String, action: @escaping () -> Void,
+                                    @ViewBuilder icon: () -> Icon) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                WebIcon(path: icon, size: iconSize, line: 2)
-                    .foregroundStyle(FAMColor.textMuted)
+                icon()
                 Text(title)
                     .font(FAMFont.body(14, .semibold))
                     .foregroundStyle(FAMColor.text)
@@ -394,6 +399,48 @@ struct SearchView: View {
         .accessibilityLabel(label)
     }
 
+    /// Length's stopwatch, its hand drawn apart so it can turn.
+    private var lengthIcon: some View {
+        ZStack {
+            WebIcon(path: SearchIcons.lengthDial, size: 14, line: 2)
+            WebIcon(path: SearchIcons.lengthHand, size: 14, line: 2)
+                .rotationEffect(.degrees(lengthTurns * 360), anchor: UnitPoint(x: 0.5, y: 13.0 / 24.0))
+        }
+        .foregroundStyle(acked == "Length" ? FAMColor.copper : FAMColor.textMuted)
+    }
+
+    /// Voice's bars, each its own so they hop one after another.
+    private var voiceIcon: some View {
+        ZStack {
+            ForEach(0..<SearchIcons.voiceBars.count, id: \.self) { i in
+                WebIcon(path: SearchIcons.voiceBars[i], size: 14, line: 2)
+                    .scaleEffect(x: 1, y: voiceHop ? 1.6 : 1)
+                    .animation(reduceMotion ? nil : Motion.easeInOut(0.12).delay(Double(i) * 0.035),
+                               value: voiceHop)
+            }
+        }
+        .foregroundStyle(acked == "Voice" ? FAMColor.copper : FAMColor.textMuted)
+    }
+
+    /// A choice made from the bubble's own sheet: 150 ms after the sheet
+    /// has gone, the icon acts (the hand sweeps once, 420 ms on
+    /// `--ease-in-out`; the bars hop to 1.6 and back, 240 ms, 35 ms apart).
+    private func ack(_ which: String) {
+        if reduceMotion {
+            acked = which
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { if acked == which { acked = nil } }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            if which == "Length" {
+                withAnimation(Motion.easeInOut(0.42)) { lengthTurns += 1 }
+            } else {
+                voiceHop = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { voiceHop = false }
+            }
+        }
+    }
+
     /// Private search (§282, §285) as a lock (`.private-bubble`, 11.16
     /// notes): a 44 pt round button beside the bubbles, an open padlock
     /// while it is off; closed, copper with an ink icon, while it is on.
@@ -401,8 +448,11 @@ struct SearchView: View {
     private var privateLock: some View {
         let on = model.privateSearch
         return Button { model.setPrivateSearch(!on) } label: {
-            WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
-                .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+            // Open and shut cross on the icon spring (round three).
+            IconSwap(key: on) {
+                WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
+                    .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+            }
                 .frame(width: 44, height: 44)
                 .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
                 .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.border))
@@ -423,7 +473,10 @@ struct SearchView: View {
                 .monoLabel(9, color: FAMColor.textMuted, tracking: 1.26)
                 .padding(.horizontal, 4)
                 .padding(.bottom, 1)
-            ForEach(trending.prefix(Self.trendShown), id: \.self) { search in
+                // The label, then each search a little after the one
+                // before (round three, §643 `lists-arrive` A).
+                .modifier(ArriveOnce(key: "trend:label", delay: 0, book: trendBook))
+            ForEach(Array(trending.prefix(Self.trendShown).enumerated()), id: \.element) { i, search in
                 Button {
                     typing = false
                     model.playTrending(search, minutes: minutes)
@@ -448,6 +501,8 @@ struct SearchView: View {
                     .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.press)
+                .modifier(ArriveOnce(key: "trend:" + search.label, delay: 0.04 * Double(i + 1),
+                                     book: trendBook))
             }
         }
     }
@@ -469,6 +524,7 @@ struct SearchView: View {
             return Self.lengths.map { value in
                 YouSheetItem(label: FAMAPI.minutes(value) + " min", checked: value == minutes) {
                     minutes = value
+                    ack("Length")
                 }
             }
         case .voice:
@@ -478,6 +534,7 @@ struct SearchView: View {
                 let id = v.id
                 list.append(YouSheetItem(label: v.label, checked: id == selected) {
                     model.chooseVoice(id, fromSettings: false)
+                    ack("Voice")
                 })
             }
             return list

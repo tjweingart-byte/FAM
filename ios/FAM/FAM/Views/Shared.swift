@@ -3,9 +3,9 @@ import UIKit
 
 /// An episode's picture over the thumbnail ground (`.seed-thumb`); the FAM
 /// letters, faint, while there is none. On a card (`blurUp`), a picture
-/// that lands after the tile was drawn blurs up (`.seed-img`, `BLUR_UP`:
-/// from clear, blur 8 and 1.12 to sharp over 320 ms); one already on the
-/// phone just shows.
+/// that lands after the tile was drawn fades in over its ground (round
+/// three's colour first: 240 ms, no blur); one already on the phone just
+/// shows.
 struct Picture: View {
     let url: URL?
     /// Laid over something of its own - a card's drawing (`seedThumbOpen`)
@@ -47,25 +47,24 @@ struct Picture: View {
     }
 }
 
-/// `BLUR_UP` on a card's picture: held clear, blurred 8 and at 1.12, then
-/// brought sharp over 320 ms; still with reduced motion.
+/// A card's picture landing (round three, §640 `pictures` B: colour
+/// first): the ground is drawn at once and the picture fades in over it,
+/// 240 ms on `--ease-out` - no blur, no scale. Reduce Motion: at once.
 private struct PictureBlurUp: View {
     let image: Image
     @State private var sharp: Bool
 
     init(image: Image, animate: Bool) {
         self.image = image
-        _sharp = State(initialValue: !animate || UIAccessibility.isReduceMotionEnabled)
+        _sharp = State(initialValue: !animate || Motion.reduced)
     }
 
     var body: some View {
         image.resizable().scaledToFill()
             .opacity(sharp ? 1 : 0)
-            .blur(radius: sharp ? 0 : 8)
-            .scaleEffect(sharp ? 1 : 1.12)
             .onAppear {
                 guard !sharp else { return }
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { sharp = true }
+                withAnimation(Motion.easeOut(Motion.Dur.picture)) { sharp = true }
             }
     }
 }

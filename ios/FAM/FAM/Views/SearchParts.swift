@@ -52,6 +52,32 @@ enum SearchIcons {
         return p
     }()
 
+    /// Length's dial and crown, without its hand (the hand turns on its
+    /// own when a length is chosen, round three's `bubble-ack` B).
+    static let lengthDial: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 4, y: 5, width: 16, height: 16))
+        p.move(to: CGPoint(x: 10, y: 2)); p.addLine(to: CGPoint(x: 14, y: 2))
+        return p
+    }()
+
+    /// Length's hand: `M12 9v4l2.5 2.5`, turning about (12, 13).
+    static let lengthHand: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 9)); p.addLine(to: CGPoint(x: 12, y: 13)); p.addLine(to: CGPoint(x: 14.5, y: 15.5))
+        return p
+    }()
+
+    /// Voice's five bars one by one, so each can hop.
+    static let voiceBars: [Path] = {
+        let bars: [(CGFloat, CGFloat, CGFloat)] = [(4, 10, 14), (8, 7, 17), (12, 4, 20), (16, 8, 16), (20, 11, 13)]
+        return bars.map { b in
+            var p = Path()
+            p.move(to: CGPoint(x: b.0, y: b.1)); p.addLine(to: CGPoint(x: b.0, y: b.2))
+            return p
+        }
+    }()
+
     /// Voice: `M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2`.
     static let voice: Path = {
         var p = Path()

@@ -29,6 +29,8 @@ struct MixView: View {
     @State private var seen: Set<String> = []
     @State private var dragging: Int?
     @State private var dragY: CGFloat = 0
+    /// The carried row's tilt, from its speed (degrees).
+    @State private var dragTilt: Double = 0
     @State private var rowPitch: CGFloat = 62
     /// A reorder shown at once, until the server's answer replaces it (or
     /// a refusal puts the old order back).
@@ -50,6 +52,13 @@ struct MixView: View {
     @State private var shownPublic: Bool?
     @State private var visibilitySeq = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The mix Create has just made (round three, §642 `create-mix` B):
+    /// its page fades in over the form rather than being pushed, and
+    /// "Add topics to mix" rises as the next step.
+    static var justMade: String?
+    @State private var fresh: Bool = MixView.justMade != nil
+    @State private var stepIn: Bool = MixView.justMade == nil
 
     private var mix: Mix? { mixes.mix(id) }
 
@@ -101,6 +110,8 @@ struct MixView: View {
             }
         }
         .background(FAMColor.background)
+        .opacity(fresh ? 0 : 1)
+        .onAppear { arrive() }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: id) {
             await model.api.noteMixOpen(id, played: false)
@@ -276,6 +287,21 @@ struct MixView: View {
         }
     }
 
+    /// Just made: in over 240 ms on `--ease-out`, then the next step
+    /// rises 8 pt (240 ms, at 420 ms). Reduce Motion: there at once.
+    private func arrive() {
+        let made = MixView.justMade == id
+        MixView.justMade = nil
+        guard fresh || !stepIn else { return }
+        if !made || reduceMotion {
+            fresh = false
+            stepIn = true
+            return
+        }
+        withAnimation(Motion.easeOut(0.24)) { fresh = false }
+        withAnimation(Motion.easeOut(0.24).delay(0.42)) { stepIn = true }
+    }
+
     private var addTopicsPill: some View {
         Button { path.append(.add(id)) } label: {
             HStack(spacing: 7) {
@@ -291,6 +317,8 @@ struct MixView: View {
         .buttonStyle(.press)
         .frame(maxWidth: .infinity)
         .padding(.bottom, 16)
+        .offset(y: stepIn ? 0 : 8)
+        .opacity(stepIn ? 1 : 0)
     }
 
     // MARK: - Edit topics (11.16 notes)
@@ -403,10 +431,27 @@ struct MixView: View {
         let items = shownItems(mix)
         return VStack(spacing: 9) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                let lifted = dragging == index
+                // Round three (§642 `drag-reorder` B): the carried row
+                // lifts to 1.02 and tilts with its speed (at most 2°), the
+                // rest dim to .6 (200 ms) and slide by a row as it passes
+                // (200 ms on `--ease-in-out`); dropped, it springs into its
+                // slot flat (260 ms, no bounce). Reduce Motion: no lift,
+                // tilt or dim.
                 topicRow(mix, item, index)
+                    .animation(Motion.anim(.easeOut(duration: 0.15))) { row in
+                        row.scaleEffect(lifted ? 1.02 : 1)
+                    }
+                    .animation(Motion.anim(.spring(duration: 0.2, bounce: 0))) { row in
+                        row.rotationEffect(.degrees(lifted ? dragTilt : 0))
+                    }
                     .offset(y: offset(for: index))
-                    .zIndex(dragging == index ? 2 : 0)
-                    .animation(dragging == index ? nil : .easeOut(duration: 0.14), value: dragY)
+                    .animation(lifted ? nil : (dragging == nil ? Self.settle : Motion.easeInOut(0.2)),
+                               value: offset(for: index))
+                    .animation(Motion.anim(Motion.easeInOut(0.2))) { row in
+                        row.opacity(dragging != nil && !lifted && !Motion.reduced ? 0.6 : 1)
+                    }
+                    .zIndex(lifted ? 2 : 0)
             }
         }
     }
@@ -420,6 +465,26 @@ struct MixView: View {
         if from < to && index > from && index <= to { return -rowPitch }
         if from > to && index < from && index >= to { return rowPitch }
         return 0
+    }
+
+    /// The dropped row's spring into its slot (no bounce).
+    private static let settle = Animation.spring(duration: 0.26, bounce: 0)
+
+    /// Past either end of the list the row follows less and less: a 64 pt
+    /// pull at most (the web's rubber band).
+    private func banded(_ y: CGFloat, from: Int) -> CGFloat {
+        let count = mix?.items.count ?? 0
+        let top = -CGFloat(from) * rowPitch
+        let bottom = CGFloat(max(count - 1 - from, 0)) * rowPitch
+        if y < top {
+            let b = top - y
+            return top - 64 * b / (b + 150)
+        }
+        if y > bottom {
+            let b = y - bottom
+            return bottom + 64 * b / (b + 150)
+        }
+        return y
     }
 
     private func target(_ from: Int) -> Int {
@@ -481,7 +546,11 @@ struct MixView: View {
                 .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global)
                     .onChanged { g in
                         if dragging == nil { dragging = index }
-                        dragY = g.translation.height
+                        dragY = banded(g.translation.height, from: dragging ?? index)
+                        // ±0.5 pt/ms turns it 2° (`mapRange`), a spring
+                        // smoothing it.
+                        let v = Double(g.velocity.height) / 500
+                        dragTilt = Motion.reduced ? 0 : max(-1, min(1, v)) * 2
                     }
                     .onEnded { _ in drop(mix) })
                 .accessibilityLabel("Drag to reorder")
@@ -548,14 +617,20 @@ struct MixView: View {
     private func drop(_ mix: Mix) {
         guard let from = dragging else { return }
         let to = target(from)
-        dragging = nil
-        dragY = 0
-        guard to != from else { return }
         var items = shownItems(mix)
-        guard from < items.count, to < items.count else { return }
-        let moved = items.remove(at: from)
-        items.insert(moved, at: to)
-        localOrder = items.map(\.id)
+        let moves = to != from && from < items.count && to < items.count
+        if moves {
+            let moved = items.remove(at: from)
+            items.insert(moved, at: to)
+        }
+        // Into its slot on one spring: the order and the offsets together.
+        withAnimation(Motion.anim(Self.settle)) {
+            dragging = nil
+            dragY = 0
+            dragTilt = 0
+            if moves { localOrder = items.map(\.id) }
+        }
+        guard moves else { return }
         reorderRun += 1
         let mine = reorderRun
         Task {

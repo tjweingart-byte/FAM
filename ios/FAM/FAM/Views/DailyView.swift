@@ -343,7 +343,7 @@ struct RailRow: View {
             .padding(.bottom, 12)
             .accessibilityAddTraits(.isHeader)
             // Headings arrive only on the page's first draw (`arriveRails`).
-            .arriving("heading:" + rail.key, index: 0, slot: order * 4, book: model.arrivals)
+            .arriving("heading:" + rail.key, index: -1, rail: order, book: model.arrivals)
     }
 
     /// The heading and, on a rail with episodes, its Play all (§543,
@@ -377,7 +377,9 @@ struct RailRow: View {
             ForEach(Array(rail.topics.enumerated()), id: \.element.id) { i, tile in
                 TileCard(tile: tile, railKey: rail.key, faces: model.friendFaces, width: 150)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .arriving(tile.id, index: i, slot: order * 4 + 1 + i, book: model.arrivals)
+                    // Not interested folds it away (round three).
+                    .transition(.foldAway)
+                    .arriving(tile.id, index: i, rail: order, book: model.arrivals)
             }
             viewMore
         }
@@ -860,10 +862,9 @@ struct TileCard: View {
         }
         return HStack(spacing: 5) {
             if live { Circle().fill(FAMColor.copper).frame(width: 6, height: 6) }
-            Text(text)
-                .font(FAMFont.mono(8.5, bold: live))
-                .tracking(0.17)
-                .foregroundStyle(live ? FAMColor.copper : FAMColor.textMuted)
+            // A score or clock that moved rolls and warms (round three).
+            RollingText(text: text, font: FAMFont.mono(8.5, bold: live),
+                        color: live ? FAMColor.copper : FAMColor.textMuted, tracking: 0.17)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
@@ -1180,6 +1181,14 @@ struct PickUpBlock: View {
     private enum Card: Hashable {
         case resume(PickUpResume)
         case thread(PickUpThread)
+
+        /// Which card this is, whatever its time left.
+        var key: String {
+            switch self {
+            case .resume(let r): return "r:" + r.query.lowercased()
+            case .thread(let t): return "t:" + t.thread.lowercased()
+            }
+        }
     }
 
     private var cards: [Card] {
@@ -1206,8 +1215,11 @@ struct PickUpBlock: View {
                     .monoLabel(9.5, color: FAMColor.copper, bold: true)
                     .padding(.top, 18)
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())], spacing: 10) {
-                    ForEach(shown, id: \.self) { card in
+                    // Keyed by what it is, so time left rolls in place and
+                    // an X folds the card away (round three).
+                    ForEach(shown, id: \.key) { card in
                         cardView(card)
+                            .transition(.foldAway)
                     }
                 }
             }
@@ -1249,7 +1261,10 @@ struct PickUpBlock: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                Text(meta).monoLabel(7.5, color: copperMeta ? FAMColor.copper : FAMColor.textMuted)
+                // Time left that moved rolls and warms (round three).
+                RollingText(text: meta, font: FAMFont.mono(7.5),
+                            color: copperMeta ? FAMColor.copper : FAMColor.textMuted, tracking: 7.5 * 0.14)
+                    .textCase(.uppercase)
             }
             .padding(.horizontal, 11)
             .padding(.top, 7)
@@ -1262,6 +1277,7 @@ struct PickUpBlock: View {
                         ZStack(alignment: .leading) {
                             Rectangle().fill(FAMColor.borderStrong)
                             Rectangle().fill(FAMColor.copper).frame(width: geo.size.width * progress)
+                                .animation(Motion.anim(Motion.easeInOut(0.3)), value: progress)
                         }
                     }
                     .frame(height: 3)
@@ -1309,6 +1325,11 @@ struct SectionView: View {
     @State private var wrappedNote = ""
     /// Counts the pages dealt, so each one scrolls back to the top.
     @State private var dealt = 0
+    /// Refresh's arrow: whole turns made on taps, and the spin a slow page
+    /// earns (after 300 ms, held at least 500 ms).
+    @State private var turns: Double = 0
+    @State private var spinning = false
+    @State private var spunAt = Date.distantPast
     /// Which cards of which page have arrived already.
     @State private var arrivals = ArrivalBook()
     /// The rail's own tiles, drawn from the first frame of the push until
@@ -1338,13 +1359,20 @@ struct SectionView: View {
                 if canRefresh {
                     Button {
                         guard !loading else { return }
+                        // The arrow turns once on the tap (400 ms); it only
+                        // spins on if the page is not here in 300 ms, and
+                        // then for at least 500 ms (round three).
+                        if !Motion.reduced {
+                            withAnimation(Motion.easeInOut(0.4)) { turns += 1 }
+                        }
                         Task { await load() }
                     } label: {
                         HStack(spacing: 6) {
                             WebIcon(path: Icons.refresh, size: 13, line: 2.4)
-                                .rotationEffect(.degrees(loading ? 360 : 0))
-                                .animation(loading ? .linear(duration: 0.6).repeatForever(autoreverses: false) : .default,
-                                           value: loading)
+                                .rotationEffect(.degrees(turns * 360))
+                                .rotationEffect(.degrees(spinning ? 360 : 0))
+                                .animation(spinning ? .linear(duration: 0.6).repeatForever(autoreverses: false) : .default,
+                                           value: spinning)
                             Text("Refresh").font(FAMFont.body(12.5, .semibold))
                                 .fixedSize()
                         }
@@ -1450,11 +1478,19 @@ struct SectionView: View {
 
     /// The first six cards of every page dealt arrive, 30 ms apart
     /// (`Motion.arrive`, §641); a card already drawn by the preview does not.
+    /// A Refresh deals the next page (round three, `section-refresh` B):
+    /// the old cards slip 24 pt off to the left as they fade (160 ms on
+    /// `--ease-in`) and the new ones come in 24 pt from the right (260 ms
+    /// on `--ease-out`, 30 ms apart). Reduce Motion: swapped at once.
     @ViewBuilder private func sectionCard(_ tile: Tile, faces: [FriendFace], at n: Int, round: Int) -> some View {
         let card = TileCard(tile: tile, railKey: key, faces: faces, width: nil)
+            .transition(Motion.reduced ? .identity : .asymmetric(
+                insertion: .identity,
+                removal: AnyTransition.offset(x: -24).combined(with: .opacity)
+                    .animation(Motion.easeIn(Motion.Dur.cardOut))))
         if n < 6 {
             card.modifier(ArriveOnce(key: "section:\(round):" + tile.id, delay: Double(n) * Motion.Dur.stagger,
-                                     book: arrivals))
+                                     book: arrivals, rise: round > 1 ? 0 : 8, dx: round > 1 ? 24 : 0))
         } else {
             card
         }
@@ -1484,7 +1520,22 @@ struct SectionView: View {
 
     private func load() async {
         loading = true
-        defer { loading = false }
+        let started = dealt
+        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.spinnerAfter) {
+            guard loading, dealt == started, !spinning else { return }
+            spunAt = Date()
+            spinning = true
+        }
+        defer {
+            loading = false
+            if spinning {
+                let held = Date().timeIntervalSince(spunAt)
+                let wait = max(0, Motion.Dur.spinnerMin - held)
+                DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+                    if !loading { spinning = false }
+                }
+            }
+        }
         // Made for you's first page starts with the rail's own tiles, so
         // it is never "caught up" before they are shown (`loadSectionPage`).
         let head = (cycles && seen.isEmpty)
@@ -1516,7 +1567,12 @@ struct SectionView: View {
             if dealt == 0, let preview {
                 for tile in preview { arrivals.seen.insert("section:1:" + tile.id) }
             }
-            page = next
+            // A Refresh deals: the old cards slip away as the new arrive.
+            if dealt > 0 && !Motion.reduced {
+                withAnimation(Motion.easeIn(Motion.Dur.cardOut)) { page = next }
+            } else {
+                page = next
+            }
             dealt += 1
         } catch {
             failed = true

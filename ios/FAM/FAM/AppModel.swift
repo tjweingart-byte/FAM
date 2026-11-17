@@ -57,6 +57,9 @@ final class AppModel: ObservableObject {
     /// A mix playing as a playlist (§134), and the "finished" overlay.
     @Published private(set) var mixPlay: MixPlaylist?
     @Published var mixDone: String?
+    /// The finished mix's played episodes' pictures, for its cards filing
+    /// in (round three, §642 `mix-finished` B).
+    var mixDonePictures: [URL?] = []
     /// The myFAM tab's stack, and a request to show a tab.
     @Published var mixPath: [MixRoute] = []
     @Published var tabRequest: Tab?
@@ -1363,22 +1366,28 @@ final class AppModel: ObservableObject {
     /// the tile back where it was.
     func notInterested(_ tile: Tile) {
         var places: [(key: String, index: Int)] = []
-        for i in rails.indices {
-            guard let at = rails[i].topics.firstIndex(where: { $0.id == tile.id }) else { continue }
-            places.append((key: rails[i].key, index: at))
-            rails[i].topics.removeAll { $0.id == tile.id }
-            if rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+        // The tile folds away and the others close in (round three's
+        // `remove-tile` B); Undo brings it back on the same curve.
+        withAnimation(Animation.tileGap) {
+            for i in rails.indices {
+                guard let at = rails[i].topics.firstIndex(where: { $0.id == tile.id }) else { continue }
+                places.append((key: rails[i].key, index: at))
+                rails[i].topics.removeAll { $0.id == tile.id }
+                if rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+            }
+            notInterestedIDs.insert(tile.id)
         }
-        notInterestedIDs.insert(tile.id)
         let text = tile.query.isEmpty ? tile.title : tile.query
         nowPlaying.undoLine("Got it — you’ll see less like this", undo: { [weak self] in
             guard let self else { return }
-            self.notInterestedIDs.remove(tile.id)
-            for place in places {
-                guard let r = self.rails.firstIndex(where: { $0.key == place.key }),
-                      !self.rails[r].topics.contains(where: { $0.id == tile.id }) else { continue }
-                self.rails[r].topics.insert(tile, at: min(place.index, self.rails[r].topics.count))
-                self.emptiedRails.remove(place.key)
+            withAnimation(Animation.tileGap) {
+                self.notInterestedIDs.remove(tile.id)
+                for place in places {
+                    guard let r = self.rails.firstIndex(where: { $0.key == place.key }),
+                          !self.rails[r].topics.contains(where: { $0.id == tile.id }) else { continue }
+                    self.rails[r].topics.insert(tile, at: min(place.index, self.rails[r].topics.count))
+                    self.emptiedRails.remove(place.key)
+                }
             }
         }, commit: { [weak self] in
             guard let self else { return }
@@ -1420,7 +1429,10 @@ final class AppModel: ObservableObject {
         let q = query.lowercased()
         let before = pickUp
         pickUpDismissing.insert(q)
-        if let page = pickUp { pickUp = Self.withoutDismissed(page, pickUpDismissing) }
+        // The card folds away and the others close in (round three).
+        if let page = pickUp {
+            withAnimation(Animation.tileGap) { pickUp = Self.withoutDismissed(page, pickUpDismissing) }
+        }
         nowPlaying.undoLine("Removed from Pick up", undo: { [weak self] in
             guard let self else { return }
             self.pickUpDismissing.remove(q)
@@ -1556,7 +1568,8 @@ final class AppModel: ObservableObject {
         return LoadingModel.Dial(heading: heading, picture: api.picture(tile.thumb), title: title,
                                  faces: faces,
                                  friendsLine: faces.isEmpty ? ""
-                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count))
+                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count),
+                                 ready: tile.cached)
     }
 
     /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
@@ -2257,6 +2270,13 @@ extension AppModel {
     /// player stops and says the mix is done (`finishMix`).
     private func finishMix() -> Bool {
         let name = mixPlay?.name ?? "myFAM"
+        if let list = mixPlay {
+            mixDonePictures = list.order.enumerated()
+                .filter { list.played.contains($0.offset) }
+                .map { api.picture(list.items[$0.element].picture) }
+        } else {
+            mixDonePictures = []
+        }
         mixPlay = nil
         if !nowPlaying.queue.isEmpty { return false }
         stopEpisode()
