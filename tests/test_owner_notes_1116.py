@@ -1,4 +1,4 @@
-"""The owner's 11.16 notes (PROBLEMS.md §621), on the web.
+"""The owner's 11.16 notes (PROBLEMS.md §637), on the web.
 
 Each is something the page must keep doing, read from the page itself; the
 smoke run (`tools/smoke_preview.py`) presses the same controls in a browser.

@@ -1,0 +1,15 @@
+what did Apple announce recently
+
+BEFORE:
+Apple announced HomeView, a smart home display, on the thirteenth of October, and it went on sale this past Friday, the thirteenth of November. It has a seven-inch square screen, comes as a tabletop model with a speaker base or as a wall-mounted one, and costs two hundred and ninety-nine dollars. What sets it apart from a screen on a shelf is that it can tell who is standing in front of it. It recognises up to six people by their faces, and each one gets a Home Screen of their own. It runs Siri AI, Apple's assistant, so you can use it for entertainment and to manage the rest of your house. It launched on the same day as the fourth-generation Apple TV 4K, which is also two hundred and ninety-nine dollars. That one adds Siri AI and can be paired with four HomePods for surround sound. Both products were announced in October, alongside the HomePod mini 2. For the smart home side, the first three accessories from LG went on sale the same day: an indoor camera at a hundred and ninety-nine dollars ninety-five cents, an outdoor camera at two hundred and ninety-nine dollars ninety-five cents, and a video doorbell at two hundred and forty-nine dollars ninety-five cents. The rest, from LG and Schneider Home, are expected by early 2027. HomeView is on sale in Australia, Canada, India, New Zealand, Singapore, South Africa, the United Kingdom and the United States, but not in the European Union. Siri AI is not available on iOS there because of regulatory constraints, and Apple has given no timeline for when that changes.
+
+AFTER:
+Apple's newest product went on sale on Friday the thirteenth of November: HomeView, a smart home display with a seven-inch square screen, at two hundred and ninety-nine dollars. Apple announced it a month earlier, and it closes a very long run. The company has announced more than twenty-five devices and accessories since late August, and no other major hardware is expected this year.
+
+What sets HomeView apart from a screen on a shelf is that it can tell who is standing in front of it. It recognises up to six people by their faces and gives each of them a Home Screen of their own. It runs Siri AI, Apple's assistant, and it comes either as a tabletop model with a speaker base or as one that mounts on the wall.
+
+A new Apple TV 4K launched the same day at the same price, also with Siri AI. So did the first accessories made for HomeView, all three from LG: two cameras and a video doorbell, starting at just under two hundred dollars.
+
+But Siri AI is also the reason a lot of people cannot buy one. The assistant is not available on iOS in the European Union because of regulatory constraints, so HomeView is not sold there. Apple says it is "working constructively with the EU in an attempt to find a path forward", and has given no date. For now HomeView is on sale in eight countries, from the United States to Singapore, and in no member of the European Union.
+
+WHY: The draft ran sentences too long to hold by ear, listed five things in a row and ran sentences all one length; the rewrite does not.

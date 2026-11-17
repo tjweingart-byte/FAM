@@ -669,7 +669,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
-> **Current (PROBLEMS.md §621, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
+> **Current (PROBLEMS.md §637, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
 > **Current (PROBLEMS.md §616, the owner 11.14):** a mix **plays in today's
 > order, best stories first** - "so you don't hear the same order every
 > day" - and its cover's tiles follow it. `mix_today.order` scores each item
@@ -1083,7 +1083,7 @@ friends and get none.
   down); the server still sends `starters` for installed clients.
 
 <!-- rule:friends-vibes-first -->
-> **Current (PROBLEMS.md §621, the owner's 11.16 sketch):** the Friends page is **two tabs, Friends | Following**, each with its count, in place of stacked groups under a line of three counts. Following lists everyone followed, friends included; somebody who follows the listener and is not followed back sits under Friends in a "Follows you" group, since following back is what makes them one.
+> **Current (PROBLEMS.md §637, the owner's 11.16 sketch):** the Friends page is **two tabs, Friends | Following**, each with its count, in place of stacked groups under a line of three counts. Following lists everyone followed, friends included; somebody who follows the listener and is not followed back sits under Friends in a "Follows you" group, since following back is what makes them one.
 - **Friends with a vibe up come first, and their vibes play as stories**
   *(§184)*: the YourFAM row sorts friends whose vibes are up to the front,
   newest first, before it is cut to `CIRCLE_MAX`. In the viewer a tap steps

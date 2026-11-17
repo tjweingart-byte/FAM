@@ -4572,7 +4572,7 @@ def main() -> int:
               go_deeper_keeps_the_mix_and_captions_are_a_pill)
 
         def the_owners_1116_notes():
-            """§621, pressed rather than read: a mix's Edit topics takes a
+            """§637, pressed rather than read: a mix's Edit topics takes a
             topic out with an X; Friends is two tabs; captions keep what was
             said, scroll back, and are off again on the next episode; Private
             is a lock that leaves the page's colours alone."""

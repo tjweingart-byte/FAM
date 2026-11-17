@@ -22,7 +22,7 @@ def test_refresh_says_how_many_it_deals():
 
 def test_friends_counts_are_singular_at_one():
     # The line of three counts this pinned ("1 friend", "1 follower") went
-    # with §621's two tabs, whose labels - Friends, Following - carry a
+    # with §637's two tabs, whose labels - Friends, Following - carry a
     # number beside a heading and so have no singular to get wrong.
     body = PAGE[PAGE.index("function renderFriends()"):]
     body = body[:body.index("function showFriendsTab(")]

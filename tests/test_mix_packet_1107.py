@@ -295,7 +295,7 @@ def test_step_two_is_gone():
                  "function focusPanelHTML", "pickerPayload",
                  "Anything specific in "):
         assert gone not in INDEX, gone
-    # `editMixTopics` was the picker's too; the name is §621's now, and
+    # `editMixTopics` was the picker's too; the name is §637's now, and
     # opens the mix page with an X on every topic, never a picker.
     assert "navigate(" not in _fn("editMixTopics")
 
