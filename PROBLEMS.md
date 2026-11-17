@@ -38471,3 +38471,50 @@ in the topic files, and every one of those sections is cited in
 `docs/claude/` at the rule the line's ID points to. No rule, ID or word of
 a rule changed; references that are part of a sentence ("§499, reversing
 §171 there") stay. The core is 38,847 bytes.
+
+## 637. Listeners who came back, counted on /admin (2026-11-17)
+
+The owner: "Build the returning-listener count on /admin." The plan
+(§635) is stated in consistent weekly listeners and nothing counted them.
+
+**Why the existing table could not answer it.** `heard_listens` is one row
+a listener a question, `at` the *latest* time it was heard. Somebody who
+hears the same mix every morning has one row, overwritten daily, and no
+trace of last week - the most consistent listeners were the ones it lost.
+
+**`heard_days`** (in the listening store, `topics.EventStore`): one row a
+listener a UTC day, written by `mark_heard` beside the heard listen - so a
+day counts only once something was *heard* ([heard-not-tapped]) and only
+for an account ([account-gates-kept]: a guest's progress is dropped before
+it). Filled once from what `heard_listens` still remembers, best effort.
+Cleared with the event log ([wipe-derived]) and on account deletion.
+Nothing reads it for taste or a crowd row. Not pruned: a row a listener a
+day.
+
+**The count** (`admin_tracker.returning_listeners`, in the snapshot as
+`returning`, through the same read-only sandbox as every other figure):
+weeks are the seven days ending today, UTC, then the seven before. For
+each of eight weeks: how many listened, and how many of them also listened
+the week before. The headline is this week's; `share` is that over last
+week's listeners. A missing store or a failed query is `None` with the
+reason, never a zero that was not counted.
+
+**The page** (`admin_ui/tracker.html`, Overview): "Listeners who came
+back", the headline and the eight weeks, with what counts as a listen said
+under the heading. The current week is marked as still filling.
+
+**Known limits:** the weeks before today hold only what the backfill could
+recover, so the first honest comparison is two weeks after this deploys;
+admin and test accounts are counted as listeners; weeks are UTC, not the
+listener's clock.
+
+**Not built:** which channel a sign-up came from - the plan's other
+November item.
+
+Tests: `tests/test_returning_listeners_637.py` (returning needs a day in
+both weeks; the same question heard again does not erase last week; where
+a week begins and ends; a missing store is not zero; no listeners is a
+counted zero; the one-time fill; a wipe and a deleted account take their
+days; the page draws it and says what counts). The card's drawing code was
+run on sample data. **Not verified here:** the page in a browser against a
+real deployment, or the query on Postgres.

@@ -400,6 +400,12 @@
     <div class="page" data-page="overview" data-title="Overview">
     <div class="kpis" id="kpis"></div>
 
+    <section class="card">
+      <h2>Listeners who came back</h2>
+      <p class="sub">People who heard an episode in the last seven days and also in the seven before. A listen counts once it was heard (30 seconds, or 30% of a short one), and only for an account.</p>
+      <div id="returning"></div>
+    </section>
+
     <div class="two">
       <section class="card">
         <h2>New accounts, last 30 days</h2>
@@ -1179,6 +1185,28 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '<div class="tbl"><table><thead><tr><th>What spent it</th><th class="n">Today</th><th class="n">This month</th>' +
       '<th class="n">Calls today</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
+  function drawReturning(r) {
+    var el = $("returning");
+    if (!el) return;
+    if (!r || r.returning == null) {
+      el.innerHTML = '<p class="sub">' + esc((r && r.error) || "Not counted yet.") + '</p>';
+      return;
+    }
+    function pct(v) { return v == null ? "-" : Math.round(v * 100) + "%"; }
+    var rows = (r.weeks || []).map(function (w, i) {
+      return '<tr><td>' + (i === 0 ? 'Seven days to ' : 'Week to ') + esc(w.ends) +
+        (i === 0 ? ' <small style="color:var(--muted)">(still filling)</small>' : '') + '</td>' +
+        '<td class="n">' + w.listeners + '</td><td class="n">' + w.returning + '</td>' +
+        '<td class="n">' + pct(w.share) + '</td></tr>';
+    }).join("");
+    el.innerHTML =
+      '<p><b style="font-size:28px">' + r.returning + '</b> listened this week and last week' +
+      ' &middot; ' + r.this_week + ' this week, ' + r.last_week + ' last week' +
+      ' &middot; ' + pct(r.share) + ' of last week came back</p>' +
+      '<div class="tbl"><table><thead><tr><th>Week</th><th class="n">Listeners</th>' +
+      '<th class="n">Also the week before</th><th class="n">Share of the week</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>';
+  }
   function drawAhead(a) {
     var el = $("aheadSpend");
     if (!el) return;
@@ -1744,6 +1772,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       drawCost(s.cost_per_episode);
       drawUsage(s.usage_monitors);
       drawClaudeSpend(s.claude_spend);
+      drawReturning(s.returning);
       drawAhead(s.written_ahead);
       drawAgentsWatch(s.agents_watch);
       keithData.inc = s.incidents;

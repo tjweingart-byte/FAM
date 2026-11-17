@@ -597,7 +597,60 @@ def snapshot(now: Optional[float] = None) -> dict:
             # Whether "Forgot password?" is drawn anywhere (§571): it needs
             # mail, and without it an account with no password has only the
             # status page's and Settings' "Set a password" as a way back.
-            "password_reset": _password_reset()}
+            "password_reset": _password_reset(),
+            # Who listened this week and also last (§637) - the number the
+            # owner's plan is stated in.
+            "returning": returning_listeners(by_alias, now)}
+
+
+#: How many weeks of returning listeners /admin draws.
+RETURNING_WEEKS = 8
+
+
+def returning_listeners(by_alias: dict, now: float) -> dict:
+    """Listeners who heard something this week **and** the week before
+    (§637), from `heard_days` - a day counts only once a listen was *heard*
+    ([heard-not-tapped]), and only an account has one ([account-gates-kept]).
+
+    Weeks are the seven days ending today (UTC), then the seven before, and
+    so on: week 0 is still filling until midnight. `weeks` is newest first;
+    each says how many listened and how many of them also listened the week
+    before. `None` where the store is missing or the query failed, with
+    `error` saying which - never a zero that was not counted."""
+    today = int(now // 86400)
+    out: dict = {"this_week": None, "last_week": None, "returning": None,
+                 "share": None, "weeks": [], "as_of_day": today}
+    sql = (
+        "WITH w AS (SELECT DISTINCT user_id, (:d - day) / 7 AS wk "
+        "FROM myfam.heard_days WHERE day > :d - :span AND day <= :d) "
+        "SELECT a.wk, COUNT(*) AS listeners, "
+        "SUM(CASE WHEN b.user_id IS NULL THEN 0 ELSE 1 END) AS came_back "
+        "FROM w a LEFT JOIN w b ON b.user_id = a.user_id AND b.wk = a.wk + 1 "
+        "GROUP BY a.wk ORDER BY a.wk")
+    try:
+        # One week more than is drawn, so the oldest drawn has a week before it.
+        result = _internal(sql, by_alias, ("myfam",),
+                           {"d": today, "span": 7 * (RETURNING_WEEKS + 1)})
+    except QueryError as exc:
+        out["error"] = str(exc)
+        return out
+    if result is None:
+        out["error"] = "the listening store is not here yet"
+        return out
+    counted = {int(wk): (int(n), int(back or 0)) for wk, n, back in result["rows"]}
+    for wk in range(RETURNING_WEEKS):
+        listeners, back = counted.get(wk, (0, 0))
+        out["weeks"].append({
+            "ends": time.strftime("%Y-%m-%d", time.gmtime((today - 7 * wk) * 86400)),
+            "listeners": listeners, "returning": back,
+            "share": round(back / listeners, 3) if listeners else None})
+    out["this_week"] = out["weeks"][0]["listeners"]
+    out["last_week"] = out["weeks"][1]["listeners"]
+    out["returning"] = out["weeks"][0]["returning"]
+    # Of last week's listeners, the share who are back: what "consistent" means.
+    out["share"] = (round(out["returning"] / out["last_week"], 3)
+                    if out["last_week"] else None)
+    return out
 
 
 def _password_reset() -> dict:

@@ -1006,6 +1006,7 @@
   point of this set.
 
 <!-- rule:heard-not-tapped -->
+> **Current (PROBLEMS.md §637):** a heard listen also keeps the **day** it was heard on (`heard_days`, one row a listener a day), because `heard_listens` holds only the latest time a question was heard. /admin's "Listeners who came back" counts from it: who heard something in the last seven days and also in the seven before. Never read for taste or a crowd row; cleared with the log and on account deletion.
 - **A listen is something heard, not a tap** *(§433, at the owner's
   direction; `topics.counts_as_heard`, `_heard_pairs`, `EventStore.note_progress`.)*
   The server writes a `play` the moment it begins sending audio - before a
