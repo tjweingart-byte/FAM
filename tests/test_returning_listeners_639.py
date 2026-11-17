@@ -1,4 +1,4 @@
-"""Listeners who came back, on /admin (§637).
+"""Listeners who came back, on /admin (§639).
 
 The owner's plan is stated in "consistent weekly listeners" and nothing
 counted them. `heard_listens` keeps only the latest time a question was
@@ -84,7 +84,7 @@ def test_the_days_are_filled_once_from_what_was_already_heard(tmp_path, monkeypa
     monkeypatch.setenv("MYFAM_DB", path)
     first = topics.EventStore(path)
     first.mark_heard("early", "a question", NOW - 3 * DAY)
-    first._conn().execute("DELETE FROM heard_days")       # as a store from before §637
+    first._conn().execute("DELETE FROM heard_days")       # as a store from before §639
     again = topics.EventStore(path)
     days = again._conn().execute("SELECT user_id, day FROM heard_days").fetchall()
     assert [tuple(d) for d in days] == [("early", topics.heard_day(NOW - 3 * DAY))]

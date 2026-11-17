@@ -2447,7 +2447,7 @@ class Event:
 
 
 def heard_day(at: float) -> int:
-    """The UTC day a listen was heard on, as days since 1970 (§637)."""
+    """The UTC day a listen was heard on, as days since 1970 (§639)."""
     return int(float(at) // 86400)
 
 
@@ -2502,7 +2502,7 @@ class EventStore:
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS heard_listens_at ON heard_listens(at)")
-            # Which days each listener heard something (§637), one row a
+            # Which days each listener heard something (§639), one row a
             # listener a day. `heard_listens` keeps only the *latest* time a
             # question was heard, so somebody who hears the same mix every
             # morning leaves no trace of last week - and "listened this week
@@ -3016,7 +3016,7 @@ class EventStore:
                 "INSERT INTO heard_listens (user_id, question, at) VALUES (?, ?, ?)"
                 " ON CONFLICT(user_id, question) DO UPDATE SET at = excluded.at",
                 (user_id[:64], norm[:300], float(at)))
-            # The day it was heard on, kept apart (§637): the row above is
+            # The day it was heard on, kept apart (§639): the row above is
             # overwritten the next time this question is heard.
             self._conn().execute(
                 "INSERT INTO heard_days (user_id, day) VALUES (?, ?)"

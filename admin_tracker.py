@@ -598,7 +598,7 @@ def snapshot(now: Optional[float] = None) -> dict:
             # mail, and without it an account with no password has only the
             # status page's and Settings' "Set a password" as a way back.
             "password_reset": _password_reset(),
-            # Who listened this week and also last (§637) - the number the
+            # Who listened this week and also last (§639) - the number the
             # owner's plan is stated in.
             "returning": returning_listeners(by_alias, now)}
 
@@ -609,7 +609,7 @@ RETURNING_WEEKS = 8
 
 def returning_listeners(by_alias: dict, now: float) -> dict:
     """Listeners who heard something this week **and** the week before
-    (§637), from `heard_days` - a day counts only once a listen was *heard*
+    (§639), from `heard_days` - a day counts only once a listen was *heard*
     ([heard-not-tapped]), and only an account has one ([account-gates-kept]).
 
     Weeks are the seven days ending today (UTC), then the seven before, and

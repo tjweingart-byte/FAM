@@ -38472,7 +38472,7 @@ in the topic files, and every one of those sections is cited in
 a rule changed; references that are part of a sentence ("§499, reversing
 §171 there") stay. The core is 38,847 bytes.
 
-## 637. Listeners who came back, counted on /admin (2026-11-17)
+## 639. Listeners who came back, counted on /admin (2026-11-17)
 
 The owner: "Build the returning-listener count on /admin." The plan
 (§635) is stated in consistent weekly listeners and nothing counted them.
@@ -38511,7 +38511,7 @@ listener's clock.
 **Not built:** which channel a sign-up came from - the plan's other
 November item.
 
-Tests: `tests/test_returning_listeners_637.py` (returning needs a day in
+Tests: `tests/test_returning_listeners_639.py` (returning needs a day in
 both weeks; the same question heard again does not erase last week; where
 a week begins and ends; a missing store is not zero; no listeners is a
 counted zero; the one-time fill; a wipe and a deleted account take their
