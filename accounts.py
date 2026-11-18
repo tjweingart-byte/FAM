@@ -131,6 +131,7 @@ AMBASSADOR_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 AMBASSADOR_TRIES = 10
 AMBASSADOR_NAME_MAX = 80
 _AMBASSADOR_MISSES: dict = {}
+_AMBASSADOR_LOCK = threading.Lock()
 
 
 def _ambassador_code() -> str:
@@ -550,6 +551,10 @@ class AccountStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS ambassadors_user"
                          " ON ambassadors(user_id) WHERE user_id != ''")
+            # One live code per account, held by the database itself: two
+            # codes entered at once by one account cannot both be taken.
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ambassadors_one_each"
+                         " ON ambassadors(user_id) WHERE user_id != '' AND revoked_at = 0")
 
             # Password reset (§244): at most one live code per account, kept
             # only as a hash. `issued` counts the codes sent in the current
@@ -776,7 +781,12 @@ class AccountStore:
         if not user_id:
             raise AmbassadorError("Sign in to add an ambassador code.")
         now = at or time.time()
-        tries = [t for t in _AMBASSADOR_MISSES.get(user_id, []) if now - t < 3600]
+        with _AMBASSADOR_LOCK:
+            # Pruned as it is read, so the table holds only the last hour.
+            for who in [w for w, ts in _AMBASSADOR_MISSES.items()
+                        if not any(now - t < 3600 for t in ts)]:
+                _AMBASSADOR_MISSES.pop(who, None)
+            tries = [t for t in _AMBASSADOR_MISSES.get(user_id, []) if now - t < 3600]
         if len(tries) >= AMBASSADOR_TRIES:
             raise AmbassadorError("Too many codes tried. Try again in an hour.")
         wanted = normalise_ambassador_code(code)
@@ -789,15 +799,18 @@ class AccountStore:
             "SELECT user_id, revoked_at FROM ambassadors WHERE code = ?",
             (wanted,)).fetchone() if wanted else None
         if not row or row[1]:
-            tries.append(now)
-            _AMBASSADOR_MISSES[user_id] = tries
+            with _AMBASSADOR_LOCK:
+                _AMBASSADOR_MISSES[user_id] = tries + [now]
             raise AmbassadorError("That code isn\u2019t right. Check it and try again.")
         # Taken only if still free, so two accounts racing for one code
         # cannot both hold it.
-        cur = self._conn().execute(
-            "UPDATE ambassadors SET user_id = ?, redeemed_at = ?"
-            " WHERE code = ? AND user_id = '' AND revoked_at = 0",
-            (user_id, now, wanted))
+        try:
+            cur = self._conn().execute(
+                "UPDATE ambassadors SET user_id = ?, redeemed_at = ?"
+                " WHERE code = ? AND user_id = '' AND revoked_at = 0",
+                (user_id, now, wanted))
+        except Exception:  # noqa: BLE001 - `ambassadors_one_each`: a race
+            raise AmbassadorError("This account is already a FAM Ambassador.")
         if not cur.rowcount:
             raise AmbassadorError("That code is already in use.")
         self._conn().execute("UPDATE accounts SET ambassador_at = ? WHERE user_id = ?",
@@ -1484,9 +1497,12 @@ class AccountStore:
         self._conn().execute("DELETE FROM identities WHERE user_id = ?", (user_id,))
         self._conn().execute("DELETE FROM password_resets WHERE user_id = ?",
                              (user_id,))
-        # Their ambassador code stays on the admin's list, unheld (§648).
-        self._conn().execute("UPDATE ambassadors SET user_id = '', redeemed_at = 0"
-                             " WHERE user_id = ?", (user_id,))
+        # Their ambassador code stays on the admin's list, spent: unheld,
+        # revoked, its entered date kept - a code is used once, so a deleted
+        # account never frees it for somebody else (§648).
+        self._conn().execute("UPDATE ambassadors SET user_id = '',"
+                             " revoked_at = CASE WHEN revoked_at = 0 THEN ? ELSE revoked_at END"
+                             " WHERE user_id = ?", (time.time(), user_id))
         cur = self._conn().execute("DELETE FROM accounts WHERE user_id = ?",
                                    (user_id,))
         return {"account": bool(cur.rowcount), "identities": identities,

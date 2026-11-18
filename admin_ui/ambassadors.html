@@ -127,7 +127,7 @@
       var who = r.user_id
         ? esc(r.account_name || "—") + (r.handle ? ' <span class="muted">@' + esc(r.handle) + '</span>' : "")
         : '<span class="muted">' + (r.redeemed_at ? "account deleted" : "not entered yet") + '</span>';
-      var act = r.revoked ? '<span class="muted">revoked</span>'
+      var act = r.revoked ? '<span class="muted">' + (!r.user_id && r.redeemed_at ? "spent" : "revoked") + '</span>'
         : '<button class="ghost small" data-copy="' + esc(r.code) + '">Copy</button> '
           + '<button class="ghost small" data-revoke="' + esc(r.code) + '">Revoke</button>';
       return '<tr' + (r.revoked ? ' class="revoked"' : "") + '><td><code>' + esc(r.code) + '</code></td>'

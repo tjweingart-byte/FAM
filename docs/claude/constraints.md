@@ -1580,7 +1580,9 @@
   `/api/auth/me` and `/api/person` say `ambassador`, which draws the "FAM
   Ambassador" tag under the name on both profiles. **Revoke** takes the tag
   and the plan back at the next request; a deleted account leaves its code
-  on the admin's list, unheld.
+  on the admin's list **spent** - used once, never free for somebody else
+  (§650). One live code per account is a unique index
+  (`ambassadors_one_each`), not only a check.
   > **Current (PROBLEMS.md §649, the owner 11.18: "Yes, let them off of the
   > waitlist"):** **a code is a waitlist pass.** Entered by a waitlisted
   > account it lets them in at once (`app._admit_ambassador`: `grant` with

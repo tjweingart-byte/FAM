@@ -831,7 +831,7 @@ struct IdentityView: View {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "Could not save that"))
                 return
             }
-            guard await saveAmbassador() else { return }
+            // "Skip for now" skips the code too: a wrong one never blocks it.
             model.entry = .interests
         }
     }

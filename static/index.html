@@ -20924,12 +20924,18 @@
   // the server (`POST /api/ambassador`); once in, `/api/auth/me` says
   // `ambassador` and the profile wears the tag.
   function sendAmbassadorCode(code){
+    // A code is 13 characters; anything far longer is not one, and the
+    // server's length refusal is a list, not a sentence.
+    if(String(code).length > 40){
+      return Promise.reject(new Error("That code isn\u2019t right. Check it and try again."));
+    }
     return fetch("/api/ambassador", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ code: code })
     }).then(function(r){
       return r.json().catch(function(){ return {}; }).then(function(d){
-        if(!r.ok) throw new Error(d.error || d.detail || "That code didn\u2019t work");
+        var why = d.error || (typeof d.detail === "string" ? d.detail : "");
+        if(!r.ok) throw new Error(why || "That code didn\u2019t work");
         AUTH.ambassador = true;
         AUTH.tier = "unlimited";
         return d;
@@ -25251,7 +25257,8 @@
   }
   function skipIdentity(){
     if(identityMissing().length){ showIdentityRequired(); return; }
-    saveIdentityAccount(true).then(saveIdentityAmbassador).then(afterIdentity)
+    // "Skip for now" skips the code too: a wrong one never blocks the way on.
+    saveIdentityAccount(true).then(afterIdentity)
       .catch(function(err){ toast(err.message); });
   }
 

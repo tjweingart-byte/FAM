@@ -39459,3 +39459,44 @@ globs `chrome-linux/` where this image has `chrome-linux64/`. Run them with
 **Not verified:** the Swift is not compiled here.
 
 Tests: the §649 block of `tests/test_ambassadors_648.py`.
+
+## 650. The branch double-checked before merging: §648-649 reviewed (2026-11-18)
+
+The owner: "Double check all changes made in this branch, and get it ready
+to merge into main." A second reader went over the whole diff without this
+session's conclusions. Nothing serious; eight things, all fixed:
+
+1. *A deleted ambassador's code could be entered again*: deleting the
+   account freed it (`user_id` and `redeemed_at` cleared, not revoked), so
+   whoever else held the code got the plan and a waitlist pass. Now the
+   code is left **spent** - revoked, its entered date kept - and the admin
+   page says "spent". Fixed.
+2. *One account could hold two codes* by entering two at once: the "already
+   holds one" check and the claiming UPDATE were separate statements. A
+   unique partial index (`ambassadors_one_each`: one live code per account)
+   makes the database refuse the second; the refusal is the same sentence.
+   Fixed.
+3. *The wrong-guess counter* was never pruned and had no lock. Pruned on
+   every read and locked. Still per process and per account, so a person
+   making many accounts gets ten guesses each, behind the join's own rate
+   limit, against ~8.5e11 codes - accepted.
+4. *iOS: a tap whose own action moves the caret* (a "next" button, a chip
+   that focuses search) could have that focus undone by the keyboard
+   recogniser, the two running in no set order. The keyboard now goes only
+   if no field began editing in the 120 ms after the tap. Fixed.
+5. *iOS: the strip above the keyboard* compared a window point with the
+   keyboard's screen frame, which differ in an iPad window that is not the
+   whole screen. Converted to screen coordinates. Fixed.
+6. *Web: a pasted code over 40 characters* toasted "[object Object]" (the
+   422's `detail` is a list). Refused in the page with the wrong-code
+   sentence, and a non-string `detail` is never shown. Fixed.
+7. *"Skip for now" was blocked by a wrong code* on the first-run step (web
+   and iOS). Skip now skips the code too; Next still sends it. Fixed.
+8. *iOS: a doc comment* had ended up above the wrong function. Fixed.
+
+Checked and fine, by the reader: every admin endpoint is admin-only; the
+gate opens only `/api/ambassador` (and its `/api/v1` twin); the admin page
+escapes everything it draws; installed clients' contracts pass; the Swift
+reads as compiling (Swift 5 mode, every type and modifier it names exists).
+
+**Not verified:** the Swift is still not compiled here.

@@ -91,13 +91,28 @@ def test_revoking_takes_back_the_tag_and_the_plan(acc):
     assert acc.revoke_ambassador("FAM-ZZZZ-ZZZZ") is None
 
 
-def test_a_deleted_account_leaves_its_code_on_the_list_unheld(acc):
+def test_a_deleted_account_leaves_its_code_on_the_list_spent(acc):
     _account(acc)
     made = acc.new_ambassador("Gone")
     acc.redeem_ambassador("amb", made["code"])
     acc.delete_account("amb")
     row = acc.ambassadors()[0]
-    assert row["code"] == made["code"] and row["user_id"] == "" and not row["revoked"]
+    assert row["code"] == made["code"] and row["user_id"] == ""
+    # Used once: nobody else can enter it after the account is gone.
+    assert row["revoked"] and row["redeemed_at"]
+    _account(acc, "next")
+    with pytest.raises(accounts_mod.AmbassadorError):
+        acc.redeem_ambassador("next", made["code"])
+
+
+def test_the_database_holds_one_live_code_per_account(acc):
+    _account(acc)
+    first, second = acc.new_ambassador(), acc.new_ambassador()
+    acc.redeem_ambassador("amb", first["code"])
+    # The race the check before the UPDATE cannot see: the index refuses it.
+    with pytest.raises(Exception):
+        acc._conn().execute("UPDATE ambassadors SET user_id = 'amb' WHERE code = ?",
+                            (second["code"],))
 
 
 # --- the endpoints ---------------------------------------------------------
@@ -177,7 +192,8 @@ def test_the_iphone_has_the_same_three_screens():
     assert 'SetRow(label: "FAM Ambassador code", value: "Add code") { askAmbassadorCode() }' in settings
     identity = (ios / "Views" / "ProfileEdit.swift").read_text()
     assert "if !editing && model.listener?.ambassador != true { ambassadorBlock }" in identity
-    assert identity.count("await saveAmbassador()") == 2
+    # Sent on Next only: "Skip for now" skips the code too.
+    assert identity.count("await saveAmbassador()") == 1
     assert "AmbassadorTag()" in (ios / "Views" / "YouView.swift").read_text()
     assert "page?.ambassador == true { AmbassadorTag()" in (ios / "Views" / "PersonView.swift").read_text()
     assert "struct AmbassadorTag: View" in (ios / "Theme.swift").read_text()

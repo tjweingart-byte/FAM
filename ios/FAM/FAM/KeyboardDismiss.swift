@@ -8,7 +8,10 @@ import UIKit
 /// One tap recogniser on each window, which never cancels or delays the
 /// touch, so whatever was tapped still gets it. A tap on a field keeps the
 /// keyboard, and so does a tap in the strip just above the keyboard, where
-/// a composer's Send button sits: sending a message never closes it.
+/// a composer's Send button sits: sending a message never closes it. And a
+/// tap whose own action moves the caret to another field (a "next" button,
+/// a chip that opens search) keeps it: the keyboard goes only if no field
+/// began editing in the moment after the tap.
 /// Scrolling already closes it (`.scrollDismissesKeyboard`).
 @MainActor
 final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
@@ -21,6 +24,9 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     /// The keyboard's top edge in screen points, or nil while it is down.
     private var keyboardTop: CGFloat?
     private var observing = false
+    /// When a field last began editing, so a tap that moved focus is left
+    /// alone (`tapped`).
+    private var lastBegan: Date = .distantPast
 
     /// Called on every appearance of the root view: attaches to any window
     /// that does not have the recogniser yet. Cheap and idempotent.
@@ -32,6 +38,10 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
             centre.addObserver(self, selector: #selector(keyboardHidden(_:)),
                                name: UIResponder.keyboardWillHideNotification, object: nil)
+            centre.addObserver(self, selector: #selector(fieldBegan(_:)),
+                               name: UITextField.textDidBeginEditingNotification, object: nil)
+            centre.addObserver(self, selector: #selector(fieldBegan(_:)),
+                               name: UITextView.textDidBeginEditingNotification, object: nil)
         }
         for scene in UIApplication.shared.connectedScenes {
             guard let windows = (scene as? UIWindowScene)?.windows else { continue }
@@ -59,9 +69,21 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
         keyboardTop = nil
     }
 
+    @objc private func fieldBegan(_ note: Notification) {
+        lastBegan = Date()
+    }
+
     @objc private func tapped(_ tap: UITapGestureRecognizer) {
         guard keyboardTop != nil, tap.state == .ended else { return }
-        tap.view?.endEditing(true)
+        let at = Date()
+        weak var view = tap.view
+        // A beat later, after the tapped control's own action has run: if
+        // it put the caret in a field, that was the point of the tap.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, self.lastBegan < at else { return }
+            view?.endEditing(true)
+        }
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -75,9 +97,12 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             view = v.superview
         }
         // The composer's row, just above the keyboard.
+        // The keyboard's frame is in screen coordinates; so is this point,
+        // which matters when the window is not the whole screen (iPad).
         if let window = touch.window {
-            let y = touch.location(in: window).y
-            if y >= top - Self.composerStrip { return false }
+            let point = window.convert(touch.location(in: window),
+                                       to: window.screen.coordinateSpace)
+            if point.y >= top - Self.composerStrip { return false }
         }
         return true
     }

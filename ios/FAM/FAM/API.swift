@@ -59,15 +59,16 @@ final class FAMAPI: @unchecked Sendable {
         try await send("GET", "api/v1/auth/me", as: Listener.self)
     }
 
-    /// Claim the free month (§593): the same claim as the emailed link, for
-    /// the signed-in account.
     /// Enter a FAM Ambassador code (§648): the account becomes an
-    /// ambassador - the tag on its profile and the unlimited plan, free. A
-    /// wrong code is a 400 whose words say why.
+    /// ambassador - the tag on its profile and the unlimited plan, free -
+    /// and, if it was waiting, is let in (§649). A wrong code is a 400 whose
+    /// words say why.
     func enterAmbassadorCode(_ code: String) async throws {
         _ = try await send("POST", "api/v1/ambassador", body: ["code": code], as: Ignored.self)
     }
 
+    /// Claim the free month (§593): the same claim as the emailed link, for
+    /// the signed-in account.
     func claimFreeMonth() async throws -> FreeMonthOffer {
         try await send("POST", "api/v1/free-month/claim", body: [:],
                        as: FreeMonthClaimed.self).freeMonth
