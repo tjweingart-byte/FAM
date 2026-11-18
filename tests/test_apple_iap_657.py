@@ -1,4 +1,4 @@
-"""§653: Apple in-app purchase for the iPhone app.
+"""§657: Apple in-app purchase for the iPhone app.
 
 The owner, 11.18: "add apple in-app purchase for the iphone app too". The
 same three plans, sold through StoreKit 2; the server trusts a transaction
@@ -227,9 +227,9 @@ def test_a_forged_notification_is_refused(client, apple):
 
 
 def test_a_mix_episode_from_an_older_client_is_not_a_search(client, monkeypatch):
-    """`surface=dailyfam` without `mix` (an iOS build before §652) playing
+    """`surface=dailyfam` without `mix` (an iOS build before §656) playing
     one of the listener's own mixes spends an episode, not the week's one
-    search - but naming the surface alone makes nothing free (§652 review)."""
+    search - but naming the surface alone makes nothing free (§656 review)."""
     import mixes as mixes_mod
     import quotas
     c, appmod, user = client
@@ -278,7 +278,7 @@ def test_one_store_ending_never_cancels_the_others_live_plan(tmp_path):
 
 def test_a_dailyfam_tile_is_free_before_its_episode_is_written(client, monkeypatch):
     """A tile the server serves is a browse episode whether or not it is
-    written yet; the same id with other words is a search (§652 review)."""
+    written yet; the same id with other words is a search (§656 review)."""
     import quotas
     import topics as topics_mod
     c, appmod, _user = client

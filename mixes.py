@@ -280,7 +280,7 @@ def _plain(text: str) -> str:
 
 
 def plays_item(item: "MixItem", query: str) -> bool:
-    """Whether `query` is what playing this item sends, on any day (§652's
+    """Whether `query` is what playing this item sends, on any day (§656's
     free-tier check: a mix's own episode is not a search). A bank item plays
     its query; a followed or typed one its dated prompt, any date."""
     asked = _plain(query)

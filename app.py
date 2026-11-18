@@ -1939,7 +1939,7 @@ def _tier(request: Request) -> str:
     if _allowed_admin(listener):
         return "unlimited"
     tier_name = entitlements.normalise(listener.tier if listener else "free")
-    # A paid plan, from Stripe's signed webhook (§652): only ever raises.
+    # A paid plan, from Stripe's signed webhook (§656): only ever raises.
     if listener is not None and entitlements.rank(tier_name) < \
             entitlements.rank(billing.PAID_TIER):
         try:
@@ -1952,7 +1952,7 @@ def _tier(request: Request) -> str:
 
 
 def _require_feature(request: Request, key: str) -> None:
-    """Refuse a feature this listener's tier does not have (§652), with a
+    """Refuse a feature this listener's tier does not have (§656), with a
     body the app turns into the plans sheet. Off while quotas are
     (`ENFORCE_QUOTAS=0`): nothing is taken away before launch."""
     if not quotas.settings_enforcing():
@@ -1986,7 +1986,7 @@ def _reserve(request: Request, resource: str, episode_key: str = "",
         # why - and not a free pass either: `_rate_limit` still applies.
         return None
     try:
-        # A search or a Go Deeper spends an `ask` (§652).
+        # A search or a Go Deeper spends an `ask` (§656).
         resource = entitlements.resource_for(resource, surface)
         return QUOTAS.reserve(user, _tier(request), resource,
                               episode_key=episode_key,
@@ -2601,6 +2601,11 @@ def _health_report(request: Request) -> dict:
             "edition_batch_source": ("EDITION_BATCH env var"
                                      if os.environ.get("EDITION_BATCH", "").strip()
                                      else "config.py default"),
+            # Prefetch's script warms batched too (§654).
+            "prefetch_batch": settings.prefetch_batch,
+            "prefetch_batch_source": ("PREFETCH_BATCH env var"
+                                      if os.environ.get("PREFETCH_BATCH", "").strip()
+                                      else "config.py default"),
         },
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
@@ -5401,7 +5406,7 @@ async def plans_read(request: Request) -> dict:
             # "everything is free" is false the day quotas are on, and a
             # "See plans" button with no checkout behind it is a dead end.
             "enforced": bool(settings.enforce_quotas),
-            # §652: true once Stripe is configured on this deploy.
+            # §656: true once Stripe is configured on this deploy.
             "checkout": billing.configured(),
             **_billing_snapshot(request, await _stripe_prices())}
 
@@ -5419,7 +5424,7 @@ async def _stripe_prices() -> dict:
 
 
 def _billing_snapshot(request: Request, priced: dict) -> dict:
-    """What is for sale and what this listener has (§652). Prices come from
+    """What is for sale and what this listener has (§656). Prices come from
     Stripe (`_stripe_prices`), never from here; a plan Stripe could not
     price has no number."""
     listener = getattr(request.state, "listener", None)
@@ -5430,7 +5435,7 @@ def _billing_snapshot(request: Request, priced: dict) -> dict:
                "blurb": billing.PLAN_BLURBS[p],
                "price": (priced.get(p) or {}).get("display", ""),
                "for_sale": p in selling,
-               # §653: the iPhone app sells the same plan through the App
+               # §657: the iPhone app sells the same plan through the App
                # Store under this product id; its price is Apple's.
                "apple_product": apple_iap.product_id(p),
                "seats": billing.FAM_SEATS if p == "fam" else 1}
@@ -5443,7 +5448,7 @@ def _billing_snapshot(request: Request, priced: dict) -> dict:
             own = BILLING.own_plan(user)
             mine = {
                 "plan": own, "status": (sub or {}).get("status", ""),
-                # "stripe" or "apple" (§653): an App Store subscription is
+                # "stripe" or "apple" (§657): an App Store subscription is
                 # managed in the iPhone's settings, not Stripe's portal.
                 "store": (sub or {}).get("source", "") if own else "",
                 "renews_at": (sub or {}).get("period_end", 0.0),
@@ -5460,7 +5465,7 @@ def _billing_snapshot(request: Request, priced: dict) -> dict:
     if user:
         try:
             found = BILLING.student(user)
-            # §654: whether the Student plan may be bought, and until when.
+            # §658: whether the Student plan may be bought, and until when.
             student = {"verified": found["verified"], "email": found["email"],
                        "expires": found["expires"]}
         except Exception:  # noqa: BLE001
@@ -5478,7 +5483,7 @@ class StudentConfirm(BaseModel):
 
 @app.post("/api/billing/student")
 async def student_start(req: StudentStart, request: Request) -> dict:
-    """Email a code to a .edu address (§654). The Student plan is sold only
+    """Email a code to a .edu address (§658). The Student plan is sold only
     to an account that has entered one, for a year at a time."""
     _read_limit(request)
     _rate_limit(request)
@@ -5520,7 +5525,7 @@ def _billing_return(request: Request, outcome: str) -> str:
 
 @app.post("/api/billing/checkout")
 async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
-    """A Stripe Checkout page for one plan (§652). The app opens the URL; the
+    """A Stripe Checkout page for one plan (§656). The app opens the URL; the
     plan changes when Stripe's webhook says it was paid, never on return."""
     _read_limit(request)
     _rate_limit(request)
@@ -5531,7 +5536,7 @@ async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
     if BILLING.own_plan(user):
         raise HTTPException(status_code=409,
                             detail="You already have a plan. Manage it to change it.")
-    # §654: the Student plan is for a verified .edu address only.
+    # §658: the Student plan is for a verified .edu address only.
     if req.plan == "student" and not BILLING.student_verified(user):
         raise HTTPException(status_code=403,
                             detail="Verify your school email to get the Student plan.",
@@ -5550,7 +5555,7 @@ async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
 
 @app.post("/api/billing/portal")
 async def billing_portal(request: Request) -> dict:
-    """Stripe's page for changing card or plan, or cancelling (§652)."""
+    """Stripe's page for changing card or plan, or cancelling (§656)."""
     _read_limit(request)
     user = _require_account(request)
     sub = BILLING.subscription(user) or {}
@@ -5564,7 +5569,7 @@ async def billing_portal(request: Request) -> dict:
 
 @app.post("/api/billing/webhook")
 async def billing_webhook(request: Request) -> dict:
-    """Stripe's events (§652): the only thing that changes a paid plan.
+    """Stripe's events (§656): the only thing that changes a paid plan.
     Signed or refused; a repeat changes nothing."""
     payload = await request.body()
     try:
@@ -5590,7 +5595,7 @@ class AppleTransactionRequest(BaseModel):
 
 @app.get("/api/billing/apple")
 async def apple_purchase_setup(request: Request) -> dict:
-    """What the iPhone app needs before it shows Apple's sheet (§653): the
+    """What the iPhone app needs before it shows Apple's sheet (§657): the
     `appAccountToken` this account buys with, and each plan's product id."""
     _read_limit(request)
     user = _require_account(request)
@@ -5598,7 +5603,7 @@ async def apple_purchase_setup(request: Request) -> dict:
     BILLING.remember_apple_token(token, user)
     sub = BILLING.subscription(user) or {}
     return {"token": token, "products": apple_iap.products(),
-            # §654: the app offers Student only once this is true.
+            # §658: the app offers Student only once this is true.
             "student_verified": BILLING.student_verified(user),
             "own_plan": BILLING.own_plan(user),
             "store": sub.get("source", "") if BILLING.own_plan(user) else ""}
@@ -5606,7 +5611,7 @@ async def apple_purchase_setup(request: Request) -> dict:
 
 @app.post("/api/billing/apple")
 async def apple_purchase(req: AppleTransactionRequest, request: Request) -> dict:
-    """A StoreKit 2 transaction the app just bought or restored (§653). The
+    """A StoreKit 2 transaction the app just bought or restored (§657). The
     JWS is checked against Apple's pinned root, and its `appAccountToken`
     must be this account's - a transaction from somebody else's phone buys
     nothing."""
@@ -5626,7 +5631,7 @@ async def apple_purchase(req: AppleTransactionRequest, request: Request) -> dict
     BILLING.remember_apple_token(token, user)
     if sub["plan"] == "student" and not BILLING.student_verified(user):
         # Apple has already charged them, so the plan is theirs; the app
-        # offers Student only after the check (§654), so this is a build
+        # offers Student only after the check (§658), so this is a build
         # that skipped it, and is worth seeing.
         log.warning("apple student plan bought without a verified .edu: %s", user)
     BILLING.record_apple(user, sub)
@@ -5642,7 +5647,7 @@ APPLE_GRACE = ("DID_FAIL_TO_RENEW",)
 
 @app.post("/api/billing/apple/notifications")
 async def apple_notifications(request: Request) -> dict:
-    """App Store Server Notifications v2 (§653): renewals, lapses, refunds.
+    """App Store Server Notifications v2 (§657): renewals, lapses, refunds.
     Signed or refused; the transaction inside decides the plan."""
     try:
         body = await request.json()
@@ -6289,6 +6294,9 @@ class FeedbackRequest(BaseModel):
     page: str = Field("", max_length=2000)
     viewport: str = Field("", max_length=500)
     episode: Optional[FeedbackEpisode] = None
+    # The phone player's own log, sent by "Report a problem" on the player
+    # (§653). Its newest part is kept (`feedback.playback_tail`).
+    playback: str = Field("", max_length=200_000)
 
 
 async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
@@ -6485,7 +6493,7 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
             page=req.page,
             viewport=req.viewport,
             agent=request.headers.get("user-agent", ""),
-            throttle_key=listener, episode=episode)
+            throttle_key=listener, episode=episode, playback=req.playback)
     except feedback_mod.FeedbackError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"]}
@@ -7153,7 +7161,7 @@ VIRAL_LOOPS = viral_loops_mod.ViralLoops(settings.viral_loops_api_token,
 PREFS = prefs_mod.PreferenceStore()
 METER = metering.MeterStore()
 QUOTAS = quotas.QuotaStore()
-#: Subscriptions, FAM-plan seats, half-a-mix counters (§652).
+#: Subscriptions, FAM-plan seats, half-a-mix counters (§656).
 BILLING = billing.BillingStore()
 MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
@@ -7420,10 +7428,10 @@ WAITLIST_OPEN_PATHS = frozenset({
     # A FAM Ambassador code lets its account off the waitlist (§648, the
     # owner 11.18), so a waitlisted account must be able to enter one.
     "/api/ambassador",
-    # Stripe's webhook (§652) carries no session at all; its signature is
+    # Stripe's webhook (§656) carries no session at all; its signature is
     # its whole authority (`billing.verify_signature`).
     "/api/billing/webhook",
-    # Apple's server notifications (§653), signed like the webhook above.
+    # Apple's server notifications (§657), signed like the webhook above.
     "/api/billing/apple/notifications",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
@@ -7803,7 +7811,7 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
 
 def _served_tile_query(topic_id: str) -> str:
     """The question a DailyFAM tile with this id asks, if the server serves
-    one (§652 review): the evergreen bank, Start here, the live story pool or
+    one (§656 review): the evergreen bank, Start here, the live story pool or
     the Trending edition - so a tile is free whether or not its episode is
     written yet, and a made-up id buys nothing. Held in memory; no store
     read, no network."""
@@ -7831,7 +7839,7 @@ def _mix_plays(found, query: str) -> bool:
 
 def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
                    mix: str, cached_only: bool) -> str:
-    """The surface a play is counted against (§652): "godeeper" or "search"
+    """The surface a play is counted against (§656): "godeeper" or "search"
     spend an ask; "myfam" is a browse episode, free.
 
     The surface, `topic_id` and `mix` are the client's words, so none of
@@ -7867,7 +7875,7 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
 
 def _take_half_a_mix(request: Request, user: str, mix_id: str,
                      episode_key: str) -> None:
-    """A free listener hears half of a myFAM mix a day (§652, the owner
+    """A free listener hears half of a myFAM mix a day (§656, the owner
     11.18: "stopped half way through ... not able to finish it without the
     subscription"). Counted as distinct episodes of that mix, so replaying
     one is free; the one past half is refused with the plans sheet's
@@ -8439,7 +8447,7 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
-    # §652: making a mix is paid - so adding to one is; renaming, sharing,
+    # §656: making a mix is paid - so adding to one is; renaming, sharing,
     # reordering or taking topics out of a mix they already have is not.
     if _adds_topics(MIXES.get_editable(account, mix_id), req):
         _require_feature(request, "mixes")
@@ -13398,7 +13406,7 @@ async def audio(
     # cached search plays in the voice its audio is already kept in.
     voice_picked: bool = Query(False, description="The voice was picked for "
                                                   "this search, not left as it was"),
-    # §652: the myFAM mix this episode is played from, so a free listener's
+    # §656: the myFAM mix this episode is played from, so a free listener's
     # half of it can be counted. An older client never sends it.
     mix: str = Query("", max_length=64, description="The mix this is played from"),
 ):
@@ -13473,7 +13481,7 @@ async def audio(
                         episode_key=_episode_key(plan),
                         # Whether this spends the week's one search is decided
                         # from what the play is, never from what the client
-                        # calls it (§652 review).
+                        # calls it (§656 review).
                         surface=_spend_surface(user, plan, where, topic_id,
                                                context, mix, cached_only))
 

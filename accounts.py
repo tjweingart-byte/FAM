@@ -721,7 +721,7 @@ class AccountStore:
                          created: float = 0.0, has_account: bool = False) -> str:
         """The plan, raised to "plus" while this account's free month runs.
 
-        §652 (the owner, 11.18: "every user's free trial should start when
+        §656 (the owner, 11.18: "every user's free trial should start when
         the app is released, not just the beta"): **every account** has one
         month, starting on the day the whole app goes live
         (`waitlist_settings.free_month_starts`) - or, for an account made
@@ -747,7 +747,7 @@ class AccountStore:
 
     def free_month_window(self, created: float, now: float = 0.0) -> tuple[float, float]:
         """(begins, ends) of this account's free month, or (0, 0) before
-        the launch day is set (§652)."""
+        the launch day is set (§656)."""
         from waitlist import FREE_MONTH_SECONDS
         starts = self._free_month_starts(now or time.time())
         if not starts:

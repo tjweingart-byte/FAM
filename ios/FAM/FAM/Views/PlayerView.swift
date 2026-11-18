@@ -43,6 +43,11 @@ struct PlayerView: View {
     /// is, and whether a copy flying to or from it covers it now.
     @EnvironmentObject private var playerStage: PlayerStage
     @Environment(\.playerPictureHidden) private var pictureHidden
+    /// How far the player has been pulled down by a swipe (11.18 notes).
+    @State private var pull: CGFloat = 0
+    /// Whether the drag under way is that swipe: decided on its first
+    /// movement, nil between drags.
+    @State private var pulling: Bool?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -66,6 +71,9 @@ struct PlayerView: View {
             // If the rows ever need more than the window has, what does not
             // fit goes off the bottom, never the top.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+            // Swipe down to put the player away (11.18 notes).
+            .gesture(collapseDrag)
             if !now.nextUp.isEmpty {
                 NextUpOverlay(onBack: backFromNextUp)
             }
@@ -76,6 +84,13 @@ struct PlayerView: View {
         .overlay { flightLayer }
         .coordinateSpace(name: Self.space)
         .background(FAMColor.background.ignoresSafeArea())
+        // The whole page follows the finger, the screen under it showing
+        // through as it goes (the cover's own ground is clear).
+        .offset(y: pull)
+        .onChange(of: model.showPlayer) { _, shown in
+            // Opened again while it was going: it comes back whole.
+            if shown { pull = 0 }
+        }
         .animation(.easeOut(duration: 0.2), value: popup)
         // What's next comes and goes on its own transition's timings.
         .animation(.easeOut(duration: 0.2), value: now.nextUp.isEmpty)
@@ -139,6 +154,41 @@ struct PlayerView: View {
             }
             .id(flight.id)
         }
+    }
+
+    /// Swipe down to collapse into the mini player (the owner's 11.18
+    /// notes: "Ability to swipe down on audio player to collapse into mini
+    /// player"). The Home mark's close, by hand: it minimises and never
+    /// stops (`transport`), and goes the way every close goes - shrinking
+    /// into the mini player (`movePlayer`). Only a drag that starts plainly
+    /// downward; the scrubber's own drag wins on the bar, and a swipe on
+    /// the captions card is still that card's (it closes captions). Past
+    /// 120 pt, or flicked, it goes; otherwise it springs back.
+    private var collapseDrag: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .global)
+            .onChanged { value in
+                if pulling == nil {
+                    let down = value.translation.height
+                    let onCaptions = now.captionsOn
+                        && playerStage.pictureFrame.contains(value.startLocation)
+                    pulling = down > 0 && down > abs(value.translation.width) * 1.2
+                        && !onCaptions && popup == nil && sheet == nil
+                }
+                guard pulling == true else { return }
+                pull = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                defer { pulling = nil }
+                guard pulling == true else { return }
+                let far = value.translation.height > 120
+                    || value.predictedEndTranslation.height > 280
+                if far {
+                    model.showPlayer = false
+                } else {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12)
+                                  : .spring(response: 0.3, dampingFraction: 0.86)) { pull = 0 }
+                }
+            }
     }
 
     /// What's next's Back: to the search page for a search, else DailyFAM
@@ -549,6 +599,9 @@ struct PlayerView: View {
         case .length: ActionSheetList(items: lengthItems)
         case .voice: ActionSheetList(items: voiceItems)
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
+        case .problem:
+            ProblemReportSheet()
+                .environmentObject(model)
         case .report:
             if let ep = now.episode {
                 FAMReportSheet(api: model.safety,
@@ -616,7 +669,7 @@ struct PlayerView: View {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case menu, queue, vibe, share, report, addToMix, speed, length, voice
+    case menu, queue, vibe, share, report, problem, addToMix, speed, length, voice
     var id: String { rawValue }
 }
 

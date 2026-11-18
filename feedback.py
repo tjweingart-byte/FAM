@@ -60,6 +60,12 @@ STATES = ("open", "resolved")
 #: the cache keeps an episode a week, and a report outlives that. Bounded so
 #: `GLOBAL_PER_WINDOW` still bounds the disk: a ten-minute script is ~10 KB.
 MAX_EPISODE_TRANSCRIPT = 30000
+#: The phone player's own log, sent with "Report a problem" on the player
+#: (the owner's 11.18 notes, §653): connects, the first byte, hold and
+#: release, stalls, refills, reconnects and format fallbacks, timestamped.
+#: Its newest part is kept when it is longer - the end is where the problem
+#: just happened.
+MAX_PLAYBACK = 40000
 MAX_EPISODE_SOURCES = 30
 
 
@@ -118,6 +124,19 @@ class FeedbackError(ValueError):
     """A report that cannot be kept, with the sentence that says why."""
 
 
+def playback_tail(log: str) -> str:
+    """The player's log as kept: its newest `MAX_PLAYBACK` characters, cut
+    at a line, and said so when cut."""
+    text = (log or "").replace("\r", "").strip()
+    if len(text) <= MAX_PLAYBACK:
+        return text
+    tail = text[-MAX_PLAYBACK:]
+    newline = tail.find("\n")
+    if 0 <= newline < 2000:
+        tail = tail[newline + 1:]
+    return "[... earlier lines cut]\n" + tail
+
+
 class FeedbackStore:
     def __init__(self, path: str | None = None) -> None:
         self.path = data_path("FEEDBACK_DB", "feedback.db", path)
@@ -141,13 +160,17 @@ class FeedbackStore:
                        created     REAL NOT NULL,
                        resolved_at REAL NOT NULL DEFAULT 0,
                        note        TEXT NOT NULL DEFAULT '',
-                       episode     TEXT NOT NULL DEFAULT ''
+                       episode     TEXT NOT NULL DEFAULT '',
+                       playback    TEXT NOT NULL DEFAULT ''
                    )"""
             )
             # Reports filed before 9.30 have no episode column.
             columns = {r[1] for r in conn.execute("PRAGMA table_info(reports)")}
             if "episode" not in columns:
                 conn.execute("ALTER TABLE reports ADD COLUMN episode TEXT NOT NULL DEFAULT ''")
+            # Nor do reports filed before 11.18 have the player's log (§653).
+            if "playback" not in columns:
+                conn.execute("ALTER TABLE reports ADD COLUMN playback TEXT NOT NULL DEFAULT ''")
             conn.execute("CREATE INDEX IF NOT EXISTS reports_created"
                          " ON reports(resolved_at, created)")
 
@@ -172,15 +195,18 @@ class FeedbackStore:
             "state": "resolved" if r[9] else "open",
             # The episode on the player when it was filed, or None.
             "episode": episode if isinstance(episode, dict) else None,
+            # The phone player's log, or "" (§653).
+            "playback": r[12] if len(r) > 12 and r[12] else "",
         }
 
     _COLUMNS = ("id, user_id, text, screen, build, page, viewport, agent,"
-                " created, resolved_at, note, episode")
+                " created, resolved_at, note, episode, playback")
 
     def add(self, text: str, *, user_id: str = "", screen: str = "",
             build: str = "", page: str = "", viewport: str = "",
             agent: str = "", now: Optional[float] = None,
-            throttle_key: str = "", episode: Optional[dict] = None) -> dict:
+            throttle_key: str = "", episode: Optional[dict] = None,
+            playback: str = "") -> dict:
         """File one report. Raises `FeedbackError` with a sentence on refusal.
 
         `throttle_key` is who is counted against `PER_LISTENER` - the listener
@@ -208,12 +234,13 @@ class FeedbackStore:
                (screen or "")[:MAX_FIELD], (build or "")[:MAX_FIELD],
                (page or "")[:MAX_FIELD], (viewport or "")[:MAX_FIELD],
                (agent or "")[:MAX_FIELD * 2], at,
-               json.dumps(episode) if episode else "")
+               json.dumps(episode) if episode else "",
+               playback_tail(playback))
         conn = self._conn()
         conn.execute(
             "INSERT INTO reports (id, user_id, text, screen, build, page,"
-            " viewport, agent, created, episode)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+            " viewport, agent, created, episode, playback)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
         return self.get(row[0])
 
     def _admit(self, key: str, at: float) -> bool:

@@ -1366,6 +1366,13 @@
   > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
   > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
   >
+  > **Current:** **medium, not high** (PROBLEMS.md §654, the owner,
+  > 2026-11-18, after Claude per episode rose: "the writer for episodes
+  > written ahead should be batched and on medium effort, not high").
+  > `AHEAD_WRITER_EFFORT` defaults to `medium`; `high` restores §522. Only
+  > the writer: the ahead brief (`EI_AHEAD_EFFORT`) and Shakespeare are
+  > unchanged.
+  >
   > **Current:** **the brief has no time limit** (PROBLEMS.md §602, at the
   > owner's direction: "Brief took too long shouldn't be an option, it
   > produces an empty episode. There shouldn't be a time limit on the
@@ -1432,9 +1439,23 @@
   > sources' own words, fewer of them; every failure, and any cut that loses
   > what the brief asked to establish, leaves the packet whole, and the score
   > and figure checks always read the whole packet.
+  > **Current (PROBLEMS.md §654, the owner):** **every writer written ahead
+  > is batched**, not only the two editions: the rails edition and push
+  > stories already were (both go through `daily_edition.run_slot`); the
+  > "Start here" write-ahead now goes through `trending_bank.write_batched`
+  > (with `rewrite`, so last slot's episode under the same key never sets an
+  > answer aside), and prefetch's script warms go out as one batch per cycle
+  > (`PREFETCH_BATCH=1`), finished apart from the cycle, one batch out at a
+  > time (a cycle meanwhile warms briefs only, so the budget is overrun by at
+  > most one cycle's writers). Same reader, same live fallback from what was
+  > prepared, a tap's episode never written over. The write-ahead's batch
+  > is waited for `STARTUP_BATCH_WAIT_SECONDS` (a third of the hour's
+  > grace) and runs beside the Trending edition, not before it; a prefetch
+  > warm the batch did not answer is written live only when `warm` would
+  > be (quiet, inside both budgets, prefetch on) (§655).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
-  > **Current (§652, the owner 11.18):** a *plan* now gates some of what
+  > **Current (§656, the owner 11.18):** a *plan* now gates some of what
   > is heard once quotas are on - the second half of a myFAM mix and a
   > second search or Go Deeper in a week. An account still gates nothing
   > more than it did.
@@ -1537,7 +1558,7 @@
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
 <!-- rule:free-month -->
-  > **Current (PROBLEMS.md §652, the owner 11.18: "every user's free trial
+  > **Current (PROBLEMS.md §656, the owner 11.18: "every user's free trial
   > should start when the app is released, not just the beta version"):**
   > **every account** has the month - earned or not - from the admin-set
   > launch day (`free_month_starts`), or from the day the account was made
@@ -1607,9 +1628,9 @@
   > is always waitlisted": not with a right code.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
-  > **Current (§652):** there is a checkout now (rule `web-billing`), so an
+  > **Current (§656):** there is a checkout now (rule `web-billing`), so an
   > enforced free tier has a door. Production stays `ENFORCE_QUOTAS=0`
-  > until the owner turns it on at launch; every §652 gate (an ask a week,
+  > until the owner turns it on at launch; every §656 gate (an ask a week,
   > no own mixes, half a mix) is off with it.
   > **Current (§519, the 11.9 packet):** switched **off again in production**
   > at the owner's direction - "until I change it, I want everyone to have
@@ -1639,7 +1660,7 @@
   0 used - the numbers for setting real limits come from `usage_report.py`,
   which is where CLAUDE.md always said they should come from.
 <!-- rule:web-billing -->
-  > **Current (PROBLEMS.md §654, the owner 11.18: "make students verify
+  > **Current (PROBLEMS.md §658, the owner 11.18: "make students verify
   > with a .edu email"):** Student is sold only to an account with a
   > verified `.edu` address (`billing.is_edu`: the domain's last label is
   > `edu`, so `.edu.au` is not). `POST /api/billing/student` emails a
@@ -1649,7 +1670,7 @@
   > `X-FAM-Student: verify`); the iPhone app asks before Apple's sheet, and
   > a Student purchase Apple reports without it is kept (Apple charged) and
   > logged. `/api/plans` carries `student`.
-  > **Current (PROBLEMS.md §653, the owner 11.18: "add apple in-app
+  > **Current (PROBLEMS.md §657, the owner 11.18: "add apple in-app
   > purchase for the iphone app too"):** the iPhone app sells the same
   > three plans through **StoreKit 2** (`ios/FAM/FAM/Store.swift`), so an
   > iPhone listener never leaves the app to pay; the web keeps Stripe.
@@ -1668,7 +1689,7 @@
   > Restore purchases and the auto-renew terms (App Review 3.1.1, 3.1.2).
   > The iPhone app shows no Stripe link.
 - **FAM is paid for on the web, never through the App Store** (PROBLEMS.md
-  §652, the owner 11.18: "Ideally we have all payments be redirected to a
+  §656, the owner 11.18: "Ideally we have all payments be redirected to a
   website to avoid the 30% fee", answering "Stripe only"). `billing.py`:
   Stripe Checkout (`POST /api/billing/checkout`), Stripe's portal for
   changes and cancelling (`/api/billing/portal`), and the signed webhook
@@ -1701,7 +1722,7 @@
     was still before the court in 11.2026; the native app must not show
     plans or link out anywhere else. Apple in-app purchase, if ever added,
     is another way into the same `BillingStore.record`, not a rewrite.
-  - **The client's words never make a play free** (§655, the branch
+  - **The client's words never make a play free** (§659, the branch
     review): `app._spend_surface` counts a play as a browse episode only
     when the server can see it is one - an episode of the named mix (or of
     one of the listener's own mixes, for a client that sends no `mix`), a
@@ -1709,7 +1730,7 @@
     written (no model call). Anything else is an ask. `/api/script` is an
     ask too. What a crafted client can still do is replay already-written
     mix episodes past half way without naming the mix - no model call.
-  - **One row, two stores, kept honest** (§655): an event is marked seen
+  - **One row, two stores, kept honest** (§659): an event is marked seen
     only after it is applied; each write is dated (`event_at`: Stripe's
     `created`, Apple's `signedDate`) and an older one is skipped; an ended
     subscription from one store never overwrites the other store's live
@@ -1733,7 +1754,7 @@
   - a limit with no way past it is a dead end on a phone.
 <!-- rule:tier-spend -->
 - **A tier is what you may spend, never what you may reach.** *(ACCOUNTS.md.)*
-  > **Current (§652, the owner 11.18, reversing this in two places on
+  > **Current (§656, the owner 11.18, reversing this in two places on
   > purpose):** free listeners may not **make** myFAM mixes
   > (`FEATURES["mixes"]` at `plus`; `tests/test_entitlements.py`
   > `TAKEN_FROM_FREE` names it), and hear only **half of any mix** a day.

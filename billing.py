@@ -1,4 +1,4 @@
-"""Paying for FAM: Stripe on the web, and nothing in the App Store (§652).
+"""Paying for FAM: Stripe on the web, and nothing in the App Store (§656).
 
 The owner's call (11.18): **every payment happens on a website**, so Apple's
 commission is never paid - the iOS app links out to the same checkout a
@@ -98,7 +98,7 @@ BILLING_ENVIRONMENT: tuple[str, ...] = (
 
 INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
-#: Student verification (§654, the owner 11.18: "make students verify with
+#: Student verification (§658, the owner 11.18: "make students verify with
 #: a .edu email"): a six-digit code to a .edu address, live 15 minutes,
 #: five tries; a verification lasts a year, and one address verifies one
 #: account at a time.
@@ -265,7 +265,7 @@ class BillingStore:
             )""")
         conn.execute("CREATE INDEX IF NOT EXISTS subscriptions_customer"
                      " ON subscriptions (customer)")
-        # §653: which store sold it - "stripe" or "apple". Added, not in the
+        # §657: which store sold it - "stripe" or "apple". Added, not in the
         # CREATE, so a store made before it gains the column.
         for column in ("source TEXT NOT NULL DEFAULT 'stripe'",
                        # When the store said what this row holds (Stripe's
@@ -390,7 +390,7 @@ class BillingStore:
                 "subscription": row[3], "period_end": float(row[4] or 0),
                 "source": row[5], "event_at": float(row[6] or 0)}
 
-    # --- Apple (§653) ---------------------------------------------------
+    # --- Apple (§657) ---------------------------------------------------
 
     def remember_apple_token(self, token: str, user_id: str) -> None:
         """The account an `appAccountToken` was issued to, so a server
@@ -608,7 +608,7 @@ class BillingStore:
             "DELETE FROM fam_members WHERE member_id = ?", (member_id,))
         return bool(cur.rowcount)
 
-    # --- students (§654) ------------------------------------------------
+    # --- students (§658) ------------------------------------------------
 
     def student(self, user_id: str, now: float = 0.0) -> dict:
         """{verified, email, expires} - `verified` only while the year runs."""

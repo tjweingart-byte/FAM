@@ -1,7 +1,7 @@
 import Foundation
 import StoreKit
 
-/// Apple in-app purchase (§653): the three plans the web sells through
+/// Apple in-app purchase (§657): the three plans the web sells through
 /// Stripe, sold here through StoreKit 2 so nobody leaves the app to pay.
 ///
 /// The server decides the plan, never this file. Every transaction Apple
@@ -71,7 +71,7 @@ final class FAMStore: ObservableObject {
         guard let product = products[plan] else { throw FAMError.unreadable }
         // Asked fresh for every purchase, never kept: the token is the
         // signed-in account's, and another account may have signed in on
-        // this phone since the sheet last loaded (§656 review).
+        // this phone since the sheet last loaded (§660 review).
         let fresh = try await api.appleSetup()
         setup = fresh
         guard let token = UUID(uuidString: fresh.token) else {

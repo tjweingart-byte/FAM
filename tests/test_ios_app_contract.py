@@ -251,7 +251,7 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # `link` asks for a replay's kept file instead of a stream (§252).
     not_key = {"fmt", "link", "own", "cached_only", "episode", "ask_reading",
                "voice", "voice_picked", "private", "attach",
-               # §652: which mix it plays from - counted, never the key.
+               # §656: which mix it plays from - counted, never the key.
                "mix"}
     assert names("audio") - not_key == names("progress"), (names("audio"), names("progress"))
 

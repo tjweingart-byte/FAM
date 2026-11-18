@@ -375,11 +375,11 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **Brief: Haiku 5.5, medium**, untimed; **writer: Haiku, low; high ahead**;
+- **Brief: Haiku 5.5, medium**, untimed; **writer: Haiku, low; medium ahead**;
   composer, placer, thumbnails `MODEL`; priced per model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode**: its
-  instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
-  DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same
+  instructions are one cacheable block (`PROMPT_CACHE`); every writer
+  written ahead is batched (editions, write-ahead, prefetch), read by the same
   `_ScriptReader`, and whatever a batch does not answer in time is written
   live from what was already prepared. Nothing a listener waits on is batched. [writer-savings]
 

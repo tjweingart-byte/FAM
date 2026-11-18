@@ -912,7 +912,7 @@ struct ActivationCard: View {
 
 // MARK: - Subscription (`openPlans`, shot 36)
 
-/// "YOUR PLAN": the plan this account is on, then (§653) the three plans
+/// "YOUR PLAN": the plan this account is on, then (§657) the three plans
 /// for sale with Apple's price, bought through Apple's sheet; Manage
 /// subscription, the FAM plan's code, joining one, and Restore purchases.
 /// The server decides every plan - a purchase is sent there signed, and
@@ -934,7 +934,7 @@ struct PlansSheet: View {
     /// A purchase or restore is under way: the plan rows wait.
     @State private var busy = false
     @State private var productsAsked = false
-    /// The Student plan's .edu check (§654): the address, then the code.
+    /// The Student plan's .edu check (§658): the address, then the code.
     @State private var studentStep: StudentStep?
     @State private var studentEmail = ""
     @State private var studentCode = ""
@@ -1112,7 +1112,7 @@ struct PlansSheet: View {
     }
 
     private func buy(_ plan: String) {
-        // §654: Student only for a verified .edu address - checked before
+        // §658: Student only for a verified .edu address - checked before
         // Apple's sheet, since a purchase cannot be taken back here.
         if plan == "student" && shown?.student?.verified != true {
             studentStep = .email
@@ -1132,7 +1132,7 @@ struct PlansSheet: View {
                     break
                 }
             } catch is FAMStore.Unconfirmed {
-                // Apple charged; only FAM's side is missing (§653 review).
+                // Apple charged; only FAM's side is missing (§657 review).
                 model.nowPlaying.say("Apple took your payment, but FAM couldn\u{2019}t confirm it yet. Tap Restore purchases to try again.")
             } catch {
                 model.nowPlaying.say("That purchase didn\u{2019}t go through, and you weren\u{2019}t charged.")

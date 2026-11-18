@@ -1,4 +1,4 @@
-"""Apple in-app purchase for the iPhone app (§653).
+"""Apple in-app purchase for the iPhone app (§657).
 
 The iPhone app sells the same three plans as the web (`billing.PLANS`)
 through StoreKit 2, so a listener on an iPhone pays with Apple's sheet
@@ -199,7 +199,7 @@ def subscription_from(transaction: dict, renewal: Optional[dict] = None,
         raise AppleError("That purchase is not a FAM plan.")
     end = _seconds(transaction.get("expiresDate"))
     # A billing grace period is Apple's renewal info saying so, whatever the
-    # notification that carried it (§652 review): until it ends the
+    # notification that carried it (§656 review): until it ends the
     # subscriber keeps the plan, as `past_due` keeps a Stripe one.
     grace_end = _seconds((renewal or {}).get("gracePeriodExpiresDate"))
     if grace_end > now and grace_end > end:

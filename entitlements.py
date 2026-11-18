@@ -78,13 +78,13 @@ WINDOWS: tuple[str, ...] = ("day", "week")
 #: makes the cheapest surface feel the most expensive, or price episodes as if
 #: they did not.
 #:
-#: §652 (the owner, 11.18): a third, `ask` - a search or a Go Deeper, the
+#: §656 (the owner, 11.18): a third, `ask` - a search or a Go Deeper, the
 #: two things a free listener gets one of a week once the free month is over.
 #: Everything else a free listener plays (myFAM's rails, others' mixes up to
 #: half) is an `episode`, which the free tier no longer caps.
 RESOURCES: tuple[str, ...] = ("episode", "explore", "ask")
 
-#: The surfaces that spend an `ask` rather than an `episode` (§652). A
+#: The surfaces that spend an `ask` rather than an `episode` (§656). A
 #: script asked for by text (`/api/script`) is a search in all but its
 #: output, and writes a script every time.
 ASK_SURFACES: tuple[str, ...] = ("search", "godeeper", "script")
@@ -240,7 +240,7 @@ def _build_tiers() -> dict[str, "Tier"]:
         "free": Tier(
             name="free",
             label="FAM Free",
-            # §652 (the owner, 11.18): after the free month, one search or Go
+            # §656 (the owner, 11.18): after the free month, one search or Go
             # Deeper a week; DailyFAM's tiles free; others' mixes to half way;
             # no mixes of your own (`FEATURES["mixes"]`).
             blurb="DailyFAM free, one search or Go Deeper a week, and half of any myFAM mix.",
@@ -334,7 +334,7 @@ FEATURES: tuple[Feature, ...] = (
             "Voice is not part of the cache key, so switching reuses the "
             "script at ~90ms and zero API cost. Nearly free to give away."),
     Feature("mixes", "Daily mixes", "plus",
-            "§652, the owner 11.18: making a myFAM mix of your own - naming "
+            "§656, the owner 11.18: making a myFAM mix of your own - naming "
             "one, adding topics, copying a public one - is paid. Listening "
             "to somebody else's is free to half way (`billing.mix_allowance`)."),
     Feature("explore_new", "Explore New", "free",

@@ -202,7 +202,7 @@ final class AppModel: ObservableObject {
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
-    /// Apple in-app purchase (§653).
+    /// Apple in-app purchase (§657).
     let store: FAMStore
     /// Messages, Friends and profiles, and the notifications poll.
     let social: SocialModel
@@ -499,7 +499,7 @@ final class AppModel: ObservableObject {
     /// never finished it (an account let in off the waitlist), the Terms.
     func open() async {
         // Apple's renewals and late purchases reach the server whenever
-        // they arrive (§653); a new plan redraws Settings' row.
+        // they arrive (§657); a new plan redraws Settings' row.
         store.onPlanChanged = { [weak self] in
             Task { @MainActor in await self?.you.loadSettings() }
         }

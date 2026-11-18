@@ -92,7 +92,7 @@ def test_a_nonsense_limit_falls_back_rather_than_crashing_the_server(limits):
 
 # --- features -------------------------------------------------------------
 
-#: What the free tier does not have, and the decision that took it (§652,
+#: What the free tier does not have, and the decision that took it (§656,
 #: the owner 11.18: free listeners "can't make their own" myFAM mixes).
 TAKEN_FROM_FREE = {"mixes"}
 

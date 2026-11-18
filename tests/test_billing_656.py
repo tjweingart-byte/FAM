@@ -1,4 +1,4 @@
-"""§652: paying for FAM on the web (Stripe), and the free tier the owner set.
+"""§656: paying for FAM on the web (Stripe), and the free tier the owner set.
 
 The owner, 11.18: payments go through a website, never the App Store; every
 account's free month starts when the app is released (not the beta); after

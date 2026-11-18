@@ -76,6 +76,9 @@
   .chip:hover { color:var(--ink); border-color:var(--amber-dk); }
   /* tables */
   .tbl { overflow:auto; max-height:420px; border:1px solid var(--line); border-radius:10px; margin-top:8px; }
+  .costday td:first-child, .costday th:first-child { position:sticky; left:0; background:var(--panel); white-space:nowrap; }
+  .costday tr.costday-total td { font-weight:600; }
+  .costday th.n { text-align:right; }
   table { width:100%; border-collapse:collapse; font:11.5px var(--mono); }
   th { position:sticky; top:0; background:var(--surface); text-align:left; padding:7px 10px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line); font-weight:500; white-space:nowrap; }
   td { padding:6px 10px; border-bottom:1px solid var(--line); color:var(--muted); white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis; }
@@ -147,6 +150,7 @@
   .report .ep h3 { margin:0 0 4px; font-size:14px; }
   .report .ep h4 { margin:10px 0 4px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
   .report .ep ol { margin:0; padding-left:18px; font-size:12.5px; }
+  .report .ep .playback { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; }
   .report .ep .transcript { white-space:pre-wrap; font-size:12.5px; line-height:1.5; margin:0; max-height:320px; overflow:auto; }
   /* The menu (12/10): one page at a time, chosen from a drawer opened by
      the button at the top left, so the tracker is no longer one long scroll. */
@@ -1285,7 +1289,39 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '</b><em>a month at this rate · any volume</em></div>';
     $("kpis").insertAdjacentHTML("beforeend", html);
     $("keithCost").innerHTML = '<div class="kpis">' + html + '</div><p class="sub">' +
-      Number(c.episodes || 0).toLocaleString() + ' episodes written in ' + c.days + ' days. ' + esc(c.note || "") + '</p>';
+      Number(c.episodes || 0).toLocaleString() + ' episodes written in ' + c.days + ' days. ' + esc(c.note || "") + '</p>' +
+      costByDayHtml(c.by_day);
+  }
+  // Claude per episode, day by day, and what spent it: a rise reads as a
+  // source that grew or an episode count that fell.
+  function costByDayHtml(b) {
+    if (!b || !b.days || !b.days.length) return "";
+    // Newest first, so today is in view on a phone without scrolling.
+    var days = b.days.slice().reverse(), top = (b.sources || []).slice(0, 10), rest = (b.sources || []).slice(10);
+    function head() {
+      return '<tr><th></th>' + days.map(function (d) { return '<th class="n">' + esc(d.day.slice(5)) + '</th>'; }).join("") + '</tr>';
+    }
+    function usd(v) { return v ? '$' + v.toFixed(v < 1 ? 3 : 2) : '—'; }
+    function row(label, cell, cls) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>' +
+        days.map(function (d) { return '<td class="n">' + cell(d) + '</td>'; }).join("") + '</tr>';
+    }
+    var rows = row("¢ per episode", function (d) { return d.cents_per_episode == null ? '—' : d.cents_per_episode.toFixed(2) + '¢'; }, "costday-total") +
+      row("Episodes written", function (d) { return Number(d.episodes || 0).toLocaleString(); }) +
+      row("Claude, all", function (d) { return usd(d.claude_usd); }) +
+      row("less nightly agents", function (d) { return d.nightly_usd ? '−' + usd(d.nightly_usd) : '—'; });
+    rows += top.map(function (s) { return row(s, function (d) { return usd((d.sources || {})[s] || 0); }); }).join("");
+    if (rest.length) rows += row("other (" + rest.length + ")", function (d) {
+      return usd(rest.reduce(function (t, s) { return t + ((d.sources || {})[s] || 0); }, 0)); });
+    var origins = {};
+    days.forEach(function (d) { Object.keys(d.origins || {}).forEach(function (o) { origins[o] = (origins[o] || 0) + d.origins[o]; }); });
+    var names = Object.keys(origins).sort(function (a, b) { return origins[b] - origins[a]; });
+    var orows = names.map(function (o) { return row(o, function (d) { return Number((d.origins || {})[o] || 0).toLocaleString(); }); }).join("");
+    return '<h3 class="ah">Claude per episode, by day</h3>' +
+      '<p class="sub">UTC days, newest first. Dollars by spend source; <i>episodes</i> is a listener\'s tap or search. ' + esc(b.note || "") + '</p>' +
+      '<div class="tbl"><table class="costday"><thead>' + head() + '</thead><tbody>' + rows + '</tbody></table></div>' +
+      (names.length ? '<h3 class="ah">Episodes written, by surface</h3><div class="tbl"><table class="costday"><thead>' + head() +
+        '</thead><tbody>' + orows + '</tbody></table></div>' : '');
   }
   function drawAgentsWatch(w) {
     if (!w) { $("agentsWatch").innerHTML = ""; return; }
@@ -2466,11 +2502,17 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           '<div class="body">' +
           '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
           (r.episode ? '<div class="ep" id="ep-' + esc(r.id) + '" hidden>' + episodeHTML(r.episode) + '</div>' : '') +
+          // The phone player's log (§653): connects, hold and release,
+          // stalls, refills, reconnects - what playback did, line by line.
+          (r.playback ? '<div class="ep" id="pb-' + esc(r.id) + '" hidden><h4>Playback log</h4>' +
+                        '<p class="transcript playback">' + esc(r.playback) + '</p></div>' : '') +
           '</div><div class="acts">' +
           '<button class="' + (done ? "ghost" : "go") + '" type="button" style="padding:6px 12px" data-resolve="' + esc(r.id) +
           '" data-to="' + (done ? "0" : "1") + '">' + (done ? "Reopen" : "Resolve") + '</button>' +
           (r.episode ? '<button class="ghost" type="button" style="padding:6px 12px" data-episode="' + esc(r.id) +
                        '">Episode</button>' : '') +
+          (r.playback ? '<button class="ghost" type="button" style="padding:6px 12px" data-playback="' + esc(r.id) +
+                        '">Playback log</button>' : '') +
           '</div></div>';
       }).join("") : '<p class="sub">' + (inboxState === "open" ? "Nothing open." : "No reports here.") + '</p>';
     }).catch(function (e) {
@@ -2518,6 +2560,12 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
                     : '<p class="sub">No transcript was found - it may not have been written yet.</p>');
   }
   $("inboxList").addEventListener("click", function (ev) {
+    var pb = ev.target.closest("[data-playback]");
+    if (pb) {
+      var log = $("pb-" + pb.getAttribute("data-playback"));
+      if (log) { log.hidden = !log.hidden; pb.textContent = log.hidden ? "Playback log" : "Hide log"; }
+      return;
+    }
     var ep = ev.target.closest("[data-episode]");
     if (ep) {
       var box = $("ep-" + ep.getAttribute("data-episode"));

@@ -62,7 +62,7 @@ def enforced(monkeypatch):
     """Limits on, and small enough to reach inside a test."""
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setenv("FREE_EPISODES_PER_DAY", "3")
-    # §652: a search or Go Deeper spends an ask.
+    # §656: a search or Go Deeper spends an ask.
     monkeypatch.setenv("FREE_ASKS_PER_WEEK", "3")
     monkeypatch.setenv("FREE_EXPLORE_PER_DAY", "3")
     entitlements.reload_tiers()

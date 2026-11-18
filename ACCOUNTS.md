@@ -276,7 +276,7 @@ billed per call and is the one per-episode cost that is not the model) and
 GPU). The worst candidate is **Explore New** - gating discovery makes the free
 tier a smaller world rather than a cheaper one.
 
-### Payment: Stripe on the web (§652)
+### Payment: Stripe on the web (§656)
 
 > **Current:** `billing.py` sells Student, Single and the FAM plan through
 > Stripe Checkout, on the web only - never the App Store - and Stripe's

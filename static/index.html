@@ -11337,7 +11337,7 @@
         list.innerHTML = '<div class="plan-note">Plans could not load. Check your connection and try again.</div>';
       });
   }
-  // A feature the plan does not have (§652): the server's sentence, then
+  // A feature the plan does not have (§656): the server's sentence, then
   // the plans. The caller's toast says the same words.
   function upgradeFor(detail){
     setTimeout(openPlans, 900);
@@ -11346,7 +11346,7 @@
     document.getElementById("plansOverlay").classList.remove("active");
   }
 
-  // §652: what is sold comes from the server (`offers`), its price from
+  // §656: what is sold comes from the server (`offers`), its price from
   // Stripe through the server; a tap opens Stripe's checkout on the web -
   // never the App Store - and the plan changes when Stripe's webhook says it
   // was paid, not when the browser comes back.
@@ -11369,7 +11369,7 @@
       + '</div></div>';
     var paying = sub && sub.plan;
     if(paying && sub.store === "apple"){
-      // Bought in the iPhone app (§653): only Apple can change or cancel it.
+      // Bought in the iPhone app (§657): only Apple can change or cancel it.
       html += planAction("Manage subscription",
         "Bought on iPhone \u2014 change or cancel it in Settings, your name, Subscriptions",
         "toast('Open Settings on your iPhone, tap your name, then Subscriptions')");
@@ -11433,7 +11433,7 @@
       toast("Your FAM plan code is " + code + " \u2014 copied. It works once.");
     }).catch(function(e){ if(e.message) toast(e.message); });
   }
-  // A code to a .edu address, then the code back (§654). `then` runs once
+  // A code to a .edu address, then the code back (§658). `then` runs once
   // the account is verified.
   function verifyStudent(then){
     var email = window.prompt("The Student plan is for college students. Enter your school email (it ends in .edu)");
@@ -11488,7 +11488,7 @@
       toast("Subscriptions aren\u2019t on sale yet");
       return;
     }
-    // §654: Student is for a verified .edu address; the check comes first.
+    // §658: Student is for a verified .edu address; the check comes first.
     if(name === "student" && !(plansData.student && plansData.student.verified)){
       verifyStudent(function(){ choosePlan("student"); });
       return;
@@ -13308,6 +13308,7 @@
     add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
     report: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+    problem: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/>',
     block: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
     addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
     queue: '<path d="M4 6h16M4 11h16M4 16h10"/>',
@@ -13370,6 +13371,13 @@
     items.push({ label: menuLabel("addq", "Add to Queue"),
                  action: function(){ addToQueue(queueEntryFromTopic(t, title)); } });
     items.push({ label: menuLabel("queue", "Go to Queue"), action: openQueue });
+    // Something wrong with how it played - a sentence twice, a gap, a
+    // stall (the owner's 11.18 notes, §653): the report box, carrying this
+    // episode's title, sources and transcript. Not "Report", which is for
+    // harmful content.
+    items.push({ label: menuLabel("problem", "Report a problem"), action: function(){
+        var open = document.getElementById("feedbackOpen");
+        if(open) open.click(); } });
     var playing = currentEpisode();
     if(playing){
       items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){
@@ -14234,7 +14242,7 @@
     historyPending = historyWhere ? {
       query: query, context: context, surface: historyWhere,
       minutes: playOpts.minutes || selectedLengthMinutes } : null;
-    // The mix it is played from (§652), so a free listener's half of it is
+    // The mix it is played from (§656), so a free listener's half of it is
     // counted on the server. A mix's own play only - never a detour.
     if(t.fromMix && mixPlay && mixPlay.id) playOpts.mix = mixPlay.id;
     speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
@@ -14315,13 +14323,33 @@
       }
     }, { passive: true });
 
-    var touchStartY = null;
+    var touchStartY = null, touchStartX = null;
     playerScreen.addEventListener("touchstart", function(e){
       touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+      // Not a swipe that starts on the bar (a seek), in a field, a sheet
+      // or a modal over the player, or on the open captions card: its own
+      // swipe down closes captions, and a drag in its scrolled transcript
+      // is reading back.
+      if(e.target.closest("input, textarea, select, .progress-wrap, .modal-overlay, .nextup-grid, .nextup-search, #ccPanel.on, [data-no-edge-swipe]")){
+        touchStartY = touchStartX = null;
+      }
     }, { passive: true });
     playerScreen.addEventListener("touchend", function(e){
-      if(touchStartY === null || scrollLocked || !currentAlbumForPlayer) return;
-      var dy = touchStartY - e.changedTouches[0].clientY;
+      if(touchStartY === null) return;
+      var endY = e.changedTouches[0].clientY, endX = e.changedTouches[0].clientX;
+      // Swipe down to put the player away into the mini player (the
+      // owner's 11.18 notes), as the Home mark does: it never stops the
+      // episode. The captions card's own swipe down closes captions and
+      // stops here first (`ccPanel`).
+      var down = endY - touchStartY, across = Math.abs(endX - touchStartX);
+      if(down > 90 && down > across * 1.2 && stack[stack.length - 1] === "player"){
+        touchStartY = touchStartX = null;
+        minimizePlayer();
+        return;
+      }
+      if(scrollLocked || !currentAlbumForPlayer){ touchStartY = null; return; }
+      var dy = touchStartY - endY;
       if(dy > 40){
         scrollLocked = true;
         playNextInAlbum();
@@ -30030,7 +30058,7 @@
     return title ? "What's the bigger story behind " + title + "?" : "";
   }
 
-  // Whether this listener's searches and Go Deepers are counted (§652): the
+  // Whether this listener's searches and Go Deepers are counted (§656): the
   // free tier's one a week. Read from /api/entitlements, at most once a
   // minute; unknown reads as not counted.
   var asksCappedAt = 0, asksCappedValue = false;
@@ -30047,7 +30075,7 @@
   }
 
   function showNextUp(tiles){
-    // The countdown never spends the week's one Go Deeper on its own (§652
+    // The countdown never spends the week's one Go Deeper on its own (§656
     // review): where Go Deeper is counted, its suggestion moves to second,
     // still one tap away, and the countdown starts an episode that is free.
     if(tiles.length > 1 && tiles[0].deeper && asksCappedValue){

@@ -67,6 +67,31 @@ final class FAMAPI: @unchecked Sendable {
         _ = try await send("POST", "api/v1/ambassador", body: ["code": code], as: Ignored.self)
     }
 
+    /// "Report a problem" on the player (the owner's 11.18 notes, §653):
+    /// what the listener typed, the episode on the player - which the
+    /// server reads its title, sources and transcript for, so the inbox
+    /// shows what was heard - and the player's own log, into /admin's
+    /// feedback inbox. A refusal is a 400 whose words say why.
+    func reportProblem(_ text: String, episode: Episode?, episodeID: String,
+                       playback: String, viewport: String) async throws {
+        var body: [String: Any] = [
+            "text": text, "screen": "player", "build": Self.client, "page": "ios",
+            "viewport": viewport,
+            "playback": playback,
+        ]
+        if let ep = episode {
+            var thumb = ""
+            if let url = ep.picture {
+                thumb = url.path + (url.query.map { "?" + $0 } ?? "")
+            }
+            body["episode"] = ["q": String(ep.key.query.prefix(500)), "minutes": ep.key.minutes,
+                               "context": String(ep.key.context.prefix(300)),
+                               "id": episodeID.isEmpty ? ep.episodeID : episodeID,
+                               "thumb": thumb]
+        }
+        _ = try await send("POST", "api/v1/feedback", body: body, as: Ignored.self)
+    }
+
     /// Claim the free month (§593): the same claim as the emailed link, for
     /// the signed-in account.
     func claimFreeMonth() async throws -> FreeMonthOffer {
@@ -405,7 +430,7 @@ final class FAMAPI: @unchecked Sendable {
         if isPrivate { items.append(URLQueryItem(name: "private", value: "1")) }
         // What the listener attached (`/api/attach`): ids, never the file.
         if !attach.isEmpty { items.append(URLQueryItem(name: "attach", value: String(attach.prefix(400)))) }
-        // The myFAM mix this plays from (§652): a free listener hears half
+        // The myFAM mix this plays from (§656): a free listener hears half
         // of one, counted on the server.
         if !mix.isEmpty { items.append(URLQueryItem(name: "mix", value: mix)) }
         var audioRequest = request("GET", "api/v1/audio", query: items)
@@ -2895,7 +2920,7 @@ extension FAMAPI {
 
     /// Every tier and the one this listener is on (`/api/plans`); no prices.
     /// Whether searches and Go Deepers are counted for this listener - the
-    /// free tier's one a week (§652). False when unknown.
+    /// free tier's one a week (§656). False when unknown.
     func asksCapped() async -> Bool {
         // Kept a minute, so the card after each episode does not wait on a
         // round trip (`asksCapped` on the web).
@@ -2914,7 +2939,7 @@ extension FAMAPI {
         try await get("api/v1/plans", [], as: PlansPage.self)
     }
 
-    /// What Apple's sheet needs (§653): this account's `appAccountToken`
+    /// What Apple's sheet needs (§657): this account's `appAccountToken`
     /// and each plan's App Store product id.
     func appleSetup() async throws -> AppleSetup {
         try await get("api/v1/billing/apple", [], as: AppleSetup.self)
@@ -2927,13 +2952,13 @@ extension FAMAPI {
                        as: AppleVerdict.self)
     }
 
-    /// The FAM plan's one-use code for somebody to join with (§652).
+    /// The FAM plan's one-use code for somebody to join with (§656).
     func famPlanInvite() async throws -> String {
         try await send("POST", "api/v1/billing/fam/invite", body: [:],
                        as: FamPlanCode.self).code
     }
 
-    /// Email a code to a .edu address (§654): the Student plan is sold only
+    /// Email a code to a .edu address (§658): the Student plan is sold only
     /// to a verified one. Returns the address it went to.
     func studentStart(_ email: String) async throws -> String {
         try await send("POST", "api/v1/billing/student", body: ["email": email],
@@ -3157,11 +3182,11 @@ struct PlansPage: Decodable {
     let current: String?
     let enforced: Bool?
     let checkout: Bool?
-    /// What is sold (§652), and this account's subscription. Absent from an
+    /// What is sold (§656), and this account's subscription. Absent from an
     /// older server.
     let offers: [PlanOffer]?
     let subscription: PlanSubscription?
-    /// The Student plan's .edu check (§654).
+    /// The Student plan's .edu check (§658).
     let student: StudentVerdict?
 }
 

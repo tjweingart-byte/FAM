@@ -1,4 +1,4 @@
-"""§654: the Student plan is for a verified .edu address.
+"""§658: the Student plan is for a verified .edu address.
 
 The owner, 11.18: "make students verify with a .edu email". A six-digit
 code goes to the school address; entered, the account may buy Student for

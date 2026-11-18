@@ -39531,7 +39531,213 @@ cannot start. Two listeners voiced at once can start the one flex worker,
 billed per second for its boot, the chunk and a 5 s idle timeout; a third
 waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
 
-## 652. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18)
+## 652. The owner's 11.18 notes: the first sentence still twice, swipe the player down, Instagram's link again (2026-11-18)
+
+The owner's PDF "11.18.26 Implementations", three notes.
+
+**1. "The first sentence is still being repeated twice sometimes in
+episodes."** §637 found no definite cause and left two candidates: the
+writer saying its opening again (guarded since by `RepeatGuard`) or the
+voice reading the short first chunk twice (only reported, by
+`_note_if_said_twice`). The owner's captions check, which would separate
+them, has not come back. "Still", after the writer's guard, makes the
+voice the likelier of the two, and it was the better fit already: the
+first chunk is one sentence alone, Chatterbox's English model has no
+check against reading a text again, and a chunk is seeded from voice +
+words (§176), so a bad reading of a sentence recurs every time that
+sentence is voiced - "some episodes", always the same ones.
+
+So the worker now acts on it instead of only the app reporting it:
+`ChatterboxEngine._retake_if_said_twice` (`tts.py`) measures each reading
+with `pace_level.said_ratio` - speech length (silence at either end not
+counted) over what the words take at `TARGET_WPM` - and one at
+`SAID_TWICE_RATIO` (1.6) or more, four words up, is read once more from a
+second seed (`salt + "\nretake"`, so both draws stay reproducible). The take
+nearer the planned length is kept, so a retake cut short is not swapped in;
+one retake at most; never raises. `CHATTERBOX_RETAKE=0` turns it off. The
+ratio and the word floor moved to `pace_level` and the app's report reads
+the same ones, so the report now fires only when both takes were long. The
+worker's `/health` counts `retakes`. `pace_level.py` added to
+`voice-worker.yml`'s paths (the worker imports it now).
+
+Cost: a second synthesis only for a reading already wrong; on §651's
+A4500 (~2.5-3x realtime, estimated) about a second more before the first
+word of an affected episode. A secondary effect, inferred: a doubled first
+chunk was also the pace every later chunk was levelled towards
+(`pace_level`), so the rest of such an episode ran up to 15% slow.
+
+**Not verified:** the 1.6 is still not measured on the real voice, and no
+real doubled reading has been reproduced here (no GPU). It reaches the card
+when RunPod rebuilds from `Main`. Episodes already kept with the repeat keep
+it until they age out (a week), since kept audio is replayed, not re-voiced.
+If it persists after that, the captions check decides: twice in the
+captions is the writer.
+
+**2. "Ability to swipe down on audio player to collapse into mini
+player."** iOS: `PlayerView.collapseDrag` - a drag that starts plainly
+downward moves the whole player with the finger (the page under it shows
+through the clear cover), and past 120 pt or flicked it closes the way the
+Home mark does (`showPlayer = false`, shrinking into the mini player; never
+stops, [transport]); otherwise it springs back. Not on the scrubber (its
+drag wins), not on the captions card while captions are on (its swipe down
+still closes captions), not with a sheet or popup up. Web: the player's
+touch handler minimises on a swipe down over 90 px, not from the bar, a
+field, a modal, What's next's grid or the open captions card (its own swipe
+closes captions; a drag in its scrolled transcript is reading back - caught
+in the pre-merge review, where the card's handler let such a drag through
+to the player). Smoke: "The 11.18 notes: a swipe down ...". **Not verified:**
+the Swift is compiled by `ios.yml` on push, not here, and not tried on a
+phone.
+
+**3. "Is it possible to embed the link to the episode on the tile card on
+Instagram so when you click on the tile it takes you to the episode."**
+Answered in §648 and unchanged: Instagram lets no app make a story picture
+tappable; the Link sticker, added by the person posting, is the only
+tappable link in a story. Since §648 the Instagram tile leaves the
+episode's `/s/<id>` link on the clipboard for that sticker's Paste - in a
+TestFlight build from after §648.
+
+Tests: `tests/test_retake_652.py`.
+
+## 653. Report a problem on the player, with the phone player's log (2026-11-18)
+
+Asked in §652's reply, the owner: "Yes, add Report a problem to the player
+menu." The reason it was offered: the iPhone player keeps a timestamped log
+of everything playback does - asked, first byte (with the cache state and
+wire format), first audio, held for the loading screen, released, ran out
+of audio, emptied and refilled, reconnects and the bytes skipped, Opus or
+link fallbacks - in `StreamPlayer.lines`, and nothing ever sent it
+anywhere; the iPhone app had no way to file a report at all. For the first
+sentence heard twice (§637, §652) that log, beside the episode's
+transcript, says which of three things it was: the transcript with the
+sentence twice (the writer), a reconnect or refill near the start (the
+phone), or neither (the voice).
+
+**Server.** `/api/feedback` takes `playback`, the player's log, kept in a
+new `playback` column (added to an older inbox on open) as its newest
+`feedback.MAX_PLAYBACK` (40,000) characters cut at a line
+(`playback_tail`). /admin's inbox shows it behind a **Playback log**
+button beside **Episode**, escaped.
+
+**iPhone.** The player's ⋯ menu has **Report a problem** (the circled
+exclamation) above **Report**, which stays the harmful-content report.
+`ProblemReportSheet`: a box, Send report, Cancel; the words stay if
+sending fails, with the server's reason. Sent with the episode on the
+player (its query, minutes, context, the id its audio arrived with and its
+picture - the server reads title, sources and transcript as it already does
+for the web) and the log, headed by the player's phase and position at the
+moment. `FAMAPI.reportProblem`.
+
+**Web.** The same row opens the existing report box, which already carries
+the episode when it is opened from the player. The web player keeps no log.
+
+Tests: `tests/test_report_problem_653.py`; smoke "§653: Report a problem
+...". **Not verified:** the Swift compiles in `ios.yml` on push, not here;
+not tried on a phone.
+
+## 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18)
+
+Reported by the owner, with /admin's tiles (Claude per episode 1.47¢ against
+the 1¢ plan, 1.5x): "The per episode costs of claude have been going up
+significantly." The 7-day figure is all of Claude's spend less the agents'
+nightly jobs, over the episodes written to the cache. It cannot say whether a
+source of spend grew or the count of episodes fell: listener taps, prefetch
+(whose `brief` warms write no episode), the editions, push, topic titles,
+quality grading, the photo check and Egan's outreach are all in the top of
+the fraction, and only cached episodes in the bottom. Nothing in §612-§651
+added a Claude call to an episode; which source grew is in production's
+spend table, not in this container.
+
+**Built, at the owner's direction:**
+
+1. **`cost_watch.by_day`**, in `report()` as `by_day` and drawn under the
+   tiles on /admin's "Cost per episode" (`costByDayHtml`): each UTC day of
+   the window, ¢ per episode, episodes written, Claude in all, the nightly
+   agents taken out of their own day, and dollars by spend source; then the
+   episodes written by surface (`origin`). The 7-day tile is unchanged.
+2. **`AHEAD_WRITER_EFFORT` defaults to `medium`** (high since §522): the
+   editions, the write-ahead and prefetch's script warms. searchFAM stays at
+   `EFFORT` (low); the ahead brief (`EI_AHEAD_EFFORT`, high) and Shakespeare
+   are not the writer and are unchanged. If the Render dashboard sets
+   `AHEAD_WRITER_EFFORT`, that wins - `/api/health` -> writer ->
+   `ahead_writer_effort_source` says which.
+3. **Every ahead writer batched.** Trending, DailyFAM, rails and push already
+   were (§179; rails and push go through `daily_edition.run_slot`). Now:
+   - the "Start here" write-ahead goes through `trending_bank.write_batched`
+     under `EDITION_BATCH`, with `rewrite` so last slot's episode under the
+     same key is not mistaken for a tap that raced the batch;
+   - prefetch's script warms (`PREFETCH_LEVEL=script` only) go out as one
+     batch per cycle (`PREFETCH_BATCH=1`, in `/api/health`): each is
+     prepared as before (brief, evidence, the volatile and ambiguous checks),
+     then the writers are sent together; a background task reads the
+     answers with the same reader, writes live what the batch did not
+     answer, and keeps a tap's episode written meanwhile. Its keys are held
+     in `_batched_keys`, so no cycle warms them twice, and while a batch is
+     out a cycle warms briefs only: a batched writer is paid when it returns,
+     after the budget checks, so the budget is overrun by at most one cycle's
+     writers (`PREFETCH_PER_CYCLE`). `Prefetcher._store` is the tail both
+     paths share (the TTL test now reads it).
+
+`tests/test_ahead_batched_654.py`; five older tests that pinned `high`
+updated.
+
+**Trade-off said aloud:** a batched prefetch warm is not in the cache until
+its batch ends (usually minutes, at most `EDITION_BATCH_WAIT_SECONDS`), so a
+tap on that tile in between writes live and the batch's answer is set aside,
+paid at half price. The brief is still kept at once, so the tap keeps the
+brief's saving.
+
+**Not verified:** the saving itself - what medium and the batches take off
+Claude per episode shows in the by-day table from the next deploy. Whether
+medium writes worse than high is unmeasured; `tools/editor_eval.py --run
+--arms none,none_low` with `AHEAD_WRITER_EFFORT` set each way would say,
+on the owner's key.
+
+## 655. The branch double-checked: §654 reviewed (2026-11-18)
+
+The owner asked for every change on the branch to be checked again. Read
+line by line here, and by an independent reviewer given the diff and not
+this session's conclusions. Found and fixed, each with a test that fails
+without the fix:
+
+1. **The write-ahead waited a whole batch before Trending.** `run_forever`
+   ran "Start here" first *because* it was the short, deadline-bound job
+   (§179); batched, it could take `EDITION_BATCH_WAIT_SECONDS` (an hour) -
+   as long as last slot's episodes stay current (`EPISODE_GRACE_SECONDS`),
+   leaving the live fallback no time, and holding the edition an hour
+   behind it. Now its batch is waited for `STARTUP_BATCH_WAIT_SECONDS`
+   (20 minutes), and the two jobs run side by side (`asyncio.gather`).
+2. **`rewrite` could write over a tap** (the reviewer). It skipped the
+   "a tap wrote it while the batch was out" check, since the key holds
+   last slot's episode on purpose. `_written_meanwhile` now keeps an
+   episode sourced after this one was prepared - a listener's - and
+   replaces only an older one.
+3. **Prefetch's live fallback skipped `warm`'s checks** (the reviewer): an
+   unanswered batched warm was streamed whatever the listener load, budget
+   or `PREFETCH` said. `_live_fallback_refused` asks the same three
+   questions; refused, the brief is kept and charged as one.
+4. **A batched warm a tap beat was charged as an episode**; it is a brief.
+5. **`PREFETCH_BATCH=` (empty) turned batching off** where `EDITION_BATCH=`
+   leaves it on; now parsed alike.
+6. `cost_watch.report` read the week's episode rows twice per /admin draw;
+   once now, handed to `by_day`. `warm`'s docstring names `"batched"`.
+
+**Known and left, said aloud:** a batched prefetch warm is charged when its
+batch returns, so the budget can be overrun by one cycle's writers, and a
+restart while a batch is out loses that charge (the briefs were paid, the
+answers dropped). The nightly agents taken out of Claude's dollars are every
+`background` agent call, any vendor - as the 7-day figure has always done.
+
+**Verified:** the full `./dev.sh check` on §654 (7,943 passed), the five
+browser smoke runs after matching Python's Playwright to the container's
+browser (1.63.0), and the tests of everything touched after these fixes.
+
+**Merged with Main** before the pull request: Main had taken §652 and §653
+(the 11.18 notes, Report a problem on the player), so this branch's
+sections are §654 and §655 and every reference it added was renumbered;
+`tests/test_ahead_batched_654.py`.
+
+## 656. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18)
 
 **Asked (the owner, 11.18, with Brady's message: "limit searches and no
 playlists for customers who do not pay. Dailyfam should be free ... College
@@ -39581,10 +39787,10 @@ on, `account-gates-kept` (a plan now gates hearing a mix's second half).
 - **A free listener's mixes made before launch** stay theirs to play (to
   half) and delete; editing them is the paid part.
 
-## 653. Apple in-app purchase for the iPhone app (2026-11-18)
+## 657. Apple in-app purchase for the iPhone app (2026-11-18)
 
 **Asked (the owner, 11.18):** "add apple in-app purchase for the iphone app
-too" - after §652's web-only Stripe checkout and the conversion numbers
+too" - after §656's web-only Stripe checkout and the conversion numbers
 (RevenueCat's Dipsea test: ~28% of paywall views paid through Apple's sheet,
 ~18% through a web link-out; at FAM's prices a web checkout must convert at
 ~90% of Apple's to come out ahead at the 15% small-business rate).
@@ -39611,7 +39817,7 @@ too" - after §652's web-only Stripe checkout and the conversion numbers
   the plans at Apple's `displayPrice`, Manage subscription
   (`AppStore.showManageSubscriptions`), the FAM-plan code and joining one,
   Restore purchases, and the auto-renew terms with Terms and Privacy links.
-  Mix episodes now send `mix` (§652's half a mix); the server also takes an
+  Mix episodes now send `mix` (§656's half a mix); the server also takes an
   older client's `surface=dailyfam`/`myfam` as a browse play, so a build
   without `mix` does not spend the week's one search on a mix.
 - Web: an Apple subscription's Manage row says to change it on the iPhone.
@@ -39632,10 +39838,10 @@ $3.99/$9.99/$14.99, Family Sharing off (the FAM plan's seats are FAM's);
 App Store Server Notifications v2 URL `https://<host>/api/billing/apple/notifications`
 for production and sandbox; Paid Apps agreement and banking.
 
-## 654. Students verify with a .edu email (2026-11-18)
+## 658. Students verify with a .edu email (2026-11-18)
 
 **Asked (the owner, 11.18):** "make students verify with a .edu email" -
-§652 noted that nothing checked a Student buyer was a student.
+§656 noted that nothing checked a Student buyer was a student.
 
 **Built (rule `web-billing`, Current):** `billing.is_edu` (a `.edu` domain
 only, not `.edu.au` or `.ac.uk` - the owner's words, and the US is where the
@@ -39656,7 +39862,7 @@ graduate keeps the price until their year runs out; an address on a school
 domain that alumni keep for life passes. A verification service (SheerID)
 would close those if they matter.
 
-## 655. The billing branch reviewed: ten fixes (2026-11-18)
+## 659. The billing branch reviewed: ten fixes (2026-11-18)
 
 **Asked (the owner, 11.18):** "Double check all changes made in this
 branch", then "yes fix all ten". The review (code-review, high) found:
@@ -39690,15 +39896,15 @@ branch", then "yes fix all ten". The review (code-review, high) found:
     only the server's confirmation failed. `FAMStore.Unconfirmed` now says
     so and points at Restore purchases.
 
-Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
-`test_student_654.py`. The Swift is still uncompiled here.
+Tests for each are in `test_billing_656.py`, `test_apple_iap_657.py` and
+`test_student_658.py`. The Swift is still uncompiled here.
 
-## 656. The billing branch reviewed again: three more (2026-11-18)
+## 660. The billing branch reviewed again: three more (2026-11-18)
 
 **Asked (the owner, 11.18):** "Double check all changes made in this branch"
-(after §655).
+(after §659).
 
-1. **A DailyFAM tile not yet written spent the week's one search.** §655
+1. **A DailyFAM tile not yet written spent the week's one search.** §659
    made a play free only when the server could see it was browse - but a
    live-story or bank tile tapped before its episode was written was not
    one of the things it could see, against the owner's "DailyFAM tiles
@@ -39716,7 +39922,7 @@ Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
    (`subscription.fam_member_of`, against `listener-id-server`). It is the
    payer's name now.
 
-## 657. A third look at the billing branch: three more (2026-11-18)
+## 661. A third look at the billing branch: three more (2026-11-18)
 
 **Asked (the owner, 11.18):** "Double check all changes made in this branch"
 (a third time), read this time through the iPhone half and the edges.
@@ -39731,5 +39937,5 @@ Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
    broken. A signed notification with no transaction is answered 200 and
    changes nothing; a body that is not an object is a 400, not a 500.
 3. **The card after each episode waited on a round trip** to
-   `/api/entitlements` on the iPhone (§656). Kept a minute
+   `/api/entitlements` on the iPhone (§660). Kept a minute
    (`FAMAPI.asksCapped`), as the web keeps it.

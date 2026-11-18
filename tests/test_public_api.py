@@ -31,7 +31,7 @@ def enforced(monkeypatch):
     """Limits on, and small enough to reach inside a test."""
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setenv("FREE_EPISODES_PER_DAY", "2")
-    # §652: a search is an ask; the same small number for the audio tests.
+    # §656: a search is an ask; the same small number for the audio tests.
     monkeypatch.setenv("FREE_ASKS_PER_WEEK", "2")
     monkeypatch.setenv("FREE_EXPLORE_PER_DAY", "3")
     entitlements.reload_tiers()
