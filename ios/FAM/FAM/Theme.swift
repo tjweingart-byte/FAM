@@ -175,6 +175,23 @@ struct Wordmark: View {
     }
 }
 
+/// "FAM Ambassador" under a profile's name (§648, `.yf-amb`): the drawn
+/// letters, then the word, in copper - as the owner's 11.17 mock-up.
+struct AmbassadorTag: View {
+    @ScaledMetric(relativeTo: .footnote) private var cap: CGFloat = 9
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 5) {
+            FAMLetters(capHeight: cap)
+            Text("Ambassador")
+                .font(FAMFont.heading(12, .medium))
+                .foregroundStyle(FAMColor.copper)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("FAM Ambassador")
+    }
+}
+
 /// F, the chevron A and M, drawn from the web's own paths.
 struct FAMLetters: View {
     var capHeight: CGFloat = 18

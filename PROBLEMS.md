@@ -39385,10 +39385,16 @@ on their profile. The ambassador code will be generated on the admin page
   stopping the step with the server's words; both profiles draw the FAM
   wordmark and "Ambassador" in gold under the place line, as the owner's
   mock-up does.
-- **Not built:** the iOS app's Settings row, sign-up field and badge (the
-  API is there; the screens are the next iOS build's). Whether an
-  ambassador code should also let somebody off the waitlist was not asked;
-  it does not.
+- iOS (built after, at the owner's "build the iOS ambassador screens
+  too"): `FAMAPI.enterAmbassadorCode`, `Listener.ambassador`,
+  `PersonPage.ambassador`, `AppModel.enterAmbassadorCode`; Settings'
+  "FAM Ambassador code" row (the web's modal, then the plan read again);
+  the first-run `IdentityView` field, sent on Next and on Skip for now, a
+  wrong code stopping the step; `AmbassadorTag` (the drawn FAM letters and
+  "Ambassador" in copper) under the place line on YouView and PersonView.
+  **Not compiled here** (no Xcode in this container).
+- Whether an ambassador code should also let somebody off the waitlist was
+  not asked; it does not.
 
 **2. "Is it possible to embed the link to the episode on the tile card on
 Instagram so when you click on the tile it takes you to the episode."**

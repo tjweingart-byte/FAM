@@ -342,6 +342,8 @@ struct IdentityView: View {
     @State private var saving = false
     @State private var filled = false
     @State private var textAsk: TextAsk?
+    /// The first run's optional FAM Ambassador code (§648).
+    @State private var ambassadorCode = ""
     @FocusState private var focus: Field?
 
     enum Field { case name, handle }
@@ -382,6 +384,7 @@ struct IdentityView: View {
                     handleField
                     if editing { interestsBlock }
                     placeBlock
+                    if !editing && model.listener?.ambassador != true { ambassadorBlock }
                     if editing { accountBlock }
                 }
                 .padding(.horizontal, 40)
@@ -623,6 +626,39 @@ struct IdentityView: View {
         .padding(.bottom, 13)
     }
 
+    // MARK: FAM Ambassador (first run only, §648)
+
+    /// `#identityAmbassadorField`: what a person let off the waitlist sees,
+    /// so a new ambassador can say so. Optional; Settings has the same row.
+    private var ambassadorBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            FieldLabel(text: "FAM Ambassador code", optional: true)
+            TextField("", text: $ambassadorCode,
+                      prompt: Text("FAM-XXXX-XXXX").foregroundColor(FAMColor.textFaint))
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .onSubmit { if !saving { save() } }
+                .youInput()
+            Text("Only if FAM gave you one.")
+                .font(FAMFont.body(10.5))
+                .foregroundStyle(FAMColor.textFaint)
+                .padding(.top, 7)
+        }
+        .padding(.bottom, 13)
+    }
+
+    /// Sent only if one was typed; a wrong one stops the step with the
+    /// server's words, as a taken handle does (`saveIdentityAmbassador`).
+    private func saveAmbassador() async -> Bool {
+        guard !editing, model.listener?.ambassador != true,
+              !ambassadorCode.trimmingCharacters(in: .whitespaces).isEmpty else { return true }
+        if let problem = await model.enterAmbassadorCode(ambassadorCode) {
+            model.nowPlaying.say(problem)
+            return false
+        }
+        return true
+    }
+
     // MARK: Account (edit only)
 
     private var accountBlock: some View {
@@ -726,6 +762,10 @@ struct IdentityView: View {
         let prefs = you
         let placeTask = Task { () -> Bool in await prefs.savePreference(place) }
         Task {
+            guard await saveAmbassador() else {
+                saving = false
+                return
+            }
             do {
                 try await model.api.setMe(name: n, handle: h, avatar: nil)
             } catch {
@@ -791,6 +831,7 @@ struct IdentityView: View {
                 model.nowPlaying.say(SocialModel.sentence(error, else: "Could not save that"))
                 return
             }
+            guard await saveAmbassador() else { return }
             model.entry = .interests
         }
     }

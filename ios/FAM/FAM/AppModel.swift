@@ -38,6 +38,21 @@ final class AppModel: ObservableObject {
             nowPlaying.say((error as? LocalizedError)?.errorDescription ?? "Could not claim it. Try again.")
         }
     }
+    /// "FAM Ambassador code" (§648), from Settings or the first-run
+    /// profile step: nil once it is in, else the server's words for why
+    /// not. In, `listener.ambassador` is set at once and the plan is read
+    /// again on the next `/api/auth/me`.
+    func enterAmbassadorCode(_ code: String) async -> String? {
+        let typed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return nil }
+        do {
+            try await api.enterAmbassadorCode(typed)
+            listener?.ambassador = true
+            return nil
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? "That code didn\u{2019}t work"
+        }
+    }
     @Published private(set) var rails: [Rail] = []
     @Published private(set) var railsProblem = ""
     @Published private(set) var loadingRails = false

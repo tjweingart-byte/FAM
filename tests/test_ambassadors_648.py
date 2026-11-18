@@ -166,3 +166,18 @@ def test_instagram_gets_the_episode_link_for_its_link_sticker():
     assert 'item["public.utf8-plain-text"] = episode.absoluteString' in handoff
     share = (ROOT / "ios" / "FAM" / "FAM" / "Views" / "SocialShare.swift").read_text()
     assert 'link: key == "instagram_story" ? absoluteLink : nil' in share
+
+
+def test_the_iphone_has_the_same_three_screens():
+    ios = ROOT / "ios" / "FAM" / "FAM"
+    api = (ios / "API.swift").read_text()
+    assert '"api/v1/ambassador", body: ["code": code]' in api
+    assert "var ambassador: Bool?" in api and "let ambassador: Bool?" in api
+    settings = (ios / "Views" / "SettingsView.swift").read_text()
+    assert 'SetRow(label: "FAM Ambassador code", value: "Add code") { askAmbassadorCode() }' in settings
+    identity = (ios / "Views" / "ProfileEdit.swift").read_text()
+    assert "if !editing && model.listener?.ambassador != true { ambassadorBlock }" in identity
+    assert identity.count("await saveAmbassador()") == 2
+    assert "AmbassadorTag()" in (ios / "Views" / "YouView.swift").read_text()
+    assert "page?.ambassador == true { AmbassadorTag()" in (ios / "Views" / "PersonView.swift").read_text()
+    assert "struct AmbassadorTag: View" in (ios / "Theme.swift").read_text()
