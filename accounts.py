@@ -609,7 +609,8 @@ class AccountStore:
                 "       COALESCE(a.display_name, ''), COALESCE(a.phone, ''),"
                 "       a.user_id IS NOT NULL, COALESCE(a.status, ''),"
                 "       COALESCE(a.free_month_earned_at, 0),"
-                "       COALESCE(a.ambassador_at, 0)"
+                "       COALESCE(a.ambassador_at, 0),"
+                "       COALESCE(a.created, 0)"
                 " FROM sessions s"
                 " LEFT JOIN accounts a ON a.user_id = s.user_id"
                 " WHERE s.token_hash = ? AND s.expires > ?",
@@ -632,8 +633,11 @@ class AccountStore:
         except Exception:
             log.exception("could not refresh session; continuing")
         return Listener(row[0], row[1],
-                        self._with_ambassador(self._with_free_month(row[2], row[7], now),
-                                              row[8]),
+                        self._with_ambassador(
+                            self._with_free_month(row[2], row[7], now,
+                                                  created=row[9] if row[5] else 0,
+                                                  has_account=bool(row[5])),
+                            row[8]),
                         row[3], row[4], bool(row[5]), row[6],
                         ambassador=bool(row[8]))
 
@@ -679,8 +683,10 @@ class AccountStore:
             return None
         return {"user_id": user_id, "email": row[0],
                 "created": row[1], "last_login": row[2],
-                "plan": self._with_ambassador(self._with_free_month(row[3], row[9]),
-                                              row[10]),
+                "plan": self._with_ambassador(
+                    self._with_free_month(row[3], row[9], created=row[1] or 0,
+                                          has_account=True),
+                    row[10]),
                 "display_name": row[4], "phone": row[5], "status": row[6],
                 "birth_date": row[7] or "", "gender": row[8] or "",
                 "free_month_earned_at": float(row[9] or 0),
@@ -711,24 +717,43 @@ class AccountStore:
     def forget_free_month_window(self) -> None:
         self._fm_window = None
 
-    def _with_free_month(self, plan, earned_at, now: float = 0.0) -> str:
-        """The plan, raised to "plus" while an earned free month is running.
+    def _with_free_month(self, plan, earned_at, now: float = 0.0,
+                         created: float = 0.0, has_account: bool = False) -> str:
+        """The plan, raised to "plus" while this account's free month runs.
 
-        The month runs from the day the whole app goes live
-        (`waitlist_settings.free_month_starts`) for `FREE_MONTH_SECONDS`,
-        the same month for everyone who earned it. It only ever raises a
-        plan: somebody already on "plus" or "unlimited" keeps theirs.
+        §652 (the owner, 11.18: "every user's free trial should start when
+        the app is released, not just the beta"): **every account** has one
+        month, starting on the day the whole app goes live
+        (`waitlist_settings.free_month_starts`) - or, for an account made
+        after that day, the day it was made. Before an admin sets the launch
+        day nobody's month has started, so the beta never spends it.
+        `earned_at` (§577, five friends) is still read so an account that
+        earned it before an account row existed keeps it; it no longer
+        decides anything else. Only ever raises a plan.
         """
         plan = entitlements.normalise(plan or "free")
-        if not earned_at:
+        if not (has_account or earned_at):
             return plan
         from waitlist import FREE_MONTH_SECONDS
         now = now or time.time()
         starts = self._free_month_starts(now)
-        if starts and starts <= now < starts + FREE_MONTH_SECONDS \
+        if not starts:
+            return plan
+        begins = max(starts, float(created or 0))
+        if begins <= now < begins + FREE_MONTH_SECONDS \
                 and entitlements.rank(plan) < entitlements.rank("plus"):
             return "plus"
         return plan
+
+    def free_month_window(self, created: float, now: float = 0.0) -> tuple[float, float]:
+        """(begins, ends) of this account's free month, or (0, 0) before
+        the launch day is set (§652)."""
+        from waitlist import FREE_MONTH_SECONDS
+        starts = self._free_month_starts(now or time.time())
+        if not starts:
+            return 0.0, 0.0
+        begins = max(starts, float(created or 0))
+        return begins, begins + FREE_MONTH_SECONDS
 
     @staticmethod
     def _with_ambassador(plan: str, ambassador_at) -> str:

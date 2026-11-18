@@ -14,6 +14,7 @@ import asyncio
 import gzip
 import base64
 import dataclasses
+import hashlib
 import hmac
 import html
 import os
@@ -53,6 +54,7 @@ import taste_vectors
 from demo_script import DemoGenerator
 import credentials
 import client_versions
+import billing
 import entitlements
 import episode_quality
 import pipeline_errors
@@ -1234,6 +1236,7 @@ def _database_report() -> list[dict]:
         ("saved", "SAVED_DB", SAVED.path),
         ("shares", "SHARES_DB", SHARES.path),
         ("quotas", "QUOTAS_DB", QUOTAS.path),
+        ("billing", "BILLING_DB", BILLING.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
         ("surveys", "SURVEYS_DB", SURVEY_STORE.path),
@@ -1934,7 +1937,34 @@ def _tier(request: Request) -> str:
     # `FAM_ADMIN_ACCOUNTS`, on the server - never by anything the client says.
     if _allowed_admin(listener):
         return "unlimited"
-    return entitlements.normalise(listener.tier if listener else "free")
+    tier_name = entitlements.normalise(listener.tier if listener else "free")
+    # A paid plan, from Stripe's signed webhook (§652): only ever raises.
+    if listener is not None and entitlements.rank(tier_name) < \
+            entitlements.rank(billing.PAID_TIER):
+        try:
+            if BILLING.paid(listener.user_id):
+                return billing.PAID_TIER
+        except Exception:  # noqa: BLE001 - a billing read never refuses a play
+            log.exception("could not read the subscription for %r",
+                          listener.user_id)
+    return tier_name
+
+
+def _require_feature(request: Request, key: str) -> None:
+    """Refuse a feature this listener's tier does not have (§652), with a
+    body the app turns into the plans sheet. Off while quotas are
+    (`ENFORCE_QUOTAS=0`): nothing is taken away before launch."""
+    if not quotas.settings_enforcing():
+        return
+    if entitlements.allows(_tier(request), key):
+        return
+    known = entitlements.feature(key)
+    words = {
+        "mixes": "Making your own myFAM mixes comes with FAM Premium. "
+                 "You can still listen to anybody's.",
+    }.get(key, f"{known.label if known else 'That'} comes with FAM Premium.")
+    raise HTTPException(status_code=403, detail=words,
+                        headers={"X-FAM-Upgrade": key})
 
 
 def _reserve(request: Request, resource: str, episode_key: str = "",
@@ -1955,6 +1985,8 @@ def _reserve(request: Request, resource: str, episode_key: str = "",
         # why - and not a free pass either: `_rate_limit` still applies.
         return None
     try:
+        # A search or a Go Deeper spends an `ask` (§652).
+        resource = entitlements.resource_for(resource, surface)
         return QUOTAS.reserve(user, _tier(request), resource,
                               episode_key=episode_key,
                               # What they were doing, in their words. The
@@ -2061,7 +2093,8 @@ def erase_listener(user_id: str) -> dict:
                         ("quotas", QUOTAS), ("messages", MESSAGES),
                         ("saved", SAVED), ("shares", SHARES),
                         ("voice_choice", _VoiceChoices()), ("push", PUSH),
-                        ("consent", CONSENT), ("moderation", MODERATION)):
+                        ("consent", CONSENT), ("moderation", MODERATION),
+                        ("billing", BILLING)):
         try:
             removed[name] = store.forget(user_id)
         except Exception:
@@ -5367,7 +5400,182 @@ async def plans_read(request: Request) -> dict:
             # "everything is free" is false the day quotas are on, and a
             # "See plans" button with no checkout behind it is a dead end.
             "enforced": bool(settings.enforce_quotas),
-            "checkout": False}
+            # §652: true once Stripe is configured on this deploy.
+            "checkout": billing.configured(),
+            **_billing_snapshot(request)}
+
+
+def _billing_snapshot(request: Request) -> dict:
+    """What is for sale and what this listener has (§652). Prices come from
+    Stripe, never from here; a plan Stripe could not price has no number."""
+    listener = getattr(request.state, "listener", None)
+    user = listener.user_id if listener is not None and \
+        listener.is_authenticated else ""
+    try:
+        priced = billing.prices() if billing.configured() else {}
+    except Exception:  # noqa: BLE001 - a price read never fails the sheet
+        log.exception("could not read Stripe's prices")
+        priced = {}
+    selling = billing.for_sale()
+    offers = [{"plan": p, "label": billing.PLAN_LABELS[p],
+               "blurb": billing.PLAN_BLURBS[p],
+               "price": (priced.get(p) or {}).get("display", ""),
+               "for_sale": p in selling,
+               "seats": billing.FAM_SEATS if p == "fam" else 1}
+              for p in billing.PLANS]
+    mine = None
+    if user:
+        try:
+            sub = BILLING.subscription(user)
+            owner = BILLING.fam_owner(user)
+            own = BILLING.own_plan(user)
+            mine = {
+                "plan": own, "status": (sub or {}).get("status", ""),
+                "renews_at": (sub or {}).get("period_end", 0.0),
+                "manage": bool((sub or {}).get("customer")),
+                "fam_member_of": owner if owner and BILLING.own_plan(owner) == "fam" else "",
+                "fam_members": len(BILLING.fam_members(user)) if own == "fam" else 0,
+            }
+        except Exception:  # noqa: BLE001
+            log.exception("could not read the subscription for %r", user)
+    return {"offers": offers, "subscription": mine}
+
+
+class CheckoutRequest(BaseModel):
+    plan: str = Field(..., max_length=16)
+
+
+def _billing_return(request: Request, outcome: str) -> str:
+    return _public_base(request).rstrip("/") + "/?billing=" + outcome
+
+
+@app.post("/api/billing/checkout")
+async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
+    """A Stripe Checkout page for one plan (§652). The app opens the URL; the
+    plan changes when Stripe's webhook says it was paid, never on return."""
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    if entitlements.at_least(_tier(request), "unlimited"):
+        raise HTTPException(status_code=400,
+                            detail="Your account is already unlimited.")
+    if BILLING.own_plan(user):
+        raise HTTPException(status_code=409,
+                            detail="You already have a plan. Manage it to change it.")
+    account = ACCOUNTS.account(user) or {}
+    sub = BILLING.subscription(user) or {}
+    try:
+        url = await asyncio.to_thread(
+            billing.create_checkout, user, req.plan,
+            _billing_return(request, "done"), _billing_return(request, "cancelled"),
+            email=account.get("email", ""), customer=sub.get("customer", ""))
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"url": url}
+
+
+@app.post("/api/billing/portal")
+async def billing_portal(request: Request) -> dict:
+    """Stripe's page for changing card or plan, or cancelling (§652)."""
+    _read_limit(request)
+    user = _require_account(request)
+    sub = BILLING.subscription(user) or {}
+    try:
+        url = await asyncio.to_thread(billing.create_portal, sub.get("customer", ""),
+                                      _billing_return(request, "managed"))
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"url": url}
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request) -> dict:
+    """Stripe's events (§652): the only thing that changes a paid plan.
+    Signed or refused; a repeat changes nothing."""
+    payload = await request.body()
+    try:
+        event = billing.verify_signature(
+            payload, request.headers.get("stripe-signature", ""),
+            billing._webhook_secret())
+    except billing.BillingError as exc:
+        log.warning("stripe webhook refused: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        done = await asyncio.to_thread(BILLING.apply, event)
+    except Exception as exc:  # noqa: BLE001 - Stripe retries a 500
+        log.exception("could not apply stripe event %s", event.get("id"))
+        pipeline_errors.record("billing", "webhook", str(exc), str(event.get("type")))
+        raise HTTPException(status_code=500, detail="Not applied.") from exc
+    log.info("stripe %s: %s", event.get("type"), done)
+    return {"ok": True}
+
+
+class FamJoinRequest(BaseModel):
+    code: str = Field(..., max_length=20)
+
+
+def _fam_ref(owner: str, member: str) -> str:
+    return hashlib.sha256(f"fam:{owner}:{member}".encode()).hexdigest()[:16]
+
+
+@app.get("/api/billing/fam")
+async def fam_plan_read(request: Request) -> dict:
+    """The FAM plan's people, for its payer; or whose plan this account is on."""
+    _read_limit(request)
+    user = _require_account(request)
+    members = BILLING.fam_members(user)
+    people = []
+    for member in members:
+        who = SOCIAL.person(member) or {}
+        # A reference, never the id (`listener-id-server`).
+        people.append({"name": who.get("name") or "", "handle": who.get("handle") or "",
+                       "ref": _fam_ref(user, member)})
+    owner = BILLING.fam_owner(user)
+    on = SOCIAL.person(owner) or {} if owner else {}
+    return {"owner": BILLING.own_plan(user) == "fam", "seats": billing.FAM_SEATS,
+            "members": people,
+            "member_of": {"name": on.get("name") or "", "handle": on.get("handle") or ""}
+            if owner else None}
+
+
+@app.post("/api/billing/fam/invite")
+async def fam_plan_invite(request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        return {"code": BILLING.fam_invite(user)}
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/billing/fam/join")
+async def fam_plan_join(req: FamJoinRequest, request: Request) -> dict:
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    try:
+        BILLING.fam_join(user, req.code)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@app.post("/api/billing/fam/leave")
+async def fam_plan_leave(request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": BILLING.fam_leave(user)}
+
+
+@app.delete("/api/billing/fam/{member}")
+async def fam_plan_remove(member: str, request: Request) -> dict:
+    """The payer takes somebody off their FAM plan."""
+    _read_limit(request)
+    user = _require_account(request)
+    for member_id in BILLING.fam_members(user):
+        if _fam_ref(user, member_id) == member:
+            return {"ok": BILLING.fam_remove(user, member_id)}
+    return {"ok": False}
 
 
 @app.get("/api/voices")
@@ -6771,6 +6979,8 @@ VIRAL_LOOPS = viral_loops_mod.ViralLoops(settings.viral_loops_api_token,
 PREFS = prefs_mod.PreferenceStore()
 METER = metering.MeterStore()
 QUOTAS = quotas.QuotaStore()
+#: Subscriptions, FAM-plan seats, half-a-mix counters (§652).
+BILLING = billing.BillingStore()
 MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
@@ -7036,6 +7246,9 @@ WAITLIST_OPEN_PATHS = frozenset({
     # A FAM Ambassador code lets its account off the waitlist (§648, the
     # owner 11.18), so a waitlisted account must be able to enter one.
     "/api/ambassador",
+    # Stripe's webhook (§652) carries no session at all; its signature is
+    # its whole authority (`billing.verify_signature`).
+    "/api/billing/webhook",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
 #: link is a list of episodes to browse, which is the app. A shared *episode*
@@ -7410,6 +7623,44 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     if context:
         return "godeeper"
     return "search"
+
+
+def _take_half_a_mix(request: Request, user: str, mix_id: str,
+                     episode_key: str) -> None:
+    """A free listener hears half of a myFAM mix a day (§652, the owner
+    11.18: "stopped half way through ... not able to finish it without the
+    subscription"). Counted as distinct episodes of that mix, so replaying
+    one is free; the one past half is refused with the plans sheet's
+    verdict. Nothing is counted while quotas are off, or for a paid tier."""
+    if not user or not quotas.settings_enforcing():
+        return
+    tier_name = _tier(request)
+    if entitlements.at_least(tier_name, billing.PAID_TIER):
+        return
+    found = MIXES.get_editable(user, mix_id) or MIXES.get_public(mix_id, viewer=user)
+    if found is None:
+        return
+    episodes = len([i for i in found.items if not getattr(i, "pending", False)])
+    if episodes <= 0:
+        return
+    allowance = billing.mix_allowance(episodes)
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    if BILLING.take_mix_episode(user, mix_id, day, episode_key or "", allowance):
+        return
+    resets = quotas.window_end("day", time.time())
+    verdict = {
+        "allowed": False, "resource": "mix", "tier": tier_name,
+        "window": "day", "used": allowance, "limit": allowance,
+        "unlimited": False, "remaining": 0, "resets_at": resets,
+        "charged": False, "service": "this mix",
+        "title": "You've heard half of this mix",
+        "message": (f"FAM Free plays {allowance} of this mix's {episodes} "
+                    "episodes a day. FAM Premium plays all of it."),
+    }
+    log.info("half a mix refused %s for %s", mix_id, user)
+    raise HTTPException(status_code=429, detail=verdict["message"],
+                        headers={"X-FAM-Quota": json.dumps(verdict),
+                                 "X-FAM-Refused-By": "quota"})
 
 
 def _may_be_private(where: str, context: str, topic_id: str) -> bool:
@@ -7905,6 +8156,7 @@ async def create_mix(req: MixRequest, request: Request):
         # Public unless the request says otherwise: a new mix is public by
         # default, at the owner's direction.
         account = _require_account(request)
+        _require_feature(request, "mixes")
         _require_can_post(account)
         # The cheap checks first, so a refused mix never pays for a photo check.
         mixes_mod.clean_name(req.name or "")
@@ -7926,6 +8178,7 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
+    _require_feature(request, "mixes")
     kept = MIXES.get(account, mix_id)
     if kept is None and MIXES.is_member(mix_id, account):
         return await _update_joint_mix(mix_id, req, request, account)
@@ -8785,6 +9038,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     """The (+) on somebody else's mix: put it in this listener's DailyFAM."""
     _read_limit(request)
     user = _require_account(request)
+    _require_feature(request, "mixes")
     source = MIXES.get_public(mix_id)
     if not source:
         raise HTTPException(status_code=404,
@@ -12880,6 +13134,9 @@ async def audio(
     # cached search plays in the voice its audio is already kept in.
     voice_picked: bool = Query(False, description="The voice was picked for "
                                                   "this search, not left as it was"),
+    # §652: the myFAM mix this episode is played from, so a free listener's
+    # half of it can be counted. An older client never sends it.
+    mix: str = Query("", max_length=64, description="The mix this is played from"),
 ):
     """Stream the episode.
 
@@ -12946,9 +13203,14 @@ async def audio(
     # not requests. Five taps on one question used to spend a free listener's
     # whole day and then answer 429 to everything - for one episode, which they
     # had already paid for on the first tap.
+    if mix and not cached_only and not episode:
+        _take_half_a_mix(request, user, mix, _episode_key(plan))
     reserved = _reserve(request, "explore" if cached_only else "episode",
                         episode_key=_episode_key(plan),
-                        surface=_surface(cached_only, topic_id, context))
+                        # A mix's episode is not a search, whatever its words
+                        # (§652): a typed or followed topic has no bank id.
+                        surface=("myfam" if mix and not context
+                                 else _surface(cached_only, topic_id, context)))
 
     try:
         pipeline = _make_pipeline(_episode_voice(user, where, plan, voice, voice_picked),

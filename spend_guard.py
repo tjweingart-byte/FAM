@@ -78,6 +78,8 @@ PAID_CREDENTIALS = (
     # §290, §418: market prices - an hourly and daily allowance a staging
     # sweep must not spend.
     "TIINGO_API_KEY",
+    # §652: Stripe can take a listener's money; staging can never sell.
+    "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
     "AP_ELECTIONS_KEY", "DDHQ_KEY",
     "GEMINI_API_KEY", "GOOGLE_API_KEY",
     "RUNPOD_API_KEY", "RUNPOD_ENDPOINT_ID", "RUNPOD_POD", "RUNPOD_POD_ID",

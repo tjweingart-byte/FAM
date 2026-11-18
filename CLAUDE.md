@@ -430,8 +430,11 @@ Accounts, tiers, sharing
   page plays the three sign-up samples as replays, own picture only; a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there;
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist`. [waitlist-gate]
-- **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
-  checkout [tiers-off]; 5 invites: free month [free-month];
+- **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited` [tiers-off];
+  every account's free month from launch [free-month];
+- **Paid on the web, never the App Store** (Stripe, `billing.py`): Student,
+  Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper a week,
+  tiles free, half a mix, no own mixes; plan set by webhook only [web-billing]
   let in: mail+text a claim link, month at launch [waitlist-notice]
 - An admin-made **ambassador code**: tag, free unlimited, off the waitlist; revocable [ambassadors]
 - A refusal names what the listener was doing (`service_label`), composed

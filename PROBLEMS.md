@@ -39530,3 +39530,53 @@ chunks are in flight and nothing waits in RunPod's queue for a worker that
 cannot start. Two listeners voiced at once can start the one flex worker,
 billed per second for its boot, the chunk and a 5 s idle timeout; a third
 waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
+
+## 652. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18)
+
+**Asked (the owner, 11.18, with Brady's message: "limit searches and no
+playlists for customers who do not pay. Dailyfam should be free ... College
+students $3.99, regular single customers $9.99, and FAM plan @ $14.99"):**
+a payment system for the tiers; every account's free trial starts when the
+app is released, not the beta; after the free month one free search/Go
+Deeper per week; free listeners can listen to other people's myFAM mixes
+but not make their own, and are stopped half way through a mix; DailyFAM's
+tiles free outside Go Deeper. Asked, the owner chose: half a mix means
+**half its episodes**; every paid plan **unlimited**; the FAM plan **up to
+4, by invite**; **Stripe only** - then: "Ideally we have all payments be
+redirected to a website to avoid the 30% fee that apple takes."
+
+**Built (rule `web-billing`):** `billing.py` - `BillingStore` (subscriptions,
+webhook events seen, FAM-plan seats and one-use invite codes, the
+half-a-mix counter; `BILLING_DB`) and three Stripe calls over `httpx`
+(Checkout, the billing portal, a Price read) plus the webhook's HMAC check.
+`app._tier` raises an account to `plus` while its subscription, or the FAM
+plan it has a seat on, is live. `entitlements` gains the `ask` resource
+(search and Go Deeper: one a week free, unlimited paid); the free tier's
+`episode` and `explore` are uncapped; `mixes` moves to `plus`.
+`_take_half_a_mix` counts distinct episodes per mix per UTC day for a free
+listener and answers the 429 the limit card already draws. The free month
+is every account's, from the launch day or from joining if later
+(`accounts._with_free_month`). The plans sheet lists Student, Single and
+the FAM plan with Stripe's price, opens checkout, and offers Manage
+subscription, a FAM-plan code and joining one. Everything is behind
+`ENFORCE_QUOTAS`, still `0` in production.
+
+**Reversed on purpose:** `tier-spend` (a feature, own mixes, moved behind a
+tier; `TAKEN_FROM_FREE` in `tests/test_entitlements.py`) and, once quotas are
+on, `account-gates-kept` (a plan now gates hearing a mix's second half).
+`free-month` no longer depends on five friends.
+
+**Not done, and why:**
+- **Student verification.** Nothing checks that a Student buyer is a
+  student; Stripe does not. A verification service (SheerID or similar)
+  or an .edu address is the owner's decision.
+- **The iOS app** links to nothing yet. Linking out is allowed on the US
+  storefront only (Epic v. Apple; the commission on linked sales was still
+  before the district court), and outside the US it may not point at a
+  purchase at all (APP_STORE.md 3.1.1).
+- **Stripe's dashboard:** three Prices, a webhook endpoint at
+  `/api/billing/webhook` sending `checkout.session.completed` and
+  `customer.subscription.*`, the portal configured - and the keys set as
+  credentials. Nothing was spent and no key was used here.
+- **A free listener's mixes made before launch** stay theirs to play (to
+  half) and delete; editing them is the paid part.

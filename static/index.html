@@ -11337,39 +11337,117 @@
         list.innerHTML = '<div class="plan-note">Plans could not load. Check your connection and try again.</div>';
       });
   }
+  // A feature the plan does not have (§652): the server's sentence, then
+  // the plans. The caller's toast says the same words.
+  function upgradeFor(detail){
+    setTimeout(openPlans, 900);
+  }
   function closePlans(){
     document.getElementById("plansOverlay").classList.remove("active");
   }
 
+  // §652: what is sold comes from the server (`offers`), its price from
+  // Stripe through the server; a tap opens Stripe's checkout on the web -
+  // never the App Store - and the plan changes when Stripe's webhook says it
+  // was paid, not when the browser comes back.
+  var plansData = null;
   function renderPlans(data){
+    plansData = data || {};
     var tiers = (data && data.tiers) || [];
     var current = (data && data.current) || "free";
-    var html = "";
-    tiers.forEach(function(t){
-      var mine = t.name === current;
-      html += '<div class="plan-row' + (mine ? ' current' : '') + '"'
-           + (mine ? '' : ' onclick="choosePlan(\'' + t.name + '\')"') + '>'
-           + '<div class="plan-tick">'
-           + (mine ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>' : '')
-           + '</div><div class="plan-body">'
-           + '<div class="plan-name">' + escapeHtml(t.label || t.name)
-           + (mine ? '<em>Your plan</em>' : '') + '</div>'
-           + (t.blurb ? '<div class="plan-blurb">' + escapeHtml(t.blurb) + '</div>' : '')
-           + '<div class="plan-limits">' + escapeHtml(planLimits(t)) + '</div>'
-           + '</div></div>';
-    });
-    // The seam where checkout goes, named as one. Nothing sets a paid plan
-    // yet, so a row that looked buyable would be a promise the app cannot
-    // keep - and the listener would find that out after tapping.
-    // Worded from the server (§207): "everything is free" stops being true
-    // the day quotas are switched on, while there is still nothing to buy.
-    if(!(data && data.checkout === true)){
+    var sub = (data && data.subscription) || null;
+    var offers = (data && data.offers) || [];
+    var selling = data && data.checkout === true;
+    var mine = tiers.filter(function(t){ return t.name === current; })[0]
+               || { name: current, label: current };
+    var html = '<div class="plan-row current"><div class="plan-tick">'
+      + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>'
+      + '</div><div class="plan-body"><div class="plan-name">'
+      + escapeHtml(mine.label || mine.name) + '<em>Your plan</em></div>'
+      + (mine.blurb ? '<div class="plan-blurb">' + escapeHtml(mine.blurb) + '</div>' : '')
+      + '<div class="plan-limits">' + escapeHtml(planLimits(mine)) + '</div>'
+      + '</div></div>';
+    var paying = sub && sub.plan;
+    if(paying && sub.manage){
+      html += planAction("Manage subscription", "Change your plan or card, or cancel", "manageBilling()");
+    }
+    if(sub && sub.plan === "fam"){
+      html += planAction("Invite someone to your FAM plan",
+        (sub.fam_members || 0) + " of 3 places taken", "inviteToFamPlan()");
+    }
+    if(!paying && current !== "unlimited"){
+      offers.forEach(function(o){
+        if(!o.for_sale && selling) return;
+        html += '<div class="plan-row" onclick="choosePlan(\'' + o.plan + '\')">'
+             + '<div class="plan-tick"></div><div class="plan-body">'
+             + '<div class="plan-name">' + escapeHtml(o.label)
+             + (o.price ? '<em>' + escapeHtml(o.price) + '</em>' : '') + '</div>'
+             + '<div class="plan-blurb">' + escapeHtml(o.blurb) + '</div>'
+             + '</div></div>';
+      });
+      if(!(sub && sub.fam_member_of)){
+        html += planAction("Have a FAM plan code?", "Join somebody\u2019s FAM plan", "joinFamPlan()");
+      }
+    }
+    if(!selling && !paying){
       html += '<div class="plan-note">' + (data && data.enforced === true
-        ? 'Upgrades aren\u2019t available yet. Your daily allowance comes back every day.'
-        : 'Upgrades aren\u2019t available yet. Everything is free for now.') + '</div>';
+        ? 'Subscriptions aren\u2019t on sale yet.'
+        : 'Subscriptions aren\u2019t on sale yet. Everything is free for now.') + '</div>';
     }
     document.getElementById("plansList").innerHTML = html;
   }
+  function planAction(name, blurb, run){
+    return '<div class="plan-row" onclick="' + run + '"><div class="plan-tick"></div>'
+      + '<div class="plan-body"><div class="plan-name">' + escapeHtml(name) + '</div>'
+      + '<div class="plan-blurb">' + escapeHtml(blurb) + '</div></div></div>';
+  }
+
+  function billingPost(url, body){
+    return fetch(url, { method: "POST", headers: {"Content-Type": "application/json"},
+                        body: body ? JSON.stringify(body) : "{}" })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){
+          if(r.status === 401){ closePlans(); openAuth("signup"); throw new Error(""); }
+          if(!r.ok) throw new Error((typeof d.detail === "string" && d.detail)
+                                    || "That didn\u2019t work. Try again.");
+          return d;
+        });
+      });
+  }
+  function manageBilling(){
+    billingPost("/api/billing/portal").then(function(d){
+      if(d.url) location.href = d.url;
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+  function inviteToFamPlan(){
+    billingPost("/api/billing/fam/invite").then(function(d){
+      var code = d.code || "";
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(code).catch(function(){});
+      }
+      toast("Your FAM plan code is " + code + " \u2014 copied. It works once.");
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+  function joinFamPlan(){
+    var code = window.prompt("Enter the FAM plan code you were given");
+    if(!code) return;
+    billingPost("/api/billing/fam/join", { code: code }).then(function(){
+      toast("You\u2019re on the FAM plan");
+      loadPlan();
+      openPlans();
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+
+  // Back from Stripe (`?billing=`): said once, then the address is cleaned.
+  (function billingReturn(){
+    var m = /[?&]billing=(done|cancelled|managed)/.exec(location.search || "");
+    if(!m) return;
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch(e){}
+    setTimeout(function(){
+      if(m[1] === "done") toast("Thanks \u2014 your plan starts as soon as the payment clears");
+      loadPlan();
+    }, 600);
+  })();
 
   // What a tier allows, in the words the refusal would use.
   function planLimits(t){
@@ -11377,16 +11455,21 @@
     if(!limits.length) return "No ceiling";
     return limits.map(function(l){
       var per = l.window === "week" ? "a week" : "a day";
-      var what = l.resource === "explore" ? "Explore episodes" : "episodes";
+      var what = l.resource === "explore" ? "Explore episodes"
+               : l.resource === "ask" ? "searches and Go Deepers" : "episodes";
       return (l.unlimited || l.count < 0 ? "Unlimited " + what
                                          : l.count + " " + what + " " + per);
     }).join("  \u00b7  ");
   }
 
   function choosePlan(name){
-    // Honest, and deliberately not a dead tap: it says what would happen and
-    // what is missing, rather than opening a checkout that is not there.
-    toast("No checkout yet \u2014 " + name + " cannot be bought from here");
+    if(!(plansData && plansData.checkout === true)){
+      toast("Subscriptions aren\u2019t on sale yet");
+      return;
+    }
+    billingPost("/api/billing/checkout", { plan: name }).then(function(d){
+      if(d.url) location.href = d.url;
+    }).catch(function(e){ if(e.message) toast(e.message); });
   }
 
   // What identifies one episode request. Voice is in it because switching
@@ -13987,7 +14070,8 @@
         attach: opts.attach || "", surface: surface, episode: opts.episode || "",
         voicePicked: surface === "search" && voicePickedForSearch,
         own: !!opts.own, private: !!opts.private,
-        askReading: !!opts.askReading, reading: opts.reading || ""
+        askReading: !!opts.askReading, reading: opts.reading || "",
+        mix: opts.mix || ""
       });
       // One pick, one search (§447): the next search starts from "left as it was".
       if(surface === "search") voicePickedForSearch = false;
@@ -14124,6 +14208,9 @@
     historyPending = historyWhere ? {
       query: query, context: context, surface: historyWhere,
       minutes: playOpts.minutes || selectedLengthMinutes } : null;
+    // The mix it is played from (§652), so a free listener's half of it is
+    // counted on the server. A mix's own play only - never a detour.
+    if(t.fromMix && mixPlay && mixPlay.id) playOpts.mix = mixPlay.id;
     speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
     audioOwner = "player";
     // reset CC to off each time
@@ -18147,6 +18234,7 @@
     fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "POST" })
       .then(function(r){
         return r.json().then(function(d){
+          if(r.status === 403 && r.headers.get("X-FAM-Upgrade")) upgradeFor(d.detail);
           if(!r.ok) throw new Error(d.error || d.detail || "Could not add that mix");
           return d;
         });
@@ -18705,6 +18793,7 @@
       body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(data){
+        if(r.status === 403 && r.headers.get("X-FAM-Upgrade")) upgradeFor(data.detail);
         if(!r.ok) throw new Error(data.error || (typeof data.detail === "string" && data.detail)
                                   || "Could not save that mix");
         return data;

@@ -498,6 +498,9 @@ window.FamAudio = (function () {
               // Which surface the tap came from (§147): only a search picks
               // its voice and length, and only a search goes on Explore.
               (listener && listener.surface ? "&surface=" + encodeURIComponent(listener.surface) : "") +
+              // The myFAM mix this plays from (§652): a free listener hears
+              // half of one, counted on the server.
+              (listener && listener.mix ? "&mix=" + encodeURIComponent(listener.mix) : "") +
               // A voice picked for this search on purpose (§447): only then
               // is a cached episode voiced again in it; otherwise it plays in
               // the voice it is already kept in.
