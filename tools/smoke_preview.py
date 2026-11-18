@@ -5021,9 +5021,10 @@ def main() -> int:
             assert page.evaluate(
                 """() => !!document.querySelector("#plansList .plan-row.current")"""
             ), "the plans sheet does not say which plan they are on"
-            # Said out loud, not discovered by tapping: there is no checkout.
+            # Said out loud, not discovered by tapping: no checkout on this
+            # deploy (§652: Stripe is not configured in a preview).
             note = page.text_content("#plansList .plan-note") or ""
-            assert "aren\u2019t available yet" in note, (
+            assert "aren\u2019t on sale yet" in note, (
                 f"the plans sheet does not say upgrading is unavailable: {note!r}")
 
             page.evaluate("closePlans()")
