@@ -39715,3 +39715,21 @@ Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
 3. **A FAM-plan member was sent the payer's account id**
    (`subscription.fam_member_of`, against `listener-id-server`). It is the
    payer's name now.
+
+## 657. A third look at the billing branch: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(a third time), read this time through the iPhone half and the edges.
+
+1. **The iPhone kept the first account's `appAccountToken`** for the life
+   of the app (`FAMStore.setup`), so after a sign-out and another sign-in on
+   the same phone the second account bought with the first's token: Apple
+   charged, and the server refused it as another account's. It is asked
+   fresh for every purchase now.
+2. **Apple's TEST notification was a 400** - it carries no transaction -
+   so App Store Connect's "Request a test notification" reported the URL
+   broken. A signed notification with no transaction is answered 200 and
+   changes nothing; a body that is not an object is a 400, not a 500.
+3. **The card after each episode waited on a round trip** to
+   `/api/entitlements` on the iPhone (§656). Kept a minute
+   (`FAMAPI.asksCapped`), as the web keeps it.

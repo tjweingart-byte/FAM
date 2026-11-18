@@ -648,3 +648,4 @@ and `limit` = Lines.
 | 39635 | 24 | 654. Students verify with a .edu email (2026-11-18) |
 | 39659 | 37 | 655. The billing branch reviewed: ten fixes (2026-11-18) |
 | 39696 | 23 | 656. The billing branch reviewed again: three more (2026-11-18) |
+| 39719 | 18 | 657. A third look at the billing branch: three more (2026-11-18) |

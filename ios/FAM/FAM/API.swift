@@ -2897,10 +2897,18 @@ extension FAMAPI {
     /// Whether searches and Go Deepers are counted for this listener - the
     /// free tier's one a week (§652). False when unknown.
     func asksCapped() async -> Bool {
+        // Kept a minute, so the card after each episode does not wait on a
+        // round trip (`asksCapped` on the web).
+        if let kept = Self.asksCappedMemo.read(), Date().timeIntervalSince(kept.at) < 60 {
+            return kept.value
+        }
         guard let page = try? await get("api/v1/entitlements", [], as: AskAllowance.self)
         else { return false }
-        return page.enforced == true && page.usage?.ask?.unlimited == false
+        let value = page.enforced == true && page.usage?.ask?.unlimited == false
+        Self.asksCappedMemo.write(AskMemo(at: Date(), value: value))
+        return value
     }
+    private static let asksCappedMemo = LockedMemo<AskMemo>()
 
     func plans() async throws -> PlansPage {
         try await get("api/v1/plans", [], as: PlansPage.self)
@@ -3155,6 +3163,16 @@ struct PlansPage: Decodable {
     let subscription: PlanSubscription?
     /// The Student plan's .edu check (§654).
     let student: StudentVerdict?
+}
+
+struct AskMemo { let at: Date; let value: Bool }
+
+/// One value behind a lock, for a memo read from any task.
+final class LockedMemo<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value?
+    func read() -> Value? { lock.lock(); defer { lock.unlock() }; return value }
+    func write(_ new: Value) { lock.lock(); value = new; lock.unlock() }
 }
 
 struct AskAllowance: Decodable {

@@ -308,3 +308,12 @@ def test_a_fam_plan_member_is_never_sent_the_payers_id(client, apple):
     body = c.get("/api/plans").text
     assert "payer-id-123" not in body
     assert c.get("/api/plans").json()["subscription"]["fam_member_of"]
+
+
+def test_apples_test_notification_is_answered(client, apple):
+    """App Store Connect's "Request a test notification" carries no
+    transaction: signed, so 200, and nothing changes."""
+    c, _appmod, _user = client
+    note = apple.sign({"notificationType": "TEST", "data": {"bundleId": apple_iap.bundle_id()}})
+    assert c.post("/api/billing/apple/notifications", json={"signedPayload": note}).status_code == 200
+    assert c.post("/api/billing/apple/notifications", json=["not", "an", "object"]).status_code == 400

@@ -5646,8 +5646,17 @@ async def apple_notifications(request: Request) -> dict:
     Signed or refused; the transaction inside decides the plan."""
     try:
         body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("The notification is not an object.")
         note = apple_iap.verify(str(body.get("signedPayload") or ""))
         data = note.get("data") or {}
+        if not data.get("signedTransactionInfo"):
+            # A TEST notification (App Store Connect's "Request a test
+            # notification"), or one about no transaction: signed, so
+            # answered 200, and nothing to change.
+            log.info("apple notification %s without a transaction",
+                     note.get("notificationType"))
+            return {"ok": True}
         transaction = apple_iap.verify(str(data.get("signedTransactionInfo") or ""))
         renewal = (apple_iap.verify(str(data["signedRenewalInfo"]))
                    if data.get("signedRenewalInfo") else None)

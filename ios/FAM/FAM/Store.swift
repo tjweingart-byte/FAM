@@ -69,8 +69,12 @@ final class FAMStore: ObservableObject {
     /// Apple's sheet for one plan, bought with this account's token.
     func buy(_ plan: String) async throws -> Outcome {
         guard let product = products[plan] else { throw FAMError.unreadable }
-        if setup == nil { setup = try await api.appleSetup() }
-        guard let token = setup.flatMap({ UUID(uuidString: $0.token) }) else {
+        // Asked fresh for every purchase, never kept: the token is the
+        // signed-in account's, and another account may have signed in on
+        // this phone since the sheet last loaded (§656 review).
+        let fresh = try await api.appleSetup()
+        setup = fresh
+        guard let token = UUID(uuidString: fresh.token) else {
             throw FAMError.unreadable
         }
         busy = true
