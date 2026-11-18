@@ -62,6 +62,8 @@ def enforced(monkeypatch):
     """Limits on, and small enough to reach inside a test."""
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setenv("FREE_EPISODES_PER_DAY", "3")
+    # §652: a search or Go Deeper spends an ask.
+    monkeypatch.setenv("FREE_ASKS_PER_WEEK", "3")
     monkeypatch.setenv("FREE_EXPLORE_PER_DAY", "3")
     entitlements.reload_tiers()
     yield
@@ -88,7 +90,7 @@ def audio(c: TestClient, query: str = QUERY, **params):
     return c.get("/api/audio", params=args)
 
 
-def used(c: TestClient, resource: str = "episode") -> int:
+def used(c: TestClient, resource: str = "ask") -> int:
     return c.get("/api/entitlements").json()["usage"][resource]["used"]
 
 
@@ -293,4 +295,4 @@ def test_the_two_refusals_are_told_apart(client, enforced, monkeypatch):
     out = audio(client, "the one over the line")
     assert out.status_code == 429
     assert out.headers.get("X-FAM-Refused-By") == "quota"
-    assert "today" in out.json()["error"], "the refusal did not say when it comes back"
+    assert "this week" in out.json()["error"], "the refusal did not say when it comes back"

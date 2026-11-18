@@ -31,6 +31,8 @@ def enforced(monkeypatch):
     """Limits on, and small enough to reach inside a test."""
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setenv("FREE_EPISODES_PER_DAY", "2")
+    # §652: a search is an ask; the same small number for the audio tests.
+    monkeypatch.setenv("FREE_ASKS_PER_WEEK", "2")
     monkeypatch.setenv("FREE_EXPLORE_PER_DAY", "3")
     entitlements.reload_tiers()
     yield
@@ -286,7 +288,7 @@ def test_an_episode_that_failed_before_costing_anything_is_refunded(client, enfo
 
     monkeypatch.setattr(appmod, "_make_pipeline", no_voice)
     assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm").status_code == 503
-    assert client.get("/api/entitlements").json()["usage"]["episode"]["used"] == 0
+    assert client.get("/api/entitlements").json()["usage"]["ask"]["used"] == 0
 
 
 def test_a_tier_can_shorten_an_episode_but_never_lengthen_it(client, enforced,
