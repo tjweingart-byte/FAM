@@ -39736,3 +39736,54 @@ browser (1.63.0), and the tests of everything touched after these fixes.
 (the 11.18 notes, Report a problem on the player), so this branch's
 sections are §654 and §655 and every reference it added was renumbered;
 `tests/test_ahead_batched_654.py`.
+
+
+## 656. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18)
+
+**The owner's ask (11.18, with a screenshot of Instagram's profile):** make
+adding friends easier and have the app direct people to it - a "your
+contacts that are on the app" page early in sign-up; after Follow, a row of
+the people that person follows, as Instagram slides open; more ways to
+encourage it; and the Friends page was hard to find.
+
+**What was there:** the Friends page (search by handle, Invite, Friends |
+Following) was reached from YourFAM's friends *count*, a follow banner,
+Messages' empty note and the friends rail's Find new friends pill. Nothing
+in sign-up mentioned friends, and nothing suggested anybody.
+
+**What changed** (`find-friends`, `docs/claude/open-problems.md`):
+1. **Sign-up's third step is Find your friends** (`screen-findfriends`;
+   the step bars count four). After the handle so the people found can find
+   you back, before the interests. Contacts, a search by name or handle,
+   People you may know, Invite; Next and Skip go on by name.
+2. **`POST /api/friends/contacts`** matches the contacts the listener picked
+   against account phones and emails (`accounts.match_contacts`, through
+   `identities` too) and returns each match with the name from *their*
+   address book. Nothing posted is stored or logged. A ten-digit number is
+   read as +1 when the asker's own number is +1 or absent, otherwise
+   skipped. On the web the button exists only where the Contact Picker does
+   (Chrome on Android); **iPhone Safari has none**, so on an iPhone this
+   pays only in the native app, which is not built yet (PARITY.md row).
+3. **`GET /api/friends/suggested`** (`social.suggestions`): Discover people -
+   who follows you unfollowed back, then who your follows follow, ranked by
+   how many of your follows follow them. With `handle`: who that person
+   follows, **only once you follow them** - before, an empty list, so the
+   row is something following gives you rather than a way to read a
+   stranger's graph. Filtered as search is (handle, not apart, not
+   waitlisted). This narrows `op-friend-profile`: who somebody *follows*
+   was not shown to non-friends before; the friends list still is not.
+4. **Cards** (`suggestCardsHTML`): face, name, why ("Follows you", "N
+   mutuals", "Suggested for you"), Follow, an X kept in localStorage. On
+   the Friends page (above the tabs), YourFAM (Discover people, See all),
+   the sign-up step, and the person page under Follow, sliding open.
+5. **Doors**: an add-person square beside Edit profile / Saved for Later,
+   a Find face before Invite on DailyFAM's row; the Friends search says
+   "Search by name or @handle" (it always searched names too).
+
+**Verified:** `tests/test_find_friends.py` (12); the 779 tests that touch
+the friends code, names or screens; a real server with seeded accounts in
+Chromium at phone size - the step, contacts with a stubbed picker,
+YourFAM's Discover people, the Friends page, and the row after Follow.
+**Not verified:** a real Contact Picker on an Android phone; the native app
+(not built); whether the step raises follows - there is no event for it.
+

@@ -3953,6 +3953,98 @@ async def people_search(request: Request,
     return {"people": found}
 
 
+def _discoverable(user: str, people: list[dict]) -> list[dict]:
+    """`people` as discovery may show them to `user` (§656): nobody blocked
+    either way or suspended, nobody still on the waitlist - the same
+    boundary `/api/people` keeps - each with whether `user` follows them."""
+    people = _without_apart(user, people)
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in people)
+               if settings.waitlist else set())
+    following = {p["user_id"] for p in SOCIAL.following(user)}
+    out = []
+    for person in people:
+        if person["user_id"] in waiting or person["user_id"] == user:
+            continue
+        person["following"] = person["user_id"] in following
+        out.append(person)
+    return out
+
+
+@app.get("/api/friends/suggested")
+async def friends_suggested(request: Request,
+                            handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                            user_id: str = Query("", max_length=64)) -> dict:
+    """"Suggested for you" (§656).
+
+    With `handle` (or a `user_id` from this listener's own graph): the
+    people that person follows, for the row that opens under Follow on
+    their profile - **only once this listener follows them**, so the row is
+    something following somebody gives you, never a way to read a
+    stranger's graph. Without either: "Discover people" - who follows you
+    and is not followed back, then who the people you follow follow.
+    Each card says why in its own words (`reason`).
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    around = ""
+    if handle or user_id:
+        if user_id and user_id in {p["user_id"] for p in SOCIAL.following(user)}:
+            around = user_id
+        elif handle:
+            around = _person_by_handle(handle)
+        if not around or around == user or not SOCIAL.is_following(user, around) \
+                or not _reachable(user, around):
+            return {"people": [], "around": True}
+    found = SOCIAL.suggestions(user, around=around, limit=social_mod.SUGGESTION_LIMIT * 2)
+    return {"people": _discoverable(user, found)[:social_mod.SUGGESTION_LIMIT],
+            "around": bool(around)}
+
+
+#: The most address-book entries one `/api/friends/contacts` reads (§656).
+CONTACTS_MAX = 2000
+
+
+class ContactEntry(BaseModel):
+    name: str = Field("", max_length=120)
+    tel: list[str] = Field(default_factory=list, max_length=8)
+    email: list[str] = Field(default_factory=list, max_length=8)
+
+
+class ContactsRequest(BaseModel):
+    contacts: list[ContactEntry] = Field(default_factory=list, max_length=CONTACTS_MAX)
+
+
+@app.post("/api/friends/contacts")
+async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
+    """"Your contacts on FAM" (§656): which of the contacts the listener
+    picked have an account, to follow from sign-up's Find your friends step
+    and the Friends page.
+
+    Only what the listener's phone handed over after they chose to share it
+    (the contact picker, or the native app's Contacts permission). **Nothing
+    posted is stored or logged** - not the numbers, not the names; a match is
+    returned with the name it had in *their* address book, and the rest is
+    forgotten when the request ends. Who is shown is who search would show:
+    a handle, not blocked, not suspended, not waitlisted.
+    """
+    _rate_limit(request)
+    user = _require_account(request)
+    phones, emails = [], []
+    for i, entry in enumerate(req.contacts):
+        phones.extend((t, i) for t in entry.tel)
+        emails.extend((e, i) for e in entry.email)
+    # A number saved without its country code is read as the asker's own
+    # country - known only for +1, whose national numbers are ten digits.
+    # Anywhere else such a number is skipped rather than guessed.
+    own = (ACCOUNTS.account(user) or {}).get("phone") or ""
+    home = "+1" if (not own or own.startswith("+1")) else ""
+    matched = ACCOUNTS.match_contacts(phones, emails, home_code=home)
+    people = SOCIAL.people_by_id(matched)
+    for person in people:
+        person["contact_name"] = req.contacts[matched[person["user_id"]]].name.strip()[:60]
+    return {"people": _discoverable(user, people)}
+
+
 @app.post("/api/friends/follow")
 async def friends_follow(req: FollowRequest, request: Request) -> dict:
     _rate_limit(request)

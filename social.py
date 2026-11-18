@@ -88,6 +88,21 @@ class Echo:
         }
 
 
+#: How many "Suggested for you" cards one answer carries (§656): a row
+#: that scrolls sideways, Instagram's, never a directory.
+SUGGESTION_LIMIT = 12
+
+
+def suggestion_reason(mutuals: int, follows_you: bool) -> str:
+    """The one line under a suggested face (§656), worded for its number:
+    "Follows you", "1 mutual", "4 mutuals", else "Suggested for you"."""
+    if follows_you:
+        return "Follows you"
+    if mutuals > 0:
+        return f"{mutuals} mutual" + ("" if mutuals == 1 else "s")
+    return "Suggested for you"
+
+
 def explicit_name(name, handle) -> bool:
     """Whether a name or handle swears, so the interface draws the E beside
     it the way it does beside an episode (§224, at the owner's direction:
@@ -1719,6 +1734,77 @@ class SocialStore:
         row = self._conn().execute(
             "SELECT user_id FROM people WHERE handle = ?", (wanted,)).fetchone()
         return row[0] if row else ""
+
+    def people_by_id(self, ids) -> list[dict]:
+        """Name, handle and face for each id that has a handle, in `ids`'
+        order. Somebody without a handle is not findable (`find_people`),
+        so they are not returned here either."""
+        ids = [i for i in dict.fromkeys(ids) if i]
+        rows: dict[str, tuple] = {}
+        for start in range(0, len(ids), 400):
+            chunk = ids[start:start + 400]
+            marks = ",".join("?" for _ in chunk)
+            try:
+                for r in self._conn().execute(
+                        "SELECT user_id, name, handle, avatar FROM people"
+                        f" WHERE handle != '' AND user_id IN ({marks})", chunk).fetchall():
+                    rows[r[0]] = r
+            except Exception:
+                log.exception("could not read people")
+                return []
+        return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
+                 "avatar": r[3] or "", "explicit": explicit_name(r[1], r[2])}
+                for r in (rows[i] for i in ids if i in rows)]
+
+    def suggestions(self, user_id: str, around: str = "",
+                    limit: int = SUGGESTION_LIMIT) -> list[dict]:
+        """People this listener may want to follow (§656), best first.
+
+        With `around` - somebody they have just followed - it is the people
+        **that person follows**: the row Instagram slides open under Follow.
+        Without, "Discover people": whoever follows this listener and is not
+        followed back, then whoever the people they follow follow.
+
+        Ranked by how many of the people this listener follows already follow
+        each one (`mutuals`, what the card says), follows-you first in the
+        general list. Never this listener, never `around`, never somebody
+        already followed, never somebody without a handle. Who is blocked,
+        suspended or waitlisted is the endpoint's to remove, as for search.
+        """
+        if not user_id:
+            return []
+        mine = [p["user_id"] for p in self.following(user_id)]
+        mine_set = set(mine)
+        follows_me = {p["user_id"] for p in self.followers(user_id)}
+        # How many of mine follow each person: one query per 400 follows.
+        mutuals: dict[str, int] = {}
+        for start in range(0, len(mine), 400):
+            chunk = mine[start:start + 400]
+            marks = ",".join("?" for _ in chunk)
+            try:
+                for (followee,) in self._conn().execute(
+                        f"SELECT followee FROM follows WHERE follower IN ({marks})",
+                        chunk).fetchall():
+                    mutuals[followee] = mutuals.get(followee, 0) + 1
+            except Exception:
+                log.exception("could not read the follow graph")
+                return []
+        if around:
+            pool = [p["user_id"] for p in self.following(around, limit=200)]
+        else:
+            pool = list(follows_me) + list(mutuals)
+        skip = mine_set | {user_id, around}
+        pool = [i for i in dict.fromkeys(pool) if i not in skip]
+        order = {i: n for n, i in enumerate(pool)}
+        people = self.people_by_id(pool)
+        for person in people:
+            uid = person["user_id"]
+            person["mutuals"] = mutuals.get(uid, 0)
+            person["follows_you"] = uid in follows_me
+            person["reason"] = suggestion_reason(person["mutuals"], person["follows_you"])
+        people.sort(key=lambda p: (not p["follows_you"] if not around else 0,
+                                   -p["mutuals"], order[p["user_id"]]))
+        return people[:max(0, int(limit))]
 
     def find_people(self, term: str, exclude_user: str = "",
                     limit: int = 20) -> list[dict]:

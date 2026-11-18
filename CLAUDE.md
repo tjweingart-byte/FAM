@@ -243,6 +243,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows asymmetric; friend = mutual, derived; cards show the
   friends' faces. [op-follow-graph] [friends-listened]
+- **Find your friends**: sign-up's third step; contacts matched, never kept;
+  Suggested for you cards, after a follow its people; doors on both tabs. [find-friends]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),

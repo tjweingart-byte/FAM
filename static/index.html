@@ -959,6 +959,45 @@
   .fr-note{ font-size:11px; line-height:1.5; color:var(--text-faint);
     padding:0 2px 6px; }
 
+  /* Finding friends (§656): "Suggested for you" cards, Instagram's - a
+     face, a name, why, Follow, and an X - in a row that scrolls sideways. */
+  .sg-wrap{ display:grid; grid-template-rows:0fr; opacity:0; }
+  .sg-wrap > *{ min-height:0; overflow:hidden; }
+  .sg-wrap.open{ grid-template-rows:1fr; opacity:1; margin:16px 0 4px;
+    animation:sg-open .32s cubic-bezier(.2,.8,.2,1); }
+  .sg-wrap.open > .sg-head{ overflow:visible; }
+  @keyframes sg-open{ from{ grid-template-rows:0fr; opacity:0; } to{ grid-template-rows:1fr; opacity:1; } }
+  .sg-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:9px; }
+  .sg-all{ background:none; border:0; padding:4px 0; font:inherit; font-size:12px; font-weight:600;
+    color:var(--copper); cursor:pointer; }
+  .sg-row{ display:flex; gap:9px; overflow-x:auto; padding:0 0 4px; scroll-snap-type:x proximity;
+    scrollbar-width:none; }
+  .sg-row::-webkit-scrollbar{ display:none; }
+  .sg-card{ position:relative; flex:0 0 138px; scroll-snap-align:start; display:flex; flex-direction:column;
+    align-items:center; gap:3px; padding:16px 10px 11px; border-radius:14px;
+    background:var(--surface, rgba(255,255,255,.05)); border:1px solid var(--border); cursor:pointer; }
+  .sg-x{ position:absolute; top:6px; right:6px; width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; background:none; border:0;
+    color:var(--text-muted); cursor:pointer; }
+  .sg-av{ width:64px; height:64px; border-radius:50%; overflow:hidden; display:flex;
+    align-items:center; justify-content:center; color:var(--ink); font-weight:700; margin-bottom:6px; }
+  .sg-name{ font-size:12.5px; font-weight:700; color:var(--text); max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sg-why{ font-size:10.5px; color:var(--text-muted); max-width:100%; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; margin-bottom:8px; }
+  .sg-follow{ width:100%; justify-content:center; margin-top:auto; }
+  .ff-contacts{ width:100%; height:42px; margin-top:6px; }
+  .ff-note{ padding:8px 2px 0; }
+  .ff-rail{ margin-top:18px; }
+  .ff-rail .ff-all{ margin-left:auto; }
+  .ff-invite{ margin-top:22px; }
+  .ff-again{ display:block; margin:6px auto 0; }
+  .fr-from{ font-size:11px; color:var(--text-muted); margin-top:3px; }
+  .ff-rail em{ font-style:normal; margin-left:6px; color:var(--text-muted); }
+  .yf-btn.yf-sq{ flex:none; width:34px; padding:0; }
+  #friendsFind:empty{ display:none; }
+  @media (prefers-reduced-motion: reduce){ .sg-wrap.open{ animation:none; } }
+
   /* A group with people this listener is not friends with says so (§520). */
   .thread-warn{ margin:4px 0 12px; padding:11px 13px; border:1px solid var(--copper);
     border-radius:12px; background:rgba(168,117,32,.08); color:var(--text);
@@ -4858,6 +4897,35 @@
       </section>
 
 
+      <!-- ============ FIND YOUR FRIENDS (§656) ============
+           Sign-up's third step, after the name and handle (so the people
+           found can find you back) and before the interests. Your contacts
+           on FAM where the phone can hand them over (the contact picker;
+           the native app's Contacts permission), a search by name or
+           @handle, the people you may know, and an invite. Shown with
+           `showScreen`, never pushed (intro-not-on-stack): Next and Skip go
+           on by name. -->
+      <section class="screen" id="screen-findfriends">
+        <div class="screen-top" aria-hidden="true"></div>
+        <div class="scroll">
+          <div class="entry-wrap" style="min-height:0;">
+            <div class="entry-h">Find your friends</div>
+            <p class="entry-lede">Follow the people you know to hear what they&rsquo;re listening to, see their vibes and send each other episodes.</p>
+            <div id="ffContacts"></div>
+            <input class="modal-input" id="ffSearch" data-enter="blur" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   placeholder="Search by name or @handle" oninput="searchFindFriends()" style="margin:14px 0 4px;">
+            <div id="ffResults"></div>
+            <div id="ffSuggested"></div>
+            <button class="yf-find invite-users ff-invite" onclick="inviteFriends()">Invite friends to FAM
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
+        </div>
+        <div class="entry-dock">
+          <button class="entry-btn primary" id="ffNextBtn" onclick="afterFindFriends()">Next</button>
+          <div class="entry-skip" onclick="afterFindFriends()">Skip for now</div>
+        </div>
+      </section>
+
       <!-- ============ EXPLORE NEW ============
            Reached from Your FAM. This is `rank_might_like`, the one ranking
            in the app that offers something outside an established taste; it
@@ -4967,7 +5035,7 @@
         </div>
         <div style="padding:0 18px 10px;">
           <input class="modal-input" id="friendSearch" data-enter="blur" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                 placeholder="Find someone by handle" style="margin-bottom:0;"
+                 placeholder="Search by name or @handle" style="margin-bottom:0;"
                  oninput="searchPeople()">
           <!-- For somebody not on FAM yet (10.1 packet, third set): the
                phone's share sheet with the app's address and this listener's
@@ -4976,7 +5044,13 @@
           <button class="yf-find invite-users" onclick="inviteFriends()">Invite new users
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         </div>
-        <div class="scroll" id="friendsBody"></div>
+        <!-- Your contacts on FAM and Discover people (§656), above the two
+             tabs: the Friends page is where friends are found, so it opens
+             on the people worth finding. Hidden while a search is typed. -->
+        <div class="scroll" id="friendsScroll">
+          <div id="friendsFind"></div>
+          <div id="friendsBody"></div>
+        </div>
       </section>
 
       <!-- ============ ONE SECTION, IN FULL ============
@@ -8069,7 +8143,8 @@
       });
     }
 
-    // Sign-up's steps (signup-steps: B): three bars at the top, each
+    // Sign-up's steps (signup-steps: B): four bars at the top (§656 added
+    // Find your friends as the third), each
     // filling from its left edge when its step is reached and staying full,
     // and "Step 2 of 3" under them, its number rolling on Continue.
     var stepBars = null;
@@ -8078,8 +8153,8 @@
         if(!n) return;
         stepBars = document.createElement("div");
         stepBars.className = "motion-steps";
-        stepBars.innerHTML = '<div class="motion-steps-bars" aria-hidden="true"><i></i><i></i><i></i></div>'
-          + '<div class="motion-steps-word">Step <b class="motion-steps-n"></b> of 3</div>';
+        stepBars.innerHTML = '<div class="motion-steps-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
+          + '<div class="motion-steps-word">Step <b class="motion-steps-n"></b> of 4</div>';
         frameEl().appendChild(stepBars);
       }
       var wasShown = !stepBars.hidden;
@@ -9512,13 +9587,14 @@
     releaseActivation(id);
   }
 
-  // Which of sign-up's three steps a screen is, or 0: the sign-up form, the
-  // name and picture, then the interests. The same screens opened later
+  // Which of sign-up's four steps a screen is, or 0: the sign-up form, the
+  // name and picture, finding friends (§656), then the interests. The same screens opened later
   // from Settings are editors, not steps.
   function firstRunStep(id){
     if(id === "auth") return authMode === "signup" ? 1 : 0;
     if(id === "identity") return identityMode === "first-run" ? 2 : 0;
-    if(id === "intro") return introMode === "first-run" ? 3 : 0;
+    if(id === "findfriends") return 3;
+    if(id === "intro") return introMode === "first-run" ? 4 : 0;
     return 0;
   }
 
@@ -21491,6 +21567,7 @@
       back: '<path d="M15 5l-7 7 7 7"/>',
       share: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>',
       check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+      addPerson: '<circle cx="9" cy="8" r="3.6"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>',
       mix: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
       more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'
     }[name] || "";
@@ -21635,6 +21712,11 @@
       + (p.name ? "Edit profile" : "Set up profile") + '</button>'
       + '<button class="yf-btn cream" onclick="openSavedAll()">'
       + yfIcon("bookmark", 14) + 'Saved for Later</button>'
+      // Find friends (§656): the Friends page was behind the friends count
+      // alone, which nobody reads as a button. Instagram's add-person
+      // square, beside the two.
+      + (AUTH.authenticated ? '<button class="yf-btn yf-sq" onclick="openFriends()" aria-label="Find friends">'
+          + yfIcon("addPerson", 16) + '</button>' : '')
       + '</div>';
 
     // Interests as one line under the two buttons (9.30 #4, reversing the
@@ -21650,6 +21732,12 @@
         }).join("")
       : '<button class="yf-chip muted" data-pill="" onclick="editIdentity()">Add interests in Edit profile</button>',
       "interests");
+
+    // Discover people (§656): "Suggested for you" cards, as Instagram's
+    // profile has them. Always a part, empty when there is nobody, so the
+    // page's parts line up whether or not anybody is suggested.
+    html += AUTH.authenticated ? hubDiscoverHTML() : "";
+    if(AUTH.authenticated) loadDiscoverPeople();
 
     // The faces row is DailyFAM's (§251); the list stays for the story
     // viewer, which indexes into it.
@@ -21987,6 +22075,10 @@
             + '</span><span class="yf-friend-name">' + escapeHtml(firstName(person))
             + '</span></button>';
         }).join("")
+      // Find friends (§656): the Friends page, from the row of faces.
+      + '<button class="yf-friend invite" onclick="openFriends()" aria-label="Find friends">'
+      + '<span class="yf-ring">' + yfIcon("addPerson", 19) + '</span>'
+      + '<span class="yf-friend-name">Find</span></button>'
       + '<button class="yf-friend invite" onclick="inviteFriends()" aria-label="Invite a friend">'
       + '<span class="yf-ring">' + yfIcon("plus", 17) + '</span>'
       + '<span class="yf-friend-name">Invite</span></button>'
@@ -23483,6 +23575,8 @@
     navigate("friends");
     loadInviteLink();
     loadFriends();
+    paintFindFriends();
+    loadDiscoverPeople(true);
     // They are looking at who follows them, so nobody is new any more. Done
     // **here** and never when the popup is drawn: a badge that cleared itself
     // the moment a popup appeared would be a count nobody got to read.
@@ -23622,7 +23716,7 @@
     }).catch(function(e){ Motion.follow(who.user_id, false); toast(e.message); });
   }
 
-  function personRow(person, action, label){
+  function personRow(person, action, label, note){
     return '<div class="fr-row"' + (person.user_id ? ' data-k="u:' + escapeHtml(person.user_id) + '"' : '')
       + ' onclick="openPersonProfile(\''
       + escapeHtml(person.handle || "") + '\')">'
@@ -23634,6 +23728,8 @@
       // Friends from the waitlist show on both sides before they are let in
       // (WAITLIST.md §4); this says why they cannot be messaged yet.
       + (person.waitlisted ? '<div class="fr-wait">Still on the waitlist</div>' : '')
+      // Where they came from (§656): "In your contacts as Mom".
+      + (note ? '<div class="fr-from">' + escapeHtml(note) + '</div>' : '')
       + '</div>'
       + (action
           ? (/ollowPerson\(/.test(action)
@@ -23739,7 +23835,7 @@
   var friendsTab = "friends";
   function showFriendsTab(which){
     friendsTab = which === "following" ? "following" : "friends";
-    var body = document.getElementById("friendsBody");
+    var body = document.getElementById("friendsScroll");
     renderFriends({ still: true });
     if(body) body.scrollTop = 0;
   }
@@ -23748,6 +23844,7 @@
   function searchPeople(){
     if(peopleSearchTimer) clearTimeout(peopleSearchTimer);
     var term = (document.getElementById("friendSearch").value || "").trim();
+    paintFindFriends();
     if(term.length < 2){ renderFriends(); return; }
     // Debounced: a search per keystroke is a request per keystroke, and the
     // server paces reads.
@@ -23791,11 +23888,23 @@
       document.getElementById("friendSearch").value = "";
       loadFriends().then(function(){ refreshPersonIfOpen(); });
       refreshHub();
+      // Followed from their own page: the people they follow slide open
+      // under the button (§656). Followed from a card in that row, the row
+      // stays as it is.
+      if(viewingProfile && viewingProfile.user_id === userId && viewingProfile.handle
+         && document.getElementById("screen-person").classList.contains("active")){
+        loadPersonSuggestions(viewingProfile.handle);
+      }
     }).catch(function(err){ Motion.follow(userId, false); toast(err.message); });
   }
 
   function unfollowPerson(userId){
     Motion.follow(userId, false);
+    if(viewingProfile && viewingProfile.user_id === userId && personSuggestFor === viewingProfile.handle){
+      personSuggestFor = "";
+      suggestLists.person = [];
+      paintFindFriends();
+    }
     fetch("/api/friends/follow?user_id=" + encodeURIComponent(userId),
           { method: "DELETE" })
       .then(function(r){
@@ -23992,6 +24101,10 @@
       html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
 
+    // Suggested for you (§656): after Follow, the people they follow slide
+    // open under the buttons. Always a part, empty until then.
+    html += personSuggestHTML(person);
+
     // Their interests, as chips that open the Topic screen - only to a
     // follower (§638): to anybody else the server sends none and `locked`.
     // Their line is kept from the first frame, three empty pills in it,
@@ -24181,6 +24294,7 @@
       });
     }).then(function(){
       if(then) then();
+      if(viewingProfile && viewingProfile.handle === handle) loadPersonSuggestions(handle);
       return loadFriends();
     }).then(function(d){
       if(!d || !viewingProfile || viewingProfile.handle !== handle) return;
@@ -24195,6 +24309,244 @@
       if(refused) refused();
       toast(err.message);
     });
+  }
+
+  // ---------------- Finding friends (§656) ----------------
+  //
+  // Four doors to the same few things: your contacts on FAM, "Suggested
+  // for you" cards, a search by name or @handle, and an invite. Sign-up's
+  // Find your friends step, the Friends page, YourFAM's Discover people
+  // and the row that slides open under Follow on somebody's profile (the
+  // people they follow) all draw from here.
+
+  //: Whether this phone can hand over the contacts a listener picks (the
+  //: Contact Picker - Chrome on Android today). Without it no contacts
+  //: button is drawn: a control with nothing behind it is worse than none.
+  var CONTACTS_PICKER = !!(navigator.contacts && navigator.contacts.select);
+  //: The contacts that matched an account: null until asked.
+  var contactMatches = null;
+  var contactsAsking = false;
+  //: "Suggested for you", by where it is drawn. `person` is the row under
+  //: Follow, for `personSuggestFor` (a handle) only.
+  var suggestLists = { discover: [], person: [] };
+  var personSuggestFor = "";
+  var discoverAsked = 0;
+  //: Cards dismissed with their X, kept on this device.
+  var suggestHidden = (function(){
+    try { return JSON.parse(localStorage.getItem("famSuggestHidden") || "{}") || {}; }
+    catch(e){ return {}; }
+  })();
+
+  function iFollowId(person){
+    if(friendsLoaded){
+      return (friendsData.following || []).some(function(f){ return f.user_id === person.user_id; });
+    }
+    return !!person.following;
+  }
+  function followActionFor(person){
+    return (iFollowId(person) ? "unfollowPerson('" : "followPerson('") + person.user_id + "')";
+  }
+
+  // The cards: a face, a name, why (the server's words), Follow, and an X.
+  function suggestCardsHTML(where){
+    var list = (suggestLists[where] || []).filter(function(p){ return !suggestHidden[p.user_id]; });
+    if(!list.length) return "";
+    return '<div class="sg-row" role="list">' + list.map(function(p){
+      var on = iFollowId(p);
+      var id = escapeHtml(p.user_id);
+      return '<div class="sg-card" role="listitem" onclick="openSuggested(\'' + where + '\', \'' + id + '\')">'
+        + '<button class="sg-x" aria-label="Remove ' + escapeHtml(firstName(p)) + ' from suggestions"'
+        + ' onclick="event.stopPropagation(); dismissSuggested(\'' + where + '\', \'' + id + '\')">'
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+        + '<span class="sg-av" style="background:' + personHue(p.handle || p.name) + '">' + avatarHTML(p, 64) + '</span>'
+        + '<div class="sg-name' + (p.explicit ? ' is-explicit' : '') + '">' + escapeHtml(p.name || ("@" + p.handle)) + '</div>'
+        + '<div class="sg-why">' + escapeHtml(p.reason || "Suggested for you") + '</div>'
+        + '<button class="pf-btn follow-btn sg-follow' + (on ? ' is-following' : '') + '" aria-pressed="' + on + '"'
+        + ' onclick="event.stopPropagation(); ' + followActionFor(p) + '">' + Motion.followLabel(on) + '</button>'
+        + '</div>';
+    }).join("") + '</div>';
+  }
+  function findSuggested(where, id){
+    return (suggestLists[where] || []).filter(function(p){ return p.user_id === id; })[0];
+  }
+  function openSuggested(where, id){
+    var p = findSuggested(where, id);
+    if(p) openPersonProfile(p.handle, p);
+  }
+  function dismissSuggested(where, id){
+    suggestHidden[id] = true;
+    try { localStorage.setItem("famSuggestHidden", JSON.stringify(suggestHidden)); } catch(e){}
+    var card = document.querySelector('.sg-card [onclick*="dismissSuggested(\'' + where + '\', \'' + id + '\')"]');
+    card = card && card.parentNode;
+    var done = function(){ paintFindFriends(); };
+    if(card && card.animate && !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)){
+      card.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.92)" }],
+                   { duration: 160, easing: "ease-in" }).finished.then(done, done);
+    } else done();
+  }
+
+  // "Discover people": who follows you and is not followed back, then who
+  // the people you follow follow. Asked at most once a minute.
+  function loadDiscoverPeople(force){
+    if(!AUTH.authenticated) return Promise.resolve();
+    if(!force && Date.now() - discoverAsked < 60000) return Promise.resolve();
+    discoverAsked = Date.now();
+    return fetch("/api/friends/suggested")
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d) return;
+        suggestLists.discover = d.people || [];
+        paintFindFriends();
+      })
+      .catch(function(){});
+  }
+
+  // After Follow on somebody's profile: the people they follow, in a row
+  // that slides open under the buttons - Instagram's (§656).
+  function loadPersonSuggestions(handle){
+    if(!handle) return;
+    fetch("/api/friends/suggested?handle=" + encodeURIComponent(handle))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !viewingProfile || viewingProfile.handle !== handle) return;
+        suggestLists.person = d.people || [];
+        personSuggestFor = handle;
+        paintFindFriends();
+      })
+      .catch(function(){});
+  }
+  function personSuggestHTML(person){
+    var cards = personSuggestFor && person.handle === personSuggestFor ? suggestCardsHTML("person") : "";
+    return '<div class="sg-wrap' + (cards ? ' open' : '') + '" data-part="suggest">'
+      + (cards ? '<div class="sg-head"><span class="yf-label">Suggested for you</span>'
+                 + '<button class="sg-all" onclick="openFriends()">See all</button></div>' + cards : '')
+      + '</div>';
+  }
+  function hubDiscoverHTML(){
+    var cards = suggestCardsHTML("discover");
+    return '<div class="sg-wrap' + (cards ? ' open' : '') + '" data-part="discover">'
+      + (cards ? '<div class="sg-head"><span class="yf-label">Discover people</span>'
+                 + '<button class="sg-all" onclick="openFriends()">See all</button></div>' + cards : '')
+      + '</div>';
+  }
+
+  // --- your contacts on FAM ---
+  function contactsBlockHTML(){
+    if(!AUTH.authenticated) return "";
+    if(contactMatches === null){
+      if(!CONTACTS_PICKER) return "";
+      return '<button class="yf-btn cream ff-contacts" onclick="findFromContacts()"' + (contactsAsking ? ' disabled' : '') + '>'
+        + yfIcon("addPerson", 15) + (contactsAsking ? 'Looking…' : 'Find friends in your contacts') + '</button>'
+        + '<div class="fr-note ff-note">Only the contacts you pick are checked, and FAM keeps none of them.</div>';
+    }
+    var head = '<div class="pf-rail ff-rail">Your contacts on FAM <em>' + contactMatches.length + '</em>';
+    var unfollowed = contactMatches.filter(function(p){ return !iFollowId(p); });
+    if(unfollowed.length > 1){
+      head += '<button class="pf-btn ff-all" onclick="followAllContacts()">Follow all</button>';
+    }
+    head += '</div>';
+    if(!contactMatches.length){
+      return head + '<div class="pf-empty">None of the contacts you picked are on FAM yet. Invite them below.</div>'
+        + (CONTACTS_PICKER ? '<button class="sg-all ff-again" onclick="findFromContacts()">Pick other contacts</button>' : '');
+    }
+    return head + contactMatches.map(function(p){
+      return personRow(p, followActionFor(p), iFollowId(p) ? "Following" : "Follow",
+                       p.contact_name ? "In your contacts as " + p.contact_name : "");
+    }).join("");
+  }
+  function findFromContacts(){
+    if(!CONTACTS_PICKER || contactsAsking) return;
+    contactsAsking = true;
+    paintFindFriends();
+    navigator.contacts.select(["name", "tel", "email"], { multiple: true })
+      .then(function(picked){
+        var contacts = (picked || []).slice(0, 2000).map(function(c){
+          return { name: String((c.name || [])[0] || "").slice(0, 120),
+                   tel: (c.tel || []).slice(0, 8).map(String),
+                   email: (c.email || []).slice(0, 8).map(String) };
+        });
+        if(!contacts.length) return null;
+        return fetch("/api/friends/contacts", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ contacts: contacts })
+        }).then(function(r){
+          if(!r.ok) throw new Error("Could not check your contacts");
+          return r.json();
+        });
+      })
+      .then(function(d){
+        contactsAsking = false;
+        if(d) contactMatches = d.people || [];
+        paintFindFriends();
+      })
+      .catch(function(err){
+        contactsAsking = false;
+        paintFindFriends();
+        if(err && err.name !== "AbortError" && err.name !== "InvalidStateError") toast(err.message || "Could not check your contacts");
+      });
+  }
+  function followAllContacts(){
+    (contactMatches || []).filter(function(p){ return !iFollowId(p); })
+      .forEach(function(p){ followPerson(p.user_id); });
+  }
+
+  // Every place these are drawn, redrawn from what is held.
+  function paintFindFriends(){
+    var put = function(id, html){
+      var el = document.getElementById(id);
+      if(el && el._html !== html){ el.innerHTML = html; el._html = html; }
+    };
+    var searching = (document.getElementById("friendSearch") || {}).value;
+    put("friendsFind", searching && searching.trim().length >= 2 ? ""
+        : contactsBlockHTML() + (suggestCardsHTML("discover")
+            ? '<div class="pf-rail ff-rail">Discover people</div>' + suggestCardsHTML("discover") : ""));
+    put("ffContacts", contactsBlockHTML());
+    put("ffSuggested", suggestCardsHTML("discover")
+        ? '<div class="pf-rail ff-rail">People you may know</div>' + suggestCardsHTML("discover") : "");
+    // The two pages drawn in parts get their part replaced in place, and
+    // nothing else on them is touched (`patchParts`).
+    var part = function(bodyId, name, html){
+      var old = document.querySelector("#" + bodyId + ' > [data-part="' + name + '"]');
+      if(!old || old._html === html) return;
+      var tpl = document.createElement("div");
+      tpl.innerHTML = html;
+      var now = tpl.firstChild;
+      now._html = html;
+      old.replaceWith(now);
+    };
+    part("profileBody", "discover", hubDiscoverHTML());
+    if(viewingProfile) part("personBody", "suggest", personSuggestHTML(viewingProfile));
+  }
+
+  // --- sign-up's third step ---
+  function openFindFriendsStep(){
+    var input = document.getElementById("ffSearch");
+    if(input) input.value = "";
+    document.getElementById("ffResults").innerHTML = "";
+    showScreen("findfriends");
+    paintFindFriends();
+    loadInviteLink();
+    if(AUTH.authenticated){ loadFriends(); loadDiscoverPeople(true); }
+  }
+  var ffSearchTimer = null;
+  function searchFindFriends(){
+    if(ffSearchTimer) clearTimeout(ffSearchTimer);
+    var el = document.getElementById("ffResults");
+    var term = (document.getElementById("ffSearch").value || "").trim();
+    if(term.length < 2){ el.innerHTML = ""; return; }
+    ffSearchTimer = setTimeout(function(){
+      fetch("/api/people?q=" + encodeURIComponent(term))
+        .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+        .then(function(d){
+          var found = d.people || [];
+          el.innerHTML = found.length
+            ? found.map(function(p){
+                return personRow(p, followActionFor(p), iFollowId(p) ? "Following" : "Follow");
+              }).join("")
+            : '<div class="pf-empty">No one by that name or handle yet. Invite them below.</div>';
+        })
+        .catch(function(){});
+    }, 260);
   }
 
   function togglePersonMore(which){
@@ -28847,6 +29199,13 @@
   }
 
   function afterIdentity(){
+    // Find your friends comes next (§656), while the account is new and a
+    // follow is one tap: the step a social app is joined for, early, and
+    // before the interests so that the people found are what fills
+    // dailyFAM's friends rail on the first open.
+    openFindFriendsStep();
+  }
+  function afterFindFriends(){
     introMode = "first-run";
     renderIntro();
     showScreen("intro");

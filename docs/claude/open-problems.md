@@ -796,6 +796,7 @@ friends and get none.
    two taps that fix it**, because the alternative was what it did before,
    which was to show strangers under a heading that said "people you follow".
 <!-- rule:op-friend-profile -->
+> **Current (PROBLEMS.md §656, the owner's ask):** following somebody from their profile slides open **Suggested for you** - people *they follow* - under the buttons. `/api/friends/suggested?handle=` answers only once the asker follows them (an empty list before), and only with people search would already show: a handle, not blocked either way, suspended or waitlisted. The friends *list* below stays friends-only.
 > **Current (PROBLEMS.md §285, the 10.16 packet):** `/api/person` also carries `friend_count` (how many friends they have - the size of the circle, like `follows`) for anyone who may open them, and `friends` - name, handle, face, whether you follow them; never an id - **only to a friend of theirs** (`null` otherwise), without you, anyone handle-less, blocked either way, suspended or waitlisted. A row opens that profile by handle, and Follow goes by handle. The page reads "Ian's Shelf" on its own line, "Public mixes" under it, and View more at the foot of each list.
 > **Current (PROBLEMS.md §219):** the place a listener gave (city, state, country as typed, whichever parts) is printed under their name on their own page (`/api/profile` `location`) and on the page a friend opens (`/api/person` `location`): putting it on the profile is publishing it, at the owner's direction.
 7b. **A friend's profile is its own screen, and it shows what they published.**
@@ -1111,6 +1112,7 @@ the door. `private` tells the page to say the account is private.
   down); the server still sends `starters` for installed clients.
 
 <!-- rule:friends-vibes-first -->
+> **Current (PROBLEMS.md §656):** the DailyFAM faces row ends in **Find** (the Friends page) before **Invite**, and YourFAM's Edit profile / Saved for Later row carries an add-person square to the Friends page - a door to finding friends, not the (+) that duplicated Messages' new chat.
 > **Current (PROBLEMS.md §637, the owner's 11.16 sketch):** the Friends page is **two tabs, Friends | Following**, each with its count, in place of stacked groups under a line of three counts. Following lists everyone followed, friends included; somebody who follows the listener and is not followed back sits under Friends in a "Follows you" group, since following back is what makes them one.
 - **Friends with a vibe up come first, and their vibes play as stories**
   *(§184)*: the YourFAM row sorts friends whose vibes are up to the front,
@@ -1137,3 +1139,32 @@ the door. `private` tells the page to say the account is private.
 > with a (+) badge that adds a note to your story. The VIBE badge is gone
 > from the row - the ring says it. The row is drawn for any account, since
 > your own face is a control before you follow anybody.
+
+<!-- rule:find-friends -->
+**Finding friends is a step, a page and a row** (PROBLEMS.md §656, the
+owner's 11.18 ask: "it should be easier to add friends, and the app should
+direct people to adding friends").
+- **Sign-up's third step is Find your friends** (of four: account, who you
+  are, friends, interests), after the handle so people found can find you
+  back. Next and Skip go on to the interests by name (`afterFindFriends`);
+  the activation sheet stays held behind it.
+- **Your contacts on FAM**: `POST /api/friends/contacts` takes the contacts
+  the listener picked (the Contact Picker where the browser has one, the
+  native app's Contacts permission) and returns who has an account, each
+  with the name it has in *their* address book. **Nothing posted is stored
+  or logged.** A number saved without a country code is read as +1 when the
+  asker's own number is +1 or absent, and skipped otherwise - never guessed.
+  No picker, no button: a contacts control with nothing behind it is worse
+  than none (`no-dead-controls`).
+- **Suggested for you** (`/api/friends/suggested`, `social.suggestions`):
+  Instagram's cards - face, name, why (`suggestion_reason`: "Follows you",
+  "N mutuals", else "Suggested for you"), Follow, an X kept on the device.
+  Without a handle it is Discover people: who follows you unfollowed back,
+  then who the people you follow follow, ranked by mutuals. With one it is
+  who that person follows, for the row under Follow, and only to somebody
+  who follows them. Never strangers by default: a new account with no graph
+  gets no cards rather than invented ones.
+- **Doors to the Friends page**: the add-person square on YourFAM, the Find
+  face on DailyFAM's row, Discover people's See all, the friends count, and
+  the follow notification. The page opens on contacts and Discover people
+  above Friends | Following; the search finds names as well as handles.
