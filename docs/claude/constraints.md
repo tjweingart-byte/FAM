@@ -1701,9 +1701,23 @@
     was still before the court in 11.2026; the native app must not show
     plans or link out anywhere else. Apple in-app purchase, if ever added,
     is another way into the same `BillingStore.record`, not a rewrite.
-  - Known trade: the surface a spend is counted against (`topic_id`,
-    `mix`, `context`) is told by the client, so the free ceiling is a
-    budget, not a lock - as quotas always were.
+  - **The client's words never make a play free** (§655, the branch
+    review): `app._spend_surface` counts a play as a browse episode only
+    when the server can see it is one - an episode of the named mix (or of
+    one of the listener's own mixes, for a client that sends no `mix`), a
+    bank topic's own question, or, off the search bar, an episode already
+    written (no model call). Anything else is an ask. `/api/script` is an
+    ask too. What a crafted client can still do is replay already-written
+    mix episodes past half way without naming the mix - no model call.
+  - **One row, two stores, kept honest** (§655): an event is marked seen
+    only after it is applied; each write is dated (`event_at`: Stripe's
+    `created`, Apple's `signedDate`) and an older one is skipped; an ended
+    subscription from one store never overwrites the other store's live
+    one; Apple's grace period comes from the renewal info whatever the
+    notification, and a restore cannot end it. `/api/plans` reads Stripe's
+    prices off the event loop, and a failed read is remembered five minutes.
+  - Only *adding* to a mix is paid (`_adds_topics`): renaming, sharing,
+    reordering and removing stay free.
 <!-- rule:refusal-wording -->
 - **A refusal names what the listener was doing, not what the ledger calls
   it.** A resource is an accounting word: somebody told they are out of

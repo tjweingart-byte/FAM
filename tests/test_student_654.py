@@ -61,6 +61,21 @@ def test_one_address_verifies_one_account(store):
         store.start_student("u2", "me@mit.edu")
 
 
+def test_asking_about_another_address_keeps_the_verification(store):
+    store.confirm_student("u1", store.start_student("u1", "me@mit.edu"))
+    store.start_student("u1", "other@harvard.edu")
+    assert store.student("u1") == {**store.student("u1"), "verified": True,
+                                   "email": "me@mit.edu"}
+
+
+def test_two_codes_for_one_address_verify_one_account(store):
+    first = store.start_student("u1", "me@mit.edu")
+    second = store.start_student("u2", "me@mit.edu")
+    store.confirm_student("u1", first)
+    with pytest.raises(billing.BillingError):
+        store.confirm_student("u2", second)
+
+
 def test_codes_are_rationed(store):
     for _ in range(billing.STUDENT_CODES_PER_HOUR):
         store.start_student("u1", "me@mit.edu")

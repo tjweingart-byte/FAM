@@ -5403,20 +5403,28 @@ async def plans_read(request: Request) -> dict:
             "enforced": bool(settings.enforce_quotas),
             # §652: true once Stripe is configured on this deploy.
             "checkout": billing.configured(),
-            **_billing_snapshot(request)}
+            **_billing_snapshot(request, await _stripe_prices())}
 
 
-def _billing_snapshot(request: Request) -> dict:
+async def _stripe_prices() -> dict:
+    """Stripe's prices, off the event loop: a cache miss is up to three
+    network reads, and a slow Stripe must never stall the audio."""
+    if not billing.configured():
+        return {}
+    try:
+        return await asyncio.to_thread(billing.prices)
+    except Exception:  # noqa: BLE001 - a price read never fails the sheet
+        log.exception("could not read Stripe's prices")
+        return {}
+
+
+def _billing_snapshot(request: Request, priced: dict) -> dict:
     """What is for sale and what this listener has (§652). Prices come from
-    Stripe, never from here; a plan Stripe could not price has no number."""
+    Stripe (`_stripe_prices`), never from here; a plan Stripe could not
+    price has no number."""
     listener = getattr(request.state, "listener", None)
     user = listener.user_id if listener is not None and \
         listener.is_authenticated else ""
-    try:
-        priced = billing.prices() if billing.configured() else {}
-    except Exception:  # noqa: BLE001 - a price read never fails the sheet
-        log.exception("could not read Stripe's prices")
-        priced = {}
     selling = billing.for_sale()
     offers = [{"plan": p, "label": billing.PLAN_LABELS[p],
                "blurb": billing.PLAN_BLURBS[p],
@@ -7776,6 +7784,46 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
+def _mix_plays(found, query: str) -> bool:
+    return found is not None and any(mixes_mod.plays_item(i, query) for i in found.items)
+
+
+def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
+                   mix: str, cached_only: bool) -> str:
+    """The surface a play is counted against (§652): "godeeper" or "search"
+    spend an ask; "myfam" is a browse episode, free.
+
+    The surface, `topic_id` and `mix` are the client's words, so none of
+    them alone makes a play free - a free listener could otherwise name any
+    question a DailyFAM tile and search without limit. A play is a browse
+    episode only when the server can see it is one: an episode of the named
+    mix (or, for an older client that sends no `mix`, of one of the
+    listener's own mixes), a bank topic's own question, or - off the search
+    bar - an episode already written, which costs no model call."""
+    if cached_only:
+        return "explore"
+    if context:
+        return "godeeper"
+    query = plan.query
+    if mix and _mix_plays(MIXES.get_editable(user, mix)
+                          or MIXES.get_public(mix, viewer=user), query):
+        return "myfam"
+    bank = topics_mod.BANK_BY_ID.get(topic_id) if topic_id else None
+    if bank is not None and mixes_mod._plain(bank.query) == mixes_mod._plain(query):
+        return "myfam"
+    # A shared link, a history replay, a tile: off the search bar, an
+    # episode already written is a replay, not a search.
+    if where != "search" and (plan.episode or _already_written(plan)):
+        return "myfam"
+    if where != "search" and (topic_id or mix or where in BROWSE_SURFACES):
+        try:
+            if user and any(_mix_plays(m, query) for m in MIXES.list_for_user(user)):
+                return "myfam"
+        except Exception:  # noqa: BLE001 - counted as a search, never refused
+            log.exception("could not read %r's mixes", user)
+    return "search"
+
+
 def _take_half_a_mix(request: Request, user: str, mix_id: str,
                      episode_key: str) -> None:
     """A free listener hears half of a myFAM mix a day (§652, the owner
@@ -8069,6 +8117,27 @@ class MixRequest(BaseModel):
     remove: Optional[list[str]] = Field(None, max_length=mixes_mod.MAX_TOPICS)
 
 
+def _adds_topics(mix, req: "MixRequest") -> bool:
+    """Whether a PATCH puts a topic into the mix that is not there now."""
+    if req.add:
+        return True
+    if req.topic_ids is None or mix is None:
+        return bool(req.topic_ids)
+    have = {item.id for item in mix.items}
+    for topic in req.topic_ids:
+        if isinstance(topic, dict):
+            try:
+                ident = mixes_mod.custom_item(topic.get("query", ""),
+                                              topic.get("title", "")).id
+            except mixes_mod.MixError:
+                return True
+        else:
+            ident = str(topic)
+        if ident not in have:
+            return True
+    return False
+
+
 def _merged_topics(mix, add, remove) -> list:
     """The mix's items as a `topic_ids` payload, with `remove` taken out and
     `add` put on the end - read from the mix as it is now, with no await
@@ -8329,7 +8398,10 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
-    _require_feature(request, "mixes")
+    # §652: making a mix is paid - so adding to one is; renaming, sharing,
+    # reordering or taking topics out of a mix they already have is not.
+    if _adds_topics(MIXES.get_editable(account, mix_id), req):
+        _require_feature(request, "mixes")
     kept = MIXES.get(account, mix_id)
     if kept is None and MIXES.is_member(mix_id, account):
         return await _update_joint_mix(mix_id, req, request, account)
@@ -13358,14 +13430,11 @@ async def audio(
         _take_half_a_mix(request, user, mix, _episode_key(plan))
     reserved = _reserve(request, "explore" if cached_only else "episode",
                         episode_key=_episode_key(plan),
-                        # A mix's episode is not a search, whatever its words
-                        # (§652): a typed or followed topic has no bank id.
-                        # A client that names a browse surface but not the mix
-                        # (an older one) is taken at its word, as `topic_id`
-                        # always was.
-                        surface=("myfam" if (mix or where in BROWSE_SURFACES)
-                                 and not context
-                                 else _surface(cached_only, topic_id, context)))
+                        # Whether this spends the week's one search is decided
+                        # from what the play is, never from what the client
+                        # calls it (§652 review).
+                        surface=_spend_surface(user, plan, where, topic_id,
+                                               context, mix, cached_only))
 
     try:
         pipeline = _make_pipeline(_episode_voice(user, where, plan, voice, voice_picked),

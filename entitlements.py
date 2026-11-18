@@ -84,8 +84,10 @@ WINDOWS: tuple[str, ...] = ("day", "week")
 #: half) is an `episode`, which the free tier no longer caps.
 RESOURCES: tuple[str, ...] = ("episode", "explore", "ask")
 
-#: The surfaces that spend an `ask` rather than an `episode` (§652).
-ASK_SURFACES: tuple[str, ...] = ("search", "godeeper")
+#: The surfaces that spend an `ask` rather than an `episode` (§652). A
+#: script asked for by text (`/api/script`) is a search in all but its
+#: output, and writes a script every time.
+ASK_SURFACES: tuple[str, ...] = ("search", "godeeper", "script")
 
 
 def resource_for(resource: str, surface: str) -> str:

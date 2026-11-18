@@ -1131,8 +1131,11 @@ struct PlansSheet: View {
                 case .cancelled:
                     break
                 }
+            } catch is FAMStore.Unconfirmed {
+                // Apple charged; only FAM's side is missing (§653 review).
+                model.nowPlaying.say("Apple took your payment, but FAM couldn\u{2019}t confirm it yet. Tap Restore purchases to try again.")
             } catch {
-                model.nowPlaying.say("That purchase didn\u{2019}t go through. You weren\u{2019}t charged twice \u{2014} try Restore purchases.")
+                model.nowPlaying.say("That purchase didn\u{2019}t go through, and you weren\u{2019}t charged.")
             }
         }
     }

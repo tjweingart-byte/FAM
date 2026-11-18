@@ -39655,3 +39655,40 @@ Apple has charged, and logged.
 graduate keeps the price until their year runs out; an address on a school
 domain that alumni keep for life passes. A verification service (SheerID)
 would close those if they matter.
+
+## 655. The billing branch reviewed: ten fixes (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this
+branch", then "yes fix all ten". The review (code-review, high) found:
+
+1. **A Stripe event was marked seen before it was applied**, so one whose
+   write failed was a "repeat" on Stripe's retry and never applied - a paid
+   customer with no plan. Now `seen_event` / `apply` / `mark_event`.
+2. **Two stores, one row:** an ended Stripe subscription's late event
+   overwrote a live Apple one (and the reverse). `record` now refuses an
+   ending from one store over the other's live plan.
+3. **The free search allowance was the client's to waive:** any request
+   naming `surface=dailyfam` was a free browse episode, so a crafted URL
+   searched without limit. `_spend_surface` now decides from what the play
+   is (`mixes.plays_item`, the bank, the cache).
+4. **`/api/script` had become unlimited for free** (its `episode` was
+   uncapped). It is an ask now.
+5. **Stripe's prices were read on the event loop**, and a failure was never
+   remembered: a slow Stripe stalled every stream at each plans sheet. Now
+   `asyncio.to_thread`, and five minutes' memory of a failure.
+6. **Out-of-order Stripe events** overwrote newer ones. Each row is dated
+   (`event_at`) and an older event is skipped.
+7. **Apple's grace period** held only for `DID_FAIL_TO_RENEW`; any other
+   notification, or a restore, ended it. Read from the renewal info now, and
+   a restore cannot undo a recorded grace.
+8. **The mix gate was every PATCH**, so a free listener could not share,
+   rename or prune a mix they had. Only adding is gated (`_adds_topics`).
+9. **Asking for a student code at a new address dropped the verification
+   held.** The address waits in `pending` until its code is entered, and is
+   checked against other accounts again then.
+10. **The iPhone said "you weren't charged"** when Apple had charged and
+    only the server's confirmation failed. `FAMStore.Unconfirmed` now says
+    so and points at Restore purchases.
+
+Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
+`test_student_654.py`. The Swift is still uncompiled here.

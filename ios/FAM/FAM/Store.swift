@@ -61,6 +61,11 @@ final class FAMStore: ObservableObject {
 
     enum Outcome { case bought, pending, cancelled }
 
+    /// Apple took the payment but the server has not confirmed it. The
+    /// transaction is left unfinished, so `Transaction.updates` offers it
+    /// again; Restore purchases sends it now.
+    struct Unconfirmed: Error {}
+
     /// Apple's sheet for one plan, bought with this account's token.
     func buy(_ plan: String) async throws -> Outcome {
         guard let product = products[plan] else { throw FAMError.unreadable }
@@ -73,7 +78,11 @@ final class FAMStore: ObservableObject {
         let result = try await product.purchase(options: [.appAccountToken(token)])
         switch result {
         case .success(let verification):
-            try await send(verification)
+            do {
+                try await send(verification)
+            } catch {
+                throw Unconfirmed()
+            }
             return .bought
         case .pending:
             // Ask to Buy, or a bank step: it arrives on `Transaction.updates`.

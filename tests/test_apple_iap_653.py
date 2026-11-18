@@ -227,17 +227,50 @@ def test_a_forged_notification_is_refused(client, apple):
 
 
 def test_a_mix_episode_from_an_older_client_is_not_a_search(client, monkeypatch):
-    """`surface=dailyfam` without `mix` (an iOS build before §652) spends
-    an episode, not the week's one search."""
+    """`surface=dailyfam` without `mix` (an iOS build before §652) playing
+    one of the listener's own mixes spends an episode, not the week's one
+    search - but naming the surface alone makes nothing free (§652 review)."""
+    import mixes as mixes_mod
     import quotas
     c, appmod, user = client
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setattr(appmod.ACCOUNTS, "_free_month_starts", lambda now: 0.0)
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
-    for n in range(3):
-        r = c.get(f"/api/audio?q=topic+{n}&minutes=1&fmt=pcm&surface=dailyfam")
-        assert r.status_code == 200, (n, r.status_code, r.headers.get("X-FAM-Refused-By"))
-    # ...and a search still spends the one ask.
-    assert c.get("/api/audio?q=a+search&minutes=1&fmt=pcm&surface=search").status_code == 200
-    refused = c.get("/api/audio?q=another+search&minutes=1&fmt=pcm&surface=search")
+    mix = appmod.MIXES.create(user, "Mine", [{"query": f"topic number {n}"} for n in range(3)])
+    for item in mix.items:
+        q = mixes_mod.prompt_for(item)
+        r = c.get("/api/audio", params={"q": q, "minutes": 1, "fmt": "pcm",
+                                         "surface": "dailyfam"})
+        assert r.status_code == 200, (q, r.status_code, r.headers.get("X-FAM-Refused-By"))
+    # A made-up question called a DailyFAM tile is a search: the one ask...
+    assert c.get("/api/audio", params={"q": "anything at all", "minutes": 1, "fmt": "pcm",
+                                        "surface": "dailyfam", "topic_id": "made-up"}
+                 ).status_code == 200
+    # ...and then the limit.
+    refused = c.get("/api/audio", params={"q": "something else entirely", "minutes": 1,
+                                           "fmt": "pcm", "surface": "dailyfam"})
     assert refused.status_code == 429 and refused.headers.get("X-FAM-Refused-By") == "quota"
+
+
+def test_a_grace_period_holds_whatever_the_notification():
+    renewal = {"gracePeriodExpiresDate": (time.time() + 86400) * 1000}
+    sub = apple_iap.subscription_from(_tx(expires=time.time() - 60), renewal)
+    assert sub["status"] == "past_due"
+
+
+def test_a_restore_during_grace_does_not_end_it(tmp_path):
+    store = billing.BillingStore(str(tmp_path / "b.db"))
+    renewal = {"gracePeriodExpiresDate": (time.time() + 86400) * 1000}
+    store.record_apple("u1", apple_iap.subscription_from(_tx(expires=time.time() - 60), renewal))
+    assert store.paid("u1")
+    store.record_apple("u1", apple_iap.subscription_from(_tx(expires=time.time() - 60)))
+    assert store.paid("u1"), "the transaction alone cannot see the grace period"
+
+
+def test_one_store_ending_never_cancels_the_others_live_plan(tmp_path):
+    store = billing.BillingStore(str(tmp_path / "b.db"))
+    store.record_apple("u1", apple_iap.subscription_from(_tx()))
+    store.apply({"id": "late", "type": "customer.subscription.deleted", "created": int(time.time()),
+                 "data": {"object": {"id": "sub_old", "customer": "cus_old", "status": "canceled",
+                                     "metadata": {"user_id": "u1", "plan": "single"}}}})
+    assert store.paid("u1") and store.subscription("u1")["source"] == "apple"

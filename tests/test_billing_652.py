@@ -108,6 +108,41 @@ def test_a_lapsed_period_is_not_paid(store):
     assert not store.paid("u1")
 
 
+def test_an_event_that_failed_is_applied_on_the_retry(store, monkeypatch):
+    real = store.record
+    calls = {"n": 0}
+
+    def flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("database busy")
+        return real(*a, **k)
+
+    monkeypatch.setattr(store, "record", flaky)
+    with pytest.raises(RuntimeError):
+        store.apply(_checkout())
+    assert store.apply(_checkout()) != "repeat"
+    assert store.paid("u1")
+
+
+def test_an_older_event_arriving_late_changes_nothing(store):
+    newer = _sub(status="active", event_id="new")
+    newer["created"] = 2000
+    older = _sub(kind="created", status="incomplete", event_id="old")
+    older["created"] = 1000
+    store.apply(newer)
+    store.apply(older)
+    assert store.subscription("u1")["status"] == "active"
+
+
+def test_checkout_after_its_subscription_keeps_what_it_said(store):
+    first = _sub(status="past_due", event_id="s1")
+    first["created"] = 1000
+    store.apply(first)
+    store.apply(_checkout())
+    assert store.subscription("u1")["status"] == "past_due"
+
+
 # --- the FAM plan -----------------------------------------------------------
 
 def test_the_fam_plan_is_four_people_and_ends_with_the_payer(store):
@@ -168,6 +203,8 @@ def test_a_search_and_a_go_deeper_are_asks_and_a_tile_is_not():
     assert entitlements.resource_for("episode", "search") == "ask"
     assert entitlements.resource_for("episode", "godeeper") == "ask"
     assert entitlements.resource_for("episode", "myfam") == "episode"
+    # A text script writes a model call every time: an ask too.
+    assert entitlements.resource_for("episode", "script") == "ask"
     assert entitlements.resource_for("explore", "search") == "explore"
 
 
@@ -246,6 +283,20 @@ def test_mixes_are_refused_to_free_only_while_quotas_are_on(appmod, monkeypatch)
         appmod._require_feature(_request(who), "mixes")
     assert refused.value.status_code == 403
     assert refused.value.headers["X-FAM-Upgrade"] == "mixes"
+
+
+def test_only_adding_to_a_mix_is_paid(appmod):
+    import mixes as mixes_mod
+    mix = appmod.MIXES.create("u-mix", "Mine", [{"query": "the eagles"}])
+    have = [mix.items[0].id]
+    asks = appmod.MixRequest
+    assert not appmod._adds_topics(mix, asks(public=True))
+    assert not appmod._adds_topics(mix, asks(name="New name"))
+    assert not appmod._adds_topics(mix, asks(remove=have))
+    assert not appmod._adds_topics(mix, asks(topic_ids=have))
+    assert not appmod._adds_topics(mix, asks(topic_ids=[]))
+    assert appmod._adds_topics(mix, asks(add=["anything"]))
+    assert appmod._adds_topics(mix, asks(topic_ids=have + [{"query": "the phillies"}]))
 
 
 def test_staging_can_never_sell():

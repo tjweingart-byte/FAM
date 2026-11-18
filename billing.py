@@ -86,6 +86,9 @@ STRIPE_API = "https://api.stripe.com/v1"
 
 #: How long Stripe's prices are trusted before they are read again.
 PRICE_TTL = 3600.0
+#: How long a failed read (Stripe down, a wrong price id) is remembered, so
+#: every plans sheet does not ask a failing Stripe again.
+PRICE_FAILURE_TTL = 300.0
 
 #: Every environment variable this module reads, for `tests/conftest.py`.
 BILLING_ENVIRONMENT: tuple[str, ...] = (
@@ -264,11 +267,15 @@ class BillingStore:
                      " ON subscriptions (customer)")
         # §653: which store sold it - "stripe" or "apple". Added, not in the
         # CREATE, so a store made before it gains the column.
-        try:
-            conn.execute("ALTER TABLE subscriptions ADD COLUMN"
-                         " source TEXT NOT NULL DEFAULT 'stripe'")
-        except Exception:  # noqa: BLE001 - already there
-            pass
+        for column in ("source TEXT NOT NULL DEFAULT 'stripe'",
+                       # When the store said what this row holds (Stripe's
+                       # event `created`, Apple's `signedDate`), so an older
+                       # event arriving late cannot overwrite a newer one.
+                       "event_at REAL NOT NULL DEFAULT 0"):
+            try:
+                conn.execute("ALTER TABLE subscriptions ADD COLUMN " + column)
+            except Exception:  # noqa: BLE001 - already there
+                pass
         conn.execute(
             """CREATE TABLE IF NOT EXISTS apple_tokens (
                 token TEXT PRIMARY KEY,
@@ -302,8 +309,16 @@ class BillingStore:
                 tries INTEGER NOT NULL DEFAULT 0,
                 sent_at REAL NOT NULL DEFAULT 0,
                 sent_count INTEGER NOT NULL DEFAULT 0,
-                verified_at REAL NOT NULL DEFAULT 0
+                verified_at REAL NOT NULL DEFAULT 0,
+                pending TEXT NOT NULL DEFAULT ''
             )""")
+        try:
+            # The address a code was sent to and not yet confirmed: kept
+            # apart from `email`, so asking about a new address never
+            # drops the verification already held.
+            conn.execute("ALTER TABLE students ADD COLUMN pending TEXT NOT NULL DEFAULT ''")
+        except Exception:  # noqa: BLE001 - already there
+            pass
         conn.execute(
             """CREATE TABLE IF NOT EXISTS mix_listens (
                 user_id TEXT NOT NULL,
@@ -325,13 +340,32 @@ class BillingStore:
 
     def record(self, user_id: str, plan: str, status: str, customer: str = "",
                subscription: str = "", period_end: float = 0.0,
-               at: float = 0.0, source: str = "stripe") -> None:
+               at: float = 0.0, source: str = "stripe",
+               event_at: float = 0.0) -> bool:
+        """Write what a store said. Returns False when it was not written:
+
+        * **stale** - the same store already said something newer
+          (`event_at`): Stripe does not promise to deliver in order;
+        * **another store's live plan** - an ended subscription from one
+          store never cancels a live one bought from the other (somebody who
+          let Stripe lapse and bought on their iPhone).
+        """
         if not user_id:
-            return
+            return False
+        now = at or time.time()
+        source = source or "stripe"
+        existing = self.subscription(user_id)
+        if existing:
+            if (existing["source"] == source and event_at and existing["event_at"]
+                    and event_at < existing["event_at"]):
+                return False
+            if (existing["source"] != source and status not in LIVE_STATUSES
+                    and self._live(existing, now)):
+                return False
         self._conn().execute(
             "INSERT INTO subscriptions (user_id, plan, status, customer,"
-            " subscription, period_end, updated, source)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            " subscription, period_end, updated, source, event_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT (user_id) DO UPDATE SET plan = excluded.plan,"
             " status = excluded.status,"
             " customer = CASE WHEN excluded.customer != '' THEN excluded.customer"
@@ -339,21 +373,22 @@ class BillingStore:
             " subscription = CASE WHEN excluded.subscription != ''"
             "            THEN excluded.subscription ELSE subscriptions.subscription END,"
             " period_end = excluded.period_end, updated = excluded.updated,"
-            " source = excluded.source",
+            " source = excluded.source, event_at = excluded.event_at",
             (user_id, plan or "", status or "", customer or "",
-             subscription or "", float(period_end or 0), at or time.time(),
-             source or "stripe"))
+             subscription or "", float(period_end or 0), now, source,
+             float(event_at or 0)))
+        return True
 
     def subscription(self, user_id: str) -> Optional[dict]:
         row = self._conn().execute(
             "SELECT plan, status, customer, subscription, period_end,"
-            " COALESCE(source, 'stripe')"
+            " COALESCE(source, 'stripe'), COALESCE(event_at, 0)"
             " FROM subscriptions WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
             return None
         return {"plan": row[0], "status": row[1], "customer": row[2],
                 "subscription": row[3], "period_end": float(row[4] or 0),
-                "source": row[5]}
+                "source": row[5], "event_at": float(row[6] or 0)}
 
     # --- Apple (§653) ---------------------------------------------------
 
@@ -370,13 +405,25 @@ class BillingStore:
             ((token or "").lower(),)).fetchone()
         return row[0] if row else ""
 
-    def record_apple(self, user_id: str, sub: dict, at: float = 0.0) -> None:
+    def record_apple(self, user_id: str, sub: dict, at: float = 0.0) -> bool:
         """A verified App Store transaction's verdict (`apple_iap.
         subscription_from`) onto this account. The original transaction id
-        is the subscription's id for life, across renewals."""
-        self.record(user_id, sub["plan"], sub["status"], customer="",
-                    subscription="apple:" + sub["original"],
-                    period_end=sub["period_end"], at=at, source="apple")
+        is the subscription's id for life, across renewals.
+
+        A grace period Apple's notification recorded (`past_due` to the
+        grace end) is not undone by a transaction that cannot see it - a
+        restore sends the transaction alone, whose expiry has passed."""
+        now = at or time.time()
+        ident = "apple:" + sub["original"]
+        existing = self.subscription(user_id)
+        if (existing and existing["source"] == "apple" and existing["subscription"] == ident
+                and sub["status"] == "expired" and existing["status"] == "past_due"
+                and existing["period_end"] > now):
+            return False
+        return self.record(user_id, sub["plan"], sub["status"], customer="",
+                           subscription=ident, period_end=sub["period_end"],
+                           at=now, source="apple",
+                           event_at=sub.get("signed_at", 0.0))
 
     def user_for_customer(self, customer: str) -> str:
         if not customer:
@@ -419,15 +466,23 @@ class BillingStore:
 
     # --- webhook events -------------------------------------------------
 
-    def first_sighting(self, event_id: str, at: float = 0.0) -> bool:
-        """True the first time an event id arrives. Stripe delivers at least
+    def seen_event(self, event_id: str) -> bool:
+        """Whether this event was already applied. Stripe delivers at least
         once; a repeat must change nothing."""
         if not event_id:
-            return True
-        cur = self._conn().execute(
-            "INSERT INTO stripe_events (event_id, seen) VALUES (?, ?)"
-            " ON CONFLICT (event_id) DO NOTHING", (event_id, at or time.time()))
-        return bool(cur.rowcount)
+            return False
+        return self._conn().execute(
+            "SELECT 1 FROM stripe_events WHERE event_id = ?",
+            (event_id,)).fetchone() is not None
+
+    def mark_event(self, event_id: str, at: float = 0.0) -> None:
+        """Remember an event **once it has been applied** - marked before, an
+        event whose write failed would be a 'repeat' on Stripe's retry and
+        never applied at all."""
+        if event_id:
+            self._conn().execute(
+                "INSERT INTO stripe_events (event_id, seen) VALUES (?, ?)"
+                " ON CONFLICT (event_id) DO NOTHING", (event_id, at or time.time()))
 
     def apply(self, event: dict, at: float = 0.0) -> str:
         """Apply one verified Stripe event. Returns what it did, for the log.
@@ -435,13 +490,25 @@ class BillingStore:
         `checkout.session.completed` ties a customer and subscription to the
         account that started checkout (`client_reference_id`, which the server
         set). The `customer.subscription.*` events carry the status and the
-        period, and are what keep the plan current from then on.
+        period, and are what keep the plan current from then on. Each is
+        dated by the event's `created`, so one arriving out of order is
+        skipped rather than written over a newer one.
         """
         now = at or time.time()
+        event_id = str(event.get("id") or "")
+        if self.seen_event(event_id):
+            return "repeat"
+        done = self._apply(event, now)
+        self.mark_event(event_id, now)
+        return done
+
+    def _apply(self, event: dict, now: float) -> str:
         kind = str(event.get("type") or "")
         obj = ((event.get("data") or {}).get("object") or {})
-        if not self.first_sighting(str(event.get("id") or ""), now):
-            return "repeat"
+        try:
+            event_at = float(event.get("created") or 0)
+        except (TypeError, ValueError):
+            event_at = 0.0
         if kind == "checkout.session.completed":
             user = str(obj.get("client_reference_id") or
                        (obj.get("metadata") or {}).get("user_id") or "")
@@ -449,15 +516,19 @@ class BillingStore:
             if not user or plan not in PLANS:
                 return "ignored: checkout without an account or plan"
             existing = self.subscription(user) or {}
-            self.record(user, plan,
-                        # Paid at checkout; the subscription event that follows
-                        # carries the real status and period.
-                        "active" if obj.get("payment_status") in ("paid", "no_payment_required")
-                        else existing.get("status", "incomplete"),
-                        customer=str(obj.get("customer") or ""),
-                        subscription=str(obj.get("subscription") or ""),
-                        period_end=existing.get("period_end", 0.0), at=now)
-            return f"checkout: {user} on {plan}"
+            sub_id = str(obj.get("subscription") or "")
+            # This subscription's own event may have arrived first and said
+            # more (its status and period): checkout only ties the ids on.
+            same = (existing.get("source", "stripe") == "stripe" and sub_id
+                    and existing.get("subscription") == sub_id)
+            paid = obj.get("payment_status") in ("paid", "no_payment_required")
+            status = existing.get("status") if same else ""
+            wrote = self.record(user, plan, status or ("active" if paid else "incomplete"),
+                                customer=str(obj.get("customer") or ""),
+                                subscription=str(obj.get("subscription") or ""),
+                                period_end=existing.get("period_end", 0.0) if same else 0.0,
+                                at=now, event_at=existing.get("event_at", 0.0) if same else 0.0)
+            return f"checkout: {user} on {plan}" + ("" if wrote else " (kept)")
         if kind.startswith("customer.subscription."):
             sub_id = str(obj.get("id") or "")
             user = (str((obj.get("metadata") or {}).get("user_id") or "")
@@ -468,9 +539,10 @@ class BillingStore:
             plan = _plan_of(obj) or (self.subscription(user) or {}).get("plan", "")
             status = "canceled" if kind.endswith(".deleted") \
                 else str(obj.get("status") or "")
-            self.record(user, plan, status, customer=str(obj.get("customer") or ""),
-                        subscription=sub_id, period_end=_period_end(obj), at=now)
-            return f"subscription: {user} {plan} {status}"
+            wrote = self.record(user, plan, status, customer=str(obj.get("customer") or ""),
+                                subscription=sub_id, period_end=_period_end(obj),
+                                at=now, event_at=event_at)
+            return f"subscription: {user} {plan} {status}" + ("" if wrote else " (stale, kept)")
         return f"ignored: {kind}"
 
     # --- the FAM plan's seats -------------------------------------------
@@ -560,11 +632,7 @@ class BillingStore:
             raise BillingError("Use your school email - one that ends in .edu.")
         now = now or time.time()
         conn = self._conn()
-        taken = conn.execute(
-            "SELECT user_id FROM students WHERE email = ? AND verified_at > ?"
-            " AND user_id != ?",
-            (email, now - STUDENT_VERIFIED_SECONDS, user_id)).fetchone()
-        if taken:
+        if self._taken(email, user_id, now):
             raise BillingError("That school email already verified another FAM account.")
         row = conn.execute(
             "SELECT sent_at, sent_count FROM students WHERE user_id = ?",
@@ -576,15 +644,20 @@ class BillingStore:
         window_start = float(row[0]) if row and count else now
         conn.execute(
             "INSERT INTO students (user_id, email, code_hash, code_expires, tries,"
-            " sent_at, sent_count, verified_at) VALUES (?, ?, ?, ?, 0, ?, ?, 0)"
-            " ON CONFLICT (user_id) DO UPDATE SET email = excluded.email,"
+            " sent_at, sent_count, verified_at, pending)"
+            " VALUES (?, '', ?, ?, 0, ?, ?, 0, ?)"
+            " ON CONFLICT (user_id) DO UPDATE SET pending = excluded.pending,"
             " code_hash = excluded.code_hash, code_expires = excluded.code_expires,"
-            " tries = 0, sent_at = excluded.sent_at, sent_count = excluded.sent_count,"
-            " verified_at = CASE WHEN students.email = excluded.email"
-            "              THEN students.verified_at ELSE 0 END",
-            (user_id, email, _code_hash(user_id, code), now + STUDENT_CODE_SECONDS,
-             window_start, count + 1))
+            " tries = 0, sent_at = excluded.sent_at, sent_count = excluded.sent_count",
+            (user_id, _code_hash(user_id, code), now + STUDENT_CODE_SECONDS,
+             window_start, count + 1, email))
         return code
+
+    def _taken(self, email: str, user_id: str, now: float) -> bool:
+        return self._conn().execute(
+            "SELECT 1 FROM students WHERE email = ? AND verified_at > ?"
+            " AND user_id != ?",
+            (email, now - STUDENT_VERIFIED_SECONDS, user_id)).fetchone() is not None
 
     def confirm_student(self, user_id: str, code: str, now: float = 0.0) -> dict:
         """Check the emailed code; verified for a year if it matches."""
@@ -592,8 +665,8 @@ class BillingStore:
         code = "".join(ch for ch in (code or "") if ch.isdigit())
         conn = self._conn()
         row = conn.execute(
-            "SELECT code_hash, code_expires, tries FROM students WHERE user_id = ?",
-            (user_id,)).fetchone()
+            "SELECT code_hash, code_expires, tries, pending FROM students"
+            " WHERE user_id = ?", (user_id,)).fetchone()
         if not row or not row[0]:
             raise BillingError("Ask for a code first.")
         if now > float(row[1]):
@@ -604,8 +677,12 @@ class BillingStore:
             conn.execute("UPDATE students SET tries = tries + 1 WHERE user_id = ?",
                          (user_id,))
             raise BillingError("That code isn't right.")
-        conn.execute("UPDATE students SET verified_at = ?, code_hash = '',"
-                     " code_expires = 0, tries = 0 WHERE user_id = ?", (now, user_id))
+        # Checked again here: two accounts may both hold a code for one address.
+        if self._taken(row[3], user_id, now):
+            raise BillingError("That school email already verified another FAM account.")
+        conn.execute("UPDATE students SET email = pending, pending = '',"
+                     " verified_at = ?, code_hash = '', code_expires = 0, tries = 0"
+                     " WHERE user_id = ?", (now, user_id))
         return self.student(user_id, now)
 
     # --- half a mix -----------------------------------------------------
@@ -735,7 +812,8 @@ def prices(now: float = 0.0) -> dict[str, dict]:
     is absent, and the screen shows the plan without a number."""
     now = now or time.time()
     with _PRICES_LOCK:
-        if now - _PRICES["at"] < PRICE_TTL and _PRICES["value"]:
+        ttl = PRICE_TTL if _PRICES["value"] else PRICE_FAILURE_TTL
+        if _PRICES["at"] and now - _PRICES["at"] < ttl:
             return dict(_PRICES["value"])
     found: dict[str, dict] = {}
     for plan in for_sale():

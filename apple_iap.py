@@ -198,8 +198,14 @@ def subscription_from(transaction: dict, renewal: Optional[dict] = None,
     if not plan:
         raise AppleError("That purchase is not a FAM plan.")
     end = _seconds(transaction.get("expiresDate"))
+    # A billing grace period is Apple's renewal info saying so, whatever the
+    # notification that carried it (§652 review): until it ends the
+    # subscriber keeps the plan, as `past_due` keeps a Stripe one.
+    grace_end = _seconds((renewal or {}).get("gracePeriodExpiresDate"))
+    if grace_end > now and grace_end > end:
+        grace = True
     if grace and renewal:
-        end = max(end, _seconds(renewal.get("gracePeriodExpiresDate")))
+        end = max(end, grace_end)
     if transaction.get("revocationDate"):
         status = "canceled"
     elif end and end <= now:
@@ -212,4 +218,6 @@ def subscription_from(transaction: dict, renewal: Optional[dict] = None,
             "original": str(transaction.get("originalTransactionId") or ""),
             "period_end": end,
             "token": str(transaction.get("appAccountToken") or "").lower(),
+            # When Apple signed it: a later-signed record is the newer one.
+            "signed_at": _seconds(transaction.get("signedDate")),
             "environment": str(transaction.get("environment") or "")}

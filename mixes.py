@@ -275,6 +275,27 @@ def prompt_for(item: "MixItem", day: Optional[date] = None) -> str:
     return template.replace(DAILY_DATE, date_label(day or date.today()))
 
 
+def _plain(text: str) -> str:
+    return " ".join(str(text or "").split()).lower()
+
+
+def plays_item(item: "MixItem", query: str) -> bool:
+    """Whether `query` is what playing this item sends, on any day (§652's
+    free-tier check: a mix's own episode is not a search). A bank item plays
+    its query; a followed or typed one its dated prompt, any date."""
+    asked = _plain(query)
+    if not asked:
+        return False
+    if asked == _plain(item.query):
+        return True
+    template = daily_prompt(item)
+    if not template:
+        return False
+    head, _, tail = _plain(template).partition(DAILY_DATE)
+    return (asked.startswith(head) and asked.endswith(tail)
+            and 0 < len(asked) - len(head) - len(tail) <= 40)
+
+
 def _bank_item(topic_id: str) -> MixItem:
     topic = BANK_BY_ID[topic_id]
     return MixItem(topic.id, topic.title, topic.query, False, topic.subtitle, topic.icon)

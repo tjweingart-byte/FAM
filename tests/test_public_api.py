@@ -197,7 +197,7 @@ def test_the_refusal_carries_the_whole_verdict_not_just_a_sentence(client, enfor
 
 def test_the_allowance_is_visible_before_it_runs_out(client, enforced):
     client.post("/api/script", json={"query": "q", "minutes": 1})
-    usage = client.get("/api/entitlements").json()["usage"]["episode"]
+    usage = client.get("/api/entitlements").json()["usage"]["ask"]
     assert usage["used"] == 1 and usage["remaining"] == 1
 
 
@@ -225,7 +225,7 @@ def test_explore_replays_are_counted_separately_from_generation(client, enforced
     for _ in range(2):
         client.post("/api/script", json={"query": "q", "minutes": 1})
     usage = client.get("/api/entitlements").json()["usage"]
-    assert usage["episode"]["remaining"] == 0
+    assert usage["ask"]["remaining"] == 0
     assert usage["explore"]["remaining"] == 3
 
 
