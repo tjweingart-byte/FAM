@@ -123,8 +123,8 @@ MAX_TAIL_SILENCE = 6.0
 # planned rate is reported on /admin (`_note_if_said_twice`): the voice has
 # no check of its own against saying a short chunk again, and the first chunk
 # is one sentence on its own. Report only; never under this many words.
-SAID_TWICE_RATIO = 1.6
-SAID_TWICE_MIN_WORDS = 4
+# One definition, shared with the voice worker's retake (`pace_level`, §652).
+from pace_level import SAID_TWICE_MIN_WORDS, SAID_TWICE_RATIO  # noqa: E402,F401
 
 
 @dataclass
@@ -876,16 +876,15 @@ class PodcastPipeline:
         if stats.said_twice or not getattr(self.engine, "keeps_audio", False):
             return
         try:
-            words = count_words(voiced)
-            rate = float(settings.target_wpm or 0)
-            if words < SAID_TWICE_MIN_WORDS or rate <= 0:
-                return
             import pace_level
 
-            expected = words * 60.0 / rate
-            heard = pace_level.voiced_seconds(pcm, self.engine.sample_rate)
-            if heard < expected * SAID_TWICE_RATIO:
+            words = count_words(voiced)
+            ratio = pace_level.said_ratio(pcm, self.engine.sample_rate, voiced,
+                                          float(settings.target_wpm or 0))
+            if ratio is None or ratio < SAID_TWICE_RATIO:
                 return
+            expected = words * 60.0 / float(settings.target_wpm)
+            heard = ratio * expected
             stats.said_twice = True
             which = "the first chunk" if index == 0 else f"chunk {index + 1}"
             log.warning("the voice spoke %.1fs for %d words in %s (about %.1fs "

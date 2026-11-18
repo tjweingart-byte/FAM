@@ -5728,6 +5728,44 @@ def main() -> int:
         check("The 11.16 notes: edit topics, two friends tabs, captions that scroll, a lock",
               the_owners_1116_notes)
 
+        def a_swipe_down_puts_the_player_away():
+            """The owner's 11.18 notes: swipe down on the player to collapse
+            it into the mini player. It minimises, as the Home mark does, and
+            never stops; a swipe on the scrubber is a seek, not a close."""
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("""
+                TOPICS['_smoke_swipe'] = { title: 'Why bonds move', prompt: 'why bonds move',
+                                           source: 'Your search', surface: 'search',
+                                           caption: '' };
+                generate('_smoke_swipe');
+            """)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.wait_for_timeout(300)
+            swipe = """([sel, x, y0, y1]) => {
+                var el = document.querySelector(sel);
+                function t(y){ return new Touch({ identifier: 1, target: el, clientX: x, clientY: y }); }
+                el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [t(y0)], changedTouches: [t(y0)] }));
+                el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [t(y1)] }));
+            }"""
+            page.evaluate(swipe, ["#screen-player .progress-wrap", 180, 300, 500])
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player", \
+                "a drag on the scrubber put the player away"
+            page.evaluate(swipe, ["#screen-player", 180, 200, 420])
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-home", \
+                "a swipe down did not put the player away"
+            assert page.evaluate("FamAudio.isActive()"), "the swipe stopped the episode"
+            bar = page.query_selector("#screen-home #nowBar")
+            assert bar and bar.is_visible(), "no mini player after the swipe"
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        check("The 11.18 notes: a swipe down puts the player away into the mini player",
+              a_swipe_down_puts_the_player_away)
+
         if errors:
             failures.append(f"page errors: {errors}")
             print(f"  FAIL  page errors: {errors}")

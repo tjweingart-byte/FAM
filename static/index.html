@@ -14202,13 +14202,31 @@
       }
     }, { passive: true });
 
-    var touchStartY = null;
+    var touchStartY = null, touchStartX = null;
     playerScreen.addEventListener("touchstart", function(e){
       touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+      // Not a swipe that starts on the bar (a seek), in a field, a sheet
+      // or a modal over the player.
+      if(e.target.closest("input, textarea, select, .progress-wrap, .modal-overlay, .nextup-grid, .nextup-search, [data-no-edge-swipe]")){
+        touchStartY = touchStartX = null;
+      }
     }, { passive: true });
     playerScreen.addEventListener("touchend", function(e){
-      if(touchStartY === null || scrollLocked || !currentAlbumForPlayer) return;
-      var dy = touchStartY - e.changedTouches[0].clientY;
+      if(touchStartY === null) return;
+      var endY = e.changedTouches[0].clientY, endX = e.changedTouches[0].clientX;
+      // Swipe down to put the player away into the mini player (the
+      // owner's 11.18 notes), as the Home mark does: it never stops the
+      // episode. The captions card's own swipe down closes captions and
+      // stops here first (`ccPanel`).
+      var down = endY - touchStartY, across = Math.abs(endX - touchStartX);
+      if(down > 90 && down > across * 1.2 && stack[stack.length - 1] === "player"){
+        touchStartY = touchStartX = null;
+        minimizePlayer();
+        return;
+      }
+      if(scrollLocked || !currentAlbumForPlayer){ touchStartY = null; return; }
+      var dy = touchStartY - endY;
       if(dy > 40){
         scrollLocked = true;
         playNextInAlbum();

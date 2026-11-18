@@ -428,6 +428,9 @@ class ChatterboxEngine(TTSEngine):
     _conds: dict = {}
     #: path -> (mtime, size, sha): hashing a recording once, not per chunk.
     _shas: dict = {}
+    #: Readings taken again for running twice their length (§652), since
+    #: the worker started. Reported by the worker's health.
+    retakes: int = 0
 
     # -- configuration -----------------------------------------------------
 
@@ -647,19 +650,73 @@ class ChatterboxEngine(TTSEngine):
         reference = getattr(self, "_reference", None) or self.reference_path()
         sha = self.reference_sha256(reference)
         model = self._model()
+        rate = int(getattr(model, "sr", self.SAMPLE_RATE))
         with torch.inference_mode():
             self._condition(model, reference, sha)
-            if settings.chatterbox_seeded:
-                torch.manual_seed(chunk_seed(sha, text, settings.chatterbox_seed_salt))
-            # §446: the same call through a loop without Chatterbox's waste
-            # when CHATTERBOX_FAST is on and the model is the one it mirrors;
-            # otherwise exactly `model.generate`. The settings are the voice.
-            import chatterbox_speed
+            salt = settings.chatterbox_seed_salt
+            pcm = self._take(model, text, sha, salt)
+            if settings.chatterbox_retake:
+                pcm = self._retake_if_said_twice(model, text, sha, salt, pcm, rate)
+        return pcm, rate
 
-            wav = chatterbox_speed.speak(model, text, CHATTERBOX_GENERATION)
+    def _take(self, model, text: str, sha: str, salt: str) -> bytes:
+        """One reading of `text`, seeded from the voice, the words and `salt`."""
+        import torch
+
+        if settings.chatterbox_seeded:
+            torch.manual_seed(chunk_seed(sha, text, salt))
+        # §446: the same call through a loop without Chatterbox's waste
+        # when CHATTERBOX_FAST is on and the model is the one it mirrors;
+        # otherwise exactly `model.generate`. The settings are the voice.
+        import chatterbox_speed
+
+        wav = chatterbox_speed.speak(model, text, CHATTERBOX_GENERATION)
         samples = wav.squeeze(0).detach().cpu().numpy()
         del wav
-        return pcm_from_float(samples), int(getattr(model, "sr", self.SAMPLE_RATE))
+        return pcm_from_float(samples)
+
+    #: Mixed into the seed of a second reading, so it is a different draw
+    #: and still the same one every time (§176's reproducibility kept).
+    RETAKE_SALT = "retake"
+
+    def _retake_if_said_twice(self, model, text: str, sha: str, salt: str,
+                              pcm: bytes, rate: int) -> bytes:
+        """A reading that ran about twice its words' length, read once more.
+
+        The owner heard an episode's first sentence twice in a row (11.16
+        notes, and again 11.18 after §637's guard on the writer). The first
+        chunk is that sentence alone (`speech_assembly`); Chatterbox's
+        English model has no check against reading a text again; and a
+        chunk is seeded from voice + words (§176), so a reading that went
+        wrong went wrong every time that sentence was voiced - "some of the
+        episodes", always the same ones. Measured with
+        `pace_level.said_ratio`, the same measure /admin's report uses.
+
+        Taken again from a second seed, and whichever take is nearer the
+        planned length is kept - so a retake that comes out short, cut off,
+        is not swapped in either. One retake at most; nothing is said in
+        place of anything (no-filler). Never raises: the first take stands.
+        `CHATTERBOX_RETAKE=0` turns it off."""
+        try:
+            import math
+
+            import pace_level
+
+            wpm = float(settings.target_wpm or 0)
+            first = pace_level.said_ratio(pcm, rate, text, wpm)
+            if first is None or first < pace_level.SAID_TWICE_RATIO:
+                return pcm
+            again = self._take(model, text, sha, f"{salt}\n{self.RETAKE_SALT}")
+            second = pace_level.said_ratio(again, rate, text, wpm) or 0.0
+            keep = second > 0 and abs(math.log(second)) < abs(math.log(first))
+            type(self).retakes += 1
+            log.warning("chatterbox: a reading ran %.1fx its words' length; taken "
+                        "again (%.1fx), kept the %s: %r", first, second,
+                        "retake" if keep else "first", text[:120])
+            return again if keep else pcm
+        except Exception:  # noqa: BLE001 - the first take stands
+            log.warning("chatterbox: could not retake a long reading", exc_info=True)
+            return pcm
 
     @classmethod
     def _condition(cls, model, reference: pathlib.Path, sha: str) -> None:
