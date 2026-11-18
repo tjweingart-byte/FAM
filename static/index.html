@@ -14215,8 +14215,10 @@
       touchStartY = e.touches[0].clientY;
       touchStartX = e.touches[0].clientX;
       // Not a swipe that starts on the bar (a seek), in a field, a sheet
-      // or a modal over the player.
-      if(e.target.closest("input, textarea, select, .progress-wrap, .modal-overlay, .nextup-grid, .nextup-search, [data-no-edge-swipe]")){
+      // or a modal over the player, or on the open captions card: its own
+      // swipe down closes captions, and a drag in its scrolled transcript
+      // is reading back.
+      if(e.target.closest("input, textarea, select, .progress-wrap, .modal-overlay, .nextup-grid, .nextup-search, #ccPanel.on, [data-no-edge-swipe]")){
         touchStartY = touchStartX = null;
       }
     }, { passive: true });

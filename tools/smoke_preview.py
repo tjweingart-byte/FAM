@@ -5753,6 +5753,18 @@ def main() -> int:
             page.wait_for_timeout(300)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player", \
                 "a drag on the scrubber put the player away"
+            # Nor a drag on the open captions card: that is the card's (it
+            # closes captions) or reading back through its transcript.
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(200)
+            page.evaluate("document.getElementById('cc-text').scrollTop = 40")
+            page.evaluate(swipe, ["#ccPanel #cc-text", 180, 300, 500])
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player", \
+                "a drag in the captions put the player away"
+            if page.evaluate("document.getElementById('ccPanel').classList.contains('on')"):
+                page.evaluate("toggleCC()")
+            page.wait_for_timeout(200)
             page.evaluate(swipe, ["#screen-player", 180, 200, 420])
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-home", \

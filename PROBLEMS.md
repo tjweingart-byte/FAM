@@ -39582,8 +39582,10 @@ stops, [transport]); otherwise it springs back. Not on the scrubber (its
 drag wins), not on the captions card while captions are on (its swipe down
 still closes captions), not with a sheet or popup up. Web: the player's
 touch handler minimises on a swipe down over 90 px, not from the bar, a
-field, a modal or What's next's grid; the captions card's swipe stops
-before it. Smoke: "The 11.18 notes: a swipe down ...". **Not verified:**
+field, a modal, What's next's grid or the open captions card (its own swipe
+closes captions; a drag in its scrolled transcript is reading back - caught
+in the pre-merge review, where the card's handler let such a drag through
+to the player). Smoke: "The 11.18 notes: a swipe down ...". **Not verified:**
 the Swift is compiled by `ios.yml` on push, not here, and not tried on a
 phone.
 
