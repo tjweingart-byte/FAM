@@ -167,6 +167,14 @@ def main() -> int:
                 "the handle field did not clean what was typed into it"
             page.evaluate("saveIdentity()")
 
+            # Find your friends comes between who you are and what you like
+            # (§656): skippable, and never a dead end.
+            page.wait_for_selector("#screen-findfriends.active", timeout=10000)
+            assert page.query_selector("#screen-findfriends .entry-skip, "
+                                       "#screen-findfriends [onclick*='afterFindFriends']"), \
+                "Find your friends has no way past it"
+            page.evaluate("afterFindFriends()")
+
             page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
             # The long list of topics, straight away - the wheel of six

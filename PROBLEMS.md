@@ -39812,3 +39812,35 @@ Each opens the whole list ("Followed by", the friends-who-listened sheet).
 following; nobody unfollowed named); the three looks photographed on a
 real server. **Owed:** the owner's pick, then the other two looks deleted.
 
+
+## 658. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18)
+
+**The owner's ask (11.18):** "These 2 are good. When people are following
+each other and view each others accounts, it should also show the mutuals.
+This should look similar to the icons that are shown on each tile in
+DailyFAM. It should show 4 peoples icons in the same format, and it should
+be on the left side of the screen right under the follow button. It should
+say \"Followed by Brady, Ian, and 45 others\"."
+
+**What changed:** `MUTUALS_LOOK` and the "stat" and "row" looks are gone.
+`mutualsLineHTML` draws up to four (`MUTUAL_FACES`) faces with
+`friendFaceHtml` - the dailyFAM tile's own `.src-marks` / `.friend-face`
+marks, titled with the person's name rather than "listened" - and
+`mutualsWords` writes "Followed by **Brady**, **Ian**, and 45 others" (two
+names: "A and B"; one: "A"). It is the `mutuals` part, placed straight after
+the Follow / Message row and left-aligned, so it shows on a friend's page as
+on anybody's; Suggested for you (§656) now opens under it.
+
+**A bug the full check found (§656):** `./dev.sh check` passed its 7,983
+tests and failed four browser smoke checks. Two were the smoke's own
+expectation (interests straight after identity); it now waits for
+`#screen-findfriends`, asserts there is a way past it, and goes on. Two were
+real: a guest, or anyone taking "skip" at the account step, was sent to Find
+your friends, which needs an account to follow from. `afterAccount` with
+`askWhoTheyAre: false` and `afterIdentity` without an account now go
+straight to the interests.
+
+**Verified:** photographed on a real server, two accounts following each
+other with five mutuals: four faces, "Followed by Eli, Dana, and 3 others",
+under Follow on the left. **Not verified:** the full check is re-run below
+in the commit that carries this.
