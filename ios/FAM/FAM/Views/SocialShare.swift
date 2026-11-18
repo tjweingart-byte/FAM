@@ -313,7 +313,12 @@ struct ShareTargetRows: View {
         let text = t.text ?? url
         // A story is a picture with a link on it, not a sentence with a URL.
         if t.needsImage == true {
-            shareCard(text: text, handoff: t.handoff)
+            // Instagram (§648): a story picture cannot be tapped through -
+            // only Instagram's Link sticker can, and only the person adds
+            // it - so the episode's link is what is left on the clipboard,
+            // ready to paste into that sticker.
+            shareCard(text: text, handoff: t.handoff,
+                      link: key == "instagram_story" ? absoluteLink : nil)
             return
         }
         if key == "copy" {
@@ -390,7 +395,7 @@ struct ShareTargetRows: View {
     /// app is on this phone - straight into Instagram's or Snapchat's story
     /// editor (`StoryHandoff`), else the share sheet with the picture as a
     /// file and the words. A failure is said, never silent.
-    private func shareCard(text: String, handoff: StoryHandoff? = nil) {
+    private func shareCard(text: String, handoff: StoryHandoff? = nil, link: URL? = nil) {
         guard !making else { return }
         guard !card.isEmpty || !storyImage.isEmpty else {
             model.nowPlaying.say("The card could not be made")
@@ -425,7 +430,7 @@ struct ShareTargetRows: View {
                     }
                     png = drawn
                 }
-                if let handoff, await handoff.send(png: png, sticker: sticker, caption: text) {
+                if let handoff, await handoff.send(png: png, sticker: sticker, caption: text, link: link) {
                     done()
                     return
                 }
@@ -435,8 +440,13 @@ struct ShareTargetRows: View {
                 // wait on the clipboard.
                 let file = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
                 try png.write(to: file, options: .atomic)
-                UIPasteboard.general.string = text
-                model.nowPlaying.say("Your words are on the clipboard \u{2014} paste them in")
+                if let link {
+                    UIPasteboard.general.string = link.absoluteString
+                    model.nowPlaying.say("Link copied \u{2014} add Instagram\u{2019}s Link sticker and paste it")
+                } else {
+                    UIPasteboard.general.string = text
+                    model.nowPlaying.say("Your words are on the clipboard \u{2014} paste them in")
+                }
                 activity = [file]
             } catch {
                 model.nowPlaying.say("The card could not be made")

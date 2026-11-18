@@ -151,6 +151,7 @@ struct PersonView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, 5)
             }
+            if page?.ambassador == true { AmbassadorTag().padding(.top, 5) }
             let standing = social.standing(userID)
             if !standing.isEmpty {
                 Text(standing)

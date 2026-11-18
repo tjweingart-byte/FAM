@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>FAM admin — Ambassadors</title>
+<!--
+  FAM Ambassadors (PROBLEMS.md §648, the owner's 11.17 notes). "Add new
+  ambassador" makes a code; the admin hands it over; the ambassador enters
+  it in Settings (or on the profile step after being let in), wears the
+  "FAM Ambassador" tag, and is on the unlimited plan for free. A shell:
+  every row is fetched from /api/admin/ambassadors*, which check who is
+  asking (`_require_admin`). Signing in is the same admin form as /admin.
+-->
+<style>
+  :root{ --bg:#1E1B27; --card:#26222F; --line:#3A3548; --text:#F4EFE4; --muted:#A9A2B8; --gold:#F0C35E; --bad:#FFB4A2; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main{ max-width:1100px; margin:0 auto; padding:24px 16px 60px; }
+  h1{ font-size:22px; margin:0 0 4px; } .sub{ color:var(--muted); margin:0 0 20px; }
+  .card{ background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+  .stat .n{ font-size:26px; font-weight:600; } .stat .l{ color:var(--muted); font-size:13px; }
+  input, button{ font:inherit; color:inherit; }
+  input{ background:#2E2A3A; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  button{ background:var(--gold); color:#1E1B27; border:0; border-radius:8px; padding:8px 14px; cursor:pointer; font-weight:600; }
+  button.ghost{ background:transparent; color:var(--text); border:1px solid var(--line); }
+  button.small{ padding:4px 10px; font-size:13px; }
+  button:disabled{ opacity:.55; cursor:default; }
+  .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .table-wrap{ overflow-x:auto; }
+  table{ width:100%; border-collapse:collapse; min-width:760px; }
+  th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th{ color:var(--muted); font-weight:500; }
+  code{ font:600 15px ui-monospace, "SF Mono", Menlo, monospace; letter-spacing:.04em; color:var(--gold); }
+  .muted{ color:var(--muted); } .err{ color:var(--bad); } .ok{ color:#8FAE9A; }
+  .login{ max-width:360px; margin:12vh auto; }
+  .login input{ width:100%; margin-bottom:10px; }
+  .made{ border-left:3px solid var(--gold); }
+  tr.revoked td{ opacity:.5; }
+</style>
+</head>
+<body>
+<main>
+  <form class="card login" id="loginForm">
+    <h1>Ambassadors admin</h1>
+    <p class="sub">Sign in with an admin account.</p>
+    <input id="adminEmail" type="email" placeholder="Email" autocomplete="username" required>
+    <input id="adminPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button id="loginBtn" type="submit">Sign in</button>
+    <p class="err" id="loginErr" hidden></p>
+    <p id="forgotLink" hidden style="margin:10px 0 0;font-size:13px;"><a href="/reset?next=/admin/ambassadors" style="color:inherit;opacity:.75">Forgot password?</a></p>
+  </form>
+
+  <div id="app" hidden>
+    <h1>FAM Ambassadors</h1>
+    <p class="sub">Each code makes one account a FAM Ambassador: the tag on their profile and the unlimited plan, free. They enter it in Settings, or on the profile step when they come off the waitlist.</p>
+
+    <div class="card stats" id="stats"></div>
+
+    <div class="card">
+      <form class="row" id="newForm">
+        <input id="newName" type="text" maxlength="80" placeholder="Who it's for (only you see this)" style="flex:1; min-width:220px">
+        <button id="newBtn" type="submit">Add new ambassador</button>
+        <span id="actionNote"></span>
+      </form>
+      <div class="made" id="made" hidden style="margin-top:12px; padding-left:12px"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <input id="search" type="search" placeholder="Search code, name, email or @handle" style="flex:1; min-width:220px">
+        <button class="ghost" id="refresh" type="button">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Code</th><th>For</th><th>Account</th><th>Email / phone</th>
+            <th>Made</th><th>Entered</th><th></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="sub" id="shown" style="margin-top:10px"></p>
+    </div>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var DATA = null;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function api(path, body) {
+    var headers = { "Accept": "application/json" };
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(path, { method: body ? "POST" : "GET", headers: headers, credentials: "same-origin",
+                         body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || j.detail || ("HTTP " + r.status)); e.status = r.status; throw e; }
+          return j;
+        });
+      });
+  }
+  function day(t) { return t ? new Date(t * 1000).toISOString().slice(0, 10) : "—"; }
+  function note(text, bad) { $("actionNote").className = bad ? "err" : "ok"; $("actionNote").textContent = text; }
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { note("Copied " + text); },
+                                               function () { note("Select the code to copy it", true); });
+    }
+  }
+
+  function draw() {
+    var s = DATA.summary;
+    $("stats").innerHTML = [["Ambassadors", s.active], ["Codes not entered yet", s.waiting], ["Codes made", s.codes]]
+      .map(function (x) { return '<div class="stat"><div class="n">' + x[1] + '</div><div class="l">' + x[0] + '</div></div>'; }).join("");
+    var q = $("search").value.trim().toLowerCase().replace(/^@/, "");
+    var shown = DATA.rows.filter(function (r) {
+      if (!q) return true;
+      return [r.code, r.name, r.account_name, r.handle, r.email, r.phone].join(" ").toLowerCase().indexOf(q) >= 0;
+    });
+    $("rows").innerHTML = shown.map(function (r) {
+      var who = r.user_id
+        ? esc(r.account_name || "—") + (r.handle ? ' <span class="muted">@' + esc(r.handle) + '</span>' : "")
+        : '<span class="muted">' + (r.redeemed_at ? "account deleted" : "not entered yet") + '</span>';
+      var act = r.revoked ? '<span class="muted">' + (!r.user_id && r.redeemed_at ? "spent" : "revoked") + '</span>'
+        : '<button class="ghost small" data-copy="' + esc(r.code) + '">Copy</button> '
+          + '<button class="ghost small" data-revoke="' + esc(r.code) + '">Revoke</button>';
+      return '<tr' + (r.revoked ? ' class="revoked"' : "") + '><td><code>' + esc(r.code) + '</code></td>'
+        + '<td>' + esc(r.name || "—") + '</td><td>' + who + '</td>'
+        + '<td>' + esc(r.email || r.phone || "") + '</td>'
+        + '<td>' + day(r.created) + '</td><td>' + day(r.redeemed_at) + '</td><td>' + act + '</td></tr>';
+    }).join("") || '<tr><td colspan="7" class="muted">No codes yet. Press "Add new ambassador".</td></tr>';
+    $("shown").textContent = shown.length === DATA.rows.length ? "" : shown.length + " of " + DATA.rows.length + " shown";
+  }
+  function load() {
+    return api("/api/admin/ambassadors").then(function (d) {
+      DATA = d; $("loginForm").hidden = true; $("app").hidden = false; draw();
+    });
+  }
+
+  fetch("/api/auth/reset", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { $("forgotLink").hidden = !(d && d.available); })
+    .catch(function () {});
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").hidden = true; $("loginBtn").disabled = true;
+    api("/api/admin/login", { email: $("adminEmail").value.trim(), password: $("adminPassword").value })
+      .then(function () { $("adminPassword").value = ""; return load(); })
+      .catch(function (e) {
+        $("loginErr").textContent = e.status === 429 ? "Too many attempts. Wait a moment and try again."
+                                                     : "That email and password are not an admin's.";
+        $("loginErr").hidden = false;
+      })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+  $("newForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("newBtn").disabled = true; note("");
+    api("/api/admin/ambassadors", { name: $("newName").value.trim() })
+      .then(function (m) {
+        $("newName").value = "";
+        $("made").hidden = false;
+        $("made").innerHTML = 'New code' + (m.name ? " for " + esc(m.name) : "") + ': <code>' + esc(m.code)
+          + '</code> <button class="ghost small" data-copy="' + esc(m.code) + '">Copy</button>'
+          + '<div class="muted" style="margin-top:6px">Send it to them. They enter it in FAM under Settings → FAM Ambassador code.</div>';
+        return load();
+      })
+      .catch(function (e) { note(e.message, true); })
+      .then(function () { $("newBtn").disabled = false; });
+  });
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    var c = t.getAttribute && t.getAttribute("data-copy");
+    if (c) { copy(c); return; }
+    var r = t.getAttribute && t.getAttribute("data-revoke");
+    if (r && confirm("Revoke " + r + "? Its account loses the FAM Ambassador tag and the free unlimited plan.")) {
+      api("/api/admin/ambassadors/revoke", { code: r }).then(function () { note("Revoked " + r); return load(); },
+                                                             function (e) { note(e.message, true); });
+    }
+  });
+  $("search").addEventListener("input", function () { if (DATA) draw(); });
+  $("refresh").addEventListener("click", function () { load().catch(function (e) { note(e.message, true); }); });
+  load().catch(function () { /* not signed in: the form stays */ });
+})();
+</script>
+</body>
+</html>

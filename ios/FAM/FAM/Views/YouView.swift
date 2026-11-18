@@ -144,6 +144,7 @@ struct YouView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 5)
+            if model.listener?.ambassador == true { AmbassadorTag().padding(.top, 5) }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)

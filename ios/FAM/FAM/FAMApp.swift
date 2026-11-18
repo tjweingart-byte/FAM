@@ -50,6 +50,12 @@ struct FAMApp: App {
                 // the status bar to the theme it was drawn in.
                 .onChange(of: chromeDark) { _, dark in EnvRibbonWindow.restyle(dark: dark) }
                 .task { await model.open() }
+                // A tap off a field puts the keyboard away (§648), on every
+                // window the app has.
+                .onAppear { KeyboardDismisser.shared.install() }
+                .onReceive(NotificationCenter.default.publisher(for: UIWindow.didBecomeKeyNotification)) { _ in
+                    KeyboardDismisser.shared.install()
+                }
                 // Google's sign-in comes back to the app through its URL scheme;
                 // any other link may carry a waitlist invite code.
                 .onOpenURL { url in

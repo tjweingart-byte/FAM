@@ -31,11 +31,11 @@ extension StoryHandoff {
     /// alone, which Instagram places as a sticker the person can move
     /// (11.12 notes); `caption` the destination's words.
     @MainActor
-    func send(png: Data, sticker: Data? = nil, caption: String) async -> Bool {
+    func send(png: Data, sticker: Data? = nil, caption: String, link: URL? = nil) async -> Bool {
         guard available else { return false }
         switch platform {
         case "instagram":
-            return await instagram(png: png, sticker: sticker)
+            return await instagram(png: png, sticker: sticker, link: link)
         case "snapchat":
             return await snapchat(png: png, caption: caption)
         default:
@@ -53,9 +53,16 @@ extension StoryHandoff {
     /// on FAM's ground (`backgroundTopColor` / `backgroundBottomColor`);
     /// with no sticker, the whole picture under `backgroundImage`.
     @MainActor
-    private func instagram(png: Data, sticker: Data?) async -> Bool {
+    ///
+    /// `link` (§648): the episode's share page, `/s/<id>`, which is the
+    /// sent-episode page with its waitlist note. Instagram lets no app make
+    /// a story picture tappable - only its Link sticker is, and only the
+    /// person adds one - so the link rides in the same pasteboard item as
+    /// plain text, for the sticker's Paste. Instagram may clear the
+    /// pasteboard once it has read the picture; then it is simply gone.
+    private func instagram(png: Data, sticker: Data?, link episode: URL? = nil) async -> Bool {
         guard let link = URL(string: self.url) else { return false }
-        let item: [String: Any]
+        var item: [String: Any]
         if let sticker {
             item = [
                 "com.instagram.sharedSticker.stickerImage": sticker,
@@ -64,6 +71,9 @@ extension StoryHandoff {
             ]
         } else {
             item = ["com.instagram.sharedSticker.backgroundImage": png]
+        }
+        if let episode {
+            item["public.utf8-plain-text"] = episode.absoluteString
         }
         UIPasteboard.general.setItems([item], options: [.expirationDate: Date().addingTimeInterval(Self.expiry)])
         return await UIApplication.shared.open(link)

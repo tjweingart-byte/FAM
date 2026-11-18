@@ -39355,3 +39355,148 @@ refused switch flips back; reduced motion moves no line; a tile's save
 holds" and the stronger Saved Undo in yourFAM's check. **Not verified
 here:** a real network reordering the DELETE and the logout (the probes
 delay one side in the page), and a real screen reader on the mix switch.
+
+## 648. The owner's 11.17 notes: FAM Ambassadors, the keyboard put away, Instagram's link (2026-11-17)
+
+The owner's PDF "11.17.26 Implementations", three asks.
+
+**1. FAM Ambassadors.** "In settings, add a place to put in a 'FAM
+Ambassador Code'. Once they put this in, the FAM Ambassador tag will appear
+on their profile. The ambassador code will be generated on the admin page
+... An ambassador should have an unlimited free membership." Built
+([ambassadors]):
+- `accounts.py`: an `ambassadors` table (code, the admin's note of who it
+  is for, made, holder, entered, revoked) and `accounts.ambassador_at`, read
+  in the session's one query, so the plan (`unlimited`) and the badge cost
+  no second read. `new_ambassador`, `redeem_ambassador` (case, spaces,
+  dashes and the FAM prefix forgiven; one code one account and one account
+  one code, taken by an UPDATE that only succeeds while unheld; ten wrong
+  codes an hour per account), `revoke_ambassador`, `ambassadors`.
+- `/admin/ambassadors` (`admin_ui/ambassadors.html`, linked from /admin):
+  "Add new ambassador" with an optional who-it's-for note, the new code
+  with Copy, and every code with its account, email, made and entered
+  dates, Copy and Revoke. `GET/POST /api/admin/ambassadors`,
+  `POST /api/admin/ambassadors/revoke`, admin only (404).
+- `POST /api/ambassador`, an account's only. `/api/auth/me` (via
+  `Listener.as_dict`) and `/api/person` carry `ambassador`.
+- Web: Settings > Account settings "FAM Ambassador code" (Add code /
+  Ambassador); the first-run profile step - what a person let off the
+  waitlist sees - has an optional "FAM Ambassador code" field, a wrong code
+  stopping the step with the server's words; both profiles draw the FAM
+  wordmark and "Ambassador" in gold under the place line, as the owner's
+  mock-up does.
+- iOS (built after, at the owner's "build the iOS ambassador screens
+  too"): `FAMAPI.enterAmbassadorCode`, `Listener.ambassador`,
+  `PersonPage.ambassador`, `AppModel.enterAmbassadorCode`; Settings'
+  "FAM Ambassador code" row (the web's modal, then the plan read again);
+  the first-run `IdentityView` field, sent on Next and on Skip for now, a
+  wrong code stopping the step; `AmbassadorTag` (the drawn FAM letters and
+  "Ambassador" in copper) under the place line on YouView and PersonView.
+  **Not compiled here** (no Xcode in this container).
+- Whether an ambassador code should also let somebody off the waitlist was
+  not asked; it does not.
+
+**2. "Is it possible to embed the link to the episode on the tile card on
+Instagram so when you click on the tile it takes you to the episode."**
+No: Instagram lets no app make a story picture tappable, and has not
+since it withdrew the attribution link; the Link sticker is the only
+tappable link in a story and the person posting adds it (SHARING.md
+already said so, §558). What changed: the Instagram tile leaves the
+episode's `/s/<id>` link - the sent-episode page with the waitlist note,
+which is what the owner said it should look like - ready for the sticker's
+Paste. iOS: as plain text in the hand-off's pasteboard item, and as the
+clipboard in the share-sheet fallback ("Link copied - add Instagram's Link
+sticker and paste it"). Web: copied at the tap, the picture shared alone.
+**Not verified:** whether Instagram leaves that pasteboard text in place
+after reading the card; it needs a phone.
+
+**3. "If the keyboard is popped up and I click somewhere random on the
+screen, I want the keyboard to disappear."** The screenshot is the iOS
+app's Messages. iOS: `KeyboardDismiss.swift`, one tap recogniser per
+window that never cancels or delays the tap, ends editing unless the tap
+is on a field or in the 72-point strip above the keyboard where a
+composer's Send sits (so sending never closes it). Web: a tap (not a
+scroll) on anything that is not a field or a control blurs the focused
+field. **Not verified:** the Swift was not compiled here (no Xcode); the
+web listener was exercised only by the smoke run.
+
+Tests: `tests/test_ambassadors_648.py`.
+
+## 649. An ambassador code lets its account off the waitlist (2026-11-18)
+
+Asked in §648 whether a code should also be a waitlist pass; the owner:
+"Yes, let them off of the waitlist." ([ambassadors], narrowing
+[waitlist-gate]'s "a `/waitlist` join is always waitlisted".)
+
+**Built.**
+- `/api/ambassador` is open past the gate (`WAITLIST_OPEN_PATHS`). A right
+  code from a waitlisted account lets it in (`app._admit_ambassador`:
+  `Waitlist.grant` with `notify=False` - they let themselves in, so no
+  "you're off the waitlist" mail or text - and Viral Loops flagged only if
+  it was told about them, as `_admit_admin` does). The answer carries
+  `let_in`, `status` and `redirect: "/"`.
+- `/api/waitlist/join` takes an optional `ambassador_code`. Right, the
+  account joins active and the page goes to the app; wrong, the person
+  still joins (never a refused join that loses them) and the answer says
+  `ambassador_error`, which the status page shows on its ambassador card.
+- `/waitlist`: "Have a FAM Ambassador code?" folded under the join button.
+  `/waitlist/me`: a "Have a FAM Ambassador code?" card under the place card
+  (waiting only; an admin's preview shows it), "Let me in", then FAM.
+- iOS `WaitlistStatusPage`: the same card; in, `model.open()` and the app
+  opens as for anybody let in (a password-less account's first step is
+  still setting one, §606).
+- `accounts.listener_of` now carries `ambassador` too.
+
+**Not built.** iOS's own join form has no code field: on iOS the status
+page, shown straight after joining, is where it goes in.
+
+**Environment trap, found on the way.** `pip install playwright` (the
+setup line in CLAUDE.md) installed Playwright 1.65 here, whose browser
+build is not the one in `/opt/pw-browsers`, and the smoke tools' fallback
+globs `chrome-linux/` where this image has `chrome-linux64/`. Run them with
+`PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium`.
+
+**Not verified:** the Swift is not compiled here.
+
+Tests: the §649 block of `tests/test_ambassadors_648.py`.
+
+## 650. The branch double-checked before merging: §648-649 reviewed (2026-11-18)
+
+The owner: "Double check all changes made in this branch, and get it ready
+to merge into main." A second reader went over the whole diff without this
+session's conclusions. Nothing serious; eight things, all fixed:
+
+1. *A deleted ambassador's code could be entered again*: deleting the
+   account freed it (`user_id` and `redeemed_at` cleared, not revoked), so
+   whoever else held the code got the plan and a waitlist pass. Now the
+   code is left **spent** - revoked, its entered date kept - and the admin
+   page says "spent". Fixed.
+2. *One account could hold two codes* by entering two at once: the "already
+   holds one" check and the claiming UPDATE were separate statements. A
+   unique partial index (`ambassadors_one_each`: one live code per account)
+   makes the database refuse the second; the refusal is the same sentence.
+   Fixed.
+3. *The wrong-guess counter* was never pruned and had no lock. Pruned on
+   every read and locked. Still per process and per account, so a person
+   making many accounts gets ten guesses each, behind the join's own rate
+   limit, against ~8.5e11 codes - accepted.
+4. *iOS: a tap whose own action moves the caret* (a "next" button, a chip
+   that focuses search) could have that focus undone by the keyboard
+   recogniser, the two running in no set order. The keyboard now goes only
+   if no field began editing in the 120 ms after the tap. Fixed.
+5. *iOS: the strip above the keyboard* compared a window point with the
+   keyboard's screen frame, which differ in an iPad window that is not the
+   whole screen. Converted to screen coordinates. Fixed.
+6. *Web: a pasted code over 40 characters* toasted "[object Object]" (the
+   422's `detail` is a list). Refused in the page with the wrong-code
+   sentence, and a non-string `detail` is never shown. Fixed.
+7. *"Skip for now" was blocked by a wrong code* on the first-run step (web
+   and iOS). Skip now skips the code too; Next still sends it. Fixed.
+8. *iOS: a doc comment* had ended up above the wrong function. Fixed.
+
+Checked and fine, by the reader: every admin endpoint is admin-only; the
+gate opens only `/api/ambassador` (and its `/api/v1` twin); the admin page
+escapes everything it draws; installed clients' contracts pass; the Swift
+reads as compiling (Swift 5 mode, every type and modifier it names exists).
+
+**Not verified:** the Swift is still not compiled here.
