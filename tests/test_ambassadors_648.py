@@ -181,3 +181,59 @@ def test_the_iphone_has_the_same_three_screens():
     assert "AmbassadorTag()" in (ios / "Views" / "YouView.swift").read_text()
     assert "page?.ambassador == true { AmbassadorTag()" in (ios / "Views" / "PersonView.swift").read_text()
     assert "struct AmbassadorTag: View" in (ios / "Theme.swift").read_text()
+
+
+# --- §649: a code is a waitlist pass ---------------------------------------
+
+def test_a_waitlisted_account_lets_itself_in_with_a_code(world):
+    made = TestClient(world.app).post("/api/admin/ambassadors", json={}, headers=ADMIN).json()
+    client, body = _join("waiting@fam.test")
+    assert body["status"] == "waitlisted"
+    # Still closed to the app...
+    assert client.get("/api/friends").status_code == 403
+    r = client.post("/api/ambassador", json={"code": made["code"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["let_in"] is True and r.json()["status"] == "active"
+    me = client.get("/api/auth/me").json()
+    assert me["status"] == "active" and me["ambassador"] is True
+    # ...and open now.
+    assert client.get("/api/friends").status_code == 200
+    # Let in by themselves: no "you're off the waitlist" notice queued.
+    uid = me["user_id"]
+    assert not world.WAITLIST.has_action(uid, "notify_email")
+
+
+def test_a_wrong_code_keeps_them_waiting(world):
+    client, _ = _join("wrong@fam.test")
+    r = client.post("/api/ambassador", json={"code": "FAM-AAAA-AAAA"})
+    assert r.status_code == 400
+    assert client.get("/api/auth/me").json()["status"] == "waitlisted"
+
+
+def test_joining_with_a_code_skips_the_line(world):
+    made = TestClient(world.app).post("/api/admin/ambassadors", json={}, headers=ADMIN).json()
+    c = TestClient(world.app)
+    r = c.post("/api/waitlist/join", json={"email": "amb@fam.test", "accept_terms": True,
+                                           "ambassador_code": made["code"]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "active" and body["ambassador"] is True
+    assert body["redirect"] == "/" and "ambassador_error" not in body
+
+
+def test_joining_with_a_wrong_code_still_joins(world):
+    c = TestClient(world.app)
+    r = c.post("/api/waitlist/join", json={"email": "oops@fam.test", "accept_terms": True,
+                                           "ambassador_code": "nope"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "waitlisted" and body["ambassador_error"]
+    assert body["redirect"] == "/waitlist/me"
+
+
+def test_the_waitlist_pages_offer_the_code():
+    page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    assert 'id="ambassadorCode"' in page and "ambassador_code: $(\"ambassadorCode\")" in page
+    assert 'id="ambCard"' in page and 'api("/api/ambassador", { code: code })' in page
+    door = (ROOT / "ios" / "FAM" / "FAM" / "Views" / "FrontDoor.swift").read_text()
+    assert 'if page.status != "active" { ambassadorCard' in door

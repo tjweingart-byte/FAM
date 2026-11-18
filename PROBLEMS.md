@@ -39421,3 +39421,41 @@ field. **Not verified:** the Swift was not compiled here (no Xcode); the
 web listener was exercised only by the smoke run.
 
 Tests: `tests/test_ambassadors_648.py`.
+
+## 649. An ambassador code lets its account off the waitlist (2026-11-18)
+
+Asked in §648 whether a code should also be a waitlist pass; the owner:
+"Yes, let them off of the waitlist." ([ambassadors], narrowing
+[waitlist-gate]'s "a `/waitlist` join is always waitlisted".)
+
+**Built.**
+- `/api/ambassador` is open past the gate (`WAITLIST_OPEN_PATHS`). A right
+  code from a waitlisted account lets it in (`app._admit_ambassador`:
+  `Waitlist.grant` with `notify=False` - they let themselves in, so no
+  "you're off the waitlist" mail or text - and Viral Loops flagged only if
+  it was told about them, as `_admit_admin` does). The answer carries
+  `let_in`, `status` and `redirect: "/"`.
+- `/api/waitlist/join` takes an optional `ambassador_code`. Right, the
+  account joins active and the page goes to the app; wrong, the person
+  still joins (never a refused join that loses them) and the answer says
+  `ambassador_error`, which the status page shows on its ambassador card.
+- `/waitlist`: "Have a FAM Ambassador code?" folded under the join button.
+  `/waitlist/me`: a "Have a FAM Ambassador code?" card under the place card
+  (waiting only; an admin's preview shows it), "Let me in", then FAM.
+- iOS `WaitlistStatusPage`: the same card; in, `model.open()` and the app
+  opens as for anybody let in (a password-less account's first step is
+  still setting one, §606).
+- `accounts.listener_of` now carries `ambassador` too.
+
+**Not built.** iOS's own join form has no code field: on iOS the status
+page, shown straight after joining, is where it goes in.
+
+**Environment trap, found on the way.** `pip install playwright` (the
+setup line in CLAUDE.md) installed Playwright 1.65 here, whose browser
+build is not the one in `/opt/pw-browsers`, and the smoke tools' fallback
+globs `chrome-linux/` where this image has `chrome-linux64/`. Run them with
+`PLAYWRIGHT_CHROMIUM=/opt/pw-browsers/chromium`.
+
+**Not verified:** the Swift is not compiled here.
+
+Tests: the §649 block of `tests/test_ambassadors_648.py`.

@@ -1580,7 +1580,17 @@
   `/api/auth/me` and `/api/person` say `ambassador`, which draws the "FAM
   Ambassador" tag under the name on both profiles. **Revoke** takes the tag
   and the plan back at the next request; a deleted account leaves its code
-  on the admin's list, unheld. The code is not a waitlist pass.
+  on the admin's list, unheld.
+  > **Current (PROBLEMS.md §649, the owner 11.18: "Yes, let them off of the
+  > waitlist"):** **a code is a waitlist pass.** Entered by a waitlisted
+  > account it lets them in at once (`app._admit_ambassador`: `grant` with
+  > no let-in notice - they let themselves in - and Viral Loops told only if
+  > it knew them). `/api/ambassador` is open past the gate; `/waitlist`'s
+  > join form takes an optional code (`ambassador_code`; a wrong one joins
+  > them anyway and says so, `ambassador_error`), and the status page
+  > (`/waitlist/me`) and iOS's `WaitlistStatusPage` have "Have a FAM
+  > Ambassador code?". This narrows [waitlist-gate]'s "a `/waitlist` join
+  > is always waitlisted": not with a right code.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
   > **Current (§519, the 11.9 packet):** switched **off again in production**

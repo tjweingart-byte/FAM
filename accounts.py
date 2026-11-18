@@ -1132,7 +1132,7 @@ class AccountStore:
             return Listener(user_id)
         return Listener(user_id, account["email"], account["plan"],
                         account["display_name"], account["phone"], True,
-                        account["status"])
+                        account["status"], ambassador=account.get("ambassador", False))
 
     # --- identities -------------------------------------------------------
 

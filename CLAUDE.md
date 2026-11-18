@@ -433,7 +433,7 @@ Accounts, tiers, sharing
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
   checkout [tiers-off]; 5 invites: free month [free-month];
   let in: mail+text a claim link, month at launch [waitlist-notice]
-- An admin-made **ambassador code**: tag + free unlimited, revocable [ambassadors]
+- An admin-made **ambassador code**: tag, free unlimited, off the waitlist; revocable [ambassadors]
 - A refusal names what the listener was doing (`service_label`), composed
   server-side, in the body as well as `X-FAM-Quota`, in the reader's clock. [refusal-wording]
 - A tier is what you may spend, never what you may reach: every tier has every
