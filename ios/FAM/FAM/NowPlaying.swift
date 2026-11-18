@@ -24,6 +24,9 @@ struct Episode: Equatable {
     var episodeID: String = ""
     /// A myFAM playlist's own episode: the playlist's key while it plays it
     /// (`fromMix`, `mixPlay.key` on the web).
+    /// The myFAM mix this episode is played from (§652), sent as `mix` so a
+    /// free listener's half of it is counted. Empty off a mix.
+    var mixID: String = ""
     var mixKey: String = ""
     /// A Go Deeper off a playlist's episode, or off a follow-up already on
     /// that detour (§519, `mixDetour`): the playlist waits behind it and

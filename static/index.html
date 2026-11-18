@@ -11368,7 +11368,12 @@
       + '<div class="plan-limits">' + escapeHtml(planLimits(mine)) + '</div>'
       + '</div></div>';
     var paying = sub && sub.plan;
-    if(paying && sub.manage){
+    if(paying && sub.store === "apple"){
+      // Bought in the iPhone app (§653): only Apple can change or cancel it.
+      html += planAction("Manage subscription",
+        "Bought on iPhone \u2014 change or cancel it in Settings, your name, Subscriptions",
+        "toast('Open Settings on your iPhone, tap your name, then Subscriptions')");
+    } else if(paying && sub.manage){
       html += planAction("Manage subscription", "Change your plan or card, or cancel", "manageBilling()");
     }
     if(sub && sub.plan === "fam"){

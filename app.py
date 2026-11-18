@@ -54,6 +54,7 @@ import taste_vectors
 from demo_script import DemoGenerator
 import credentials
 import client_versions
+import apple_iap
 import billing
 import entitlements
 import episode_quality
@@ -5421,6 +5422,9 @@ def _billing_snapshot(request: Request) -> dict:
                "blurb": billing.PLAN_BLURBS[p],
                "price": (priced.get(p) or {}).get("display", ""),
                "for_sale": p in selling,
+               # §653: the iPhone app sells the same plan through the App
+               # Store under this product id; its price is Apple's.
+               "apple_product": apple_iap.product_id(p),
                "seats": billing.FAM_SEATS if p == "fam" else 1}
               for p in billing.PLANS]
     mine = None
@@ -5431,6 +5435,9 @@ def _billing_snapshot(request: Request) -> dict:
             own = BILLING.own_plan(user)
             mine = {
                 "plan": own, "status": (sub or {}).get("status", ""),
+                # "stripe" or "apple" (§653): an App Store subscription is
+                # managed in the iPhone's settings, not Stripe's portal.
+                "store": (sub or {}).get("source", "") if own else "",
                 "renews_at": (sub or {}).get("period_end", 0.0),
                 "manage": bool((sub or {}).get("customer")),
                 "fam_member_of": owner if owner and BILLING.own_plan(owner) == "fam" else "",
@@ -5507,6 +5514,85 @@ async def billing_webhook(request: Request) -> dict:
         pipeline_errors.record("billing", "webhook", str(exc), str(event.get("type")))
         raise HTTPException(status_code=500, detail="Not applied.") from exc
     log.info("stripe %s: %s", event.get("type"), done)
+    return {"ok": True}
+
+
+class AppleTransactionRequest(BaseModel):
+    transaction: str = Field(..., max_length=20000)
+
+
+@app.get("/api/billing/apple")
+async def apple_purchase_setup(request: Request) -> dict:
+    """What the iPhone app needs before it shows Apple's sheet (§653): the
+    `appAccountToken` this account buys with, and each plan's product id."""
+    _read_limit(request)
+    user = _require_account(request)
+    token = apple_iap.account_token(user)
+    BILLING.remember_apple_token(token, user)
+    sub = BILLING.subscription(user) or {}
+    return {"token": token, "products": apple_iap.products(),
+            "own_plan": BILLING.own_plan(user),
+            "store": sub.get("source", "") if BILLING.own_plan(user) else ""}
+
+
+@app.post("/api/billing/apple")
+async def apple_purchase(req: AppleTransactionRequest, request: Request) -> dict:
+    """A StoreKit 2 transaction the app just bought or restored (§653). The
+    JWS is checked against Apple's pinned root, and its `appAccountToken`
+    must be this account's - a transaction from somebody else's phone buys
+    nothing."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        payload = apple_iap.verify(req.transaction)
+        sub = apple_iap.subscription_from(payload)
+    except apple_iap.AppleError as exc:
+        log.warning("apple purchase refused for %s: %s", user, exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    token = apple_iap.account_token(user)
+    if sub["token"] != token:
+        log.warning("apple purchase for another account refused (%s)", user)
+        raise HTTPException(status_code=403,
+                            detail="That purchase belongs to another FAM account.")
+    BILLING.remember_apple_token(token, user)
+    BILLING.record_apple(user, sub)
+    log.info("apple %s: %s on %s (%s)", sub["environment"], user, sub["plan"], sub["status"])
+    return {"ok": True, "plan": sub["plan"], "status": sub["status"],
+            "tier": _tier(request)}
+
+
+#: Notification types that mean the subscription is in a billing grace
+#: period: still paid, while Apple retries the card.
+APPLE_GRACE = ("DID_FAIL_TO_RENEW",)
+
+
+@app.post("/api/billing/apple/notifications")
+async def apple_notifications(request: Request) -> dict:
+    """App Store Server Notifications v2 (§653): renewals, lapses, refunds.
+    Signed or refused; the transaction inside decides the plan."""
+    try:
+        body = await request.json()
+        note = apple_iap.verify(str(body.get("signedPayload") or ""))
+        data = note.get("data") or {}
+        transaction = apple_iap.verify(str(data.get("signedTransactionInfo") or ""))
+        renewal = (apple_iap.verify(str(data["signedRenewalInfo"]))
+                   if data.get("signedRenewalInfo") else None)
+        grace = (note.get("notificationType") in APPLE_GRACE
+                 and note.get("subtype") == "GRACE_PERIOD")
+        sub = apple_iap.subscription_from(transaction, renewal, grace=grace)
+    except (apple_iap.AppleError, ValueError) as exc:
+        log.warning("apple notification refused: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    user = (BILLING.user_for_apple_token(sub["token"])
+            or BILLING.user_for_subscription("apple:" + sub["original"]))
+    if not user:
+        # Bought before the account fetched its token, or a test
+        # notification: nothing to change, and a 200 so Apple stops retrying.
+        log.info("apple notification for nobody we know (%s)", note.get("notificationType"))
+        return {"ok": True}
+    BILLING.record_apple(user, sub)
+    log.info("apple %s %s: %s %s", note.get("notificationType"), note.get("subtype") or "",
+             user, sub["status"])
     return {"ok": True}
 
 
@@ -7249,6 +7335,8 @@ WAITLIST_OPEN_PATHS = frozenset({
     # Stripe's webhook (§652) carries no session at all; its signature is
     # its whole authority (`billing.verify_signature`).
     "/api/billing/webhook",
+    # Apple's server notifications (§653), signed like the webhook above.
+    "/api/billing/apple/notifications",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
 #: link is a list of episodes to browse, which is the app. A shared *episode*
@@ -13209,7 +13297,11 @@ async def audio(
                         episode_key=_episode_key(plan),
                         # A mix's episode is not a search, whatever its words
                         # (§652): a typed or followed topic has no bank id.
-                        surface=("myfam" if mix and not context
+                        # A client that names a browse surface but not the mix
+                        # (an older one) is taken at its word, as `topic_id`
+                        # always was.
+                        surface=("myfam" if (mix or where in BROWSE_SURFACES)
+                                 and not context
                                  else _surface(cached_only, topic_id, context)))
 
     try:

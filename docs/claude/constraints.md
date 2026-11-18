@@ -1639,6 +1639,24 @@
   0 used - the numbers for setting real limits come from `usage_report.py`,
   which is where CLAUDE.md always said they should come from.
 <!-- rule:web-billing -->
+  > **Current (PROBLEMS.md §653, the owner 11.18: "add apple in-app
+  > purchase for the iphone app too"):** the iPhone app sells the same
+  > three plans through **StoreKit 2** (`ios/FAM/FAM/Store.swift`), so an
+  > iPhone listener never leaves the app to pay; the web keeps Stripe.
+  > `apple_iap.py` trusts a transaction only when its JWS chains to the
+  > pinned Apple Root CA - G3 (`DEFAULT_ROOT_SHA256`, by fingerprint; the
+  > leaf and intermediate must carry Apple's marker OIDs) and its
+  > `appAccountToken` is the one the server issued this account
+  > (`account_token`, a UUID5 of the id; `GET /api/billing/apple`). The app
+  > sends every transaction to `POST /api/billing/apple` and finishes it
+  > only once the server has it; App Store Server Notifications v2
+  > (`/api/billing/apple/notifications`, open past the waitlist) carry
+  > renewals, refunds (`revocationDate` -> cancelled) and grace periods
+  > (`past_due` to the grace end). Both stores write one row
+  > (`subscriptions.source` "stripe" | "apple"); an Apple subscription is
+  > managed with Apple (`AppStore.showManageSubscriptions`), the sheet has
+  > Restore purchases and the auto-renew terms (App Review 3.1.1, 3.1.2).
+  > The iPhone app shows no Stripe link.
 - **FAM is paid for on the web, never through the App Store** (PROBLEMS.md
   §652, the owner 11.18: "Ideally we have all payments be redirected to a
   website to avoid the 30% fee", answering "Stripe only"). `billing.py`:

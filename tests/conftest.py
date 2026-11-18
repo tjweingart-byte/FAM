@@ -367,6 +367,9 @@ LEAKY_ENVIRONMENT = (
     # §652: a developer's Stripe key must never reach the suite.
     + ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_STUDENT",
        "STRIPE_PRICE_SINGLE", "STRIPE_PRICE_FAM")
+    # §653: a developer's pinned root or product ids must not reach it either.
+    + ("APPLE_ROOT_SHA256", "APPLE_BUNDLE_ID", "APPLE_PRODUCT_STUDENT",
+       "APPLE_PRODUCT_SINGLE", "APPLE_PRODUCT_FAM")
 )
 
 #: Set, not cleared: it is what stops config.py reading the two env files.

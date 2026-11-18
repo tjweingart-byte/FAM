@@ -39580,3 +39580,54 @@ on, `account-gates-kept` (a plan now gates hearing a mix's second half).
   credentials. Nothing was spent and no key was used here.
 - **A free listener's mixes made before launch** stay theirs to play (to
   half) and delete; editing them is the paid part.
+
+## 653. Apple in-app purchase for the iPhone app (2026-11-18)
+
+**Asked (the owner, 11.18):** "add apple in-app purchase for the iphone app
+too" - after §652's web-only Stripe checkout and the conversion numbers
+(RevenueCat's Dipsea test: ~28% of paywall views paid through Apple's sheet,
+~18% through a web link-out; at FAM's prices a web checkout must convert at
+~90% of Apple's to come out ahead at the 15% small-business rate).
+
+**Built (rule `web-billing`, Current):**
+- `apple_iap.py`: verifies an App Store JWS - ES256, `x5c` chain of three,
+  each certificate signed by the next and in date, the root pinned by
+  SHA-256 (Apple Root CA - G3), Apple's marker OIDs on leaf
+  (1.2.840.113635.100.6.11.1) and intermediate (1.2.840.113635.100.6.2.1) -
+  and turns a transaction into {plan, status, original, period_end}. A
+  revoked transaction is cancelled; a lapsed one expired; a grace period
+  `past_due` to its end. Product ids default to
+  `net.familiarize.fam.{student,single,famplan}.monthly`.
+- `app.py`: `GET /api/billing/apple` (the account's `appAccountToken` and
+  the product ids), `POST /api/billing/apple` (a signed transaction; 403 if
+  its token is another account's), `POST /api/billing/apple/notifications`
+  (Server Notifications v2). `/api/plans` offers carry `apple_product`, the
+  subscription its `store`.
+- `BillingStore`: `subscriptions.source`, `apple_tokens` (token -> account,
+  for notifications), `record_apple`.
+- iOS: `Store.swift` (`FAMStore`: products, purchase with the account
+  token, `Transaction.updates` from launch, Restore purchases; a
+  transaction is finished only once the server has it); `PlansSheet` lists
+  the plans at Apple's `displayPrice`, Manage subscription
+  (`AppStore.showManageSubscriptions`), the FAM-plan code and joining one,
+  Restore purchases, and the auto-renew terms with Terms and Privacy links.
+  Mix episodes now send `mix` (§652's half a mix); the server also takes an
+  older client's `surface=dailyfam`/`myfam` as a browse play, so a build
+  without `mix` does not spend the week's one search on a mix.
+- Web: an Apple subscription's Manage row says to change it on the iPhone.
+
+**Not verified, and why:**
+- **The Swift was not compiled** - this container has no Xcode. The first
+  Xcode build is the check; StoreKit testing wants a `.storekit`
+  configuration file (Xcode: File > New > StoreKit Configuration File, synced
+  from App Store Connect) and a sandbox tester.
+- **The pinned root fingerprint** is Apple's published SHA-256 for Apple Root
+  CA - G3, written from the published value: apple.com was not reachable
+  from here. If it were wrong every purchase would be refused (fail closed),
+  which the first sandbox purchase shows; `APPLE_ROOT_SHA256` overrides it.
+
+**Owner's steps:** App Store Connect: three auto-renewable subscriptions in
+one group with the product ids above (or set `APPLE_PRODUCT_*`), prices
+$3.99/$9.99/$14.99, Family Sharing off (the FAM plan's seats are FAM's);
+App Store Server Notifications v2 URL `https://<host>/api/billing/apple/notifications`
+for production and sandbox; Paid Apps agreement and banking.

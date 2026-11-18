@@ -236,6 +236,18 @@ class BillingStore:
             )""")
         conn.execute("CREATE INDEX IF NOT EXISTS subscriptions_customer"
                      " ON subscriptions (customer)")
+        # §653: which store sold it - "stripe" or "apple". Added, not in the
+        # CREATE, so a store made before it gains the column.
+        try:
+            conn.execute("ALTER TABLE subscriptions ADD COLUMN"
+                         " source TEXT NOT NULL DEFAULT 'stripe'")
+        except Exception:  # noqa: BLE001 - already there
+            pass
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS apple_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL
+            )""")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS stripe_events (
                 event_id TEXT PRIMARY KEY,
@@ -276,30 +288,58 @@ class BillingStore:
 
     def record(self, user_id: str, plan: str, status: str, customer: str = "",
                subscription: str = "", period_end: float = 0.0,
-               at: float = 0.0) -> None:
+               at: float = 0.0, source: str = "stripe") -> None:
         if not user_id:
             return
         self._conn().execute(
             "INSERT INTO subscriptions (user_id, plan, status, customer,"
-            " subscription, period_end, updated) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            " subscription, period_end, updated, source)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT (user_id) DO UPDATE SET plan = excluded.plan,"
             " status = excluded.status,"
             " customer = CASE WHEN excluded.customer != '' THEN excluded.customer"
             "            ELSE subscriptions.customer END,"
             " subscription = CASE WHEN excluded.subscription != ''"
             "            THEN excluded.subscription ELSE subscriptions.subscription END,"
-            " period_end = excluded.period_end, updated = excluded.updated",
+            " period_end = excluded.period_end, updated = excluded.updated,"
+            " source = excluded.source",
             (user_id, plan or "", status or "", customer or "",
-             subscription or "", float(period_end or 0), at or time.time()))
+             subscription or "", float(period_end or 0), at or time.time(),
+             source or "stripe"))
 
     def subscription(self, user_id: str) -> Optional[dict]:
         row = self._conn().execute(
-            "SELECT plan, status, customer, subscription, period_end"
+            "SELECT plan, status, customer, subscription, period_end,"
+            " COALESCE(source, 'stripe')"
             " FROM subscriptions WHERE user_id = ?", (user_id,)).fetchone()
         if not row:
             return None
         return {"plan": row[0], "status": row[1], "customer": row[2],
-                "subscription": row[3], "period_end": float(row[4] or 0)}
+                "subscription": row[3], "period_end": float(row[4] or 0),
+                "source": row[5]}
+
+    # --- Apple (§653) ---------------------------------------------------
+
+    def remember_apple_token(self, token: str, user_id: str) -> None:
+        """The account an `appAccountToken` was issued to, so a server
+        notification can be traced back to it."""
+        self._conn().execute(
+            "INSERT INTO apple_tokens (token, user_id) VALUES (?, ?)"
+            " ON CONFLICT (token) DO NOTHING", (token.lower(), user_id))
+
+    def user_for_apple_token(self, token: str) -> str:
+        row = self._conn().execute(
+            "SELECT user_id FROM apple_tokens WHERE token = ?",
+            ((token or "").lower(),)).fetchone()
+        return row[0] if row else ""
+
+    def record_apple(self, user_id: str, sub: dict, at: float = 0.0) -> None:
+        """A verified App Store transaction's verdict (`apple_iap.
+        subscription_from`) onto this account. The original transaction id
+        is the subscription's id for life, across renewals."""
+        self.record(user_id, sub["plan"], sub["status"], customer="",
+                    subscription="apple:" + sub["original"],
+                    period_end=sub["period_end"], at=at, source="apple")
 
     def user_for_customer(self, customer: str) -> str:
         if not customer:
@@ -499,6 +539,8 @@ class BillingStore:
         n += conn.execute("DELETE FROM fam_members WHERE member_id = ? OR owner_id = ?",
                           (user_id, user_id)).rowcount or 0
         n += conn.execute("DELETE FROM fam_invites WHERE owner_id = ?",
+                          (user_id,)).rowcount or 0
+        n += conn.execute("DELETE FROM apple_tokens WHERE user_id = ?",
                           (user_id,)).rowcount or 0
         return n
 

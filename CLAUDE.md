@@ -432,9 +432,9 @@ Accounts, tiers, sharing
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist`. [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited` [tiers-off];
   every account's free month from launch [free-month];
-- **Paid on the web, never the App Store** (Stripe, `billing.py`): Student,
-  Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper a week,
-  tiles free, half a mix, no own mixes; plan set by webhook only [web-billing]
+- **Paid by Stripe on the web, Apple IAP on iPhone** (`billing.py`, `apple_iap.py`):
+  Student, Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper
+  a week, tiles free, half a mix, no own mixes; signed events set plans [web-billing]
   let in: mail+text a claim link, month at launch [waitlist-notice]
 - An admin-made **ambassador code**: tag, free unlimited, off the waitlist; revocable [ambassadors]
 - A refusal names what the listener was doing (`service_label`), composed

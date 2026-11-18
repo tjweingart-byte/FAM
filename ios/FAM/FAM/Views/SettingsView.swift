@@ -1,4 +1,5 @@
 import FAMSafety
+import StoreKit
 import SwiftUI
 
 /// Settings (`#screen-settings`, `renderSettings`, shots 20-23): the web's
@@ -911,10 +912,11 @@ struct ActivationCard: View {
 
 // MARK: - Subscription (`openPlans`, shot 36)
 
-/// "YOUR PLAN": every tier the server lists - a tick on yours, its name with
-/// "YOUR PLAN", the blurb and the limits in the refusal's words - then the
-/// note, worded from the server's `enforced` (§207), and Close. No checkout
-/// (`tiers-off`): another tier says so when tapped rather than doing nothing.
+/// "YOUR PLAN": the plan this account is on, then (§653) the three plans
+/// for sale with Apple's price, bought through Apple's sheet; Manage
+/// subscription, the FAM plan's code, joining one, and Restore purchases.
+/// The server decides every plan - a purchase is sent there signed, and
+/// the sheet re-reads `/api/plans` afterwards.
 struct PlansSheet: View {
     let page: PlansPage?
     /// Asked as it opens (`openPlans`, from the limit card's "See plans"):
@@ -925,8 +927,15 @@ struct PlansSheet: View {
     @State private var fetched: PlansPage?
     /// The plans have been asked for and answered (or not).
     @State private var asked = false
+    @State private var joining = false
+    @State private var joinCode = ""
+    /// Apple's products for the three plans, once loaded (`FAMStore.load`).
+    @State private var products: [String: Product] = [:]
+    /// A purchase or restore is under way: the plan rows wait.
+    @State private var busy = false
+    @State private var productsAsked = false
 
-    private var shown: PlansPage? { page ?? fetched }
+    private var shown: PlansPage? { fetched ?? page }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -935,13 +944,7 @@ struct PlansSheet: View {
                     Text("Your plan").monoLabel(9.5, color: FAMColor.textFaint, tracking: 1.14)
                         .padding(.bottom, 14)
                     if let page = shown {
-                        ForEach(page.tiers, id: \.name) { tier in row(tier, current: page.current ?? "free") }
-                        if page.checkout != true {
-                            EmptyNote(text: page.enforced == true
-                                      ? "Upgrades aren\u{2019}t available yet. Your daily allowance comes back every day."
-                                      : "Upgrades aren\u{2019}t available yet. Everything is free for now.")
-                                .padding(.top, 6)
-                        }
+                        content(page)
                     } else if fetch && !asked {
                         Text("Loading your plan\u{2026}")
                             .font(FAMFont.body(12))
@@ -960,23 +963,83 @@ struct PlansSheet: View {
         .padding(.bottom, 12)
         .background(FAMColor.surface)
         .task {
-            guard fetch, page == nil, fetched == nil else { return }
-            fetched = try? await model.api.plans()
+            async let loaded: Void = model.store.load()
+            if fetch || page == nil { fetched = try? await model.api.plans() }
             asked = true
+            await loaded
+            products = model.store.products
+            productsAsked = true
+        }
+        .alert("Join a FAM plan", isPresented: $joining) {
+            TextField("Code", text: $joinCode)
+                .textInputAutocapitalization(.characters)
+            Button("Join") { join() }
+            Button("Cancel", role: .cancel) { joinCode = "" }
+        } message: {
+            Text("Enter the code the person paying for the FAM plan gave you.")
         }
     }
 
-    private func row(_ tier: PlanTier, current: String) -> some View {
-        let mine = tier.name == current
-        let name = tier.label ?? tier.name
-        return Button {
-            if !mine { model.nowPlaying.say("No checkout yet \u{2014} " + tier.name + " cannot be bought from here") }
-        } label: {
+    @ViewBuilder private func content(_ page: PlansPage) -> some View {
+        let current = page.current ?? "free"
+        let mine = page.tiers.first { $0.name == current }
+        let sub = page.subscription
+        let paying = !(sub?.plan ?? "").isEmpty
+        row(name: mine?.label ?? current, blurb: mine?.blurb,
+            detail: mine.map(Self.limits), tick: true)
+        if paying {
+            action("Manage subscription",
+                   sub?.store == "apple" ? "Change or cancel it with Apple"
+                                         : "You subscribed on the web \u{2014} manage it there") {
+                if sub?.store == "apple" { manageWithApple() }
+            }
+        }
+        if sub?.plan == "fam" {
+            action("Invite someone to your FAM plan",
+                   "\(sub?.famMembers ?? 0) of 3 places taken") { invite() }
+        }
+        if !paying && current != "unlimited" {
+            ForEach(page.offers ?? [], id: \.plan) { offer in
+                let product = products[offer.plan]
+                row(name: offer.label, blurb: offer.blurb,
+                    detail: product.map { $0.displayPrice + " a month" }, tick: false) {
+                    buy(offer.plan)
+                }
+                .disabled(product == nil || busy)
+            }
+            if productsAsked && (page.offers ?? []).isEmpty == false && products.isEmpty {
+                EmptyNote(text: "Subscriptions couldn\u{2019}t load from the App Store. Try again in a minute.")
+                    .padding(.top, 6)
+            }
+            if (sub?.famMemberOf ?? "").isEmpty {
+                action("Have a FAM plan code?", "Join somebody\u{2019}s FAM plan") { joining = true }
+            }
+            action("Restore purchases", "Already subscribed with this Apple ID") { restore() }
+            Text(terms)
+                .font(FAMFont.body(10.5))
+                .foregroundStyle(FAMColor.textFaint)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .inAppLinks()
+                .padding(.top, 14)
+        }
+    }
+
+    /// App Review 3.1.2: what an auto-renewing subscription is, beside it.
+    private var terms: AttributedString {
+        let base = model.api.base.absoluteString
+        let markdown = "Payment is charged to your Apple ID. Subscriptions renew monthly unless cancelled at least 24 hours before the period ends; manage or cancel them in your Apple ID settings. [Terms](\(base)/terms) \u{00B7} [Privacy](\(base)/privacy)"
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }
+
+    private func row(name: String, blurb: String?, detail: String?, tick: Bool,
+                     tap: (() -> Void)? = nil) -> some View {
+        Button { tap?() } label: {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
-                    Circle().fill(mine ? FAMColor.copper : Color.clear)
-                    Circle().stroke(mine ? FAMColor.copper : FAMColor.borderStrong, lineWidth: 1.5)
-                    if mine {
+                    Circle().fill(tick ? FAMColor.copper : Color.clear)
+                    Circle().stroke(tick ? FAMColor.copper : FAMColor.borderStrong, lineWidth: 1.5)
+                    if tick {
                         WebIcon(path: YouIcons.check, size: 11, line: 3).foregroundStyle(FAMColor.ink)
                     }
                 }
@@ -987,16 +1050,18 @@ struct PlansSheet: View {
                         Text(name)
                             .font(FAMFont.heading(15, .semibold))
                             .foregroundStyle(FAMColor.text)
-                        if mine { Text("Your plan").monoLabel(8.5, color: FAMColor.copper, bold: true) }
+                        if tick { Text("Your plan").monoLabel(8.5, color: FAMColor.copper, bold: true) }
                     }
-                    if let blurb = tier.blurb, !blurb.isEmpty {
+                    if let blurb, !blurb.isEmpty {
                         Text(blurb)
                             .font(FAMFont.body(12))
                             .foregroundStyle(FAMColor.textMuted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text(Self.limits(tier)).monoLabel(8.5, color: FAMColor.textFaint, tracking: 0.85)
-                        .padding(.top, 2)
+                    if let detail, !detail.isEmpty {
+                        Text(detail).monoLabel(8.5, color: FAMColor.textFaint, tracking: 0.85)
+                            .padding(.top, 2)
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -1004,15 +1069,95 @@ struct PlansSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        .disabled(tap == nil)
     }
 
-    /// `planLimits`: "5 episodes a day · Unlimited Explore episodes".
+    private func action(_ name: String, _ blurb: String, _ run: @escaping () -> Void) -> some View {
+        row(name: name, blurb: blurb, detail: nil, tick: false, tap: run)
+    }
+
+    private func refresh() {
+        Task {
+            fetched = try? await model.api.plans()
+            await model.you.loadSettings()
+        }
+    }
+
+    private func buy(_ plan: String) {
+        busy = true
+        Task {
+            defer { busy = false }
+            do {
+                switch try await model.store.buy(plan) {
+                case .bought:
+                    model.nowPlaying.say("You\u{2019}re subscribed. Thank you.")
+                    refresh()
+                case .pending:
+                    model.nowPlaying.say("Waiting for approval \u{2014} your plan starts when it\u{2019}s approved")
+                case .cancelled:
+                    break
+                }
+            } catch {
+                model.nowPlaying.say("That purchase didn\u{2019}t go through. You weren\u{2019}t charged twice \u{2014} try Restore purchases.")
+            }
+        }
+    }
+
+    private func restore() {
+        busy = true
+        Task {
+            defer { busy = false }
+            let restored = (try? await model.store.restore()) ?? false
+            model.nowPlaying.say(restored ? "Your subscription is back"
+                                          : "No subscription found for this Apple ID")
+            refresh()
+        }
+    }
+
+    private func manageWithApple() {
+        Task {
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                try? await AppStore.showManageSubscriptions(in: scene)
+                refresh()
+            }
+        }
+    }
+
+    private func invite() {
+        Task {
+            do {
+                let code = try await model.api.famPlanInvite()
+                UIPasteboard.general.string = code
+                model.nowPlaying.say("Your FAM plan code is \(code) \u{2014} copied. It works once.")
+            } catch {
+                model.nowPlaying.say("Couldn\u{2019}t make a code. Try again.")
+            }
+        }
+    }
+
+    private func join() {
+        let code = joinCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        joinCode = ""
+        guard !code.isEmpty else { return }
+        Task {
+            do {
+                try await model.api.famPlanJoin(code)
+                model.nowPlaying.say("You\u{2019}re on the FAM plan")
+                refresh()
+            } catch {
+                model.nowPlaying.say("That code didn\u{2019}t work. Ask for a new one.")
+            }
+        }
+    }
+
+    /// `planLimits`: "1 searches and Go Deepers a week · Unlimited episodes".
     static func limits(_ tier: PlanTier) -> String {
         let limits = tier.limits ?? []
         if limits.isEmpty { return "No ceiling" }
         let parts: [String] = limits.map { l in
             let per = l.window == "week" ? "a week" : "a day"
-            let what = l.resource == "explore" ? "Explore episodes" : "episodes"
+            let what = l.resource == "explore" ? "Explore episodes"
+                : l.resource == "ask" ? "searches and Go Deepers" : "episodes"
             let count = l.count ?? 0
             if l.unlimited == true || count < 0 { return "Unlimited " + what }
             return "\(count) " + what + " " + per
