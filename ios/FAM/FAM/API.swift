@@ -59,6 +59,14 @@ final class FAMAPI: @unchecked Sendable {
         try await send("GET", "api/v1/auth/me", as: Listener.self)
     }
 
+    /// Enter a FAM Ambassador code (§648): the account becomes an
+    /// ambassador - the tag on its profile and the unlimited plan, free -
+    /// and, if it was waiting, is let in (§649). A wrong code is a 400 whose
+    /// words say why.
+    func enterAmbassadorCode(_ code: String) async throws {
+        _ = try await send("POST", "api/v1/ambassador", body: ["code": code], as: Ignored.self)
+    }
+
     /// Claim the free month (§593): the same claim as the emailed link, for
     /// the signed-in account.
     func claimFreeMonth() async throws -> FreeMonthOffer {
@@ -779,6 +787,9 @@ struct Listener: Decodable, Equatable {
     /// (§606): the first step is setting a password. `/api/auth/me` only;
     /// nil from an older server.
     let passwordNeeded: Bool?
+    /// A FAM Ambassador (§648): the tag under their name. `var` so entering
+    /// a code can set it in place; nil from an older server.
+    var ambassador: Bool?
 
     /// Waiting for a place while the waitlist runs (`waitlist.WAITLISTED`).
     var waitlisted: Bool { status == "waitlisted" }
@@ -2746,6 +2757,8 @@ struct PersonPage: Decodable {
     let locked: Bool?
     /// They are in private mode (§638).
     let `private`: Bool?
+    /// A FAM Ambassador (§648): the tag under their name.
+    let ambassador: Bool?
 }
 
 struct PersonMix: Decodable, Hashable, Identifiable {

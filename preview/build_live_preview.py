@@ -1314,7 +1314,25 @@ __WRITING_SIM__
   function handle(path, method, qs, body) {
     // ---- identity
     if (path === "/api/auth/me") {
-      return json({ user_id: UID, email: EMAIL, authenticated: !!EMAIL });
+      var meAcct = rows("accounts").filter(function (a) { return a.id === UID; })[0];
+      var amb = !!(EMAIL && meAcct && meAcct.ambassador);
+      return json({ user_id: UID, email: EMAIL, authenticated: !!EMAIL, ambassador: amb,
+                    tier: amb ? "unlimited" : "free" });
+    }
+    // FAM Ambassadors (§648). This preview has no admin page to make codes,
+    // so any code of the real shape (FAM-XXXX-XXXX) is taken; the server
+    // takes only one an admin made, and only once.
+    if (path === "/api/ambassador" && method === "POST") {
+      var ambAcct = rows("accounts").filter(function (a) { return a.id === UID; })[0];
+      if (!ambAcct) return json({ error: ACCOUNT_REQUIRED }, 401);
+      var raw = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^FAM/, "");
+      if (raw.length !== 8) return json({ error: "That code isn\u2019t right. Check it and try again." }, 400);
+      var withAmb = {};
+      Object.keys(ambAcct).forEach(function (k) { if (k !== "id") withAmb[k] = ambAcct[k]; });
+      withAmb.ambassador = true;
+      return put("accounts", UID, withAmb).then(function () {
+        return json({ ambassador: true, code: "FAM-" + raw.slice(0, 4) + "-" + raw.slice(4) });
+      });
     }
     if (path === "/api/auth/signup") {
       var em = String(body.email || "").trim().toLowerCase();

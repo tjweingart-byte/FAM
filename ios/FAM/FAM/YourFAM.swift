@@ -44,7 +44,7 @@ final class YouModel: ObservableObject {
     /// Vibes (0) or Mixes (1) on the hub; kept across redraws (`profileShelf`).
     @Published var shelfTab = 0
     /// A photo chosen in Settings, shown at once on this device while the
-    /// image check runs (§645's changes-land B, §649): nil for none.
+    /// image check runs (§645's changes-land B, §652): nil for none.
     @Published var pendingAvatar: String?
     /// "Checking photo…" until `/api/me` answers.
     @Published var checkingPhoto = false

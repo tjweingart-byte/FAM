@@ -100,6 +100,12 @@
     display:flex; align-items:center; justify-content:center; gap:14px; }
   .cta:disabled{ opacity:0.6; cursor:default; }
   .cta svg{ width:20px; height:20px; }
+  /* FAM Ambassador (§649). */
+  .amb-open{ display:block; margin:10px 2px 0; padding:0; background:none; border:0;
+    color:inherit; opacity:.8; font:inherit; font-size:14px; text-decoration:underline;
+    text-underline-offset:3px; cursor:pointer; }
+  #ambassadorCode{ margin-top:10px; }
+  .amb-card .field{ margin-top:18px; }
   .form-note{ min-height:20px; margin:12px 2px 0; font-size:14px; line-height:1.4; color:#F6D9A0; }
   .form-note.err{ color:#FFB4A2; }
   .terms-note{ margin:8px 2px 0; font-size:12.5px; line-height:1.45; color:rgba(244,239,228,0.6); }
@@ -588,6 +594,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
       <div class="form-note" id="joinNote" role="status" aria-live="polite"></div>
+      <!-- A FAM Ambassador code (§649, the owner 11.18): a right one lets
+           them in at once. Folded away: most people have none. -->
+      <button class="amb-open" id="ambOpen" type="button">Have a FAM Ambassador code?</button>
+      <input class="field hidden" id="ambassadorCode" type="text" autocomplete="off"
+             autocapitalize="characters" spellcheck="false" maxlength="40"
+             placeholder="FAM-XXXX-XXXX" aria-label="FAM Ambassador code">
       <!-- Agreed before an account exists (App Store 1.2). -->
       <!-- Clickwrap (§228): ticked by the person, sent as accept_terms, kept with its version. -->
       <label class="terms-note terms-check"><input type="checkbox" id="acceptTerms"><span>I agree to FAM&rsquo;s terms and I&rsquo;m 13 or older. Review the <a href="/terms" target="_blank" rel="noopener">terms and conditions</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
@@ -922,6 +934,19 @@
       <div class="rail" id="rail"><div class="base"></div><div class="fill" id="railFill"></div><div class="goal"></div></div>
     </div>
     <div class="track-note">Invite friends to move up faster.</div>
+  </section>
+
+  <!-- FAM Ambassador (§649, the owner 11.18): a code an admin gave them
+       lets them off the waitlist now. -->
+  <section class="card amb-card hidden" id="ambCard">
+    <h2>Have a FAM Ambassador code?</h2>
+    <p>Enter it and you&rsquo;re in, now.</p>
+    <form id="ambForm" novalidate>
+      <input class="field" id="ambCode" type="text" autocomplete="off" autocapitalize="characters"
+             spellcheck="false" maxlength="40" placeholder="FAM-XXXX-XXXX" aria-label="FAM Ambassador code">
+      <button class="cta label" id="ambBtn" type="submit">Let me in</button>
+      <div class="form-note" id="ambNote" role="status" aria-live="polite"></div>
+    </form>
   </section>
 
   <section class="card granted hidden" id="grantedCard">
@@ -1283,9 +1308,15 @@
         note.className = "form-note err"; note.textContent = "Tick the box to agree to the Terms and conditions."; return;
       }
       $("joinBtn").disabled = true;
-      api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true })
+      api("/api/waitlist/join", { email: email, referral_code: referral, accept_terms: true,
+                                  ambassador_code: $("ambassadorCode").value.trim() })
         .then(function(d){
           try { sessionStorage.removeItem("famReferral"); } catch(e){}
+          // A wrong ambassador code still joined them (§649): the status
+          // page's ambassador card says why and takes it again.
+          if(d.ambassador_error){
+            try { sessionStorage.setItem("famAmbErr", d.ambassador_error); } catch(e){}
+          }
           // Straight on to the profile - the app's sign-up fields - with a
           // way to skip it; the status page comes after.
           var to = d.redirect || "/waitlist/me";
@@ -1303,6 +1334,11 @@
               + " - or, if you haven\u2019t set one, open the link we sent when you were let in.";
           }
         });
+    });
+    $("ambOpen").addEventListener("click", function(){
+      $("ambOpen").classList.add("hidden");
+      $("ambassadorCode").classList.remove("hidden");
+      $("ambassadorCode").focus();
     });
     // The eye beside each password field shows or hides what was typed.
     // `show` forces a state; left out, it toggles.
@@ -1404,6 +1440,33 @@
   /* ---------------- status ---------------- */
   var STATE = null, chosen = {}, avatar = null, avatarChanged = false;
 
+  // The ambassador card (§649): a right code lets them in and opens FAM.
+  (function(){
+    var form = $("ambForm");
+    if(!form) return;
+    try {
+      var held = sessionStorage.getItem("famAmbErr");
+      if(held){ $("ambNote").className = "form-note err"; $("ambNote").textContent = held;
+                sessionStorage.removeItem("famAmbErr"); }
+    } catch(e){}
+    form.addEventListener("submit", function(ev){
+      ev.preventDefault();
+      var code = $("ambCode").value.trim(), note = $("ambNote");
+      note.className = "form-note"; note.textContent = "";
+      if(!code){ $("ambCode").focus(); return; }
+      $("ambBtn").disabled = true;
+      api("/api/ambassador", { code: code })
+        .then(function(d){
+          note.textContent = "You\u2019re a FAM Ambassador. Opening FAM\u2026";
+          location.replace((d && d.redirect) || "/");
+        })
+        .catch(function(e){
+          $("ambBtn").disabled = false;
+          note.className = "form-note err"; note.textContent = e.message;
+        });
+    });
+  })();
+
   function drawPlace(d){
     var first = (d.name || "").split(/\s+/)[0];
     $("helloName").textContent = first ? first + ", you’re a" : "You’re a";
@@ -1417,6 +1480,8 @@
     var searching = d.admin || d.status !== "active";
     document.querySelector(".fsearch").classList.toggle("hidden", !searching);
     if(!searching) $("friendResults").classList.add("hidden");
+    // Only somebody waiting is offered the code; an admin's preview shows it.
+    $("ambCard").classList.toggle("hidden", d.status === "active" && !d.admin);
     if(d.status === "active"){
       $("placeCard").classList.add("hidden");
       $("grantedCard").classList.remove("hidden");

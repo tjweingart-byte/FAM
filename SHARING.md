@@ -169,6 +169,17 @@ platform lets another app pre-attach a tappable link to a story any more
 card names FAM, and the person adds Instagram's link sticker or Snapchat's
 paperclip themselves.
 
+**The link is ready to paste (§648).** The owner asked whether tapping the
+card in an Instagram story could open the episode. No app can make a story
+picture tappable; Instagram's Link sticker is the only tappable link in a
+story, and only the person posting adds it. So Instagram's tile now leaves
+the episode's share link - `/s/<id>`, the sent-episode page with its
+waitlist note - ready for that sticker: on iOS as plain text in the same
+pasteboard item as the card (Instagram may clear it once read; untested on
+a phone), and in the share-sheet fallback and on the web as the clipboard
+itself, with the picture shared alone and a line saying to add the Link
+sticker and paste.
+
 The templates are **defaults the listener edits**, not copy that gets posted
 unseen — which is why they are written to be finished by somebody. Each says
 what it is about, that it is short, and where to hear it. None claims the

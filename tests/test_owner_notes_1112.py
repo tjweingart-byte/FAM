@@ -171,7 +171,8 @@ def test_the_iphone_hands_instagram_the_card_as_a_sticker():
     assert "com.instagram.sharedSticker.backgroundTopColor" in handoff
     share = swift("SocialShare.swift")
     assert "api.shareImage(story)" in share
-    assert "handoff.send(png: png, sticker: sticker, caption: text)" in share
+    # §648 adds the episode's link for Instagram's Link sticker.
+    assert "handoff.send(png: png, sticker: sticker, caption: text, link: link)" in share
     # The share sheet gets the picture alone; the words wait on the clipboard.
     assert "activity = [file]\n" in share
     api = swift("API.swift")
@@ -182,7 +183,7 @@ def test_the_iphone_hands_instagram_the_card_as_a_sticker():
 
 
 def test_the_web_story_uses_the_drawn_story():
-    fn = INDEX.split("function shareStoryCard(t){", 1)[1].split("\n  }\n", 1)[0]
+    fn = INDEX.split("function shareStoryCard(t, key){", 1)[1].split("\n  }\n", 1)[0]
     assert "shareTargets.story_image" in fn and "r.blob()" in fn
 
 

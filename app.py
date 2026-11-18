@@ -3887,6 +3887,9 @@ async def person_profile(request: Request,
         "locked": locked,
         # Whether they are in private mode: the page says so (§638).
         "private": prefs.private_mode,
+        # The "FAM Ambassador" tag under their name (§648): a code an admin
+        # gave them and they entered, so theirs to show.
+        "ambassador": ACCOUNTS.is_ambassador(target),
         "follows": SOCIAL.follow_counts(target),
         **_person_friends(me, target),
     }
@@ -7030,6 +7033,9 @@ WAITLIST_OPEN_PATHS = frozenset({
     # an account has to be reachable by everybody who has one (App Store
     # 5.1.1(v)), the waitlisted included.
     "/api/account",
+    # A FAM Ambassador code lets its account off the waitlist (§648, the
+    # owner 11.18), so a waitlisted account must be able to enter one.
+    "/api/ambassador",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
 #: link is a list of episodes to browse, which is the app. A shared *episode*
@@ -15242,6 +15248,9 @@ class WaitlistJoinRequest(BaseModel):
     want_token: bool = False
     #: The join form's checkbox (§228).
     accept_terms: bool = False
+    #: An optional FAM Ambassador code (§648): a right one makes the
+    #: account an ambassador and lets it in at once.
+    ambassador_code: str = Field("", max_length=40)
 
 
 def _admin_previewing_join(req, request: Request):
@@ -15336,9 +15345,21 @@ async def waitlist_join(req: WaitlistJoinRequest, request: Request) -> dict:
     if req.accept_terms:
         _record_terms(request, listener.user_id)
     _waitlist_after_signup(listener.user_id, req.referral_code)
+    # The account exists whatever the code says: a wrong one is reported
+    # beside the join (`ambassador_error`) and the status page can take it
+    # again, never a refused join that loses the person.
+    ambassador_error = ""
+    if req.ambassador_code.strip():
+        try:
+            await asyncio.to_thread(ACCOUNTS.redeem_ambassador, listener.user_id,
+                                    req.ambassador_code)
+            await asyncio.to_thread(_admit_ambassador, listener.user_id)
+        except accounts_mod.AmbassadorError as exc:
+            ambassador_error = str(exc)
     listener = ACCOUNTS.listener_of(listener.user_id)
     admin = _allowed_admin(listener)
     return {**listener.as_dict(), "admin": admin,
+            **({"ambassador_error": ambassador_error} if ambassador_error else {}),
             # An admin is sent to the status page too, to see it as a member
             # would (`/api/waitlist/me`'s preview), never put in the line.
             "redirect": "/waitlist/me" if admin or listener.status == waitlist_mod.WAITLISTED
@@ -15731,6 +15752,106 @@ async def admin_waitlist_free_month(req: AdminFreeMonthRequest,
     log.info("admin set the free month to start at %s", starts)
     return {"starts": starts or None,
             "ends": (starts + waitlist_mod.FREE_MONTH_SECONDS) if starts else None}
+
+
+# --- FAM Ambassadors (§648) ---------------------------------------------
+#
+# The owner's 11.17 notes: an admin presses "Add new ambassador", a code is
+# made, the admin hands it over; the ambassador enters it in Settings (or
+# on the profile step after being let in) and wears a "FAM Ambassador" tag
+# on their profile, with an unlimited plan that costs them nothing.
+
+@app.get("/admin/ambassadors", include_in_schema=False)
+async def admin_ambassadors_page(request: Request):
+    """A shell like /admin/waitlist: its rows come from the endpoints below,
+    which are what check who is asking."""
+    if not _admin_configured():
+        raise HTTPException(status_code=404, detail="Not found")
+    page = PROJECT_ROOT / "admin_ui" / "ambassadors.html"
+    return HTMLResponse(page.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store",
+                                 "X-Robots-Tag": "noindex"})
+
+
+def _ambassador_rows() -> list[dict]:
+    rows = []
+    for row in ACCOUNTS.ambassadors():
+        profile = _profile_state(row["user_id"]) if row["user_id"] else {}
+        rows.append({**row,
+                     "account_name": (profile.get("name") or row["display_name"]),
+                     "handle": profile.get("handle", "")})
+    return rows
+
+
+@app.get("/api/admin/ambassadors")
+async def admin_ambassadors(request: Request) -> dict:
+    """Every ambassador code, who holds it and since when. Admin only."""
+    _require_admin(request)
+    rows = await asyncio.to_thread(_ambassador_rows)
+    return {"rows": rows,
+            "summary": {"codes": len(rows),
+                        "active": sum(1 for r in rows if r["user_id"] and not r["revoked"]),
+                        "waiting": sum(1 for r in rows
+                                       if not r["user_id"] and not r["revoked"])}}
+
+
+class AdminAmbassadorRequest(BaseModel):
+    #: Who the code is for, as the admin knows them; only the admin sees it.
+    name: str = Field("", max_length=accounts_mod.AMBASSADOR_NAME_MAX)
+
+
+@app.post("/api/admin/ambassadors")
+async def admin_new_ambassador(req: AdminAmbassadorRequest, request: Request) -> dict:
+    """"Add new ambassador": a fresh code for the admin to hand over."""
+    _require_admin(request)
+    try:
+        made = await asyncio.to_thread(ACCOUNTS.new_ambassador, req.name)
+    except accounts_mod.AuthError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    log.info("admin made ambassador code for %r", req.name)
+    return made
+
+
+class AmbassadorCodeRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=40)
+
+
+@app.post("/api/admin/ambassadors/revoke")
+async def admin_revoke_ambassador(req: AmbassadorCodeRequest, request: Request) -> dict:
+    """Take a code back: its account loses the tag and the unlimited plan."""
+    _require_admin(request)
+    held_by = await asyncio.to_thread(ACCOUNTS.revoke_ambassador, req.code)
+    if held_by is None:
+        raise HTTPException(status_code=404, detail="No such code.")
+    return {"revoked": True, "user_id": held_by}
+
+
+@app.post("/api/ambassador")
+async def enter_ambassador_code(req: AmbassadorCodeRequest, request: Request) -> dict:
+    """The listener enters the code an admin gave them (Settings, or the
+    profile step after being let in). An account's only."""
+    user_id = _require_account(request)
+    try:
+        code = await asyncio.to_thread(ACCOUNTS.redeem_ambassador, user_id, req.code)
+    except accounts_mod.AmbassadorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    let_in = await asyncio.to_thread(_admit_ambassador, user_id)
+    return {"ambassador": True, "code": code, "let_in": let_in,
+            "status": WAITLIST.status_of(user_id),
+            # Where the page goes next: the app, now they are in.
+            "redirect": "/"}
+
+
+def _admit_ambassador(user_id: str) -> bool:
+    """A code lets its account off the waitlist (§648, the owner 11.18: "Yes,
+    let them off of the waitlist"). Viral Loops is told only if it was told
+    about them; no "you're off the waitlist" notice - they let themselves
+    in, as an admin does at sign-up. True when they were waiting."""
+    granted = WAITLIST.grant([user_id], flag=WAITLIST.has_action(user_id, "register"),
+                             notify=False)
+    if granted:
+        log.info("waitlist: %r let in by an ambassador code", user_id)
+    return bool(granted)
 
 
 # Also resolved from the project root, and for the same reason as the

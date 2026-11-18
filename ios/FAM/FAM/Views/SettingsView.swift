@@ -216,6 +216,12 @@ struct SettingsView: View {
             SetSwitchRow(label: "Show my name on episodes I searched",
                          isOn: you.prefs?.searchesPublic ?? false) { on in await setSearchesPublic(on) }
             SetNote(text: "When it\u{2019}s on, anyone who opens an episode you searched can see your @handle in the player\u{2019}s menu.")
+            // FAM Ambassador (§648): the code an admin gave them, entered once.
+            if model.listener?.ambassador == true {
+                SetRow(label: "FAM Ambassador code", value: "Ambassador")
+            } else {
+                SetRow(label: "FAM Ambassador code", value: "Add code") { askAmbassadorCode() }
+            }
             SetRow(label: "Signed in as", value: model.listener?.email ?? "")
             SetRow(label: "Sign-in methods", value: methodsValue) { model.youPath.append(.signInMethods) }
             // "Set a password" whenever the account has none (§571), opening
@@ -228,6 +234,22 @@ struct SettingsView: View {
             // The web's note, word for word (`passwordSettingsNote`, §571).
             SetNote(text: Self.passwordNote(hasPassword: you.account?.hasPassword, resetReady: resetReady)
                     + "Deleting your account is immediate and can\u{2019}t be undone.")
+        }
+    }
+
+    /// `enterAmbassadorCode` (§648): the code in the web's modal; in, a
+    /// toast, and the plan read again so Subscription says Unlimited.
+    private func askAmbassadorCode() {
+        textAsk = TextAsk(title: "FAM Ambassador code", placeholder: "FAM-XXXX-XXXX",
+                          button: "Add") { code in
+            Task {
+                if let problem = await model.enterAmbassadorCode(code) {
+                    model.nowPlaying.say(problem)
+                } else {
+                    model.nowPlaying.say("You\u{2019}re a FAM Ambassador")
+                    await you.loadSettings()
+                }
+            }
         }
     }
 

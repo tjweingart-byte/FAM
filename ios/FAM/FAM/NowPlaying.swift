@@ -154,7 +154,7 @@ final class NowPlayingModel: ObservableObject {
     /// Who to ask to play an episode (the app model, which owns the loading screen).
     var playEpisode: ((Episode) -> Void)?
     /// A typed Go Deeper opens the loading screen on the press (§643's
-    /// loader-arrives B, §649): the speller's wait runs under step one. The
+    /// loader-arrives B, §652): the speller's wait runs under step one. The
     /// app model's `cancelSeq` says whether Cancel came meanwhile.
     var openLoaderEarly: (() -> Void)?
     var closeLoaderEarly: (() -> Void)?

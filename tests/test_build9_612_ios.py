@@ -78,7 +78,7 @@ def test_a_gone_episode_still_asks_the_question():
 
 def test_build_9_or_later():
     """Build 9 went up in §612; every TestFlight upload raises it (build 10
-    carries §648-§649, the iPhone's round-three catch-up)."""
+    carries §651-§652, the iPhone's round-three catch-up)."""
     project = (ROOT / "ios" / "FAM" / "project.yml").read_text()
     n = int(re.search(r'CURRENT_PROJECT_VERSION: "(\d+)"', project).group(1))
     assert n >= 10

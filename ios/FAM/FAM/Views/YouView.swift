@@ -28,7 +28,7 @@ struct YouView: View {
         NavigationStack(path: $model.youPath) {
             hub
                 .toolbar(.hidden, for: .navigationBar)
-                // iOS's own swipe back, with the bar hidden (§649).
+                // iOS's own swipe back, with the bar hidden (§652).
                 .background(EdgeSwipeBack().frame(width: 0, height: 0))
                 .navigationDestination(for: YouRoute.self) { route in
                     YouScreen(route: route)
@@ -167,6 +167,7 @@ struct YouView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 5)
+            if model.listener?.ambassador == true { AmbassadorTag().padding(.top, 5) }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
@@ -195,7 +196,7 @@ struct YouView: View {
         let name = p.name ?? ""
         let handle = p.handle ?? ""
         // A photo changed in Settings shows at once, faint while it is
-        // checked (§649).
+        // checked (§652).
         let avatar = you.pendingAvatar ?? p.avatar ?? ""
         let account = model.listener?.authenticated == true
         return ZStack(alignment: .bottomTrailing) {

@@ -810,7 +810,7 @@ struct VoiceRipple: View {
 }
 
 /// Round two's rings, no longer drawn (round three's ripples took their
-/// place, §649); kept for reference.
+/// place, §652); kept for reference.
 /// The rings (viewBox 250): three arcs a side and two lines under the
 /// orb, copper at width 3, unseen while nothing is heard; while words come
 /// they show at .35 + level × .65 and swell 1.1 s in and out, the outer

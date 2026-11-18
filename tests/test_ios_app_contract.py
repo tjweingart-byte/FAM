@@ -892,7 +892,7 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert ".buttonStyle(.plain)" not in _swift("Views", "FrontDoor.swift")
     assert ".transition(.identity)" in _swift("Views", "VibePosts.swift")
     motion = _swift("Motion.swift")
-    # Round three (§649): the fold keeps its 180 ms wait, on `--ease-in-out`.
+    # Round three (§652): the fold keeps its 180 ms wait, on `--ease-in-out`.
     assert "Motion.easeInOut(Motion.Dur.reflow).delay(Motion.Dur.rowOut)" in motion
     assert motion.count("if UIAccessibility.isReduceMotionEnabled") >= 2
     parts = _swift("Views", "SocialParts.swift")
@@ -1045,8 +1045,8 @@ def test_the_tour_flag_decodes_from_the_servers_answer_594(monkeypatch):
     assert c.get("/api/v1/preferences", headers=auth).json()["tour_done"] is True
 
 
-def test_the_iphone_catches_up_part_one_648():
-    """§648: round three's shared motion foundations, the deferred-commit
+def test_the_iphone_catches_up_part_one_651():
+    """§651: round three's shared motion foundations, the deferred-commit
     Undo line and the optimistic edits, read from the Swift source."""
     motion = (SWIFT / "Motion.swift").read_text()
     # The web's named tokens, one copy (`--ease-out` .32,.72,0,1 ...).
@@ -1107,8 +1107,8 @@ def test_the_iphone_catches_up_part_one_648():
     assert "pressedLine ?? chipLine" in sheets
 
 
-def test_the_iphone_catches_up_part_two_649():
-    """§649: round three's motion on every page, read from the Swift source
+def test_the_iphone_catches_up_part_two_652():
+    """§652: round three's motion on every page, read from the Swift source
     (none of it compiled here: the Mac build is the first compile)."""
     motion = (SWIFT / "Motion.swift").read_text()
     views = SWIFT / "Views"

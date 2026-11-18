@@ -1407,7 +1407,7 @@ private struct UpTo: Layout {
     }
 }
 
-// MARK: - Round three, phase B: shared pieces (§649)
+// MARK: - Round three, phase B: shared pieces (§652)
 
 /// A line whose words or numbers changed since it was last drawn (round
 /// three, §641 `changed-since` B): the digits roll to their new value

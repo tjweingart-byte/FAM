@@ -554,6 +554,11 @@ struct WaitlistStatusPage: View {
     @State private var confirmDelete = false
     @State private var confirmSignOut = false
     @State private var share: [Any]?
+    /// "Have a FAM Ambassador code?" (§649): the code, its refusal, and
+    /// whether it is being sent.
+    @State private var ambassadorCode = ""
+    @State private var ambassadorProblem = ""
+    @State private var ambassadorSending = false
 
     var body: some View {
         ScrollView {
@@ -574,6 +579,7 @@ struct WaitlistStatusPage: View {
                 SampleCarousel().padding(.top, 18)
                 if let page {
                     placeOrGranted(page).padding(.top, 18)
+                    if page.status != "active" { ambassadorCard.padding(.top, 14) }
                     shareCard.padding(.top, 14)
                     WaitlistFamSection(page: page, invite: { invite() }, copy: { copyLink() },
                                        reload: { await load() })
@@ -692,6 +698,58 @@ struct WaitlistStatusPage: View {
             }
         } else {
             WaitlistPlaceCard(page: page)
+        }
+    }
+
+    /// The web's `#ambCard` (§649, the owner 11.18): a FAM Ambassador code
+    /// lets its account off the waitlist now; in, the app opens.
+    private var ambassadorCard: some View {
+        WaitlistCard {
+            Text("Have a FAM Ambassador code?")
+                .font(FAMFont.heading(20, .semibold))
+                .foregroundStyle(FAMColor.text)
+            Text("Enter it and you\u{2019}re in, now.")
+                .font(FAMFont.body(13))
+                .foregroundStyle(FAMColor.textMuted)
+                .padding(.top, 6)
+            TextField("", text: $ambassadorCode,
+                      prompt: Text("FAM-XXXX-XXXX").foregroundColor(FAMColor.textFaint))
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .onSubmit { enterAmbassadorCode() }
+                .youInput()
+                .padding(.top, 14)
+            if !ambassadorProblem.isEmpty {
+                Text(ambassadorProblem)
+                    .font(FAMFont.body(12.5))
+                    .foregroundStyle(FAMColor.coral)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+            Button(ambassadorSending ? "Letting you in\u{2026}" : "Let me in") { enterAmbassadorCode() }
+                .buttonStyle(EntryButtonStyle(primary: true))
+                .disabled(ambassadorSending)
+                .padding(.top, 14)
+        }
+    }
+
+    private func enterAmbassadorCode() {
+        let code = ambassadorCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty, !ambassadorSending else { return }
+        ambassadorProblem = ""
+        ambassadorSending = true
+        Task {
+            if let problem = await model.enterAmbassadorCode(code) {
+                ambassadorProblem = problem
+                ambassadorSending = false
+                return
+            }
+            model.nowPlaying.say("You\u{2019}re a FAM Ambassador")
+            // Let in: `/api/auth/me` again, and the app opens as it does
+            // for anybody let in (its first step may be the password).
+            await model.open()
+            ambassadorSending = false
         }
     }
 
