@@ -39500,3 +39500,33 @@ escapes everything it draws; installed clients' contracts pass; the Swift
 reads as compiling (Swift 5 mode, every type and modifier it names exists).
 
 **Not verified:** the Swift is still not compiled here.
+
+## 651. The voice's always-on worker moved off the 4090: ~$40 a day to ~$14 (2026-11-18)
+
+Reported by the owner: RunPod was costing about $40 a day with one active
+worker. The endpoint `FAM` had **24 GB PRO (RTX 4090)** ticked, $1.34/h -
+about $32 a day for the always-on worker alone, not the ~$0.47/h the cost
+docs assumed - plus flex workers from §613's Max workers 4.
+
+**Console, changed by the owner:** GPUs 16 GB RTX A4500 and RTX 4000 Ada
+($0.58/h), 24 GB RTX A5000 and RTX 3090 ($0.75/h, out of capacity that day,
+kept ticked); not the 4090, RTX 2000 Ada, A4000 or L4. Active workers 1,
+Max workers 2 (down from 4), idle timeout 5 s. Worker priority is Availability, so the
+ticked cards are a set, not an order; the A4500 had the most capacity.
+
+**Why those cards:** Chatterbox's token stage is autoregressive, so its speed
+follows memory bandwidth rather than memory. The A4500 (~640 GB/s) is about
+60% of the 4090 (~1,000 GB/s) - an estimate, not measured - so roughly 2.5-3x
+realtime instead of 4.6x: playback stays ahead, a fresh episode's first word
+is a second or two later, and anything `voice_ahead.py` voiced is a replay
+either way. The 2000 Ada (~220 GB/s) would be near realtime. Same weights and
+reference, so the voice should be unchanged; `verify_voice.py --fingerprint`
+on the new card confirms it, and `SYNTHESIS_REALTIME_FACTOR` should be
+re-measured there.
+
+**Now:** `render.yaml` sets `REMOTE_VOICE_FLEX_WORKERS=1` for `fam` (was 3),
+equal to the console's Max workers less its Active workers, so at most two
+chunks are in flight and nothing waits in RunPod's queue for a worker that
+cannot start. Two listeners voiced at once can start the one flex worker,
+billed per second for its boot, the chunk and a 5 s idle timeout; a third
+waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
