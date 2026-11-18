@@ -76,6 +76,9 @@
   .chip:hover { color:var(--ink); border-color:var(--amber-dk); }
   /* tables */
   .tbl { overflow:auto; max-height:420px; border:1px solid var(--line); border-radius:10px; margin-top:8px; }
+  .costday td:first-child, .costday th:first-child { position:sticky; left:0; background:var(--panel); white-space:nowrap; }
+  .costday tr.costday-total td { font-weight:600; }
+  .costday th.n { text-align:right; }
   table { width:100%; border-collapse:collapse; font:11.5px var(--mono); }
   th { position:sticky; top:0; background:var(--surface); text-align:left; padding:7px 10px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line); font-weight:500; white-space:nowrap; }
   td { padding:6px 10px; border-bottom:1px solid var(--line); color:var(--muted); white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis; }
@@ -1286,7 +1289,39 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
       '</b><em>a month at this rate · any volume</em></div>';
     $("kpis").insertAdjacentHTML("beforeend", html);
     $("keithCost").innerHTML = '<div class="kpis">' + html + '</div><p class="sub">' +
-      Number(c.episodes || 0).toLocaleString() + ' episodes written in ' + c.days + ' days. ' + esc(c.note || "") + '</p>';
+      Number(c.episodes || 0).toLocaleString() + ' episodes written in ' + c.days + ' days. ' + esc(c.note || "") + '</p>' +
+      costByDayHtml(c.by_day);
+  }
+  // Claude per episode, day by day, and what spent it: a rise reads as a
+  // source that grew or an episode count that fell.
+  function costByDayHtml(b) {
+    if (!b || !b.days || !b.days.length) return "";
+    // Newest first, so today is in view on a phone without scrolling.
+    var days = b.days.slice().reverse(), top = (b.sources || []).slice(0, 10), rest = (b.sources || []).slice(10);
+    function head() {
+      return '<tr><th></th>' + days.map(function (d) { return '<th class="n">' + esc(d.day.slice(5)) + '</th>'; }).join("") + '</tr>';
+    }
+    function usd(v) { return v ? '$' + v.toFixed(v < 1 ? 3 : 2) : '—'; }
+    function row(label, cell, cls) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + esc(label) + '</td>' +
+        days.map(function (d) { return '<td class="n">' + cell(d) + '</td>'; }).join("") + '</tr>';
+    }
+    var rows = row("¢ per episode", function (d) { return d.cents_per_episode == null ? '—' : d.cents_per_episode.toFixed(2) + '¢'; }, "costday-total") +
+      row("Episodes written", function (d) { return Number(d.episodes || 0).toLocaleString(); }) +
+      row("Claude, all", function (d) { return usd(d.claude_usd); }) +
+      row("less nightly agents", function (d) { return d.nightly_usd ? '−' + usd(d.nightly_usd) : '—'; });
+    rows += top.map(function (s) { return row(s, function (d) { return usd((d.sources || {})[s] || 0); }); }).join("");
+    if (rest.length) rows += row("other (" + rest.length + ")", function (d) {
+      return usd(rest.reduce(function (t, s) { return t + ((d.sources || {})[s] || 0); }, 0)); });
+    var origins = {};
+    days.forEach(function (d) { Object.keys(d.origins || {}).forEach(function (o) { origins[o] = (origins[o] || 0) + d.origins[o]; }); });
+    var names = Object.keys(origins).sort(function (a, b) { return origins[b] - origins[a]; });
+    var orows = names.map(function (o) { return row(o, function (d) { return Number((d.origins || {})[o] || 0).toLocaleString(); }); }).join("");
+    return '<h3 class="ah">Claude per episode, by day</h3>' +
+      '<p class="sub">UTC days, newest first. Dollars by spend source; <i>episodes</i> is a listener\'s tap or search. ' + esc(b.note || "") + '</p>' +
+      '<div class="tbl"><table class="costday"><thead>' + head() + '</thead><tbody>' + rows + '</tbody></table></div>' +
+      (names.length ? '<h3 class="ah">Episodes written, by surface</h3><div class="tbl"><table class="costday"><thead>' + head() +
+        '</thead><tbody>' + orows + '</tbody></table></div>' : '');
   }
   function drawAgentsWatch(w) {
     if (!w) { $("agentsWatch").innerHTML = ""; return; }

@@ -2567,6 +2567,11 @@ def _health_report(request: Request) -> dict:
             "edition_batch_source": ("EDITION_BATCH env var"
                                      if os.environ.get("EDITION_BATCH", "").strip()
                                      else "config.py default"),
+            # Prefetch's script warms batched too (§654).
+            "prefetch_batch": settings.prefetch_batch,
+            "prefetch_batch_source": ("PREFETCH_BATCH env var"
+                                      if os.environ.get("PREFETCH_BATCH", "").strip()
+                                      else "config.py default"),
         },
         "research_words": sorted(research_words()),
         "cache": _cache_report(),

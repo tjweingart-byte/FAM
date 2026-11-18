@@ -244,7 +244,7 @@ FAM_ENVIRONMENT = (
     "RUNPOD_API_URL", "RUNPOD_REST_URL", "RUNPOD_GRAPHQL_URL",
     # §179: the writer's prompt cache and the editions' batching.
     "PROMPT_CACHE", "PROMPT_CACHE_TTL",
-    "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS",
+    "EDITION_BATCH", "EDITION_BATCH_WAIT_SECONDS", "EDITION_BATCH_POLL_SECONDS", "PREFETCH_BATCH",
     # §347: the agents. A developer who switched one on, or pointed one at
     # another model, must not run a suite whose agents are on.
     "AGENTS", "CONTEXTUALIZER", "CONTEXTUALIZER_TITLES", "CATEGORIZER", "RETRIEVER",

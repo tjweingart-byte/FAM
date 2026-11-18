@@ -520,6 +520,10 @@ class Prefetcher:
         #: waiting listener needs, which is the failure this exists to avoid.
         self._lock = asyncio.Lock()
         self._running = False
+        #: This cycle's script warms waiting to go out as one batch (§654),
+        #: None when the cycle writes live; and the keys in a batch still out.
+        self._batch: Optional[list] = None
+        self._batched_keys: set = set()
         #: listener -> when a cycle was last warmed for them. A browse page is
         #: drawn far more often than it is acted on, so without this a
         #: listener flicking between tabs would spend the daily ceiling on the
@@ -640,7 +644,8 @@ class Prefetcher:
         """Build this episode ahead of the tap. Returns what it did.
 
         One of: `"script"`, `"brief"`, `"cached"` (somebody already has it),
-        `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
+        `"batched"` (prepared, its writer waiting in this cycle's batch,
+        §654), `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
         because every one of those is a different thing to do about it, and a
         prefetcher that reports only success and failure cannot be tuned.
 
@@ -696,6 +701,10 @@ class Prefetcher:
         # invisible looks like it is doing more than it is.
         key = await self._key(plan)
         if key and self.cache is not None and self.cache.get(key):
+            self.ledger.skipped_already_cached += 1
+            return "cached"
+        # In a batch that is still out (§654): that batch writes it.
+        if key and key in self._batched_keys:
             self.ledger.skipped_already_cached += 1
             return "cached"
 
@@ -778,7 +787,22 @@ class Prefetcher:
                      candidate.query, candidate.source)
             return "volatile"
 
+        if self._batch is not None and key:
+            # Batched with the rest of this cycle's script warms (§654): the
+            # brief and evidence are paid for now, exactly as a stream would
+            # pay for them, and the writer goes out at half price with the
+            # others once the cycle has prepared them all.
+            prepared, params = await self.generator.batch_request(plan, notes)
+            self._batch.append((candidate, prepared, key, notes, params))
+            self._batched_keys.add(key)
+            return "batched"
         sentences = [s async for s in self.generator.stream_sentences(plan, notes)]
+        return self._store(candidate, plan, key, notes, sentences)
+
+    def _store(self, candidate: Candidate, plan, key: str, notes,
+               sentences: list) -> str:
+        """A written warm into the cache, charged and counted: the tail every
+        script warm shares, streamed or batched."""
         if not sentences:
             self.ledger.failures += 1
             return "failed"
@@ -891,15 +915,116 @@ class Prefetcher:
 
         self._running = True
         outcomes: dict = {}
+        self._batch = [] if self._batches() else None
+        # A batched writer is paid when its batch comes back, after the
+        # budget checks that let it in. So one batch is out at a time: while
+        # one is, a cycle warms briefs only, and the budget can be overrun by
+        # at most one cycle's writers (`PREFETCH_PER_CYCLE`), never by a pile
+        # of batches nobody had paid for yet (§654).
+        level = ("brief" if self._batch is not None and self._batched_keys
+                 and settings.prefetch_level == "script" else "")
         try:
             for candidate in self.plan(listener, minutes=minutes, feed=feed):
-                result = await self.warm(candidate)
+                result = await self.warm(candidate, level)
                 outcomes[result] = outcomes.get(result, 0) + 1
                 if result in ("budget", "busy", "off"):
                     break
         finally:
+            batch, self._batch = self._batch, None
             self._running = False
+        if batch:
+            # Finished apart from the cycle (§654), so a batch that takes its
+            # time never stops the next cycle's briefs; its keys stay in
+            # `_batched_keys` until it is done, so no cycle warms them twice.
+            task = asyncio.get_running_loop().create_task(self._write_batch(batch))
+            _CYCLES.add(task)
+            task.add_done_callback(_CYCLES.discard)
         return {"ran": True, "reason": "", "outcomes": outcomes}
+
+    def _live_fallback_refused(self) -> str:
+        """Why a batched warm the batch did not answer may not be written
+        live now (`"off"`, `"busy"`, `"budget"`), or "" when it may."""
+        if not settings.prefetch:
+            return "off"
+        if not self.quiet_enough():
+            return "busy"
+        if not self.budget.allows(level="script"):
+            _note_stopped(self.budget.why_not("script"))
+            return "budget"
+        import ahead_budget
+
+        ok, why = ahead_budget.allows("prefetch")
+        if not ok:
+            _note_stopped(why)
+            return "budget"
+        return ""
+
+    def _batches(self) -> bool:
+        """Whether this cycle's script warms go out as one batch (§654)."""
+        g = self.generator
+        return bool(settings.prefetch_batch
+                    and getattr(g, "client", None) is not None
+                    and all(hasattr(g, name) for name in (
+                        "batch_request", "sentences_from_message", "stream_prepared")))
+
+    async def _write_batch(self, batch: list) -> dict:
+        """One cycle's script warms, the writers sent as one batch (§654).
+
+        Read by the same reader a stream uses; an answer the batch does not
+        give is written live from the brief and evidence already paid for; a
+        key a tap wrote while the batch was out keeps the tap's episode. The
+        same rules as an edition's batch (§179). Returns key -> outcome and
+        never raises."""
+        import claude_batch
+        import script_generator
+
+        out: dict = {}
+        try:
+            answers = await claude_batch.run(
+                self.generator.client,
+                {f"p{i}": entry[4] for i, entry in enumerate(batch)},
+                wait_seconds=settings.edition_batch_wait_seconds,
+                poll_seconds=settings.edition_batch_poll_seconds)
+            for i, (candidate, prepared, key, notes, _) in enumerate(batch):
+                try:
+                    if self.cache is not None and self.cache.get(key):
+                        # Somebody's tap wrote it while the batch was out:
+                        # what was bought is a brief and its evidence.
+                        self._charge(_dollars(notes), level="brief")
+                        self.ledger.skipped_already_cached += 1
+                        out[key] = "cached"
+                        continue
+                    message = answers.get(f"p{i}")
+                    if message is not None:
+                        sentences = self.generator.sentences_from_message(
+                            prepared, notes, message)
+                        sentences = await script_generator.settle_repairs(
+                            self.generator, prepared, notes, sentences)
+                    else:
+                        # Written live only on the terms `warm` keeps: never
+                        # beside a listener, never past a budget, never once
+                        # prefetch is off. Otherwise what was bought is the
+                        # brief, kept, and the tap writes the rest.
+                        held = self._live_fallback_refused()
+                        if held:
+                            self._charge(_dollars(notes), level="brief")
+                            out[key] = held
+                            continue
+                        async with self._lock:
+                            sentences = [s async for s in self.generator.stream_prepared(
+                                prepared, notes)]
+                    out[key] = self._store(candidate, prepared, key, notes, sentences)
+                except Exception as exc:  # noqa: BLE001 - one warm is not the batch
+                    self.ledger.failures += 1
+                    out[key] = "failed"
+                    log.warning("prefetch's batched warm failed for %r: %s",
+                                candidate.query, exc)
+            log.info("prefetch batch: %d of %d writer(s) answered by the batch",
+                     sum(1 for v in answers.values() if v is not None), len(batch))
+        finally:
+            for entry in batch:
+                self._batched_keys.discard(entry[2])
+        return out
 
     # --- what a person needs to see ---------------------------------------
     def report(self) -> dict:
