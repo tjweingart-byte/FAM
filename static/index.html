@@ -13199,6 +13199,7 @@
     add: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
     remove: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
     report: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+    problem: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/>',
     block: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
     addq: '<path d="M4 6h10M4 11h10M4 16h6"/><path d="M18 13v6M15 16h6"/>',
     queue: '<path d="M4 6h16M4 11h16M4 16h10"/>',
@@ -13261,6 +13262,13 @@
     items.push({ label: menuLabel("addq", "Add to Queue"),
                  action: function(){ addToQueue(queueEntryFromTopic(t, title)); } });
     items.push({ label: menuLabel("queue", "Go to Queue"), action: openQueue });
+    // Something wrong with how it played - a sentence twice, a gap, a
+    // stall (the owner's 11.18 notes, §653): the report box, carrying this
+    // episode's title, sources and transcript. Not "Report", which is for
+    // harmful content.
+    items.push({ label: menuLabel("problem", "Report a problem"), action: function(){
+        var open = document.getElementById("feedbackOpen");
+        if(open) open.click(); } });
     var playing = currentEpisode();
     if(playing){
       items.push({ label: menuLabel("report", "Report"), danger: true, action: function(){

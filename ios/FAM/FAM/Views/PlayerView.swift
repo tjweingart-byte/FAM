@@ -599,6 +599,9 @@ struct PlayerView: View {
         case .length: ActionSheetList(items: lengthItems)
         case .voice: ActionSheetList(items: voiceItems)
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
+        case .problem:
+            ProblemReportSheet()
+                .environmentObject(model)
         case .report:
             if let ep = now.episode {
                 FAMReportSheet(api: model.safety,
@@ -666,7 +669,7 @@ struct PlayerView: View {
 }
 
 enum PlayerSheet: String, Identifiable {
-    case menu, queue, vibe, share, report, addToMix, speed, length, voice
+    case menu, queue, vibe, share, report, problem, addToMix, speed, length, voice
     var id: String { rawValue }
 }
 

@@ -5766,6 +5766,41 @@ def main() -> int:
         check("The 11.18 notes: a swipe down puts the player away into the mini player",
               a_swipe_down_puts_the_player_away)
 
+        def report_a_problem_from_the_player():
+            """§653: the player's ⋯ menu has "Report a problem", beside and
+            apart from Report, and it opens the report box carrying this
+            episode."""
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("""
+                TOPICS['_smoke_problem'] = { title: 'Why bonds move', prompt: 'why bonds move',
+                                             source: 'Your search', surface: 'search',
+                                             caption: '' };
+                generate('_smoke_problem');
+            """)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.evaluate("openPlayerMenu()")
+            page.wait_for_timeout(400)
+            rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert "Report a problem" in rows, f"no Report a problem in the menu: {rows}"
+            page.evaluate("""() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))
+                .find(e => e.textContent.trim() === 'Report a problem').click()""")
+            page.wait_for_timeout(500)
+            assert page.is_visible("#feedbackOverlay"), "the report box did not open"
+            ctx = page.text_content("#feedbackCtx") or ""
+            assert "screen player" in ctx and "transcript" in ctx, \
+                f"the report does not carry the episode: {ctx}"
+            page.click("#feedbackCancel")
+            page.wait_for_timeout(200)
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        check("§653: Report a problem on the player opens the report box with the episode",
+              report_a_problem_from_the_player)
+
         if errors:
             failures.append(f"page errors: {errors}")
             print(f"  FAIL  page errors: {errors}")

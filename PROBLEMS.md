@@ -39596,3 +39596,39 @@ episode's `/s/<id>` link on the clipboard for that sticker's Paste - in a
 TestFlight build from after §648.
 
 Tests: `tests/test_retake_652.py`.
+
+## 653. Report a problem on the player, with the phone player's log (2026-11-18)
+
+Asked in §652's reply, the owner: "Yes, add Report a problem to the player
+menu." The reason it was offered: the iPhone player keeps a timestamped log
+of everything playback does - asked, first byte (with the cache state and
+wire format), first audio, held for the loading screen, released, ran out
+of audio, emptied and refilled, reconnects and the bytes skipped, Opus or
+link fallbacks - in `StreamPlayer.lines`, and nothing ever sent it
+anywhere; the iPhone app had no way to file a report at all. For the first
+sentence heard twice (§637, §652) that log, beside the episode's
+transcript, says which of three things it was: the transcript with the
+sentence twice (the writer), a reconnect or refill near the start (the
+phone), or neither (the voice).
+
+**Server.** `/api/feedback` takes `playback`, the player's log, kept in a
+new `playback` column (added to an older inbox on open) as its newest
+`feedback.MAX_PLAYBACK` (40,000) characters cut at a line
+(`playback_tail`). /admin's inbox shows it behind a **Playback log**
+button beside **Episode**, escaped.
+
+**iPhone.** The player's ⋯ menu has **Report a problem** (the circled
+exclamation) above **Report**, which stays the harmful-content report.
+`ProblemReportSheet`: a box, Send report, Cancel; the words stay if
+sending fails, with the server's reason. Sent with the episode on the
+player (its query, minutes, context, the id its audio arrived with and its
+picture - the server reads title, sources and transcript as it already does
+for the web) and the log, headed by the player's phase and position at the
+moment. `FAMAPI.reportProblem`.
+
+**Web.** The same row opens the existing report box, which already carries
+the episode when it is opened from the player. The web player keeps no log.
+
+Tests: `tests/test_report_problem_653.py`; smoke "§653: Report a problem
+...". **Not verified:** the Swift compiles in `ios.yml` on push, not here;
+not tried on a phone.
