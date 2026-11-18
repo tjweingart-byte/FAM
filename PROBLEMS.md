@@ -39530,3 +39530,61 @@ chunks are in flight and nothing waits in RunPod's queue for a worker that
 cannot start. Two listeners voiced at once can start the one flex worker,
 billed per second for its boot, the chunk and a 5 s idle timeout; a third
 waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
+
+## 652. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18)
+
+Reported by the owner, with /admin's tiles (Claude per episode 1.47¢ against
+the 1¢ plan, 1.5x): "The per episode costs of claude have been going up
+significantly." The 7-day figure is all of Claude's spend less the agents'
+nightly jobs, over the episodes written to the cache. It cannot say whether a
+source of spend grew or the count of episodes fell: listener taps, prefetch
+(whose `brief` warms write no episode), the editions, push, topic titles,
+quality grading, the photo check and Egan's outreach are all in the top of
+the fraction, and only cached episodes in the bottom. Nothing in §612-§651
+added a Claude call to an episode; which source grew is in production's
+spend table, not in this container.
+
+**Built, at the owner's direction:**
+
+1. **`cost_watch.by_day`**, in `report()` as `by_day` and drawn under the
+   tiles on /admin's "Cost per episode" (`costByDayHtml`): each UTC day of
+   the window, ¢ per episode, episodes written, Claude in all, the nightly
+   agents taken out of their own day, and dollars by spend source; then the
+   episodes written by surface (`origin`). The 7-day tile is unchanged.
+2. **`AHEAD_WRITER_EFFORT` defaults to `medium`** (high since §522): the
+   editions, the write-ahead and prefetch's script warms. searchFAM stays at
+   `EFFORT` (low); the ahead brief (`EI_AHEAD_EFFORT`, high) and Shakespeare
+   are not the writer and are unchanged. If the Render dashboard sets
+   `AHEAD_WRITER_EFFORT`, that wins - `/api/health` -> writer ->
+   `ahead_writer_effort_source` says which.
+3. **Every ahead writer batched.** Trending, DailyFAM, rails and push already
+   were (§179; rails and push go through `daily_edition.run_slot`). Now:
+   - the "Start here" write-ahead goes through `trending_bank.write_batched`
+     under `EDITION_BATCH`, with `rewrite` so last slot's episode under the
+     same key is not mistaken for a tap that raced the batch;
+   - prefetch's script warms (`PREFETCH_LEVEL=script` only) go out as one
+     batch per cycle (`PREFETCH_BATCH=1`, in `/api/health`): each is
+     prepared as before (brief, evidence, the volatile and ambiguous checks),
+     then the writers are sent together; a background task reads the
+     answers with the same reader, writes live what the batch did not
+     answer, and keeps a tap's episode written meanwhile. Its keys are held
+     in `_batched_keys`, so no cycle warms them twice, and while a batch is
+     out a cycle warms briefs only: a batched writer is paid when it returns,
+     after the budget checks, so the budget is overrun by at most one cycle's
+     writers (`PREFETCH_PER_CYCLE`). `Prefetcher._store` is the tail both
+     paths share (the TTL test now reads it).
+
+`tests/test_ahead_batched_652.py`; five older tests that pinned `high`
+updated.
+
+**Trade-off said aloud:** a batched prefetch warm is not in the cache until
+its batch ends (usually minutes, at most `EDITION_BATCH_WAIT_SECONDS`), so a
+tap on that tile in between writes live and the batch's answer is set aside,
+paid at half price. The brief is still kept at once, so the tap keeps the
+brief's saving.
+
+**Not verified:** the saving itself - what medium and the batches take off
+Claude per episode shows in the by-day table from the next deploy. Whether
+medium writes worse than high is unmeasured; `tools/editor_eval.py --run
+--arms none,none_low` with `AHEAD_WRITER_EFFORT` set each way would say,
+on the owner's key.

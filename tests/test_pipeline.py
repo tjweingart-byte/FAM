@@ -414,7 +414,8 @@ def test_both_write_sites_use_the_one_function_with_the_live_state():
     import prefetch as prefetch_mod
 
     serving = inspect.getsource(PodcastPipeline._stream_pcm)
-    warming = inspect.getsource(prefetch_mod.Prefetcher._warm)
+    # The tail every script warm shares, streamed or batched (§652).
+    warming = inspect.getsource(prefetch_mod.Prefetcher._store)
     for name, source in (("the serving path", serving), ("prefetch", warming)):
         assert "ttl_for(" in source, f"{name} does not compute a TTL"
         assert "live_status=" in source, (

@@ -981,7 +981,7 @@ def _batches(generator) -> bool:
 
 async def write_batched(stories: list, generator, cache, minutes: int,
                         expires_at: float, alive=None,
-                        origin: str = "trending") -> dict:
+                        origin: str = "trending", rewrite: bool = False) -> dict:
     """Every story's episode, the writers sent as one batch (§179).
 
     Each story is prepared exactly as `write_episode` prepares it - brief,
@@ -990,6 +990,11 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     price and each answer is read by the same reader a stream uses. A writer
     the batch did not answer is written live from what it already has.
     Returns story id -> result. Never raises.
+
+    `rewrite` is `write_episode`'s (the "Start here" write-ahead, §652): the
+    key is written although it is current, so an answer is never set aside
+    because the key is already in the cache - that is last slot's episode,
+    which taps go on hearing until this one replaces it.
     """
     import claude_batch
     import prefetch
@@ -1001,7 +1006,7 @@ async def write_batched(stories: list, generator, cache, minutes: int,
             alive()
         notes = None
         try:
-            started = await _start(story, generator, cache, minutes)
+            started = await _start(story, generator, cache, minutes, rewrite)
             if isinstance(started, dict):
                 results[story.id] = started
                 continue
@@ -1022,7 +1027,7 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     for cid, (story, plan, key, notes, prepared, _) in waiting.items():
         message = answers.get(cid)
         try:
-            if cache.get(key):
+            if not rewrite and cache.get(key):
                 # A tap wrote this story while the batch was out (§179). Keep
                 # the tap's episode and its audio; the answer arriving now
                 # would archive it and draw it a different voice.
@@ -1225,12 +1230,24 @@ async def write_startup(now: Optional[float] = None, generator=None,
     results: dict = {}
     try:
         expires_at = next_slot(now).timestamp() + EPISODE_GRACE_SECONDS
-        for spec in startup.STARTUP_TOPICS:
-            topic_id, query = spec[0], spec[3]
+        questions = [_Question(spec[3], spec[0]) for spec in startup.STARTUP_TOPICS]
+
+        def alive() -> None:
             store().touch(sid, now + (time.monotonic() - started))
-            results[topic_id] = await write_episode(
-                _Question(query), generator, cache, config.BROWSE_MINUTES,
-                expires_at, origin="startup", rewrite=True)
+
+        if _batches(generator):
+            # Written ahead like the edition beside it, so batched like it
+            # (§652, the owner: "the writer for episodes written ahead should
+            # be batched"); a writer the batch does not answer is written live.
+            results = await write_batched(
+                questions, generator, cache, config.BROWSE_MINUTES, expires_at,
+                alive=alive, origin="startup", rewrite=True)
+        else:
+            for question in questions:
+                alive()
+                results[question.id] = await write_episode(
+                    question, generator, cache, config.BROWSE_MINUTES,
+                    expires_at, origin="startup", rewrite=True)
         written = sum(1 for r in results.values() if r.get("status") == "written")
         store().done(sid, now, f"{written} of {len(results)} written")
         log.info("startup episodes: %s - %d of %d written, $%.4f", sid, written,
@@ -1254,8 +1271,10 @@ async def write_startup(now: Optional[float] = None, generator=None,
 
 @dataclass(frozen=True)
 class _Question:
-    """What `write_episode` reads off a story: its question."""
+    """What `write_episode` reads off a story: its question, and the id its
+    result is filed under (the "Start here" topic's)."""
     query: str
+    id: str = ""
 
 
 def _placed(story):

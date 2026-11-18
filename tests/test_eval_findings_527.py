@@ -54,15 +54,15 @@ def _eval():
     return tool
 
 
-def test_none_low_writes_at_low_effort_and_the_rest_at_high():
+def test_none_low_writes_at_low_effort_and_the_rest_at_the_ahead_effort():
     tool = _eval()
     assert "none_low" in tool.ARMS and "none_low" not in tool.DEFAULT_ARMS
     edition = ScriptNotes(edition=True, ahead=True)
     with tool._Settings("none_low"):
         assert sg.writer_for(edition)[1] == "low"
     with tool._Settings("none"):
-        assert sg.writer_for(edition)[1] == "high"
-    assert sg.writer_for(edition)[1] == "high"          # taken back after
+        assert sg.writer_for(edition)[1] == "medium"    # AHEAD_WRITER_EFFORT (§652)
+    assert sg.writer_for(edition)[1] == "medium"        # taken back after
 
 
 # ------------------------------------------------------------------ §627

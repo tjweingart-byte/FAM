@@ -64,16 +64,21 @@ def _ledger():
     return LEDGER[0]
 
 
-def _episodes(since: float) -> Optional[int]:
+def _episode_rows(since: float) -> Optional[list]:
     try:
         import episode_quality
 
         if not episode_quality.exists():
-            return 0
-        return len(episode_quality.store().episodes_since(since))
+            return []
+        return list(episode_quality.store().episodes_since(since))
     except Exception as exc:  # noqa: BLE001
         log.warning("could not count the episodes: %s", exc)
         return None
+
+
+def _episodes(since: float) -> Optional[int]:
+    rows = _episode_rows(since)
+    return None if rows is None else len(rows)
 
 
 def _agent_spend(since: float) -> Optional[dict]:
@@ -106,6 +111,103 @@ def _claude_spend(since: float) -> Optional[float]:
     except Exception as exc:  # noqa: BLE001
         log.warning("could not read Claude's spend: %s", exc)
         return None
+
+
+def _day(at: float) -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime(at))
+
+
+def _nightly_by_day(since: float) -> dict:
+    """The agents' nightly jobs' dollars by UTC day, to take out of Claude's."""
+    ledger = _ledger()
+    out: dict = {}
+    if ledger is None:
+        return out
+    try:
+        rows = ledger._conn().execute(
+            "SELECT at, cost_usd FROM agent_calls WHERE at >= ? AND "
+            "surface = 'background' AND cost_usd IS NOT NULL", (since,)).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read the agents' nightly spend: %s", exc)
+        return out
+    for at, usd in rows:
+        day = _day(float(at))
+        out[day] = out.get(day, 0.0) + float(usd or 0)
+    return out
+
+
+def by_day(now: Optional[float] = None, days: Optional[float] = None) -> dict:
+    """Claude per episode, day by day, and what spent it (the owner,
+    2026-11-18: "the per episode costs of claude have been going up").
+
+    For each UTC day of the window: the episodes written to the cache and
+    which surface wrote them (`origin`), Claude's dollars by spend source
+    (`metering.spend_source`: `episodes` is a listener's tap or search,
+    `prefetch`, `edition:*`, and the small calls beside them), the agents'
+    nightly jobs taken out as `report` takes them out, and the cents an
+    episode that leaves. A rise is then read as a source that grew or a
+    count that fell, which the 7-day figure alone cannot tell apart. A day
+    under `MIN_EPISODES / days` episodes still shows its cents: it is a row
+    in a table, never an alert. Never raises."""
+    now = time.time() if now is None else now
+    s = _settings()
+    days = max(1.0, float(days or getattr(s, "it_cost_days", 7) or 7))
+    since = now - days * DAY
+    since -= since % DAY
+    out_days: dict = {}
+    order = []
+    at = since
+    while at <= now:
+        day = _day(at)
+        order.append(day)
+        out_days[day] = {"day": day, "episodes": 0, "origins": {}, "sources": {},
+                         "claude_usd": 0.0, "nightly_usd": 0.0,
+                         "cents_per_episode": None}
+        at += DAY
+    rows = _episode_rows(since)
+    for row in rows or []:
+        written = row.get("at") if isinstance(row, dict) else None
+        if written is None:
+            continue
+        d = out_days.get(_day(float(written)))
+        if d is None:
+            continue
+        d["episodes"] += 1
+        origin = str(row.get("origin") or "other")
+        d["origins"][origin] = d["origins"].get(origin, 0) + 1
+    totals: dict = {}
+    try:
+        import provider_usage
+
+        if provider_usage.exists():
+            provider_usage.flush()
+            for r in provider_usage.store().spend_since(_day(since)):
+                if not provider_usage.is_claude(r["model"]):
+                    continue
+                d = out_days.get(r["day"])
+                if d is None:
+                    continue
+                usd = float(r["usd"] or 0)
+                d["sources"][r["source"]] = d["sources"].get(r["source"], 0.0) + usd
+                d["claude_usd"] += usd
+                totals[r["source"]] = totals.get(r["source"], 0.0) + usd
+    except Exception as exc:  # noqa: BLE001
+        log.warning("could not read Claude's spend by day: %s", exc)
+    for day, usd in _nightly_by_day(since).items():
+        if day in out_days:
+            out_days[day]["nightly_usd"] = usd
+    for d in out_days.values():
+        net = max(0.0, d["claude_usd"] - d["nightly_usd"])
+        if d["episodes"]:
+            d["cents_per_episode"] = round(net * 100 / d["episodes"], 4)
+        d["claude_usd"] = round(d["claude_usd"], 4)
+        d["nightly_usd"] = round(d["nightly_usd"], 4)
+        d["sources"] = {k: round(v, 4) for k, v in d["sources"].items()}
+    sources = [k for k, _ in sorted(totals.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return {"days": [out_days[d] for d in order], "sources": sources,
+            "note": "Claude's dollars by spend source and the episodes written, "
+                    "per UTC day; the nightly agent jobs are counted in their "
+                    "source and taken out of the cents, as in the 7-day figure"}
 
 
 def report(now: Optional[float] = None) -> dict:
@@ -142,6 +244,7 @@ def report(now: Optional[float] = None) -> dict:
         "nightly_usd_per_month": (round(agents["nightly"] / span * 30, 2)
                                   if agents else None),
         "since": since,
+        "by_day": by_day(now, days),
         "note": "episodes written to the cache; private searches' cost is in "
                 "the total, not the count, so it reads slightly high; the "
                 "agents' nightly jobs are apart from both figures",

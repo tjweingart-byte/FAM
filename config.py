@@ -392,14 +392,15 @@ class Settings:
     # model each episode was actually written on.
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
-    # **The writer's effort where nobody waits: high** (the owner,
-    # 2026-11-09, §522): the editions, the write-ahead and prefetch's script
-    # warms are written before anybody taps, so the writer may think as hard
-    # as Shakespeare does there (Haiku 5.5 high, §440). searchFAM keeps
+    # **The writer's effort where nobody waits: medium** (the owner,
+    # 2026-11-18, §652, after Claude per episode rose; §522 had it at high):
+    # the editions, the write-ahead and prefetch's script warms are written
+    # before anybody taps, and all of them go out batched. searchFAM keeps
     # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
     # when set, still wins for an edition's episode. Not in the cache key.
+    # `AHEAD_WRITER_EFFORT=high` restores §522.
     ahead_writer_effort: str = field(
-        default_factory=lambda: os.environ.get("AHEAD_WRITER_EFFORT", "high").strip())
+        default_factory=lambda: os.environ.get("AHEAD_WRITER_EFFORT", "medium").strip())
     edition_writer_effort: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_EFFORT", ""))
     # Prompt caching on the writer's instructions (§179). The system prompt -
@@ -1284,6 +1285,15 @@ class Settings:
         "EDITION_BATCH_WAIT_SECONDS", 3600.0)
     edition_batch_poll_seconds: float = _env_float(
         "EDITION_BATCH_POLL_SECONDS", 30.0)
+    # Prefetch's script warms batched too (§652, the owner: "the writer for
+    # episodes written ahead should be batched"): a cycle prepares each warm
+    # as before, then sends its writers as one batch at half price, read by
+    # the same `_ScriptReader`, under the editions' wait and poll; what the
+    # batch does not answer is written live. Only at PREFETCH_LEVEL=script.
+    # `PREFETCH_BATCH=0` writes each warm live, as before.
+    prefetch_batch: bool = field(
+        default_factory=lambda: os.environ.get("PREFETCH_BATCH", "1")
+        not in ("0", "false", "False", ""))
     # Lifted at the owner's direction (§359): 0 is no ceiling, so every
     # subject an active mix follows is written ahead. Settable again here.
     daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 0)

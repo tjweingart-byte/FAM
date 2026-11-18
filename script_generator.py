@@ -2554,7 +2554,8 @@ def writer_for(notes: "ScriptNotes | None" = None) -> tuple:
     writer is tried where nobody is waiting, and nowhere else.
 
     Wherever nobody waits (`nobody_waits`: editions, the write-ahead,
-    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, high (§522);
+    prefetch warms) the effort is `AHEAD_WRITER_EFFORT`, medium (§652; high
+    from §522);
     searchFAM keeps `EFFORT`.
     """
     writer = settings.writer_model or settings.model
@@ -2580,7 +2581,8 @@ def nobody_waits(notes) -> bool:
 
 
 def ahead_writer_effort() -> str:
-    """`AHEAD_WRITER_EFFORT` (high), the writer's effort where nobody waits."""
+    """`AHEAD_WRITER_EFFORT` (medium, §652), the writer's effort where nobody
+    waits."""
     return str(getattr(settings, "ahead_writer_effort", "") or "")
 
 

@@ -643,3 +643,4 @@ and `limit` = Lines.
 | 39425 | 38 | 649. An ambassador code lets its account off the waitlist (2026-11-18) |
 | 39463 | 41 | 650. The branch double-checked before merging: §648-649 reviewed (2026-11-18) |
 | 39504 | 30 | 651. The voice's always-on worker moved off the 4090: ~$40 a day to ~$14 (2026-11-18) |
+| 39534 | 58 | 652. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
