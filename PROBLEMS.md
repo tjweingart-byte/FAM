@@ -39787,3 +39787,28 @@ YourFAM's Discover people, the Friends page, and the row after Follow.
 **Not verified:** a real Contact Picker on an Android phone; the native app
 (not built); whether the step raises follows - there is no event for it.
 
+
+## 657. Mutuals on every profile, three looks for the owner (2026-11-18)
+
+**The owner's ask (11.18, a message thread with the Instagram screenshot):**
+"when you view someone's profile, whether you follow them or not, it still
+displays mutuals", and two or three ways it could look.
+
+**What changed:** `/api/person` carries `mutuals` (`_person_mutuals`): the
+people the viewer follows who follow the profile's owner, counted in full,
+the first 30 named - name, handle, face, never an id; the viewer's friends
+first; nobody without a handle, blocked either way or suspended. Only people
+already in the viewer's own graph, so it shows nothing about strangers.
+On a friend's page (`renderFriendProfile`) one of three looks, by
+`MUTUALS_LOOK` (or `famMutualsLook` on the device, for comparing):
+- **line** (shown): three overlapped faces and "Followed by Molly, Cooper
+  and 4 others" under the handle, as Instagram has it;
+- **stat**: a fourth number beside friends / vibes / mixes, "6 mutuals";
+- **row**: a "6 mutuals" heading over a sideways row of faces and first
+  names under the buttons, like dailyFAM's faces, each a profile.
+Each opens the whole list ("Followed by", the friends-who-listened sheet).
+
+**Verified:** two tests in `tests/test_find_friends.py` (visible without
+following; nobody unfollowed named); the three looks photographed on a
+real server. **Owed:** the owner's pick, then the other two looks deleted.
+

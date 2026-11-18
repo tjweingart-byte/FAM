@@ -959,6 +959,26 @@
   .fr-note{ font-size:11px; line-height:1.5; color:var(--text-faint);
     padding:0 2px 6px; }
 
+  /* Mutuals on a profile (§657): the three looks. */
+  .mu-line{ display:inline-flex; align-items:center; gap:8px; margin-top:9px; padding:4px 6px;
+    background:none; border:0; font:inherit; font-size:12px; color:var(--text-muted);
+    cursor:pointer; max-width:100%; }
+  .mu-line b{ font-weight:600; color:var(--text); }
+  .mu-words{ text-align:left; line-height:1.35; }
+  .mu-faces{ display:flex; flex:none; }
+  .mu-face{ width:22px; height:22px; border-radius:50%; overflow:hidden; display:flex;
+    align-items:center; justify-content:center; color:var(--ink); font-size:8px; font-weight:700;
+    box-shadow:0 0 0 2px var(--bg); }
+  .mu-face + .mu-face{ margin-left:-7px; }
+  .mu-row-wrap{ margin:16px 0 4px; }
+  .mu-row{ display:flex; gap:12px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+  .mu-row::-webkit-scrollbar{ display:none; }
+  .mu-person{ flex:none; width:58px; display:flex; flex-direction:column; align-items:center; gap:5px;
+    background:none; border:0; padding:0; font:inherit; cursor:pointer; }
+  .mu-big{ width:52px; height:52px; border-radius:50%; overflow:hidden; display:flex;
+    align-items:center; justify-content:center; color:var(--ink); font-weight:700; }
+  .mu-first{ font-size:10.5px; color:var(--text-muted); max-width:58px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
   /* Finding friends (§656): "Suggested for you" cards, Instagram's - a
      face, a name, why, Follow, and an X - in a row that scrolls sideways. */
   .sg-wrap{ display:grid; grid-template-rows:0fr; opacity:0; }
@@ -24054,6 +24074,7 @@
       + '@' + escapeHtml(person.handle || "") + '</div>'
       + (pub.ambassador ? ambassadorTag() : '')
       + (standing ? '<div class="yf-meta">' + escapeHtml(standing) + '</div>' : '')
+      + (MUTUALS_LOOK === "line" ? mutualsLineHTML(pub.mutuals) : '')
       + '</div>';
 
     // Three numbers. Friends goes to the list below when you may see it
@@ -24072,6 +24093,9 @@
       + plural(vibes, "vibe") + '</button>'
       + '<button class="yf-stat" onclick="showPersonShelf(\'mixes\', true)"><b>' + (published ? mixes.length : dash) + '</b>'
       + (published && mixes.length === 1 ? "mix" : "mixes") + '</button>'
+      + (MUTUALS_LOOK === "stat" && pub.mutuals && pub.mutuals.count
+          ? '<button class="yf-stat" onclick="openMutuals()"><b>' + pub.mutuals.count + '</b>'
+            + plural(pub.mutuals.count, "mutual") + '</button>' : '')
       + '</div>';
 
     if(person.user_id){
@@ -24104,6 +24128,8 @@
     // Suggested for you (§656): after Follow, the people they follow slide
     // open under the buttons. Always a part, empty until then.
     html += personSuggestHTML(person);
+    // Mutuals as a row of faces (§657, look "row"): always a part.
+    html += '<div data-part="mutuals">' + (MUTUALS_LOOK === "row" ? mutualsRowHTML(pub.mutuals) : '') + '</div>';
 
     // Their interests, as chips that open the Topic screen - only to a
     // follower (§638): to anybody else the server sends none and `locked`.
@@ -24547,6 +24573,72 @@
         })
         .catch(function(){});
     }, 260);
+  }
+
+  // ---------------- Mutuals on a profile (§657) ----------------
+  //
+  // Who you follow that follows them, on every profile, whether or not you
+  // follow them (`/api/person` `mutuals`). Three looks were drawn for the
+  // owner to choose from; MUTUALS_LOOK is the one shown:
+  //   "line"  - Instagram's: three overlapped faces and "Followed by Cooper,
+  //             Molly and 4 others" under the handle;
+  //   "stat"  - a fourth number beside friends / vibes / mixes, "6 mutuals";
+  //   "row"   - a "6 mutuals" heading over a sideways row of faces with first
+  //             names, under the buttons, like dailyFAM's faces.
+  // Every one opens the whole list, each row a profile.
+  var MUTUALS_LOOK = (function(){
+    try { var v = localStorage.getItem("famMutualsLook"); if(/^(line|stat|row)$/.test(v || "")) return v; }
+    catch(e){}
+    return "line";
+  })();
+  function mutualFaces(list, n){
+    return '<span class="mu-faces">' + list.slice(0, n).map(function(p){
+      return '<span class="mu-face" style="background:' + personHue(p.handle || p.name) + '">' + avatarHTML(p, 22) + '</span>';
+    }).join("") + '</span>';
+  }
+  function mutualsLineHTML(m){
+    if(!m || !m.count || !(m.people || []).length) return "";
+    var names = m.people.slice(0, 2).map(function(p){ return '<b>' + escapeHtml(firstName(p)) + '</b>'; });
+    var rest = m.count - names.length;
+    var words = names.length === 1 ? names[0]
+      : rest > 0 ? names.join(", ") : names.join(" and ");
+    if(rest > 0) words += " and " + rest + (rest === 1 ? " other" : " others");
+    return '<button class="mu-line" onclick="openMutuals()">' + mutualFaces(m.people, 3)
+      + '<span class="mu-words">Followed by ' + words + '</span></button>';
+  }
+  function mutualsRowHTML(m){
+    if(!m || !m.count || !(m.people || []).length) return "";
+    return '<div class="mu-row-wrap"><div class="sg-head"><span class="yf-label">'
+      + m.count + ' ' + plural(m.count, "mutual") + '</span>'
+      + '<button class="sg-all" onclick="openMutuals()">See all</button></div>'
+      + '<div class="mu-row">' + m.people.slice(0, 12).map(function(p, i){
+        return '<button class="mu-person" onclick="openMutualAt(' + i + ')">'
+          + '<span class="mu-big" style="background:' + personHue(p.handle || p.name) + '">' + avatarHTML(p, 52) + '</span>'
+          + '<span class="mu-first">' + escapeHtml(firstName(p)) + '</span></button>';
+      }).join("") + '</div></div>';
+  }
+  function openMutualAt(i){
+    var m = (personPublished && personPublished.mutuals) || {};
+    var p = (m.people || [])[i];
+    if(p) openPersonProfile(p.handle, p);
+  }
+  // The whole list, in the sheet "Friends who listened" uses.
+  function openMutuals(){
+    var m = (personPublished && personPublished.mutuals) || {};
+    var people = m.people || [];
+    if(!people.length) return;
+    document.getElementById("flList").innerHTML = people.map(function(f){
+      return '<div class="src-row openable" onclick="openListenedFriend(this.dataset.handle)"'
+        + ' data-handle="' + escapeHtml(f.handle) + '">'
+        + '<span class="src-logo">' + friendFaceHtml(f) + '</span>'
+        + '<span class="src-body"><span class="src-name' + (f.explicit ? ' is-explicit' : '') + '">'
+        + escapeHtml(f.name || f.handle) + '</span>'
+        + '<span class="src-meta">@' + escapeHtml(f.handle) + '</span></span>'
+        + '<svg class="src-go" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'
+        + '</div>';
+    }).join("");
+    document.getElementById("flTitle").textContent = "Followed by";
+    document.getElementById("friendsListenedOverlay").classList.add("active");
   }
 
   function togglePersonMore(which){

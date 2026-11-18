@@ -152,3 +152,35 @@ def test_the_row_under_follow_is_only_for_somebody_you_follow(client):
     assert after["around"] is True
     assert [p["handle"] for p in after["people"]] == ["cy"]
     assert after["people"][0]["following"] is False
+
+
+# --- mutuals on a profile (§657) ------------------------------------------
+
+def test_a_profile_says_who_you_follow_follows_them_whether_or_not_you_do(client):
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    client.post("/api/auth/logout")
+    for email, name, handle in (("ana@b.com", "Ana", "ana"), ("cy@b.com", "Cy", "cy")):
+        signed_in(client, email, name, handle)
+        client.post("/api/friends/follow", json={"handle": "ian"})
+        client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    client.post("/api/friends/follow", json={"handle": "ana"})
+    client.post("/api/friends/follow", json={"handle": "cy"})
+
+    page = client.get("/api/person?handle=ian").json()
+    assert page["mutuals"]["count"] == 2, "Ben does not follow Ian, and still sees them"
+    assert {p["handle"] for p in page["mutuals"]["people"]} == {"ana", "cy"}
+    assert all("user_id" not in p for p in page["mutuals"]["people"])
+
+    client.post("/api/friends/follow", json={"handle": "ian"})
+    assert client.get("/api/person?handle=ian").json()["mutuals"]["count"] == 2
+
+
+def test_nobody_you_do_not_follow_is_named_a_mutual(client):
+    signed_in(client, "ian@b.com", "Ian", "ian")
+    client.post("/api/auth/logout")
+    signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/friends/follow", json={"handle": "ian"})
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    assert client.get("/api/person?handle=ian").json()["mutuals"] == {"count": 0, "people": []}

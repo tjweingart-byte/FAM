@@ -1141,6 +1141,7 @@ the door. `private` tells the page to say the account is private.
 > your own face is a control before you follow anybody.
 
 <!-- rule:find-friends -->
+> **Current (PROBLEMS.md §657, the owner's ask):** every profile shows its **mutuals** - the people you follow who follow them - whether or not you follow them (`/api/person` `mutuals`: `count` and up to 30 names, handles and faces, your friends first, never an id). Three looks were drawn (`MUTUALS_LOOK`: Instagram's "Followed by" line, a fourth number, a row of faces); "line" is shown until the owner picks. Each opens the whole list.
 **Finding friends is a step, a page and a row** (PROBLEMS.md §656, the
 owner's 11.18 ask: "it should be easier to add friends, and the app should
 direct people to adding friends").

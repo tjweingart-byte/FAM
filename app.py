@@ -3897,7 +3897,35 @@ async def person_profile(request: Request,
         "ambassador": ACCOUNTS.is_ambassador(target),
         "follows": SOCIAL.follow_counts(target),
         **_person_friends(me, target),
+        "mutuals": _person_mutuals(me, target),
     }
+
+
+#: How many mutuals `/api/person` names (§657); `count` is all of them.
+MUTUALS_SHOWN = 30
+
+
+def _person_mutuals(me: str, target: str) -> dict:
+    """"Followed by Cooper, Molly and 4 others" (§657, the owner's ask):
+    the people **this listener follows** who follow `target`, on every
+    profile they open, whether or not they follow `target` themselves.
+
+    Only people already in the asker's own graph, so it says nothing about
+    a stranger the asker could not already see; their friends first, then
+    newest followed. Name, handle and face, never an id; nobody without a
+    handle, blocked either way or suspended.
+    """
+    if not me or me == target:
+        return {"count": 0, "people": []}
+    mine = _without_apart(me, SOCIAL.following(me))
+    friend_ids = {p["user_id"] for p in SOCIAL.friends(me)}
+    theirs = {p["user_id"] for p in SOCIAL.followers(target)}
+    both = [p for p in mine if p["user_id"] in theirs and p.get("handle")]
+    both.sort(key=lambda p: p["user_id"] not in friend_ids)
+    return {"count": len(both),
+            "people": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
+                        "explicit": p.get("explicit", False)}
+                       for p in both[:MUTUALS_SHOWN]]}
 
 
 def _person_friends(me: str, target: str) -> dict:
