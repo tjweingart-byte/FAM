@@ -39530,3 +39530,107 @@ chunks are in flight and nothing waits in RunPod's queue for a worker that
 cannot start. Two listeners voiced at once can start the one flex worker,
 billed per second for its boot, the chunk and a 5 s idle timeout; a third
 waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
+
+## 652. The owner's 11.18 notes: the first sentence still twice, swipe the player down, Instagram's link again (2026-11-18)
+
+The owner's PDF "11.18.26 Implementations", three notes.
+
+**1. "The first sentence is still being repeated twice sometimes in
+episodes."** §637 found no definite cause and left two candidates: the
+writer saying its opening again (guarded since by `RepeatGuard`) or the
+voice reading the short first chunk twice (only reported, by
+`_note_if_said_twice`). The owner's captions check, which would separate
+them, has not come back. "Still", after the writer's guard, makes the
+voice the likelier of the two, and it was the better fit already: the
+first chunk is one sentence alone, Chatterbox's English model has no
+check against reading a text again, and a chunk is seeded from voice +
+words (§176), so a bad reading of a sentence recurs every time that
+sentence is voiced - "some episodes", always the same ones.
+
+So the worker now acts on it instead of only the app reporting it:
+`ChatterboxEngine._retake_if_said_twice` (`tts.py`) measures each reading
+with `pace_level.said_ratio` - speech length (silence at either end not
+counted) over what the words take at `TARGET_WPM` - and one at
+`SAID_TWICE_RATIO` (1.6) or more, four words up, is read once more from a
+second seed (`salt + "\nretake"`, so both draws stay reproducible). The take
+nearer the planned length is kept, so a retake cut short is not swapped in;
+one retake at most; never raises. `CHATTERBOX_RETAKE=0` turns it off. The
+ratio and the word floor moved to `pace_level` and the app's report reads
+the same ones, so the report now fires only when both takes were long. The
+worker's `/health` counts `retakes`. `pace_level.py` added to
+`voice-worker.yml`'s paths (the worker imports it now).
+
+Cost: a second synthesis only for a reading already wrong; on §651's
+A4500 (~2.5-3x realtime, estimated) about a second more before the first
+word of an affected episode. A secondary effect, inferred: a doubled first
+chunk was also the pace every later chunk was levelled towards
+(`pace_level`), so the rest of such an episode ran up to 15% slow.
+
+**Not verified:** the 1.6 is still not measured on the real voice, and no
+real doubled reading has been reproduced here (no GPU). It reaches the card
+when RunPod rebuilds from `Main`. Episodes already kept with the repeat keep
+it until they age out (a week), since kept audio is replayed, not re-voiced.
+If it persists after that, the captions check decides: twice in the
+captions is the writer.
+
+**2. "Ability to swipe down on audio player to collapse into mini
+player."** iOS: `PlayerView.collapseDrag` - a drag that starts plainly
+downward moves the whole player with the finger (the page under it shows
+through the clear cover), and past 120 pt or flicked it closes the way the
+Home mark does (`showPlayer = false`, shrinking into the mini player; never
+stops, [transport]); otherwise it springs back. Not on the scrubber (its
+drag wins), not on the captions card while captions are on (its swipe down
+still closes captions), not with a sheet or popup up. Web: the player's
+touch handler minimises on a swipe down over 90 px, not from the bar, a
+field, a modal, What's next's grid or the open captions card (its own swipe
+closes captions; a drag in its scrolled transcript is reading back - caught
+in the pre-merge review, where the card's handler let such a drag through
+to the player). Smoke: "The 11.18 notes: a swipe down ...". **Not verified:**
+the Swift is compiled by `ios.yml` on push, not here, and not tried on a
+phone.
+
+**3. "Is it possible to embed the link to the episode on the tile card on
+Instagram so when you click on the tile it takes you to the episode."**
+Answered in §648 and unchanged: Instagram lets no app make a story picture
+tappable; the Link sticker, added by the person posting, is the only
+tappable link in a story. Since §648 the Instagram tile leaves the
+episode's `/s/<id>` link on the clipboard for that sticker's Paste - in a
+TestFlight build from after §648.
+
+Tests: `tests/test_retake_652.py`.
+
+## 653. Report a problem on the player, with the phone player's log (2026-11-18)
+
+Asked in §652's reply, the owner: "Yes, add Report a problem to the player
+menu." The reason it was offered: the iPhone player keeps a timestamped log
+of everything playback does - asked, first byte (with the cache state and
+wire format), first audio, held for the loading screen, released, ran out
+of audio, emptied and refilled, reconnects and the bytes skipped, Opus or
+link fallbacks - in `StreamPlayer.lines`, and nothing ever sent it
+anywhere; the iPhone app had no way to file a report at all. For the first
+sentence heard twice (§637, §652) that log, beside the episode's
+transcript, says which of three things it was: the transcript with the
+sentence twice (the writer), a reconnect or refill near the start (the
+phone), or neither (the voice).
+
+**Server.** `/api/feedback` takes `playback`, the player's log, kept in a
+new `playback` column (added to an older inbox on open) as its newest
+`feedback.MAX_PLAYBACK` (40,000) characters cut at a line
+(`playback_tail`). /admin's inbox shows it behind a **Playback log**
+button beside **Episode**, escaped.
+
+**iPhone.** The player's ⋯ menu has **Report a problem** (the circled
+exclamation) above **Report**, which stays the harmful-content report.
+`ProblemReportSheet`: a box, Send report, Cancel; the words stay if
+sending fails, with the server's reason. Sent with the episode on the
+player (its query, minutes, context, the id its audio arrived with and its
+picture - the server reads title, sources and transcript as it already does
+for the web) and the log, headed by the player's phase and position at the
+moment. `FAMAPI.reportProblem`.
+
+**Web.** The same row opens the existing report box, which already carries
+the episode when it is opened from the player. The web player keeps no log.
+
+Tests: `tests/test_report_problem_653.py`; smoke "§653: Report a problem
+...". **Not verified:** the Swift compiles in `ios.yml` on push, not here;
+not tried on a phone.

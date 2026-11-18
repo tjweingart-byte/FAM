@@ -67,6 +67,31 @@ final class FAMAPI: @unchecked Sendable {
         _ = try await send("POST", "api/v1/ambassador", body: ["code": code], as: Ignored.self)
     }
 
+    /// "Report a problem" on the player (the owner's 11.18 notes, §653):
+    /// what the listener typed, the episode on the player - which the
+    /// server reads its title, sources and transcript for, so the inbox
+    /// shows what was heard - and the player's own log, into /admin's
+    /// feedback inbox. A refusal is a 400 whose words say why.
+    func reportProblem(_ text: String, episode: Episode?, episodeID: String,
+                       playback: String, viewport: String) async throws {
+        var body: [String: Any] = [
+            "text": text, "screen": "player", "build": Self.client, "page": "ios",
+            "viewport": viewport,
+            "playback": playback,
+        ]
+        if let ep = episode {
+            var thumb = ""
+            if let url = ep.picture {
+                thumb = url.path + (url.query.map { "?" + $0 } ?? "")
+            }
+            body["episode"] = ["q": String(ep.key.query.prefix(500)), "minutes": ep.key.minutes,
+                               "context": String(ep.key.context.prefix(300)),
+                               "id": episodeID.isEmpty ? ep.episodeID : episodeID,
+                               "thumb": thumb]
+        }
+        _ = try await send("POST", "api/v1/feedback", body: body, as: Ignored.self)
+    }
+
     /// Claim the free month (§593): the same claim as the emailed link, for
     /// the signed-in account.
     func claimFreeMonth() async throws -> FreeMonthOffer {

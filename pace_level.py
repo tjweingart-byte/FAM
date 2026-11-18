@@ -81,6 +81,30 @@ def voiced_seconds(pcm: bytes, sample_rate: int) -> float:
     return (int(voiced[-1]) - int(voiced[0]) + 1) * frame / sample_rate
 
 
+#: A take whose speech lasts this many times what its words need at the
+#: planned rate (`TARGET_WPM`) has said something twice: Chatterbox's English
+#: model has no check against reading a text again, and the first chunk is
+#: one sentence on its own, so a repeat comes out as "X. X." (the owner,
+#: 11.16 and again 11.18). The voice worker takes such a chunk again
+#: (`tts.ChatterboxEngine`, §652); the app reports one that is still long
+#: (`pipeline._note_if_said_twice`). Not measured on the real voice.
+SAID_TWICE_RATIO = 1.6
+#: Never judged under this many words: a short chunk's pauses are most of it.
+SAID_TWICE_MIN_WORDS = 4
+
+
+def said_ratio(pcm: bytes, sample_rate: int, text: str,
+               wpm: float) -> Optional[float]:
+    """How many times longer the speech in `pcm` lasts (silence at either
+    end not counted) than `text`'s words take at `wpm`; None when there are
+    too few words to judge or no rate. 2.0 is the same words said twice."""
+    words = len((text or "").split())
+    if words < SAID_TWICE_MIN_WORDS or not wpm or wpm <= 0:
+        return None
+    expected = words * 60.0 / float(wpm)
+    return voiced_seconds(pcm, sample_rate) / expected
+
+
 def rate(pcm: bytes, sample_rate: int, text: str) -> Optional[float]:
     """Letters per voiced second, or None when the chunk is too short to say."""
     count = letters(text)

@@ -1972,6 +1972,14 @@ class Settings:
     # re-rolls every sentence at once. Blank is the default roll.
     chatterbox_seed_salt: str = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEED_SALT", "").strip())
+    # A reading that runs about twice its words' length (the same sentence
+    # said twice, which Chatterbox's English model does not guard against)
+    # is taken once more from a second seed, keeping the take nearer the
+    # planned length (§652, `tts.ChatterboxEngine._retake_if_said_twice`).
+    # Set on the voice worker. `0` keeps every first take.
+    chatterbox_retake: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_RETAKE", "1")
+        .strip().lower() not in ("0", "false", "no", "off"))
     # §446: Chatterbox's speech-token loop without the work it throws away
     # (`chatterbox_speed.py`): every layer's attention maps and hidden states
     # on every token, which forces eager attention, and a CPU wait after every

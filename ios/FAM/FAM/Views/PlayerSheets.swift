@@ -304,6 +304,9 @@ struct PlayerMenu: View {
             if let ep = now.episode { now.addToQueue(ep) } else { now.say("Nothing to queue") }
         }
         row("Go to Queue", Icons.queue) { open(.queue) }
+        // Something wrong with how it played (the owner's 11.18 notes,
+        // §653) - not "Report", which is for harmful content.
+        row("Report a problem", PlayerIcons.alert) { open(.problem) }
         if now.episode != nil {
             row("Report", PlayerIcons.flag, danger: true) { open(.report) }
         }
@@ -1041,5 +1044,103 @@ struct NextUpOverlay: View {
         guard !text.isEmpty else { typing = true; return }
         now.stopNextUp()
         now.followUp(text, minutes: now.episode?.key.minutes ?? FAMAPI.browseMinutes, typed: true)
+    }
+}
+
+
+/// "Report a problem" from the player's ⋯ menu (the owner's 11.18 notes,
+/// §653). What the listener types goes to /admin's feedback inbox with the
+/// episode on the player - the server keeps its title, sources and
+/// transcript - and the player's own log: when it connected, when the
+/// first audio came and was released, every stall, refill, reconnect and
+/// format fallback. That log was kept on the phone and never left it, and
+/// it is what tells a sentence the voice said twice from one the phone
+/// played twice. The words stay in the box if sending fails.
+struct ProblemReportSheet: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var now: NowPlayingModel
+    @EnvironmentObject private var player: StreamPlayer
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var sending = false
+    @State private var problem = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SheetGroupLabel(text: "Report a problem")
+            Text("What happened? This episode and the player\u{2019}s log are sent with it.")
+                .font(FAMFont.body(13))
+                .foregroundStyle(FAMColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 22)
+            TextField("e.g. The first sentence was said twice.", text: $text, axis: .vertical)
+                .font(FAMFont.body(14.5))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(4...8)
+                .focused($focused)
+                .padding(12)
+                .background(FAMColor.background, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+                .padding(.horizontal, 18)
+            if !problem.isEmpty {
+                Text(problem)
+                    .font(FAMFont.body(12.5))
+                    .foregroundStyle(FAMColor.coral)
+                    .padding(.horizontal, 22)
+            }
+            Button { send() } label: {
+                Text(sending ? "Sending\u{2026}" : "Send report")
+                    .font(FAMFont.body(13.5, .bold))
+                    .foregroundStyle(FAMColor.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(FAMColor.copper, in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.press)
+            .disabled(sending)
+            .padding(.horizontal, 18)
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(FAMColor.surface)
+        .onAppear { focused = true }
+    }
+
+    private func send() {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else {
+            problem = "Say what went wrong first."
+            return
+        }
+        guard !sending else { return }
+        sending = true
+        problem = ""
+        let api = model.api
+        let episode = now.episode
+        let id = player.episodeID
+        // The phone's state at the moment of the report, then its log.
+        let state = "phase \(player.phase) · at \(Int(player.position))s of \(Int(player.arrived))s arrived"
+        let log = ([state] + player.lines).joined(separator: "\n")
+        let size = UIScreen.main.bounds.size
+        let viewport = "\(Int(size.width))x\(Int(size.height))"
+        Task { @MainActor in
+            do {
+                try await api.reportProblem(words, episode: episode, episodeID: id,
+                                            playback: log, viewport: viewport)
+                dismiss()
+                now.say("Thanks \u{2014} your report is in")
+            } catch let error as FAMError {
+                if case let .refused(_, message) = error, !message.isEmpty {
+                    problem = message
+                } else {
+                    problem = "The report was not sent. Try again."
+                }
+            } catch {
+                problem = "The report was not sent. Try again."
+            }
+            sending = false
+        }
     }
 }

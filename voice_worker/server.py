@@ -136,6 +136,14 @@ async def _announce() -> None:
              register.public_url() or "unknown (set PUBLIC_WORKER_URL)")
 
 
+def _retakes() -> int:
+    try:
+        from tts import ChatterboxEngine
+        return int(ChatterboxEngine.retakes)
+    except Exception:  # noqa: BLE001 - a count, never the probe
+        return 0
+
+
 @app.get("/health")
 async def health() -> dict:
     """What this worker can actually do, and which build of it is doing it.
@@ -152,7 +160,9 @@ async def health() -> dict:
     body = {"ready": ready, "detail": detail, "engine": "chatterbox",
             "authenticated": bool(TOKEN),
             "sample_rate": _RATE or None,
-            "registering": not register.why_not()}
+            "registering": not register.why_not(),
+            # Readings taken again for running twice their length (§652).
+            "retakes": _retakes()}
     body.update(identity())
     return body
 
