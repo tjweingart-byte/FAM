@@ -75,7 +75,7 @@ network volume `safe_peach_goat_volume` (EU-RO-1).
 
    | Setting | Value | Why |
    |---|---|---|
-   | GPUs | **Previous generation**: 24 GB PRO (RTX 4090), RTX A5000, RTX 3090 | "Latest generation" needs a CUDA 12.8 image; this one is CUDA 12.4 with torch 2.6. The 4090 is the card Chatterbox was measured on; the L4 is left out as too slow |
+   | GPUs | **Previous generation**: 16 GB RTX A4500 and RTX 4000 Ada; 24 GB RTX A5000 and RTX 3090 (§651). Not 24 GB PRO (RTX 4090), RTX 2000 Ada, RTX A4000 or L4 | "Latest generation" needs a CUDA 12.8 image; this one is CUDA 12.4 with torch 2.6. The 4090 is the card Chatterbox was measured on, and at $1.34/h as an active worker it was most of a $40 day; the A4500 is about 60% of its memory bandwidth, still well above realtime, at $0.58/h. The 2000 Ada, A4000 and L4 are left out as too slow |
    | Network volume | the one from step 2 | the voice and the weights |
    | Active workers | 0 for now | billed only while voicing; ~$343/month for 1, which buys no cold starts - revisit at launch |
    | Max workers | 4 | more listeners at once get more cards, billed only while busy |

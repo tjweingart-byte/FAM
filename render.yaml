@@ -225,12 +225,13 @@ services:
       # flight than active workers, so none queues and boots a flex worker.
       - key: REMOTE_VOICE_ACTIVE_WORKERS
         value: "1"
-      # Flex workers beside it (§613): the console's Max workers (4) less its
-      # Active workers (1). Chunks past the active worker queue at RunPod and
-      # start these, billed per second - keep FlashBoot on and the console
-      # equal to this.
+      # Flex workers beside it (§613): the console's Max workers less its
+      # Active workers. 1 since §651 (the owner, 11.18: cheaper, one
+      # always-on worker) - console Max workers 2, Active 1. Change both
+      # together; the chunk past the active worker queues at RunPod and
+      # starts the flex worker, billed per second (idle timeout 5 s).
       - key: REMOTE_VOICE_FLEX_WORKERS
-        value: "3"
+        value: "1"
       # --- Finding the worker when RunPod moves it ----------------------
       #
       # The address of a rented GPU is not a constant, and an app holding a
