@@ -2917,6 +2917,19 @@ extension FAMAPI {
                        as: FamPlanCode.self).code
     }
 
+    /// Email a code to a .edu address (§654): the Student plan is sold only
+    /// to a verified one. Returns the address it went to.
+    func studentStart(_ email: String) async throws -> String {
+        try await send("POST", "api/v1/billing/student", body: ["email": email],
+                       as: StudentSent.self).sentTo
+    }
+
+    /// The code from that email; true once verified.
+    func studentConfirm(_ code: String) async throws -> Bool {
+        try await send("POST", "api/v1/billing/student/confirm", body: ["code": code],
+                       as: StudentVerdict.self).verified
+    }
+
     func famPlanJoin(_ code: String) async throws {
         _ = try await send("POST", "api/v1/billing/fam/join", body: ["code": code],
                            as: Ignored.self)
@@ -3132,6 +3145,18 @@ struct PlansPage: Decodable {
     /// older server.
     let offers: [PlanOffer]?
     let subscription: PlanSubscription?
+    /// The Student plan's .edu check (§654).
+    let student: StudentVerdict?
+}
+
+struct StudentSent: Decodable {
+    let sentTo: String
+}
+
+struct StudentVerdict: Decodable, Hashable {
+    let verified: Bool
+    let email: String?
+    let expires: Double?
 }
 
 /// One plan for sale: Student, Single, the FAM plan. The price shown in

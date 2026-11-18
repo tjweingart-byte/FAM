@@ -1639,6 +1639,16 @@
   0 used - the numbers for setting real limits come from `usage_report.py`,
   which is where CLAUDE.md always said they should come from.
 <!-- rule:web-billing -->
+  > **Current (PROBLEMS.md §654, the owner 11.18: "make students verify
+  > with a .edu email"):** Student is sold only to an account with a
+  > verified `.edu` address (`billing.is_edu`: the domain's last label is
+  > `edu`, so `.edu.au` is not). `POST /api/billing/student` emails a
+  > six-digit code (15 minutes, five tries, five codes an hour; 503 when
+  > mail is down); `/confirm` verifies it for a year; one address verifies
+  > one account at a time. Stripe checkout refuses Student without it (403,
+  > `X-FAM-Student: verify`); the iPhone app asks before Apple's sheet, and
+  > a Student purchase Apple reports without it is kept (Apple charged) and
+  > logged. `/api/plans` carries `student`.
   > **Current (PROBLEMS.md §653, the owner 11.18: "add apple in-app
   > purchase for the iphone app too"):** the iPhone app sells the same
   > three plans through **StoreKit 2** (`ios/FAM/FAM/Store.swift`), so an

@@ -934,6 +934,13 @@ struct PlansSheet: View {
     /// A purchase or restore is under way: the plan rows wait.
     @State private var busy = false
     @State private var productsAsked = false
+    /// The Student plan's .edu check (§654): the address, then the code.
+    @State private var studentStep: StudentStep?
+    @State private var studentEmail = ""
+    @State private var studentCode = ""
+    @State private var studentSentTo = ""
+
+    enum StudentStep { case email, code }
 
     private var shown: PlansPage? { fetched ?? page }
 
@@ -969,6 +976,27 @@ struct PlansSheet: View {
             await loaded
             products = model.store.products
             productsAsked = true
+        }
+        .alert("Verify you\u{2019}re a student",
+               isPresented: Binding(get: { studentStep == .email },
+                                    set: { if !$0 && studentStep == .email { studentStep = nil } })) {
+            TextField("you@school.edu", text: $studentEmail)
+                .textInputAutocapitalization(.never)
+                .keyboardType(.emailAddress)
+            Button("Send code") { sendStudentCode() }
+            Button("Cancel", role: .cancel) { studentStep = nil }
+        } message: {
+            Text("The Student plan is for college students. Enter your school email - it ends in .edu.")
+        }
+        .alert("Enter your code",
+               isPresented: Binding(get: { studentStep == .code },
+                                    set: { if !$0 && studentStep == .code { studentStep = nil } })) {
+            TextField("6-digit code", text: $studentCode)
+                .keyboardType(.numberPad)
+            Button("Verify") { confirmStudent() }
+            Button("Cancel", role: .cancel) { studentStep = nil }
+        } message: {
+            Text("We sent a code to \(studentSentTo).")
         }
         .alert("Join a FAM plan", isPresented: $joining) {
             TextField("Code", text: $joinCode)
@@ -1084,6 +1112,12 @@ struct PlansSheet: View {
     }
 
     private func buy(_ plan: String) {
+        // §654: Student only for a verified .edu address - checked before
+        // Apple's sheet, since a purchase cannot be taken back here.
+        if plan == "student" && shown?.student?.verified != true {
+            studentStep = .email
+            return
+        }
         busy = true
         Task {
             defer { busy = false }
@@ -1101,6 +1135,43 @@ struct PlansSheet: View {
                 model.nowPlaying.say("That purchase didn\u{2019}t go through. You weren\u{2019}t charged twice \u{2014} try Restore purchases.")
             }
         }
+    }
+
+    private func sendStudentCode() {
+        let email = studentEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        studentStep = nil
+        guard !email.isEmpty else { return }
+        Task {
+            do {
+                studentSentTo = try await model.api.studentStart(email)
+                studentCode = ""
+                studentStep = .code
+            } catch {
+                model.nowPlaying.say(Self.words(error, or: "That email couldn\u{2019}t be checked. Use one that ends in .edu."))
+            }
+        }
+    }
+
+    private func confirmStudent() {
+        let code = studentCode
+        studentStep = nil
+        Task {
+            do {
+                if try await model.api.studentConfirm(code) {
+                    fetched = try? await model.api.plans()
+                    model.nowPlaying.say("You\u{2019}re verified as a student")
+                    buy("student")
+                }
+            } catch {
+                model.nowPlaying.say(Self.words(error, or: "That code isn\u{2019}t right. Try again."))
+            }
+        }
+    }
+
+    /// The server's own sentence when it sent one, else `fallback`.
+    static func words(_ error: Error, or fallback: String) -> String {
+        if case let FAMError.refused(_, message) = error, !message.isEmpty { return message }
+        return fallback
     }
 
     private func restore() {

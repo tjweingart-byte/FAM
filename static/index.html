@@ -11433,6 +11433,22 @@
       toast("Your FAM plan code is " + code + " \u2014 copied. It works once.");
     }).catch(function(e){ if(e.message) toast(e.message); });
   }
+  // A code to a .edu address, then the code back (§654). `then` runs once
+  // the account is verified.
+  function verifyStudent(then){
+    var email = window.prompt("The Student plan is for college students. Enter your school email (it ends in .edu)");
+    if(!email) return;
+    billingPost("/api/billing/student", { email: email.trim() }).then(function(d){
+      var code = window.prompt("We sent a 6-digit code to " + (d.sent_to || email) + ". Enter it here");
+      if(!code) return;
+      return billingPost("/api/billing/student/confirm", { code: code.trim() }).then(function(v){
+        if(!v.verified) return;
+        if(plansData) plansData.student = { verified: true, expires: v.expires };
+        toast("You\u2019re verified as a student");
+        if(then) then();
+      });
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
   function joinFamPlan(){
     var code = window.prompt("Enter the FAM plan code you were given");
     if(!code) return;
@@ -11470,6 +11486,11 @@
   function choosePlan(name){
     if(!(plansData && plansData.checkout === true)){
       toast("Subscriptions aren\u2019t on sale yet");
+      return;
+    }
+    // §654: Student is for a verified .edu address; the check comes first.
+    if(name === "student" && !(plansData.student && plansData.student.verified)){
+      verifyStudent(function(){ choosePlan("student"); });
       return;
     }
     billingPost("/api/billing/checkout", { plan: name }).then(function(d){

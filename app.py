@@ -5445,7 +5445,58 @@ def _billing_snapshot(request: Request) -> dict:
             }
         except Exception:  # noqa: BLE001
             log.exception("could not read the subscription for %r", user)
-    return {"offers": offers, "subscription": mine}
+    student = None
+    if user:
+        try:
+            found = BILLING.student(user)
+            # §654: whether the Student plan may be bought, and until when.
+            student = {"verified": found["verified"], "email": found["email"],
+                       "expires": found["expires"]}
+        except Exception:  # noqa: BLE001
+            log.exception("could not read the student check for %r", user)
+    return {"offers": offers, "subscription": mine, "student": student}
+
+
+class StudentStart(BaseModel):
+    email: str = Field(..., max_length=254)
+
+
+class StudentConfirm(BaseModel):
+    code: str = Field(..., max_length=12)
+
+
+@app.post("/api/billing/student")
+async def student_start(req: StudentStart, request: Request) -> dict:
+    """Email a code to a .edu address (§654). The Student plan is sold only
+    to an account that has entered one, for a year at a time."""
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    if not mail_mod.status().get("available"):
+        raise HTTPException(status_code=503,
+                            detail="FAM can't send email right now, so a school "
+                                   "email can't be checked. Try again later.")
+    try:
+        code = BILLING.start_student(user, req.email)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    mail_mod.send_later(
+        req.email.strip().lower(), "Your FAM student code",
+        f"Your FAM student code is {code}.\n\n"
+        "Enter it in FAM to get the Student plan. It works for 15 minutes.\n"
+        "If you didn't ask for it, you can ignore this email.")
+    return {"ok": True, "sent_to": req.email.strip().lower()}
+
+
+@app.post("/api/billing/student/confirm")
+async def student_confirm(req: StudentConfirm, request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        found = BILLING.confirm_student(user, req.code)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"verified": found["verified"], "expires": found["expires"]}
 
 
 class CheckoutRequest(BaseModel):
@@ -5469,6 +5520,11 @@ async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
     if BILLING.own_plan(user):
         raise HTTPException(status_code=409,
                             detail="You already have a plan. Manage it to change it.")
+    # §654: the Student plan is for a verified .edu address only.
+    if req.plan == "student" and not BILLING.student_verified(user):
+        raise HTTPException(status_code=403,
+                            detail="Verify your school email to get the Student plan.",
+                            headers={"X-FAM-Student": "verify"})
     account = ACCOUNTS.account(user) or {}
     sub = BILLING.subscription(user) or {}
     try:
@@ -5531,6 +5587,8 @@ async def apple_purchase_setup(request: Request) -> dict:
     BILLING.remember_apple_token(token, user)
     sub = BILLING.subscription(user) or {}
     return {"token": token, "products": apple_iap.products(),
+            # §654: the app offers Student only once this is true.
+            "student_verified": BILLING.student_verified(user),
             "own_plan": BILLING.own_plan(user),
             "store": sub.get("source", "") if BILLING.own_plan(user) else ""}
 
@@ -5555,6 +5613,11 @@ async def apple_purchase(req: AppleTransactionRequest, request: Request) -> dict
         raise HTTPException(status_code=403,
                             detail="That purchase belongs to another FAM account.")
     BILLING.remember_apple_token(token, user)
+    if sub["plan"] == "student" and not BILLING.student_verified(user):
+        # Apple has already charged them, so the plan is theirs; the app
+        # offers Student only after the check (§654), so this is a build
+        # that skipped it, and is worth seeing.
+        log.warning("apple student plan bought without a verified .edu: %s", user)
     BILLING.record_apple(user, sub)
     log.info("apple %s: %s on %s (%s)", sub["environment"], user, sub["plan"], sub["status"])
     return {"ok": True, "plan": sub["plan"], "status": sub["status"],

@@ -39631,3 +39631,27 @@ one group with the product ids above (or set `APPLE_PRODUCT_*`), prices
 $3.99/$9.99/$14.99, Family Sharing off (the FAM plan's seats are FAM's);
 App Store Server Notifications v2 URL `https://<host>/api/billing/apple/notifications`
 for production and sandbox; Paid Apps agreement and banking.
+
+## 654. Students verify with a .edu email (2026-11-18)
+
+**Asked (the owner, 11.18):** "make students verify with a .edu email" -
+§652 noted that nothing checked a Student buyer was a student.
+
+**Built (rule `web-billing`, Current):** `billing.is_edu` (a `.edu` domain
+only, not `.edu.au` or `.ac.uk` - the owner's words, and the US is where the
+plan is sold first); `BillingStore` `students` table - a hashed six-digit
+code, 15 minutes, five tries, five codes an hour, verified for a year, one
+address for one account at a time. `POST /api/billing/student` emails the
+code through `mail.py` (503 with a sentence when mail is not configured,
+so staging cannot verify anybody); `POST /api/billing/student/confirm`.
+Stripe checkout refuses Student until verified (403, `X-FAM-Student`);
+`/api/plans` and `GET /api/billing/apple` say whether the account is
+verified. Web: tapping Student asks for the address, then the code, then
+opens checkout. iPhone: the same two alerts before Apple's sheet; a
+Student purchase Apple reports for an unverified account is kept, since
+Apple has charged, and logged.
+
+**Open:** students outside the US (`.ac.uk`, `.edu.au`) cannot verify; a
+graduate keeps the price until their year runs out; an address on a school
+domain that alumni keep for life passes. A verification service (SheerID)
+would close those if they matter.

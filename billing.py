@@ -95,6 +95,32 @@ BILLING_ENVIRONMENT: tuple[str, ...] = (
 
 INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
+#: Student verification (§654, the owner 11.18: "make students verify with
+#: a .edu email"): a six-digit code to a .edu address, live 15 minutes,
+#: five tries; a verification lasts a year, and one address verifies one
+#: account at a time.
+STUDENT_CODE_DIGITS = 6
+STUDENT_CODE_SECONDS = 15 * 60
+STUDENT_CODE_TRIES = 5
+STUDENT_VERIFIED_SECONDS = 365 * 86400
+#: Codes sent to one account in an hour, so the form cannot spam a school.
+STUDENT_CODES_PER_HOUR = 5
+
+
+def is_edu(email: str) -> bool:
+    """A .edu address: the domain is `edu` or ends in `.edu`. Lower-cased,
+    one @, something before it."""
+    email = (email or "").strip().lower()
+    local, at, domain = email.rpartition("@")
+    if not at or not local or " " in email or email.count("@") != 1:
+        return False
+    labels = domain.split(".")
+    return len(labels) >= 2 and labels[-1] == "edu" and all(labels)
+
+
+def _code_hash(user_id: str, code: str) -> str:
+    return hashlib.sha256(f"student:{user_id}:{code}".encode()).hexdigest()
+
 
 class BillingError(ValueError):
     """Something a listener can be told, phrased so it can be shown."""
@@ -266,6 +292,17 @@ class BillingStore:
                 code TEXT PRIMARY KEY,
                 owner_id TEXT NOT NULL,
                 created REAL NOT NULL
+            )""")
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS students (
+                user_id TEXT PRIMARY KEY,
+                email TEXT NOT NULL,
+                code_hash TEXT NOT NULL DEFAULT '',
+                code_expires REAL NOT NULL DEFAULT 0,
+                tries INTEGER NOT NULL DEFAULT 0,
+                sent_at REAL NOT NULL DEFAULT 0,
+                sent_count INTEGER NOT NULL DEFAULT 0,
+                verified_at REAL NOT NULL DEFAULT 0
             )""")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS mix_listens (
@@ -499,6 +536,78 @@ class BillingStore:
             "DELETE FROM fam_members WHERE member_id = ?", (member_id,))
         return bool(cur.rowcount)
 
+    # --- students (§654) ------------------------------------------------
+
+    def student(self, user_id: str, now: float = 0.0) -> dict:
+        """{verified, email, expires} - `verified` only while the year runs."""
+        row = self._conn().execute(
+            "SELECT email, verified_at FROM students WHERE user_id = ?",
+            (user_id,)).fetchone()
+        now = now or time.time()
+        if not row or not row[1]:
+            return {"verified": False, "email": "", "expires": 0.0}
+        expires = float(row[1]) + STUDENT_VERIFIED_SECONDS
+        return {"verified": expires > now, "email": row[0], "expires": expires}
+
+    def student_verified(self, user_id: str, now: float = 0.0) -> bool:
+        return bool(user_id) and self.student(user_id, now)["verified"]
+
+    def start_student(self, user_id: str, email: str, now: float = 0.0) -> str:
+        """A code for this .edu address, to be emailed. Raises
+        `BillingError` with a sentence for anything refused."""
+        email = (email or "").strip().lower()
+        if not is_edu(email):
+            raise BillingError("Use your school email - one that ends in .edu.")
+        now = now or time.time()
+        conn = self._conn()
+        taken = conn.execute(
+            "SELECT user_id FROM students WHERE email = ? AND verified_at > ?"
+            " AND user_id != ?",
+            (email, now - STUDENT_VERIFIED_SECONDS, user_id)).fetchone()
+        if taken:
+            raise BillingError("That school email already verified another FAM account.")
+        row = conn.execute(
+            "SELECT sent_at, sent_count FROM students WHERE user_id = ?",
+            (user_id,)).fetchone()
+        count = int(row[1]) if row and now - float(row[0]) < 3600 else 0
+        if count >= STUDENT_CODES_PER_HOUR:
+            raise BillingError("Too many codes this hour. Try again later.")
+        code = f"{secrets.randbelow(10 ** STUDENT_CODE_DIGITS):0{STUDENT_CODE_DIGITS}d}"
+        window_start = float(row[0]) if row and count else now
+        conn.execute(
+            "INSERT INTO students (user_id, email, code_hash, code_expires, tries,"
+            " sent_at, sent_count, verified_at) VALUES (?, ?, ?, ?, 0, ?, ?, 0)"
+            " ON CONFLICT (user_id) DO UPDATE SET email = excluded.email,"
+            " code_hash = excluded.code_hash, code_expires = excluded.code_expires,"
+            " tries = 0, sent_at = excluded.sent_at, sent_count = excluded.sent_count,"
+            " verified_at = CASE WHEN students.email = excluded.email"
+            "              THEN students.verified_at ELSE 0 END",
+            (user_id, email, _code_hash(user_id, code), now + STUDENT_CODE_SECONDS,
+             window_start, count + 1))
+        return code
+
+    def confirm_student(self, user_id: str, code: str, now: float = 0.0) -> dict:
+        """Check the emailed code; verified for a year if it matches."""
+        now = now or time.time()
+        code = "".join(ch for ch in (code or "") if ch.isdigit())
+        conn = self._conn()
+        row = conn.execute(
+            "SELECT code_hash, code_expires, tries FROM students WHERE user_id = ?",
+            (user_id,)).fetchone()
+        if not row or not row[0]:
+            raise BillingError("Ask for a code first.")
+        if now > float(row[1]):
+            raise BillingError("That code has expired. Ask for a new one.")
+        if int(row[2]) >= STUDENT_CODE_TRIES:
+            raise BillingError("Too many wrong codes. Ask for a new one.")
+        if not hmac.compare_digest(row[0], _code_hash(user_id, code)):
+            conn.execute("UPDATE students SET tries = tries + 1 WHERE user_id = ?",
+                         (user_id,))
+            raise BillingError("That code isn't right.")
+        conn.execute("UPDATE students SET verified_at = ?, code_hash = '',"
+                     " code_expires = 0, tries = 0 WHERE user_id = ?", (now, user_id))
+        return self.student(user_id, now)
+
     # --- half a mix -----------------------------------------------------
 
     def mix_heard(self, user_id: str, mix_id: str, day: str) -> set[str]:
@@ -541,6 +650,8 @@ class BillingStore:
         n += conn.execute("DELETE FROM fam_invites WHERE owner_id = ?",
                           (user_id,)).rowcount or 0
         n += conn.execute("DELETE FROM apple_tokens WHERE user_id = ?",
+                          (user_id,)).rowcount or 0
+        n += conn.execute("DELETE FROM students WHERE user_id = ?",
                           (user_id,)).rowcount or 0
         return n
 

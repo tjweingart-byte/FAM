@@ -645,3 +645,4 @@ and `limit` = Lines.
 | 39504 | 30 | 651. The voice's always-on worker moved off the 4090: ~$40 a day to ~$14 (2026-11-18) |
 | 39534 | 50 | 652. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18) |
 | 39584 | 51 | 653. Apple in-app purchase for the iPhone app (2026-11-18) |
+| 39635 | 24 | 654. Students verify with a .edu email (2026-11-18) |

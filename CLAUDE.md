@@ -433,7 +433,7 @@ Accounts, tiers, sharing
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited` [tiers-off];
   every account's free month from launch [free-month];
 - **Paid by Stripe on the web, Apple IAP on iPhone** (`billing.py`, `apple_iap.py`):
-  Student, Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper
+  Student (.edu-verified), Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper
   a week, tiles free, half a mix, no own mixes; signed events set plans [web-billing]
   let in: mail+text a claim link, month at launch [waitlist-notice]
 - An admin-made **ambassador code**: tag, free unlimited, off the waitlist; revocable [ambassadors]
