@@ -274,3 +274,127 @@ def test_the_setting_is_copied_and_reported():
     assert "\nPREFETCH_BATCH=1\n" in open(os.path.join(root, ".env.example")).read()
     assert '"prefetch_batch": settings.prefetch_batch' in open(
         os.path.join(root, "app.py")).read()
+
+
+def test_the_write_ahead_batch_is_waited_for_well_inside_the_grace(batching, monkeypatch):
+    """Last slot's "Start here" episodes expire `EPISODE_GRACE_SECONDS` after
+    the slot; a batch waited for the editions' full hour would leave the live
+    fallback no time before the cards lose their names."""
+    seen = {}
+    real = claude_batch.run
+
+    async def spy(client, requests, **kwargs):
+        seen["wait"] = kwargs["wait_seconds"]
+        return await real(client, requests, **kwargs)
+
+    monkeypatch.setattr(claude_batch, "run", spy)
+    run(trending_bank.write_startup(time.time(), BatchWriter(), MemoryScriptCache(),
+                                    force=True))
+    assert seen["wait"] == trending_bank.STARTUP_BATCH_WAIT_SECONDS
+    assert seen["wait"] <= trending_bank.EPISODE_GRACE_SECONDS / 2
+
+
+def test_the_write_ahead_and_the_edition_do_not_wait_for_each_other(monkeypatch):
+    """Both are batched, so the scheduler runs them side by side."""
+    on = dataclasses.replace(config.settings, trending_bank=True,
+                             startup_write_ahead=True)
+    monkeypatch.setattr(trending_bank, "settings", on)
+    started = []
+    both = asyncio.Event()
+
+    alone = []
+
+    async def job(name):
+        started.append(name)
+        if len(started) == 2:
+            both.set()
+        try:
+            await asyncio.wait_for(both.wait(), 0.5)
+        except asyncio.TimeoutError:
+            alone.append(name)          # ran while the other had not started
+
+    async def startup_job(**_kw):
+        await job("startup")
+
+    async def edition_job(**_kw):
+        await job("edition")
+
+    monkeypatch.setattr(trending_bank, "startup_due", lambda: True)
+    monkeypatch.setattr(trending_bank, "due", lambda: True)
+    monkeypatch.setattr(trending_bank, "write_startup", startup_job)
+    monkeypatch.setattr(trending_bank, "build", edition_job)
+    monkeypatch.setattr(trending_bank, "store", lambda: type(
+        "S", (), {"status": staticmethod(lambda _sid: None)})())
+
+    async def go():
+        task = asyncio.ensure_future(trending_bank.run_forever(generator=object()))
+        await asyncio.wait_for(both.wait(), 2)
+        task.cancel()
+    run(go())
+    assert sorted(started) == ["edition", "startup"]
+    assert alone == [], "one job waited for the other to finish"
+
+
+# ------------------------------------------------- the branch double-checked
+def test_a_tap_written_while_the_write_ahead_batch_was_out_is_kept(batching, monkeypatch):
+    """`rewrite` sets aside last slot's episode, never a tap's: an episode
+    sourced after this one was prepared is a listener's, and stays."""
+    from types import SimpleNamespace
+    from pipeline import key_for
+
+    cache = MemoryScriptCache()
+    story = SimpleNamespace(id="q", query="what happened this week in film")
+    real = claude_batch.run
+
+    async def run_then_tap(client, requests, **kwargs):
+        answers = await real(client, requests, **kwargs)
+        key = await key_for(plan_episode(story.query, 2))
+        cache.put(key, ["Tapped."], 3600, story.query, "", 2, "", "", "",
+                  "Tap's title", sourced_at=time.time() + 60)
+        return answers
+
+    monkeypatch.setattr(claude_batch, "run", run_then_tap)
+    result = run(trending_bank.write_batched([story], BatchWriter(), cache, 2,
+                                             time.time() + 3600, rewrite=True))
+    assert result["q"]["status"] == "cached"
+    assert cache.get(result["q"]["key"]) == ["Tapped."]
+
+
+def test_an_unanswered_prefetch_warm_waits_for_quiet_before_it_is_written_live(warmer):
+    prefetch.register(Source(["why the sky is blue"]))
+    gen = BatchWriter(fail_create=True)
+    pf = _prefetcher(gen, MemoryScriptCache())
+
+    async def go():
+        await pf.run_once()
+        pf.note_live_generation()           # a listener starts while it is out
+        await _drain()
+    run(go())
+    assert [e[0] for e in gen.log].count("live") == 0
+    assert pf.budget.briefs == 1 and pf.budget.episodes == 0
+
+
+def test_a_batched_warm_a_tap_beat_is_charged_as_a_brief(warmer, monkeypatch):
+    import pipeline
+
+    prefetch.register(Source(["why the sky is blue"]))
+    cache = MemoryScriptCache()
+    real = claude_batch.run
+
+    async def run_then_tap(client, requests, **kwargs):
+        answers = await real(client, requests, **kwargs)
+        key = await pipeline.key_for(plan_episode("why the sky is blue", 2))
+        cache.put(key, ["Tapped."], 3600, "why the sky is blue", "", 2, "", "", "", "t")
+        return answers
+
+    monkeypatch.setattr(claude_batch, "run", run_then_tap)
+    pf = _prefetcher(BatchWriter(), cache)
+    _cycle(pf)
+    assert pf.budget.episodes == 0 and pf.budget.briefs == 1
+
+
+def test_an_empty_prefetch_batch_setting_is_the_default_as_edition_batch_is(monkeypatch):
+    monkeypatch.setenv("PREFETCH_BATCH", "")
+    monkeypatch.setenv("EDITION_BATCH", "")
+    s = config.Settings()
+    assert s.prefetch_batch is True and s.edition_batch is True

@@ -1293,7 +1293,7 @@ class Settings:
     # `PREFETCH_BATCH=0` writes each warm live, as before.
     prefetch_batch: bool = field(
         default_factory=lambda: os.environ.get("PREFETCH_BATCH", "1")
-        not in ("0", "false", "False", ""))
+        not in ("0", "false", "False"))
     # Lifted at the owner's direction (§359): 0 is no ceiling, so every
     # subject an active mix follows is written ahead. Settable again here.
     daily_edition_max_episodes: int = _env_int("DAILY_EDITION_MAX_EPISODES", 0)

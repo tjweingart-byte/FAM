@@ -1448,7 +1448,11 @@
   > (`PREFETCH_BATCH=1`), finished apart from the cycle, one batch out at a
   > time (a cycle meanwhile warms briefs only, so the budget is overrun by at
   > most one cycle's writers). Same reader, same live fallback from what was
-  > prepared, a tap's episode never written over.
+  > prepared, a tap's episode never written over. The write-ahead's batch
+  > is waited for `STARTUP_BATCH_WAIT_SECONDS` (a third of the hour's
+  > grace) and runs beside the Trending edition, not before it; a prefetch
+  > warm the batch did not answer is written live only when `warm` would
+  > be (quiet, inside both budgets, prefetch on) (§653).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose

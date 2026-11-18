@@ -76,11 +76,6 @@ def _episode_rows(since: float) -> Optional[list]:
         return None
 
 
-def _episodes(since: float) -> Optional[int]:
-    rows = _episode_rows(since)
-    return None if rows is None else len(rows)
-
-
 def _agent_spend(since: float) -> Optional[dict]:
     ledger = _ledger()
     if ledger is None:
@@ -136,7 +131,8 @@ def _nightly_by_day(since: float) -> dict:
     return out
 
 
-def by_day(now: Optional[float] = None, days: Optional[float] = None) -> dict:
+def by_day(now: Optional[float] = None, days: Optional[float] = None,
+           rows: Optional[list] = None) -> dict:
     """Claude per episode, day by day, and what spent it (the owner,
     2026-11-18: "the per episode costs of claude have been going up").
 
@@ -148,7 +144,8 @@ def by_day(now: Optional[float] = None, days: Optional[float] = None) -> dict:
     episode that leaves. A rise is then read as a source that grew or a
     count that fell, which the 7-day figure alone cannot tell apart. A day
     under `MIN_EPISODES / days` episodes still shows its cents: it is a row
-    in a table, never an alert. Never raises."""
+    in a table, never an alert. `rows` are `report`'s episode rows, so the
+    store is read once a draw. Never raises."""
     now = time.time() if now is None else now
     s = _settings()
     days = max(1.0, float(days or getattr(s, "it_cost_days", 7) or 7))
@@ -164,7 +161,8 @@ def by_day(now: Optional[float] = None, days: Optional[float] = None) -> dict:
                          "claude_usd": 0.0, "nightly_usd": 0.0,
                          "cents_per_episode": None}
         at += DAY
-    rows = _episode_rows(since)
+    if rows is None:
+        rows = _episode_rows(since)
     for row in rows or []:
         written = row.get("at") if isinstance(row, dict) else None
         if written is None:
@@ -219,7 +217,8 @@ def report(now: Optional[float] = None) -> dict:
     since = now - days * DAY
     since -= since % DAY
     span = (now - since) / DAY
-    episodes = _episodes(since)
+    rows = _episode_rows(since)
+    episodes = None if rows is None else len(rows)
     agents = _agent_spend(since)
     claude = _claude_spend(since)
     if claude is not None and agents:
@@ -244,7 +243,7 @@ def report(now: Optional[float] = None) -> dict:
         "nightly_usd_per_month": (round(agents["nightly"] / span * 30, 2)
                                   if agents else None),
         "since": since,
-        "by_day": by_day(now, days),
+        "by_day": by_day(now, days, rows=rows),
         "note": "episodes written to the cache; private searches' cost is in "
                 "the total, not the count, so it reads slightly high; the "
                 "agents' nightly jobs are apart from both figures",

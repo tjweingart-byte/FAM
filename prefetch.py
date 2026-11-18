@@ -644,7 +644,8 @@ class Prefetcher:
         """Build this episode ahead of the tap. Returns what it did.
 
         One of: `"script"`, `"brief"`, `"cached"` (somebody already has it),
-        `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
+        `"batched"` (prepared, its writer waiting in this cycle's batch,
+        §652), `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
         because every one of those is a different thing to do about it, and a
         prefetcher that reports only success and failure cannot be tuned.
 
@@ -940,6 +941,24 @@ class Prefetcher:
             task.add_done_callback(_CYCLES.discard)
         return {"ran": True, "reason": "", "outcomes": outcomes}
 
+    def _live_fallback_refused(self) -> str:
+        """Why a batched warm the batch did not answer may not be written
+        live now (`"off"`, `"busy"`, `"budget"`), or "" when it may."""
+        if not settings.prefetch:
+            return "off"
+        if not self.quiet_enough():
+            return "busy"
+        if not self.budget.allows(level="script"):
+            _note_stopped(self.budget.why_not("script"))
+            return "budget"
+        import ahead_budget
+
+        ok, why = ahead_budget.allows("prefetch")
+        if not ok:
+            _note_stopped(why)
+            return "budget"
+        return ""
+
     def _batches(self) -> bool:
         """Whether this cycle's script warms go out as one batch (§652)."""
         g = self.generator
@@ -969,8 +988,9 @@ class Prefetcher:
             for i, (candidate, prepared, key, notes, _) in enumerate(batch):
                 try:
                     if self.cache is not None and self.cache.get(key):
-                        # Somebody's tap wrote it while the batch was out.
-                        self._charge(_dollars(notes))
+                        # Somebody's tap wrote it while the batch was out:
+                        # what was bought is a brief and its evidence.
+                        self._charge(_dollars(notes), level="brief")
                         self.ledger.skipped_already_cached += 1
                         out[key] = "cached"
                         continue
@@ -981,6 +1001,15 @@ class Prefetcher:
                         sentences = await script_generator.settle_repairs(
                             self.generator, prepared, notes, sentences)
                     else:
+                        # Written live only on the terms `warm` keeps: never
+                        # beside a listener, never past a budget, never once
+                        # prefetch is off. Otherwise what was bought is the
+                        # brief, kept, and the tap writes the rest.
+                        held = self._live_fallback_refused()
+                        if held:
+                            self._charge(_dollars(notes), level="brief")
+                            out[key] = held
+                            continue
                         async with self._lock:
                             sentences = [s async for s in self.generator.stream_prepared(
                                 prepared, notes)]

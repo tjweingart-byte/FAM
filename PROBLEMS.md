@@ -39588,3 +39588,42 @@ Claude per episode shows in the by-day table from the next deploy. Whether
 medium writes worse than high is unmeasured; `tools/editor_eval.py --run
 --arms none,none_low` with `AHEAD_WRITER_EFFORT` set each way would say,
 on the owner's key.
+
+## 653. The branch double-checked: §652 reviewed (2026-11-18)
+
+The owner asked for every change on the branch to be checked again. Read
+line by line here, and by an independent reviewer given the diff and not
+this session's conclusions. Found and fixed, each with a test that fails
+without the fix:
+
+1. **The write-ahead waited a whole batch before Trending.** `run_forever`
+   ran "Start here" first *because* it was the short, deadline-bound job
+   (§179); batched, it could take `EDITION_BATCH_WAIT_SECONDS` (an hour) -
+   as long as last slot's episodes stay current (`EPISODE_GRACE_SECONDS`),
+   leaving the live fallback no time, and holding the edition an hour
+   behind it. Now its batch is waited for `STARTUP_BATCH_WAIT_SECONDS`
+   (20 minutes), and the two jobs run side by side (`asyncio.gather`).
+2. **`rewrite` could write over a tap** (the reviewer). It skipped the
+   "a tap wrote it while the batch was out" check, since the key holds
+   last slot's episode on purpose. `_written_meanwhile` now keeps an
+   episode sourced after this one was prepared - a listener's - and
+   replaces only an older one.
+3. **Prefetch's live fallback skipped `warm`'s checks** (the reviewer): an
+   unanswered batched warm was streamed whatever the listener load, budget
+   or `PREFETCH` said. `_live_fallback_refused` asks the same three
+   questions; refused, the brief is kept and charged as one.
+4. **A batched warm a tap beat was charged as an episode**; it is a brief.
+5. **`PREFETCH_BATCH=` (empty) turned batching off** where `EDITION_BATCH=`
+   leaves it on; now parsed alike.
+6. `cost_watch.report` read the week's episode rows twice per /admin draw;
+   once now, handed to `by_day`. `warm`'s docstring names `"batched"`.
+
+**Known and left, said aloud:** a batched prefetch warm is charged when its
+batch returns, so the budget can be overrun by one cycle's writers, and a
+restart while a batch is out loses that charge (the briefs were paid, the
+answers dropped). The nightly agents taken out of Claude's dollars are every
+`background` agent call, any vendor - as the 7-day figure has always done.
+
+**Verified:** the full `./dev.sh check` on §652 (7,943 passed), the five
+browser smoke runs after matching Python's Playwright to the container's
+browser (1.63.0), and the tests of everything touched after these fixes.
