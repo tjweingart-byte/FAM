@@ -5448,7 +5448,10 @@ def _billing_snapshot(request: Request, priced: dict) -> dict:
                 "store": (sub or {}).get("source", "") if own else "",
                 "renews_at": (sub or {}).get("period_end", 0.0),
                 "manage": bool((sub or {}).get("customer")),
-                "fam_member_of": owner if owner and BILLING.own_plan(owner) == "fam" else "",
+                # Whose plan, by name - never their account id
+                # (`listener-id-server`).
+                "fam_member_of": (_fam_owner_name(owner)
+                                  if owner and BILLING.own_plan(owner) == "fam" else ""),
                 "fam_members": len(BILLING.fam_members(user)) if own == "fam" else 0,
             }
         except Exception:  # noqa: BLE001
@@ -5669,6 +5672,11 @@ async def apple_notifications(request: Request) -> dict:
 
 class FamJoinRequest(BaseModel):
     code: str = Field(..., max_length=20)
+
+
+def _fam_owner_name(owner: str) -> str:
+    who = SOCIAL.person(owner) or {}
+    return who.get("name") or who.get("handle") or "a FAM plan"
 
 
 def _fam_ref(owner: str, member: str) -> str:
@@ -7784,6 +7792,30 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
+def _served_tile_query(topic_id: str) -> str:
+    """The question a DailyFAM tile with this id asks, if the server serves
+    one (§652 review): the evergreen bank, Start here, the live story pool or
+    the Trending edition - so a tile is free whether or not its episode is
+    written yet, and a made-up id buys nothing. Held in memory; no store
+    read, no network."""
+    for table in (topics_mod.BANK_BY_ID, topics_mod.STARTUP_BY_ID):
+        tile = table.get(topic_id)
+        if tile is not None:
+            return tile.query
+    now = time.time()
+    try:
+        for tile in topics_mod.live_topics(now):
+            if tile.id == topic_id:
+                return tile.query
+        for tile in topics_mod.topics_from_stories(
+                trending_bank.stories_in_memory(now), now=now):
+            if tile.id == topic_id:
+                return tile.query
+    except Exception:  # noqa: BLE001 - unknown is counted as a search
+        log.exception("could not look up tile %r", topic_id)
+    return ""
+
+
 def _mix_plays(found, query: str) -> bool:
     return found is not None and any(mixes_mod.plays_item(i, query) for i in found.items)
 
@@ -7808,8 +7840,8 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
     if mix and _mix_plays(MIXES.get_editable(user, mix)
                           or MIXES.get_public(mix, viewer=user), query):
         return "myfam"
-    bank = topics_mod.BANK_BY_ID.get(topic_id) if topic_id else None
-    if bank is not None and mixes_mod._plain(bank.query) == mixes_mod._plain(query):
+    served = _served_tile_query(topic_id) if topic_id else ""
+    if served and mixes_mod._plain(served) == mixes_mod._plain(query):
         return "myfam"
     # A shared link, a history replay, a tile: off the search bar, an
     # episode already written is a replay, not a search.

@@ -274,3 +274,37 @@ def test_one_store_ending_never_cancels_the_others_live_plan(tmp_path):
                  "data": {"object": {"id": "sub_old", "customer": "cus_old", "status": "canceled",
                                      "metadata": {"user_id": "u1", "plan": "single"}}}})
     assert store.paid("u1") and store.subscription("u1")["source"] == "apple"
+
+
+def test_a_dailyfam_tile_is_free_before_its_episode_is_written(client, monkeypatch):
+    """A tile the server serves is a browse episode whether or not it is
+    written yet; the same id with other words is a search (§652 review)."""
+    import quotas
+    import topics as topics_mod
+    c, appmod, _user = client
+    monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
+    monkeypatch.setattr(appmod.ACCOUNTS, "_free_month_starts", lambda now: 0.0)
+    monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
+    tiles = list(topics_mod.BANK_BY_ID.values())[:3]
+    for tile in tiles:
+        r = c.get("/api/audio", params={"q": tile.query, "minutes": 1, "fmt": "pcm",
+                                         "surface": "myfam", "topic_id": tile.id})
+        assert r.status_code == 200, (tile.id, r.status_code, r.headers.get("X-FAM-Refused-By"))
+    assert c.get("/api/audio", params={"q": "not that tile's question", "minutes": 1,
+                                        "fmt": "pcm", "surface": "myfam",
+                                        "topic_id": tiles[0].id}).status_code == 200
+    refused = c.get("/api/audio", params={"q": "nor this one", "minutes": 1, "fmt": "pcm",
+                                           "surface": "myfam", "topic_id": tiles[0].id})
+    assert refused.status_code == 429
+
+
+def test_a_fam_plan_member_is_never_sent_the_payers_id(client, apple):
+    c, appmod, user = client
+    appmod.BILLING.apply({"id": "c1", "type": "checkout.session.completed",
+                          "data": {"object": {"client_reference_id": "payer-id-123",
+                                              "metadata": {"user_id": "payer-id-123", "plan": "fam"},
+                                              "payment_status": "paid"}}})
+    appmod.BILLING.fam_join(user, appmod.BILLING.fam_invite("payer-id-123"))
+    body = c.get("/api/plans").text
+    assert "payer-id-123" not in body
+    assert c.get("/api/plans").json()["subscription"]["fam_member_of"]

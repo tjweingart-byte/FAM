@@ -2894,6 +2894,14 @@ extension FAMAPI {
     }
 
     /// Every tier and the one this listener is on (`/api/plans`); no prices.
+    /// Whether searches and Go Deepers are counted for this listener - the
+    /// free tier's one a week (§652). False when unknown.
+    func asksCapped() async -> Bool {
+        guard let page = try? await get("api/v1/entitlements", [], as: AskAllowance.self)
+        else { return false }
+        return page.enforced == true && page.usage?.ask?.unlimited == false
+    }
+
     func plans() async throws -> PlansPage {
         try await get("api/v1/plans", [], as: PlansPage.self)
     }
@@ -3147,6 +3155,13 @@ struct PlansPage: Decodable {
     let subscription: PlanSubscription?
     /// The Student plan's .edu check (§654).
     let student: StudentVerdict?
+}
+
+struct AskAllowance: Decodable {
+    struct Usage: Decodable { let ask: Allowance? }
+    struct Allowance: Decodable { let unlimited: Bool? }
+    let enforced: Bool?
+    let usage: Usage?
 }
 
 struct StudentSent: Decodable {

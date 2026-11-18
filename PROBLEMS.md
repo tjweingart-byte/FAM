@@ -39692,3 +39692,26 @@ branch", then "yes fix all ten". The review (code-review, high) found:
 
 Tests for each are in `test_billing_652.py`, `test_apple_iap_653.py` and
 `test_student_654.py`. The Swift is still uncompiled here.
+
+## 656. The billing branch reviewed again: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(after §655).
+
+1. **A DailyFAM tile not yet written spent the week's one search.** §655
+   made a play free only when the server could see it was browse - but a
+   live-story or bank tile tapped before its episode was written was not
+   one of the things it could see, against the owner's "DailyFAM tiles
+   should be free". `app._served_tile_query` now recognises a tile the
+   server serves (bank, Start here, the live pool, the Trending edition,
+   all in memory) when the question is that tile's own.
+2. **The post-episode countdown spent the week's one Go Deeper by itself.**
+   Its lead tile is Go Deeper's suggestion, played as a follow-up after 15
+   s untouched - for a free listener, a search they never asked for, and a
+   limit card after every episode once it was gone. Where asks are counted
+   (`/api/entitlements` `usage.ask`), the suggestion moves to second and the
+   countdown starts a free episode; web `asksCapped`, iOS
+   `FAMAPI.asksCapped`.
+3. **A FAM-plan member was sent the payer's account id**
+   (`subscription.fam_member_of`, against `listener-id-server`). It is the
+   payer's name now.

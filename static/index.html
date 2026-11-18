@@ -29948,7 +29948,10 @@
       // One tile is not a grid, and a popup offering nothing is worse than
       // the silence it replaced. Below two, the player simply stops.
       if(tiles.length < 2 || !nextUpAllowedHere() || goDeeperIsOpen()) return;
-      showNextUp(tiles);
+      asksCapped(function(){
+        if(!nextUpAllowedHere() || goDeeperIsOpen()) return;
+        showNextUp(tiles);
+      });
     });
   }
 
@@ -30027,7 +30030,29 @@
     return title ? "What's the bigger story behind " + title + "?" : "";
   }
 
+  // Whether this listener's searches and Go Deepers are counted (§652): the
+  // free tier's one a week. Read from /api/entitlements, at most once a
+  // minute; unknown reads as not counted.
+  var asksCappedAt = 0, asksCappedValue = false;
+  function asksCapped(done){
+    if(Date.now() - asksCappedAt < 60000){ done(asksCappedValue); return; }
+    fetch("/api/entitlements").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var ask = d && d.usage && d.usage.ask;
+        asksCappedValue = !!(d && d.enforced === true && ask && ask.unlimited === false);
+        asksCappedAt = Date.now();
+        done(asksCappedValue);
+      })
+      .catch(function(){ done(false); });
+  }
+
   function showNextUp(tiles){
+    // The countdown never spends the week's one Go Deeper on its own (§652
+    // review): where Go Deeper is counted, its suggestion moves to second,
+    // still one tap away, and the countdown starts an episode that is free.
+    if(tiles.length > 1 && tiles[0].deeper && asksCappedValue){
+      tiles = [tiles[1], tiles[0]].concat(tiles.slice(2));
+    }
     nextUpTiles = tiles;
     document.getElementById("nextUpGrid").innerHTML = tiles.map(function(t, i){
       return '<div class="nextup-tile' + (i === 0 ? " lead" : "")

@@ -822,6 +822,13 @@ final class NowPlayingModel: ObservableObject {
             tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
         }
         guard mine == run, tiles.count >= 2 else { return }
+        // The countdown never spends the week's one Go Deeper on its own
+        // (§652 review): where Go Deeper is counted, its suggestion moves to
+        // second and the countdown starts an episode that is free.
+        if tiles[0].deeper, await api.asksCapped() {
+            tiles.swapAt(0, 1)
+        }
+        guard mine == run else { return }
         nextUp = tiles
         nextUpLeft = Self.nextUpSeconds
         nextUpPaused = false
