@@ -2567,7 +2567,7 @@ def _health_report(request: Request) -> dict:
             "edition_batch_source": ("EDITION_BATCH env var"
                                      if os.environ.get("EDITION_BATCH", "").strip()
                                      else "config.py default"),
-            # Prefetch's script warms batched too (§652).
+            # Prefetch's script warms batched too (§654).
             "prefetch_batch": settings.prefetch_batch,
             "prefetch_batch_source": ("PREFETCH_BATCH env var"
                                       if os.environ.get("PREFETCH_BATCH", "").strip()
@@ -5912,6 +5912,9 @@ class FeedbackRequest(BaseModel):
     page: str = Field("", max_length=2000)
     viewport: str = Field("", max_length=500)
     episode: Optional[FeedbackEpisode] = None
+    # The phone player's own log, sent by "Report a problem" on the player
+    # (§653). Its newest part is kept (`feedback.playback_tail`).
+    playback: str = Field("", max_length=200_000)
 
 
 async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
@@ -6108,7 +6111,7 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
             page=req.page,
             viewport=req.viewport,
             agent=request.headers.get("user-agent", ""),
-            throttle_key=listener, episode=episode)
+            throttle_key=listener, episode=episode, playback=req.playback)
     except feedback_mod.FeedbackError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"]}

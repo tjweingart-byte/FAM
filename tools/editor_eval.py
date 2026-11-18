@@ -25,7 +25,7 @@ Two more arms (§521), so the teaching is measured against §437's own results:
   (`EDITOR_WORKED_PLANS`), the writer matched as in `none_matched`.
 
 And `none_low` (§527): no editor, the writer at low effort as before §522,
-to measure what `AHEAD_WRITER_EFFORT` (medium since §652) buys against `none`.
+to measure what `AHEAD_WRITER_EFFORT` (medium since §654) buys against `none`.
 
 The first three arms run with both switched off, so they stay §437's
 comparison whatever the deployment's defaults are now.

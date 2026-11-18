@@ -393,7 +393,7 @@ class Settings:
     edition_writer_model: str = field(
         default_factory=lambda: os.environ.get("EDITION_WRITER_MODEL", ""))
     # **The writer's effort where nobody waits: medium** (the owner,
-    # 2026-11-18, §652, after Claude per episode rose; §522 had it at high):
+    # 2026-11-18, §654, after Claude per episode rose; §522 had it at high):
     # the editions, the write-ahead and prefetch's script warms are written
     # before anybody taps, and all of them go out batched. searchFAM keeps
     # `EFFORT` (low), so the first word is not moved. `EDITION_WRITER_EFFORT`,
@@ -1285,7 +1285,7 @@ class Settings:
         "EDITION_BATCH_WAIT_SECONDS", 3600.0)
     edition_batch_poll_seconds: float = _env_float(
         "EDITION_BATCH_POLL_SECONDS", 30.0)
-    # Prefetch's script warms batched too (§652, the owner: "the writer for
+    # Prefetch's script warms batched too (§654, the owner: "the writer for
     # episodes written ahead should be batched"): a cycle prepares each warm
     # as before, then sends its writers as one batch at half price, read by
     # the same `_ScriptReader`, under the editions' wait and poll; what the
@@ -1982,6 +1982,14 @@ class Settings:
     # re-rolls every sentence at once. Blank is the default roll.
     chatterbox_seed_salt: str = field(
         default_factory=lambda: os.environ.get("CHATTERBOX_SEED_SALT", "").strip())
+    # A reading that runs about twice its words' length (the same sentence
+    # said twice, which Chatterbox's English model does not guard against)
+    # is taken once more from a second seed, keeping the take nearer the
+    # planned length (§652, `tts.ChatterboxEngine._retake_if_said_twice`).
+    # Set on the voice worker. `0` keeps every first take.
+    chatterbox_retake: bool = field(
+        default_factory=lambda: os.environ.get("CHATTERBOX_RETAKE", "1")
+        .strip().lower() not in ("0", "false", "no", "off"))
     # §446: Chatterbox's speech-token loop without the work it throws away
     # (`chatterbox_speed.py`): every layer's attention maps and hidden states
     # on every token, which forces eager attention, and a CPU wait after every

@@ -61,7 +61,7 @@ def test_none_low_writes_at_low_effort_and_the_rest_at_the_ahead_effort():
     with tool._Settings("none_low"):
         assert sg.writer_for(edition)[1] == "low"
     with tool._Settings("none"):
-        assert sg.writer_for(edition)[1] == "medium"    # AHEAD_WRITER_EFFORT (§652)
+        assert sg.writer_for(edition)[1] == "medium"    # AHEAD_WRITER_EFFORT (§654)
     assert sg.writer_for(edition)[1] == "medium"        # taken back after
 
 

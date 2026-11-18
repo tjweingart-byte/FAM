@@ -1,5 +1,5 @@
 """Training the writer (§522): more effort where nobody waits (medium since
-§652), the ear
+§654), the ear
 checks, where listeners stop, and before-and-after pairs made before launch.
 """
 from __future__ import annotations

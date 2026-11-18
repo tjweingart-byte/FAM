@@ -1,5 +1,5 @@
 """Claude per episode, by day; the writer written ahead batched, at medium
-(§652, the owner, 2026-11-18).
+(§654, the owner, 2026-11-18).
 
 "The per episode costs of claude have been going up significantly" - so:
 

@@ -150,6 +150,7 @@
   .report .ep h3 { margin:0 0 4px; font-size:14px; }
   .report .ep h4 { margin:10px 0 4px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
   .report .ep ol { margin:0; padding-left:18px; font-size:12.5px; }
+  .report .ep .playback { font-family:ui-monospace, Menlo, monospace; font-size:11.5px; }
   .report .ep .transcript { white-space:pre-wrap; font-size:12.5px; line-height:1.5; margin:0; max-height:320px; overflow:auto; }
   /* The menu (12/10): one page at a time, chosen from a drawer opened by
      the button at the top left, so the tracker is no longer one long scroll. */
@@ -2501,11 +2502,17 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
           '<div class="body">' +
           '<p class="text">' + esc(r.text) + '</p><div class="ctx">' + esc(ctx) + '</div>' +
           (r.episode ? '<div class="ep" id="ep-' + esc(r.id) + '" hidden>' + episodeHTML(r.episode) + '</div>' : '') +
+          // The phone player's log (§653): connects, hold and release,
+          // stalls, refills, reconnects - what playback did, line by line.
+          (r.playback ? '<div class="ep" id="pb-' + esc(r.id) + '" hidden><h4>Playback log</h4>' +
+                        '<p class="transcript playback">' + esc(r.playback) + '</p></div>' : '') +
           '</div><div class="acts">' +
           '<button class="' + (done ? "ghost" : "go") + '" type="button" style="padding:6px 12px" data-resolve="' + esc(r.id) +
           '" data-to="' + (done ? "0" : "1") + '">' + (done ? "Reopen" : "Resolve") + '</button>' +
           (r.episode ? '<button class="ghost" type="button" style="padding:6px 12px" data-episode="' + esc(r.id) +
                        '">Episode</button>' : '') +
+          (r.playback ? '<button class="ghost" type="button" style="padding:6px 12px" data-playback="' + esc(r.id) +
+                        '">Playback log</button>' : '') +
           '</div></div>';
       }).join("") : '<p class="sub">' + (inboxState === "open" ? "Nothing open." : "No reports here.") + '</p>';
     }).catch(function (e) {
@@ -2553,6 +2560,12 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
                     : '<p class="sub">No transcript was found - it may not have been written yet.</p>');
   }
   $("inboxList").addEventListener("click", function (ev) {
+    var pb = ev.target.closest("[data-playback]");
+    if (pb) {
+      var log = $("pb-" + pb.getAttribute("data-playback"));
+      if (log) { log.hidden = !log.hidden; pb.textContent = log.hidden ? "Playback log" : "Hide log"; }
+      return;
+    }
     var ep = ev.target.closest("[data-episode]");
     if (ep) {
       var box = $("ep-" + ep.getAttribute("data-episode"));

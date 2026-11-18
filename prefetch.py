@@ -520,7 +520,7 @@ class Prefetcher:
         #: waiting listener needs, which is the failure this exists to avoid.
         self._lock = asyncio.Lock()
         self._running = False
-        #: This cycle's script warms waiting to go out as one batch (§652),
+        #: This cycle's script warms waiting to go out as one batch (§654),
         #: None when the cycle writes live; and the keys in a batch still out.
         self._batch: Optional[list] = None
         self._batched_keys: set = set()
@@ -645,7 +645,7 @@ class Prefetcher:
 
         One of: `"script"`, `"brief"`, `"cached"` (somebody already has it),
         `"batched"` (prepared, its writer waiting in this cycle's batch,
-        §652), `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
+        §654), `"budget"`, `"busy"`, `"off"`, `"failed"`. A word rather than a bool
         because every one of those is a different thing to do about it, and a
         prefetcher that reports only success and failure cannot be tuned.
 
@@ -703,7 +703,7 @@ class Prefetcher:
         if key and self.cache is not None and self.cache.get(key):
             self.ledger.skipped_already_cached += 1
             return "cached"
-        # In a batch that is still out (§652): that batch writes it.
+        # In a batch that is still out (§654): that batch writes it.
         if key and key in self._batched_keys:
             self.ledger.skipped_already_cached += 1
             return "cached"
@@ -788,7 +788,7 @@ class Prefetcher:
             return "volatile"
 
         if self._batch is not None and key:
-            # Batched with the rest of this cycle's script warms (§652): the
+            # Batched with the rest of this cycle's script warms (§654): the
             # brief and evidence are paid for now, exactly as a stream would
             # pay for them, and the writer goes out at half price with the
             # others once the cycle has prepared them all.
@@ -920,7 +920,7 @@ class Prefetcher:
         # budget checks that let it in. So one batch is out at a time: while
         # one is, a cycle warms briefs only, and the budget can be overrun by
         # at most one cycle's writers (`PREFETCH_PER_CYCLE`), never by a pile
-        # of batches nobody had paid for yet (§652).
+        # of batches nobody had paid for yet (§654).
         level = ("brief" if self._batch is not None and self._batched_keys
                  and settings.prefetch_level == "script" else "")
         try:
@@ -933,7 +933,7 @@ class Prefetcher:
             batch, self._batch = self._batch, None
             self._running = False
         if batch:
-            # Finished apart from the cycle (§652), so a batch that takes its
+            # Finished apart from the cycle (§654), so a batch that takes its
             # time never stops the next cycle's briefs; its keys stay in
             # `_batched_keys` until it is done, so no cycle warms them twice.
             task = asyncio.get_running_loop().create_task(self._write_batch(batch))
@@ -960,7 +960,7 @@ class Prefetcher:
         return ""
 
     def _batches(self) -> bool:
-        """Whether this cycle's script warms go out as one batch (§652)."""
+        """Whether this cycle's script warms go out as one batch (§654)."""
         g = self.generator
         return bool(settings.prefetch_batch
                     and getattr(g, "client", None) is not None
@@ -968,7 +968,7 @@ class Prefetcher:
                         "batch_request", "sentences_from_message", "stream_prepared")))
 
     async def _write_batch(self, batch: list) -> dict:
-        """One cycle's script warms, the writers sent as one batch (§652).
+        """One cycle's script warms, the writers sent as one batch (§654).
 
         Read by the same reader a stream uses; an answer the batch does not
         give is written live from the brief and evidence already paid for; a

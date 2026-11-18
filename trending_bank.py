@@ -94,7 +94,7 @@ STALE_CLAIM_SECONDS = 20 * 60
 #: How long a bank episode outlives the longest its edition can be shown
 #: (`TRENDING_BANK_MAX_AGE_HOURS`), so a tap in the last minute still finds it.
 EPISODE_GRACE_SECONDS = 3600
-#: How long the "Start here" write-ahead's batch is waited for (§652): a
+#: How long the "Start here" write-ahead's batch is waited for (§654): a
 #: third of the grace, so a batch that does not end leaves the live fallback
 #: forty minutes before last slot's episodes expire and the cards lose their
 #: names. Never longer than `EDITION_BATCH_WAIT_SECONDS`.
@@ -978,7 +978,7 @@ async def write_episode(story, generator, cache, minutes: int,
 def _written_meanwhile(cache, key: str, notes, rewrite: bool) -> bool:
     """Whether a tap wrote this key while its batch was out (§179), so the
     answer arriving now is set aside. Without `rewrite` any current episode
-    counts. With it (the "Start here" write-ahead, §652) the key normally
+    counts. With it (the "Start here" write-ahead, §654) the key normally
     holds last slot's episode, which is meant to be replaced - so only one
     sourced after this episode was prepared is a tap's."""
     if not cache.get(key):
@@ -1015,7 +1015,7 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     the batch did not answer is written live from what it already has.
     Returns story id -> result. Never raises.
 
-    `rewrite` is `write_episode`'s (the "Start here" write-ahead, §652): the
+    `rewrite` is `write_episode`'s (the "Start here" write-ahead, §654): the
     key is written although it is current, so an answer is never set aside
     because the key is already in the cache - that is last slot's episode,
     which taps go on hearing until this one replaces it. `wait_seconds`
@@ -1263,7 +1263,7 @@ async def write_startup(now: Optional[float] = None, generator=None,
 
         if _batches(generator):
             # Written ahead like the edition beside it, so batched like it
-            # (§652, the owner: "the writer for episodes written ahead should
+            # (§654, the owner: "the writer for episodes written ahead should
             # be batched"); a writer the batch does not answer is written live.
             results = await write_batched(
                 questions, generator, cache, config.BROWSE_MINUTES, expires_at,
@@ -1387,7 +1387,7 @@ async def run_forever(generator=None, cache=None,
             log.exception("trending bank: the scheduler tick failed")
 
     while True:
-        # "Start here" and the edition side by side (§179, §652): the
+        # "Start here" and the edition side by side (§179, §654): the
         # write-ahead's cards lose their names an hour after the slot, and
         # both are batched now - the write-ahead for at most
         # `STARTUP_BATCH_WAIT_SECONDS`, the edition for up to

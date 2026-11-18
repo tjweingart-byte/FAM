@@ -1366,7 +1366,7 @@
   > is there (§440). searchFAM stays at `EFFORT` (low), so the first word is
   > not moved; `EDITION_WRITER_EFFORT`, when set, still wins for an edition.
   >
-  > **Current:** **medium, not high** (PROBLEMS.md §652, the owner,
+  > **Current:** **medium, not high** (PROBLEMS.md §654, the owner,
   > 2026-11-18, after Claude per episode rose: "the writer for episodes
   > written ahead should be batched and on medium effort, not high").
   > `AHEAD_WRITER_EFFORT` defaults to `medium`; `high` restores §522. Only
@@ -1439,7 +1439,7 @@
   > sources' own words, fewer of them; every failure, and any cut that loses
   > what the brief asked to establish, leaves the packet whole, and the score
   > and figure checks always read the whole packet.
-  > **Current (PROBLEMS.md §652, the owner):** **every writer written ahead
+  > **Current (PROBLEMS.md §654, the owner):** **every writer written ahead
   > is batched**, not only the two editions: the rails edition and push
   > stories already were (both go through `daily_edition.run_slot`); the
   > "Start here" write-ahead now goes through `trending_bank.write_batched`
@@ -1452,7 +1452,7 @@
   > is waited for `STARTUP_BATCH_WAIT_SECONDS` (a third of the hour's
   > grace) and runs beside the Trending edition, not before it; a prefetch
   > warm the batch did not answer is written live only when `warm` would
-  > be (quiet, inside both budgets, prefetch on) (§653).
+  > be (quiet, inside both budgets, prefetch on) (§655).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose

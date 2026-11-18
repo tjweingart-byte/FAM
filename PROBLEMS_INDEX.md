@@ -643,5 +643,7 @@ and `limit` = Lines.
 | 39425 | 38 | 649. An ambassador code lets its account off the waitlist (2026-11-18) |
 | 39463 | 41 | 650. The branch double-checked before merging: §648-649 reviewed (2026-11-18) |
 | 39504 | 30 | 651. The voice's always-on worker moved off the 4090: ~$40 a day to ~$14 (2026-11-18) |
-| 39534 | 58 | 652. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
-| 39592 | 39 | 653. The branch double-checked: §652 reviewed (2026-11-18) |
+| 39534 | 68 | 652. The owner's 11.18 notes: the first sentence still twice, swipe the player down, Instagram's link again (2026-11-18) |
+| 39602 | 36 | 653. Report a problem on the player, with the phone player's log (2026-11-18) |
+| 39638 | 58 | 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
+| 39696 | 44 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
