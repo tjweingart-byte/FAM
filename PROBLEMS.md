@@ -39752,7 +39752,7 @@ dictionary has it - so it reached Chatterbox as its letters, which read it as
 from habit rather than from the spelling: Iraq, Qatar, Niger, Kyiv, Beijing,
 Erdogan, Xi.
 
-**What changed.** `pronunciation.SEED` holds 33 such names with the common
+**What changed.** `pronunciation.SEED` holds 36 such names (Venezuela, Venezuelan and Caribbean at the owner's request) with the common
 American broadcast reading ("Iran = ee-RAHN", handed to the voice as
 "Eerahn"). `Lexicon.reload` writes them to the shared table once per process
 as source `seed`, which ranks under an admin and over Wikipedia and both
