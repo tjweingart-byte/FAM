@@ -39926,7 +39926,7 @@ link through the App Store app; a universal link in the iOS app (PARITY.md).
 left waiting.
 
 **What changed:** `segno==1.6.6` (pure Python, no dependencies) in
-`requirements.txt`. `GET /api/me/qr.svg` draws this listener's own
+`requirements.txt`. `GET /api/me/qr` draws this listener's own
 `APP_HOME_URL/@handle` (§660) as an SVG - no handle parameter, so nobody
 else's code can be asked for; 401 without an account, 404 without a handle;
 dark modules (#1a1714) on nothing, scale 8, quiet zone 2, error correction

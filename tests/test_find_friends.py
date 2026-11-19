@@ -295,7 +295,7 @@ def test_your_qr_code_is_your_profile_link(client):
     import io
     import segno
     signed_in(client, "ana@b.com", "Ana", "ana")
-    r = client.get("/api/me/qr.svg")
+    r = client.get("/api/me/qr")
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
     want = io.BytesIO()
     segno.make(f"{appmod.settings.app_home_url}/@ana", error="m", micro=False).save(
@@ -305,6 +305,6 @@ def test_your_qr_code_is_your_profile_link(client):
 
 
 def test_a_qr_code_needs_an_account_and_a_handle(client):
-    assert client.get("/api/me/qr.svg").status_code == 401
+    assert client.get("/api/me/qr").status_code == 401
     client.post("/api/auth/signup", json={"email": "nohandle@b.com", "password": "password12"})
-    assert client.get("/api/me/qr.svg").status_code == 404
+    assert client.get("/api/me/qr").status_code == 404

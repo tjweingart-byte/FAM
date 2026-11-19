@@ -24709,13 +24709,13 @@
   }
   // Your QR code (§661): the profile link for somebody in the same room -
   // they point their camera at it and land on your profile. Drawn by the
-  // server (`/api/me/qr.svg`), dark on the card's own light.
+  // server (`/api/me/qr`), dark on the card's own light.
   function openProfileQR(){
     var url = myProfileLink();
     if(!url){ toast("Choose a handle first, in Edit profile"); return; }
     var img = document.getElementById("qrImg");
     img.removeAttribute("hidden");
-    img.src = "/api/me/qr.svg?h=" + encodeURIComponent(profileNow.handle);
+    img.src = "/api/me/qr?h=" + encodeURIComponent(profileNow.handle);
     document.getElementById("qrHandle").textContent = "@" + profileNow.handle;
     document.getElementById("qrUrl").textContent = url.replace(/^https?:\/\//, "");
     document.getElementById("qrOverlay").classList.add("active");

@@ -9114,7 +9114,7 @@ async def open_profile_link(handle: str):
                             status_code=302)
 
 
-@app.get("/api/me/qr.svg", include_in_schema=False)
+@app.get("/api/me/qr", include_in_schema=False)
 async def my_profile_qr(request: Request):
     """This listener's profile link, `APP_HOME_URL/@handle`, as a QR code
     (§661): for meeting somebody in person, scanned by any phone's camera.
