@@ -259,7 +259,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   changeable; identity step after sign-up only; `identityMode`/`introMode` decide
   X, button label and return target; a settings row is an editor, never the
   first run again; interests are **one sideways-scrolling line** under Edit
-  profile / Saved for Later on yours and a friend's page - Edit profile
+  profile / Saved for Later on yours and a friend's page, labels that open nothing - Edit profile
   holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too; showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
