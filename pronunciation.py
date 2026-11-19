@@ -27,7 +27,7 @@ model call:
   would be too late for the only mention that matters.
 * **An admin** can fix any name on /admin, and an admin's respelling is never
   replaced by a model's.
-* **A seed** (§656, `SEED` below): well-known names an English speaker
+* **A seed** (§663, `SEED` below): well-known names an English speaker
   says one way and the voice reads another - "Iran" as "eye-ran" - which no
   model lists, because to a model they are not hard, and which the CMU scan
   (`hard_words.py`) never flags, because the dictionary has them. Written to
@@ -70,7 +70,7 @@ SAY_MARKER = re.compile(r"<<\s*SAY\s*:\s*([^<>=]{1,80}?)\s*=\s*([^<>]{1,160}?)\s
 #: is never replaced by a model's.
 SOURCES = ("admin", "seed", "wikipedia", "writer", "brief")
 
-#: Names the voice says wrong although every listener knows them (§656).
+#: Names the voice says wrong although every listener knows them (§663).
 #: The owner: "We are still having pronunciation issues within the app, even
 #: with names as similar as the country name 'Iran'". The lexicon only ever
 #: learned names a model chose to list, and no model lists "Iran". These are
@@ -107,7 +107,7 @@ SEED = {
     "Kim Jong Un": "KIM jong OON", "Macron": "mah-KROHN", "Merz": "MAIRTS",
     "Milei": "mee-LAY", "Guterres": "goo-TAIR-esh", "Noem": "NOHM",
     "Leavitt": "LEV-it", "Thune": "THOON", "Alito": "uh-LEE-toh",
-    # Sports (§656's audit): names an English reading gets wrong
+    # Sports (§663's audit): names an English reading gets wrong
     "Jokic": "YOH-kitch", "Doncic": "DON-chitch",
     "Antetokounmpo": "an-teh-toh-KOON-poh", "Kelce": "KEL-see",
     "Mahomes": "muh-HOHMZ", "Mbappe": "em-bah-PAY", "Mbappé": "em-bah-PAY",
@@ -116,7 +116,7 @@ SEED = {
     # Companies and products in markets stories
     "Huawei": "WAH-way", "Xiaomi": "SHOW-mee", "Hyundai": "HUN-day",
     "Porsche": "POR-shuh", "Chipotle": "chih-POHT-lay", "Wegovy": "wee-GOH-vee",
-    # Respelled by hand (§657): a model's entry kept a vowel-marking h inside
+    # Respelled by hand (§664): a model's entry kept a vowel-marking h inside
     # one syllable ("beh-SEHR-ah", "rohd-REE-gehs"), which no joining rule
     # can mend without guessing. A seed outranks the writer's and the brief's
     # row it replaces; an admin's row (Libertad) is changed on /admin.
@@ -185,7 +185,7 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
 #: stays: "mat-hew" joined would be "mathew", a th.
 _DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
 #: A respelling's short vowels, written with an h ("ih", "eh", "uh"), and
-#: the consonants English doubles after one to keep it short (§657).
+#: the consonants English doubles after one to keep it short (§664).
 _SHORT_VOWELS = frozenset(("ih", "eh"))
 #: Endings whose h is a real sound, not a vowel's mark ("shah", "pooh").
 _KEEP_H = frozenset(("shah",))
@@ -199,7 +199,7 @@ def _joined(word: str) -> str:
     `word` keeps its capitals, which mark the stressed syllable; what comes
     back is lower case. A syllable's closing h only marks its vowel ("ih",
     "eh", "uh", "ah", "oh"), and joined it is a sound the voice breathes:
-    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§657). So
+    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§664). So
     where a marked vowel meets the next syllable inside a word:
 
     * a short "ih" or "eh" loses its h, and the consonant after it doubles
@@ -219,7 +219,7 @@ def _joined(word: str) -> str:
     for i, part in enumerate(parts[1:], 1):
         meet = out[-1:] + part[:1]
         # An h after a vowel or an h is swallowed when joined ("doh-hah" ->
-        # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§656).
+        # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§663).
         if meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh"):
             out += "-" + part
             continue
@@ -342,7 +342,7 @@ class Lexicon:
     def _compile(self) -> None:
         entries = self._merged()
         # A name in capitals ("IRAN", "HAMAS" in a headline) is matched too
-        # (§656): `speakable` turns it into "Iran" only after the lexicon
+        # (§663): `speakable` turns it into "Iran" only after the lexicon
         # has looked, and matching is by case. From four letters, so "XI"
         # the numeral is never "Xi".
         for name, value in list(entries.items()):
@@ -358,7 +358,7 @@ class Lexicon:
             + r")(?![A-Za-zÀ-ÿĀ-ſ])") if names else None)
 
     def _seed(self) -> None:
-        """Write `SEED` to the table, once per process (§656). A seed never
+        """Write `SEED` to the table, once per process (§663). A seed never
         replaces an admin's respelling (`learn_pronunciation` ranks it), and a
         changed seed replaces the old one at the next boot."""
         self._seeded = True
@@ -479,7 +479,7 @@ class Lexicon:
         pair = clean(name, say)
         if not pair and name.strip() in _SHORT_SEED:
             # "Xi" is under `clean`'s three letters but is seeded, so an
-            # admin must be able to replace it (§656).
+            # admin must be able to replace it (§663).
             say = re.sub(r"\s+", " ", (say or "").strip())
             pair = (name.strip(), say) if _SAY.match(say) else None
         if not pair:

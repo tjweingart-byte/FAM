@@ -84,6 +84,7 @@ ENV FAM_STATE=/state \
     CONSENT_DB=/state/data/consent.db \
     MODERATION_DB=/state/data/moderation.db \
     QUOTAS_DB=/state/data/quotas.db \
+    BILLING_DB=/state/data/billing.db \
     VOICE_REGISTRY_DB=/state/data/voice_registry.db \
     VOICE_BANK_DB=/state/data/voice_bank.db \
     CATEGORIES_DB=/state/data/categories.db \

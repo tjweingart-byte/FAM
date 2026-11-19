@@ -86,11 +86,16 @@ def test_limits_come_from_the_environment(limits):
 def test_a_nonsense_limit_falls_back_rather_than_crashing_the_server(limits):
     """A typo in a deployment variable must not take the process down. It is
     the one setting most likely to be edited in a hurry, by whoever is awake."""
-    limits(FREE_EPISODES_PER_DAY="lots")
-    assert entitlements.limit_for("free", "episode").count == 5
+    limits(FREE_ASKS_PER_WEEK="lots")
+    assert entitlements.limit_for("free", "ask").count == 1
 
 
 # --- features -------------------------------------------------------------
+
+#: What the free tier does not have, and the decision that took it (§656,
+#: the owner 11.18: free listeners "can't make their own" myFAM mixes).
+TAKEN_FROM_FREE = {"mixes"}
+
 
 def test_every_feature_is_available_on_every_tier_today():
     """**Read this before changing it.**
@@ -107,7 +112,10 @@ def test_every_feature_is_available_on_every_tier_today():
     capability free listeners no longer have and why.
     """
     for name in entitlements.TIERS:
-        assert entitlements.features_for(name) == set(entitlements.FEATURE_KEYS), (
+        expected = set(entitlements.FEATURE_KEYS)
+        if name == "free":
+            expected -= TAKEN_FROM_FREE
+        assert entitlements.features_for(name) == expected, (
             f"the {name} tier no longer has every feature - if that is "
             f"intended, update this test and say what was taken away"
         )

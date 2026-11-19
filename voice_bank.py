@@ -598,7 +598,7 @@ class VoiceBank:
         # respelling stands until an admin changes it, and a brief's guess
         # (made before anything was read) never replaces a writer's.
         # Wikipedia (10.16 #6) sits under an admin and over both models; the
-        # hand-chosen seed (§656) under an admin and over Wikipedia.
+        # hand-chosen seed (§663) under an admin and over Wikipedia.
         rank = {"admin": 0, "seed": 1, "wikipedia": 2, "writer": 3, "brief": 4}
         if row and rank.get(source, 5) > rank.get(row[1], 5):
             return False

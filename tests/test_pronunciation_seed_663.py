@@ -1,4 +1,4 @@
-"""Well-known names the voice says wrong are seeded (PROBLEMS.md §656).
+"""Well-known names the voice says wrong are seeded (PROBLEMS.md §663).
 
 The owner: "We are still having pronunciation issues within the app, even
 with names as similar as the country name 'Iran'". No model lists "Iran" and
@@ -54,7 +54,7 @@ def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
     assert lex.apply("Super Bowl XI") == "Super Bowl XI"
 
 
-# The outside audit of the list (§656).
+# The outside audit of the list (§663).
 
 def test_an_h_after_a_vowel_keeps_its_hyphen():
     assert pronunciation.voiced("doh-hah") == "Doh-hah"
@@ -90,7 +90,7 @@ def test_accented_spellings_and_hyphenated_names_match(tmp_path):
 
 
 def test_a_short_vowel_before_a_consonant_doubles_it_and_loses_its_h():
-    """The owner's /admin check (§657): "ih-RAHN" handed over as "Ihrahn"
+    """The owner's /admin check (§664): "ih-RAHN" handed over as "Ihrahn"
     was heard as "eef-rahn" - the h breathed before the r."""
     v = pronunciation.voiced
     assert v("ih-RAHN") == "Irrahn"
@@ -117,7 +117,7 @@ def test_a_marked_vowel_before_a_vowel_loses_its_h():
 
 
 def test_no_seed_hands_the_voice_a_breathed_h():
-    """§657: a vowel-marking h inside a word is breathed or said."""
+    """§664: a vowel-marking h inside a word is breathed or said."""
     import re
     for name, say in pronunciation.SEED.items():
         v = pronunciation.voiced(say).lower()

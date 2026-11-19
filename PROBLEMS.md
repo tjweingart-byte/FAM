@@ -39737,7 +39737,230 @@ browser (1.63.0), and the tests of everything touched after these fixes.
 sections are §654 and §655 and every reference it added was renumbered;
 `tests/test_ahead_batched_654.py`.
 
-## 656. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19)
+## 656. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18)
+
+**Asked (the owner, 11.18, with Brady's message: "limit searches and no
+playlists for customers who do not pay. Dailyfam should be free ... College
+students $3.99, regular single customers $9.99, and FAM plan @ $14.99"):**
+a payment system for the tiers; every account's free trial starts when the
+app is released, not the beta; after the free month one free search/Go
+Deeper per week; free listeners can listen to other people's myFAM mixes
+but not make their own, and are stopped half way through a mix; DailyFAM's
+tiles free outside Go Deeper. Asked, the owner chose: half a mix means
+**half its episodes**; every paid plan **unlimited**; the FAM plan **up to
+4, by invite**; **Stripe only** - then: "Ideally we have all payments be
+redirected to a website to avoid the 30% fee that apple takes."
+
+**Built (rule `web-billing`):** `billing.py` - `BillingStore` (subscriptions,
+webhook events seen, FAM-plan seats and one-use invite codes, the
+half-a-mix counter; `BILLING_DB`) and three Stripe calls over `httpx`
+(Checkout, the billing portal, a Price read) plus the webhook's HMAC check.
+`app._tier` raises an account to `plus` while its subscription, or the FAM
+plan it has a seat on, is live. `entitlements` gains the `ask` resource
+(search and Go Deeper: one a week free, unlimited paid); the free tier's
+`episode` and `explore` are uncapped; `mixes` moves to `plus`.
+`_take_half_a_mix` counts distinct episodes per mix per UTC day for a free
+listener and answers the 429 the limit card already draws. The free month
+is every account's, from the launch day or from joining if later
+(`accounts._with_free_month`). The plans sheet lists Student, Single and
+the FAM plan with Stripe's price, opens checkout, and offers Manage
+subscription, a FAM-plan code and joining one. Everything is behind
+`ENFORCE_QUOTAS`, still `0` in production.
+
+**Reversed on purpose:** `tier-spend` (a feature, own mixes, moved behind a
+tier; `TAKEN_FROM_FREE` in `tests/test_entitlements.py`) and, once quotas are
+on, `account-gates-kept` (a plan now gates hearing a mix's second half).
+`free-month` no longer depends on five friends.
+
+**Not done, and why:**
+- **Student verification.** Nothing checks that a Student buyer is a
+  student; Stripe does not. A verification service (SheerID or similar)
+  or an .edu address is the owner's decision.
+- **The iOS app** links to nothing yet. Linking out is allowed on the US
+  storefront only (Epic v. Apple; the commission on linked sales was still
+  before the district court), and outside the US it may not point at a
+  purchase at all (APP_STORE.md 3.1.1).
+- **Stripe's dashboard:** three Prices, a webhook endpoint at
+  `/api/billing/webhook` sending `checkout.session.completed` and
+  `customer.subscription.*`, the portal configured - and the keys set as
+  credentials. Nothing was spent and no key was used here.
+- **A free listener's mixes made before launch** stay theirs to play (to
+  half) and delete; editing them is the paid part.
+
+## 657. Apple in-app purchase for the iPhone app (2026-11-18)
+
+**Asked (the owner, 11.18):** "add apple in-app purchase for the iphone app
+too" - after §656's web-only Stripe checkout and the conversion numbers
+(RevenueCat's Dipsea test: ~28% of paywall views paid through Apple's sheet,
+~18% through a web link-out; at FAM's prices a web checkout must convert at
+~90% of Apple's to come out ahead at the 15% small-business rate).
+
+**Built (rule `web-billing`, Current):**
+- `apple_iap.py`: verifies an App Store JWS - ES256, `x5c` chain of three,
+  each certificate signed by the next and in date, the root pinned by
+  SHA-256 (Apple Root CA - G3), Apple's marker OIDs on leaf
+  (1.2.840.113635.100.6.11.1) and intermediate (1.2.840.113635.100.6.2.1) -
+  and turns a transaction into {plan, status, original, period_end}. A
+  revoked transaction is cancelled; a lapsed one expired; a grace period
+  `past_due` to its end. Product ids default to
+  `net.familiarize.fam.{student,single,famplan}.monthly`.
+- `app.py`: `GET /api/billing/apple` (the account's `appAccountToken` and
+  the product ids), `POST /api/billing/apple` (a signed transaction; 403 if
+  its token is another account's), `POST /api/billing/apple/notifications`
+  (Server Notifications v2). `/api/plans` offers carry `apple_product`, the
+  subscription its `store`.
+- `BillingStore`: `subscriptions.source`, `apple_tokens` (token -> account,
+  for notifications), `record_apple`.
+- iOS: `Store.swift` (`FAMStore`: products, purchase with the account
+  token, `Transaction.updates` from launch, Restore purchases; a
+  transaction is finished only once the server has it); `PlansSheet` lists
+  the plans at Apple's `displayPrice`, Manage subscription
+  (`AppStore.showManageSubscriptions`), the FAM-plan code and joining one,
+  Restore purchases, and the auto-renew terms with Terms and Privacy links.
+  Mix episodes now send `mix` (§656's half a mix); the server also takes an
+  older client's `surface=dailyfam`/`myfam` as a browse play, so a build
+  without `mix` does not spend the week's one search on a mix.
+- Web: an Apple subscription's Manage row says to change it on the iPhone.
+
+**Not verified, and why:**
+- **The Swift was not compiled** - this container has no Xcode. The first
+  Xcode build is the check; StoreKit testing wants a `.storekit`
+  configuration file (Xcode: File > New > StoreKit Configuration File, synced
+  from App Store Connect) and a sandbox tester.
+- **The pinned root fingerprint** is Apple's published SHA-256 for Apple Root
+  CA - G3, written from the published value: apple.com was not reachable
+  from here. If it were wrong every purchase would be refused (fail closed),
+  which the first sandbox purchase shows; `APPLE_ROOT_SHA256` overrides it.
+
+**Owner's steps:** App Store Connect: three auto-renewable subscriptions in
+one group with the product ids above (or set `APPLE_PRODUCT_*`), prices
+$3.99/$9.99/$14.99, Family Sharing off (the FAM plan's seats are FAM's);
+App Store Server Notifications v2 URL `https://<host>/api/billing/apple/notifications`
+for production and sandbox; Paid Apps agreement and banking.
+
+## 658. Students verify with a .edu email (2026-11-18)
+
+**Asked (the owner, 11.18):** "make students verify with a .edu email" -
+§656 noted that nothing checked a Student buyer was a student.
+
+**Built (rule `web-billing`, Current):** `billing.is_edu` (a `.edu` domain
+only, not `.edu.au` or `.ac.uk` - the owner's words, and the US is where the
+plan is sold first); `BillingStore` `students` table - a hashed six-digit
+code, 15 minutes, five tries, five codes an hour, verified for a year, one
+address for one account at a time. `POST /api/billing/student` emails the
+code through `mail.py` (503 with a sentence when mail is not configured,
+so staging cannot verify anybody); `POST /api/billing/student/confirm`.
+Stripe checkout refuses Student until verified (403, `X-FAM-Student`);
+`/api/plans` and `GET /api/billing/apple` say whether the account is
+verified. Web: tapping Student asks for the address, then the code, then
+opens checkout. iPhone: the same two alerts before Apple's sheet; a
+Student purchase Apple reports for an unverified account is kept, since
+Apple has charged, and logged.
+
+**Open:** students outside the US (`.ac.uk`, `.edu.au`) cannot verify; a
+graduate keeps the price until their year runs out; an address on a school
+domain that alumni keep for life passes. A verification service (SheerID)
+would close those if they matter.
+
+## 659. The billing branch reviewed: ten fixes (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this
+branch", then "yes fix all ten". The review (code-review, high) found:
+
+1. **A Stripe event was marked seen before it was applied**, so one whose
+   write failed was a "repeat" on Stripe's retry and never applied - a paid
+   customer with no plan. Now `seen_event` / `apply` / `mark_event`.
+2. **Two stores, one row:** an ended Stripe subscription's late event
+   overwrote a live Apple one (and the reverse). `record` now refuses an
+   ending from one store over the other's live plan.
+3. **The free search allowance was the client's to waive:** any request
+   naming `surface=dailyfam` was a free browse episode, so a crafted URL
+   searched without limit. `_spend_surface` now decides from what the play
+   is (`mixes.plays_item`, the bank, the cache).
+4. **`/api/script` had become unlimited for free** (its `episode` was
+   uncapped). It is an ask now.
+5. **Stripe's prices were read on the event loop**, and a failure was never
+   remembered: a slow Stripe stalled every stream at each plans sheet. Now
+   `asyncio.to_thread`, and five minutes' memory of a failure.
+6. **Out-of-order Stripe events** overwrote newer ones. Each row is dated
+   (`event_at`) and an older event is skipped.
+7. **Apple's grace period** held only for `DID_FAIL_TO_RENEW`; any other
+   notification, or a restore, ended it. Read from the renewal info now, and
+   a restore cannot undo a recorded grace.
+8. **The mix gate was every PATCH**, so a free listener could not share,
+   rename or prune a mix they had. Only adding is gated (`_adds_topics`).
+9. **Asking for a student code at a new address dropped the verification
+   held.** The address waits in `pending` until its code is entered, and is
+   checked against other accounts again then.
+10. **The iPhone said "you weren't charged"** when Apple had charged and
+    only the server's confirmation failed. `FAMStore.Unconfirmed` now says
+    so and points at Restore purchases.
+
+Tests for each are in `test_billing_656.py`, `test_apple_iap_657.py` and
+`test_student_658.py`. The Swift is still uncompiled here.
+
+## 660. The billing branch reviewed again: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(after §659).
+
+1. **A DailyFAM tile not yet written spent the week's one search.** §659
+   made a play free only when the server could see it was browse - but a
+   live-story or bank tile tapped before its episode was written was not
+   one of the things it could see, against the owner's "DailyFAM tiles
+   should be free". `app._served_tile_query` now recognises a tile the
+   server serves (bank, Start here, the live pool, the Trending edition,
+   all in memory) when the question is that tile's own.
+2. **The post-episode countdown spent the week's one Go Deeper by itself.**
+   Its lead tile is Go Deeper's suggestion, played as a follow-up after 15
+   s untouched - for a free listener, a search they never asked for, and a
+   limit card after every episode once it was gone. Where asks are counted
+   (`/api/entitlements` `usage.ask`), the suggestion moves to second and the
+   countdown starts a free episode; web `asksCapped`, iOS
+   `FAMAPI.asksCapped`.
+3. **A FAM-plan member was sent the payer's account id**
+   (`subscription.fam_member_of`, against `listener-id-server`). It is the
+   payer's name now.
+
+## 661. A third look at the billing branch: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(a third time), read this time through the iPhone half and the edges.
+
+1. **The iPhone kept the first account's `appAccountToken`** for the life
+   of the app (`FAMStore.setup`), so after a sign-out and another sign-in on
+   the same phone the second account bought with the first's token: Apple
+   charged, and the server refused it as another account's. It is asked
+   fresh for every purchase now.
+2. **Apple's TEST notification was a 400** - it carries no transaction -
+   so App Store Connect's "Request a test notification" reported the URL
+   broken. A signed notification with no transaction is answered 200 and
+   changes nothing; a body that is not an object is a 400, not a 500.
+3. **The card after each episode waited on a round trip** to
+   `/api/entitlements` on the iPhone (§660). Kept a minute
+   (`FAMAPI.asksCapped`), as the web keeps it.
+
+## 662. Interest pills on a profile open nothing (2026-11-19)
+
+The owner, with screenshots of YourFAM and the "INTEREST - Concerts" screen
+a pill opened: "When you click on one of the interests groups in someone's
+profile, they shouldn't go into anything. There is no reason for that."
+
+The Topic screen behind each pill (§95's "a Topic screen behind every
+interest chip") was a door to a grid that said little about the person -
+the Concerts screen held William and Kate and Trump's Asia trip. So the pill
+is now a label: `<span class="yf-chip label">` with `cursor:default`, no
+onclick, on your own page (`openInterestAt` deleted), a friend's page
+(`openPersonInterest` deleted) and the chat header (`openThreadInterest`
+deleted); `interestChipsHTML` lost its `opener` argument. The empty state
+("Add interests in Edit profile") stays a button - it has an editor behind it.
+`openTopic` and its screen stay for the other places that open it.
+The iOS app did the same (`InterestChipButton` on YourFAM, a person's page
+and the chat header); it is deleted and the three draw `InterestChip`.
+No Swift compiler here - the next Xcode build is its check.
+`tests/test_interest_labels_662.py` pins it.
+
+## 663. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19)
 
 The owner: "We are still having pronunciation issues within the app, even
 with names as similar as the country name 'Iran'".
@@ -39766,7 +39989,7 @@ respelled, "chile" (the pepper) and "XI" (the numeral) are not. "Xi" is the
 one seed under three letters, allowed past `clean` by name (`_SHORT_SEED`).
 
 Tests that are about an empty lexicon build it with `Lexicon(bank,
-seed=False)`; `tests/test_pronunciation_seed_656.py` pins the rest.
+seed=False)`; `tests/test_pronunciation_seed_663.py` pins the rest.
 
 **Not verified.** Nobody has heard any seed in Chatterbox - this container has
 no GPU. The respellings are hand-chosen, not measured; "Eerahn" may still
@@ -39814,7 +40037,7 @@ both. What it found and what was done:
   ("Niger Delta = NY-jer DEL-tuh" would also store "Niger" by `_split`), and
   diacritics are not folded, so each accented spelling is its own entry.
 
-## 657. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19)
+## 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19)
 
 The owner set Iran to `ih-RAHN` on /admin, and the voice check beside it
 said "The voice said it a little differently: eef-rahn ... 67% alike"
@@ -39868,6 +40091,5 @@ sound (`er`, `air`, `un`, `uz`, `ez`), and "rohd-REE-gehs" becomes
 Wikipedia's are seeds (`SEED`, "Respelled by hand"), so they replace those
 rows on the next boot; Libertad is an admin's row and a seed never replaces
 one, so it is the owner's edit on /admin (`lee-ber-TAHD`). A test now fails
-if any seed hands the voice a breathed h - it caught three of §656's own
+if any seed hands the voice a breathed h - it caught three of §663's own
 (Kherson, Pyongyang, Guterres), respelled. Unheard, like the rest.
-

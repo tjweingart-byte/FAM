@@ -38,7 +38,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def lexicon(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
     voice_bank.reset(bank)
-    lex = pronunciation.Lexicon(bank, seed=False)  # starts empty (§656)
+    lex = pronunciation.Lexicon(bank, seed=False)  # starts empty (§663)
     pronunciation.reset(lex)
     yield lex
     pronunciation.reset(None)
@@ -90,7 +90,7 @@ def test_the_name_inside_a_longer_word_is_left_alone(lexicon):
 
 def test_a_known_word_is_found_inside_a_hyphenated_name(lexicon):
     lexicon.learn([("Keawe", "keh-AH-veh")], "writer")
-    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Ke-ahveh threw"   # no h said (§657)
+    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Ke-ahveh threw"   # no h said (§664)
 
 
 def test_a_full_name_teaches_each_of_its_words(lexicon):
@@ -255,7 +255,7 @@ def test_a_personal_episodes_names_are_said_right_and_never_kept(lexicon):
     script_generator._take_pronunciations(
         "<<SAY: Wojciechowska = voy-cheh-HOF-skah>> Hello.", None,
         script_generator._names_are_shared(personal))
-    assert lexicon.apply("Wojciechowska wrote") == "Voycheh-hofskah wrote"   # the h kept (§656)
+    assert lexicon.apply("Wojciechowska wrote") == "Voycheh-hofskah wrote"   # the h kept (§663)
     assert voice_bank.bank().pronunciations() == []
     # And never offered to another episode's writer as "on file".
     assert pronunciation.known_in("Wojciechowska") == []

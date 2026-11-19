@@ -3562,6 +3562,7 @@
     align-items:center; font-family:inherit; font-size:11px; color:var(--text);
     background:none; border:1px solid var(--border-strong); cursor:pointer;
     white-space:nowrap; }
+  .yf-chip.label{ cursor:default; }
   .yf-chip.common{ border-color:var(--copper); color:var(--copper); cursor:default; }
   .yf-chip.muted{ color:var(--text-muted); font-style:italic; }
   /* Interests on a profile: a label, then one line of pills that scrolls
@@ -11337,39 +11338,138 @@
         list.innerHTML = '<div class="plan-note">Plans could not load. Check your connection and try again.</div>';
       });
   }
+  // A feature the plan does not have (§656): the server's sentence, then
+  // the plans. The caller's toast says the same words.
+  function upgradeFor(detail){
+    setTimeout(openPlans, 900);
+  }
   function closePlans(){
     document.getElementById("plansOverlay").classList.remove("active");
   }
 
+  // §656: what is sold comes from the server (`offers`), its price from
+  // Stripe through the server; a tap opens Stripe's checkout on the web -
+  // never the App Store - and the plan changes when Stripe's webhook says it
+  // was paid, not when the browser comes back.
+  var plansData = null;
   function renderPlans(data){
+    plansData = data || {};
     var tiers = (data && data.tiers) || [];
     var current = (data && data.current) || "free";
-    var html = "";
-    tiers.forEach(function(t){
-      var mine = t.name === current;
-      html += '<div class="plan-row' + (mine ? ' current' : '') + '"'
-           + (mine ? '' : ' onclick="choosePlan(\'' + t.name + '\')"') + '>'
-           + '<div class="plan-tick">'
-           + (mine ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>' : '')
-           + '</div><div class="plan-body">'
-           + '<div class="plan-name">' + escapeHtml(t.label || t.name)
-           + (mine ? '<em>Your plan</em>' : '') + '</div>'
-           + (t.blurb ? '<div class="plan-blurb">' + escapeHtml(t.blurb) + '</div>' : '')
-           + '<div class="plan-limits">' + escapeHtml(planLimits(t)) + '</div>'
-           + '</div></div>';
-    });
-    // The seam where checkout goes, named as one. Nothing sets a paid plan
-    // yet, so a row that looked buyable would be a promise the app cannot
-    // keep - and the listener would find that out after tapping.
-    // Worded from the server (§207): "everything is free" stops being true
-    // the day quotas are switched on, while there is still nothing to buy.
-    if(!(data && data.checkout === true)){
+    var sub = (data && data.subscription) || null;
+    var offers = (data && data.offers) || [];
+    var selling = data && data.checkout === true;
+    var mine = tiers.filter(function(t){ return t.name === current; })[0]
+               || { name: current, label: current };
+    var html = '<div class="plan-row current"><div class="plan-tick">'
+      + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>'
+      + '</div><div class="plan-body"><div class="plan-name">'
+      + escapeHtml(mine.label || mine.name) + '<em>Your plan</em></div>'
+      + (mine.blurb ? '<div class="plan-blurb">' + escapeHtml(mine.blurb) + '</div>' : '')
+      + '<div class="plan-limits">' + escapeHtml(planLimits(mine)) + '</div>'
+      + '</div></div>';
+    var paying = sub && sub.plan;
+    if(paying && sub.store === "apple"){
+      // Bought in the iPhone app (§657): only Apple can change or cancel it.
+      html += planAction("Manage subscription",
+        "Bought on iPhone \u2014 change or cancel it in Settings, your name, Subscriptions",
+        "toast('Open Settings on your iPhone, tap your name, then Subscriptions')");
+    } else if(paying && sub.manage){
+      html += planAction("Manage subscription", "Change your plan or card, or cancel", "manageBilling()");
+    }
+    if(sub && sub.plan === "fam"){
+      html += planAction("Invite someone to your FAM plan",
+        (sub.fam_members || 0) + " of 3 places taken", "inviteToFamPlan()");
+    }
+    if(!paying && current !== "unlimited"){
+      offers.forEach(function(o){
+        if(!o.for_sale && selling) return;
+        html += '<div class="plan-row" onclick="choosePlan(\'' + o.plan + '\')">'
+             + '<div class="plan-tick"></div><div class="plan-body">'
+             + '<div class="plan-name">' + escapeHtml(o.label)
+             + (o.price ? '<em>' + escapeHtml(o.price) + '</em>' : '') + '</div>'
+             + '<div class="plan-blurb">' + escapeHtml(o.blurb) + '</div>'
+             + '</div></div>';
+      });
+      if(!(sub && sub.fam_member_of)){
+        html += planAction("Have a FAM plan code?", "Join somebody\u2019s FAM plan", "joinFamPlan()");
+      }
+    }
+    if(!selling && !paying){
       html += '<div class="plan-note">' + (data && data.enforced === true
-        ? 'Upgrades aren\u2019t available yet. Your daily allowance comes back every day.'
-        : 'Upgrades aren\u2019t available yet. Everything is free for now.') + '</div>';
+        ? 'Subscriptions aren\u2019t on sale yet.'
+        : 'Subscriptions aren\u2019t on sale yet. Everything is free for now.') + '</div>';
     }
     document.getElementById("plansList").innerHTML = html;
   }
+  function planAction(name, blurb, run){
+    return '<div class="plan-row" onclick="' + run + '"><div class="plan-tick"></div>'
+      + '<div class="plan-body"><div class="plan-name">' + escapeHtml(name) + '</div>'
+      + '<div class="plan-blurb">' + escapeHtml(blurb) + '</div></div></div>';
+  }
+
+  function billingPost(url, body){
+    return fetch(url, { method: "POST", headers: {"Content-Type": "application/json"},
+                        body: body ? JSON.stringify(body) : "{}" })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){
+          if(r.status === 401){ closePlans(); openAuth("signup"); throw new Error(""); }
+          if(!r.ok) throw new Error((typeof d.detail === "string" && d.detail)
+                                    || "That didn\u2019t work. Try again.");
+          return d;
+        });
+      });
+  }
+  function manageBilling(){
+    billingPost("/api/billing/portal").then(function(d){
+      if(d.url) location.href = d.url;
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+  function inviteToFamPlan(){
+    billingPost("/api/billing/fam/invite").then(function(d){
+      var code = d.code || "";
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(code).catch(function(){});
+      }
+      toast("Your FAM plan code is " + code + " \u2014 copied. It works once.");
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+  // A code to a .edu address, then the code back (§658). `then` runs once
+  // the account is verified.
+  function verifyStudent(then){
+    var email = window.prompt("The Student plan is for college students. Enter your school email (it ends in .edu)");
+    if(!email) return;
+    billingPost("/api/billing/student", { email: email.trim() }).then(function(d){
+      var code = window.prompt("We sent a 6-digit code to " + (d.sent_to || email) + ". Enter it here");
+      if(!code) return;
+      return billingPost("/api/billing/student/confirm", { code: code.trim() }).then(function(v){
+        if(!v.verified) return;
+        if(plansData) plansData.student = { verified: true, expires: v.expires };
+        toast("You\u2019re verified as a student");
+        if(then) then();
+      });
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+  function joinFamPlan(){
+    var code = window.prompt("Enter the FAM plan code you were given");
+    if(!code) return;
+    billingPost("/api/billing/fam/join", { code: code }).then(function(){
+      toast("You\u2019re on the FAM plan");
+      loadPlan();
+      openPlans();
+    }).catch(function(e){ if(e.message) toast(e.message); });
+  }
+
+  // Back from Stripe (`?billing=`): said once, then the address is cleaned.
+  (function billingReturn(){
+    var m = /[?&]billing=(done|cancelled|managed)/.exec(location.search || "");
+    if(!m) return;
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch(e){}
+    setTimeout(function(){
+      if(m[1] === "done") toast("Thanks \u2014 your plan starts as soon as the payment clears");
+      loadPlan();
+    }, 600);
+  })();
 
   // What a tier allows, in the words the refusal would use.
   function planLimits(t){
@@ -11377,16 +11477,26 @@
     if(!limits.length) return "No ceiling";
     return limits.map(function(l){
       var per = l.window === "week" ? "a week" : "a day";
-      var what = l.resource === "explore" ? "Explore episodes" : "episodes";
+      var what = l.resource === "explore" ? "Explore episodes"
+               : l.resource === "ask" ? "searches and Go Deepers" : "episodes";
       return (l.unlimited || l.count < 0 ? "Unlimited " + what
                                          : l.count + " " + what + " " + per);
     }).join("  \u00b7  ");
   }
 
   function choosePlan(name){
-    // Honest, and deliberately not a dead tap: it says what would happen and
-    // what is missing, rather than opening a checkout that is not there.
-    toast("No checkout yet \u2014 " + name + " cannot be bought from here");
+    if(!(plansData && plansData.checkout === true)){
+      toast("Subscriptions aren\u2019t on sale yet");
+      return;
+    }
+    // §658: Student is for a verified .edu address; the check comes first.
+    if(name === "student" && !(plansData.student && plansData.student.verified)){
+      verifyStudent(function(){ choosePlan("student"); });
+      return;
+    }
+    billingPost("/api/billing/checkout", { plan: name }).then(function(d){
+      if(d.url) location.href = d.url;
+    }).catch(function(e){ if(e.message) toast(e.message); });
   }
 
   // What identifies one episode request. Voice is in it because switching
@@ -13995,7 +14105,8 @@
         attach: opts.attach || "", surface: surface, episode: opts.episode || "",
         voicePicked: surface === "search" && voicePickedForSearch,
         own: !!opts.own, private: !!opts.private,
-        askReading: !!opts.askReading, reading: opts.reading || ""
+        askReading: !!opts.askReading, reading: opts.reading || "",
+        mix: opts.mix || ""
       });
       // One pick, one search (§447): the next search starts from "left as it was".
       if(surface === "search") voicePickedForSearch = false;
@@ -14132,6 +14243,9 @@
     historyPending = historyWhere ? {
       query: query, context: context, surface: historyWhere,
       minutes: playOpts.minutes || selectedLengthMinutes } : null;
+    // The mix it is played from (§656), so a free listener's half of it is
+    // counted on the server. A mix's own play only - never a detour.
+    if(t.fromMix && mixPlay && mixPlay.id) playOpts.mix = mixPlay.id;
     speakText(query, t.caption, mixOnEnd, context, t.bankTopicId, playOpts);
     audioOwner = "player";
     // reset CC to off each time
@@ -18175,6 +18289,7 @@
     fetch("/api/mixes/" + encodeURIComponent(m.id) + "/add", { method: "POST" })
       .then(function(r){
         return r.json().then(function(d){
+          if(r.status === 403 && r.headers.get("X-FAM-Upgrade")) upgradeFor(d.detail);
           if(!r.ok) throw new Error(d.error || d.detail || "Could not add that mix");
           return d;
         });
@@ -18733,6 +18848,7 @@
       body: JSON.stringify(body)
     }).then(function(r){
       return r.json().then(function(data){
+        if(r.status === 403 && r.headers.get("X-FAM-Upgrade")) upgradeFor(data.detail);
         if(!r.ok) throw new Error(data.error || (typeof data.detail === "string" && data.detail)
                                   || "Could not save that mix");
         return data;
@@ -21640,13 +21756,13 @@
     // Interests as one line under the two buttons (9.30 #4, reversing the
     // 9.29 packet's "none on your own page"): a label and a row of pills that
     // scrolls sideways, so five interests cost one line rather than a
-    // wrapping block. Each opens that interest's Topic screen; they are
-    // changed in Edit profile. A friend's page draws the same row.
+    // wrapping block. A pill is a label, not a door (§662): tapping one
+    // opens nothing. They are changed in Edit profile. A friend's page draws the same row.
     yfInterests = (p.interests_shown || []).slice(0, p.interests_max || 5);
     html += interestLineHTML(yfInterests.length
       ? yfInterests.map(function(row, i){
-          return '<button class="yf-chip" data-pill="' + escapeHtml(String(row.label).toLowerCase())
-            + '" onclick="openInterestAt(' + i + ')">' + escapeHtml(row.label) + '</button>';
+          return '<span class="yf-chip label" data-pill="' + escapeHtml(String(row.label).toLowerCase())
+            + '">' + escapeHtml(row.label) + '</span>';
         }).join("")
       : '<button class="yf-chip muted" data-pill="" onclick="editIdentity()">Add interests in Edit profile</button>',
       "interests");
@@ -22064,13 +22180,9 @@
     return { circle: kept.circle.map(bare), me: bare(kept.me) };
   }
 
-  //: The interests the hub's pills were drawn from, so a tap can open the
-  //: Topic screen for the right one without putting free text in an onclick.
+  //: The interests the hub's pills were drawn from. A pill is a label and
+  //: opens nothing (§662).
   var yfInterests = [];
-  function openInterestAt(i){
-    var row = yfInterests[i];
-    if(row) openTopic(row.id, row.label);
-  }
   // "Interests" and one sideways-scrolling line of pills: your page and a
   // friend's draw it the same way (9.30 #4).
   function interestLineHTML(pills, part){
@@ -23992,14 +24104,14 @@
       html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
 
-    // Their interests, as chips that open the Topic screen - only to a
+    // Their interests, as labels that open nothing (§662) - only to a
     // follower (§638): to anybody else the server sends none and `locked`.
     // Their line is kept from the first frame, three empty pills in it,
     // and closes (under the buttons) when there are none to show you.
     personLocked = !!pub.locked;
     personInterests = interestRows(pub);
     var pills = "";
-    if(!personLocked) pills = published ? interestChipsHTML(personInterests, "openPersonInterest") : "";
+    if(!personLocked) pills = published ? interestChipsHTML(personInterests) : "";
     html += '<div class="yf-int-room' + (published && !pills ? ' closed' : '') + '" data-part="interests"><div>'
       + interestLineHTML(published ? (pills || '<span></span>')
           : '<span class="yf-chip reserve" aria-hidden="true"></span><span class="yf-chip reserve" aria-hidden="true"></span>'
@@ -24200,11 +24312,6 @@
   function togglePersonMore(which){
     personShowAll[which] = !personShowAll[which];
     if(viewingProfile) renderFriendProfile(viewingProfile, personPublished);
-  }
-
-  function openPersonInterest(i){
-    var row = personInterests[i];
-    if(row) openTopic(row.id, row.label);
   }
 
   function openPersonMenu(){
@@ -25654,17 +25761,12 @@
         threadInterests = interestRows(d);
         if(!threadInterests.length){ close(); return; }
         var el = document.getElementById("threadChips");
-        el.innerHTML = interestChipsHTML(threadInterests, "openThreadInterest");
+        el.innerHTML = interestChipsHTML(threadInterests);
         Array.prototype.forEach.call(el.children, function(chip, i){
           if(i < 8) Motion.fadeUp(chip, Motion.DUR.colour, 0, 1, i * Motion.DUR.stagger);
         });
       })
       .catch(close);
-  }
-
-  function openThreadInterest(i){
-    var row = threadInterests[i];
-    if(row) openTopic(row.id, row.label);
   }
 
   // Their chips, plus "N in common" against this listener's own - a count of
@@ -25674,16 +25776,17 @@
     var labels = (published && published.interest_labels) || [];
     return labels.map(function(label, i){ return { id: ids[i] || label, label: label }; });
   }
-  function interestChipsHTML(rows, opener){
+  // Each chip is a label, never a door (§662): there is nothing behind an
+  // interest on somebody's page worth a screen.
+  function interestChipsHTML(rows){
     if(!rows.length) return "";
     var mine = {};
     ((profileNow && profileNow.interests_shown) || []).forEach(function(r){
       mine[String(r.label).toLowerCase()] = true;
     });
     var common = rows.filter(function(r){ return mine[String(r.label).toLowerCase()]; }).length;
-    return rows.map(function(row, i){
-        return '<button class="yf-chip" onclick="' + opener + '(' + i + ')">'
-          + escapeHtml(row.label) + '</button>';
+    return rows.map(function(row){
+        return '<span class="yf-chip label">' + escapeHtml(row.label) + '</span>';
       }).join("")
       + (common ? '<span class="yf-chip common">' + common + ' in common</span>' : '');
   }
@@ -29861,7 +29964,10 @@
       // One tile is not a grid, and a popup offering nothing is worse than
       // the silence it replaced. Below two, the player simply stops.
       if(tiles.length < 2 || !nextUpAllowedHere() || goDeeperIsOpen()) return;
-      showNextUp(tiles);
+      asksCapped(function(){
+        if(!nextUpAllowedHere() || goDeeperIsOpen()) return;
+        showNextUp(tiles);
+      });
     });
   }
 
@@ -29940,7 +30046,29 @@
     return title ? "What's the bigger story behind " + title + "?" : "";
   }
 
+  // Whether this listener's searches and Go Deepers are counted (§656): the
+  // free tier's one a week. Read from /api/entitlements, at most once a
+  // minute; unknown reads as not counted.
+  var asksCappedAt = 0, asksCappedValue = false;
+  function asksCapped(done){
+    if(Date.now() - asksCappedAt < 60000){ done(asksCappedValue); return; }
+    fetch("/api/entitlements").then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var ask = d && d.usage && d.usage.ask;
+        asksCappedValue = !!(d && d.enforced === true && ask && ask.unlimited === false);
+        asksCappedAt = Date.now();
+        done(asksCappedValue);
+      })
+      .catch(function(){ done(false); });
+  }
+
   function showNextUp(tiles){
+    // The countdown never spends the week's one Go Deeper on its own (§656
+    // review): where Go Deeper is counted, its suggestion moves to second,
+    // still one tap away, and the countdown starts an episode that is free.
+    if(tiles.length > 1 && tiles[0].deeper && asksCappedValue){
+      tiles = [tiles[1], tiles[0]].concat(tiles.slice(2));
+    }
     nextUpTiles = tiles;
     document.getElementById("nextUpGrid").innerHTML = tiles.map(function(t, i){
       return '<div class="nextup-tile' + (i === 0 ? " lead" : "")

@@ -276,7 +276,12 @@ billed per call and is the one per-episode cost that is not the model) and
 GPU). The worst candidate is **Explore New** - gating discovery makes the free
 tier a smaller world rather than a cheaper one.
 
-### What is not here: payment
+### Payment: Stripe on the web (§656)
+
+> **Current:** `billing.py` sells Student, Single and the FAM plan through
+> Stripe Checkout, on the web only - never the App Store - and Stripe's
+> signed webhook is the only thing that sets a paid plan (rule
+> `web-billing`). The history below is why it waited until now.
 
 No receipts, no subscription lifecycle, no App Store server notifications, no
 proration. `ACCOUNTS.set_plan` moves an account between tiers and that is all;
