@@ -50,9 +50,11 @@ problem since has come from, so `_inside` and `_joined` rewrite each meeting
 of two syllables the way English would spell the sound.
 
 **Heard on /admin's voice check** (phoneme recogniser, `voice_check.py`):
-"Ihrahn" was heard "eef-rahn"; "Leebehrtahd" "luh-bay-her-tahd". "-rahn"
-and "-tahd" were heard right. Everything else below is reasoned from
-English spelling and **unheard** - see section 7.
+"Ihrahn" was heard "eef-rahn"; "Leebehrtahd" "luh-bay-her-tahd";
+"Kahmuhluh" "kah-moo-lu" (an "uh" read "oo"). "-rahn" and "-tahd" were
+heard right, and the owner heard "Irrahn" right (§678) - where the owner's
+ear and the recogniser disagree, the ear wins. Rows not marked heard in
+section 7 are reasoned from English spelling and **unheard**.
 
 | respelling | voice reads | rule |
 |---|---|---|
@@ -64,9 +66,10 @@ English spelling and **unheard** - see section 7.
 | `NUH-kulz` | `Nuckulz` | a doubled k is ck |
 | `dih-TROYT` | `Ditroyt` | unstressed: the h goes, no doubling |
 | `zeh-LEN-skee` | `Zelenskee` | doubled, it read ZELL-en-skee |
-| `ab-dul-kuh-REEM` | `Abdulkareem` | uh just before the stress is a |
+| `ab-dul-kuh-REEM` | `Abdulkareem` | uh before the stress is a |
 | `uh-bih-SHAYK` | `Abishayk` | uh opening a word is a (about) |
-| `KAH-muh-luh` | `Kahmuhluh` | uh after the stress: left as written |
+| `KAH-muh-luh` | `Kahmala` | every unstressed uh is a; heard "moo" as uh |
+| `GAH-zuh` | `Gahza` | a last unstressed uh is a too ("lu" as uh) |
 | `moh-HAH-med` | `Mohahmed` | before an h syllable the mark goes, not the h |
 | `vee-ET-nahm` | `Veeyetnahm` | vowels meeting: y after e/i |
 | `shee-zoo-OH-kah` | `Sheezoowohkah` | w after o/u |
@@ -138,14 +141,17 @@ This container has no GPU: nothing here can hear Chatterbox. Say so.
   with four readers, and keep it out of the repository (it quotes
   episodes).
 
+**Heard by the owner** (§678): "Irrahn" right; "Kahmuhluh" wrong -
+"kah-moo-lu", not breathy, so every unstressed "uh" is now "a".
+
 **Open questions for the ear** (unheard, decided by reasoning):
 
-1. Does an "uh" after the stress breathe its h ("Kahmuhluh")? If it does,
-   write it "a" there too - the auditors split on whether "a" moves the
-   stress ("Kahmaluh").
-2. Does a word-opening doubled consonant pull the stress ("Irrahn",
-   "Irrahk")? The alternative, "Irahn", risks "eye-rahn".
+1. Does an unstressed syllable left undoubled read long ("Terahn" as
+   TEER-ahn, "Zelenskee" as ZEE-lenskee)?
+2. Does "a" for an unstressed "uh" ever take the stress ("Kahmala" as
+   kah-MAH-la, "Akraman")?
 3. Do the remaining hyphens ("Ahja-erroh", "Mat-hew") chop the word?
+4. Do the glides sound natural ("Veeyetnahm", "Sheezoowohkah")?
 
 ## 8. Before you finish
 
