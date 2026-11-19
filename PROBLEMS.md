@@ -39813,3 +39813,51 @@ both. What it found and what was done:
   on /admin's "Hear 4 ways". Phrase entries cannot yet tell names apart
   ("Niger Delta = NY-jer DEL-tuh" would also store "Niger" by `_split`), and
   diacritics are not folded, so each accented spelling is its own entry.
+
+## 657. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19)
+
+The owner set Iran to `ih-RAHN` on /admin, and the voice check beside it
+said "The voice said it a little differently: eef-rahn ... 67% alike"
+(/i f r a n/). The owner: "iran sounds weird", then, with the whole list
+exported: "expand that search to potentially similar issues, this could be a
+problem throughout the whole pronunciations page."
+
+**Cause.** A respelling marks a bare vowel with an h ("ih", "eh", "uh",
+"ah", "oh"). Since §576 a word's syllables are joined before the voice gets
+them, so "ih-RAHN" arrived as "Ihrahn" - an h before an r, which English
+does not have and Chatterbox breathed, heard as an f. Where the next
+syllable began with a vowel the h was said outright: Keawe `keh-AH-veh`
+arrived as "Kehahveh".
+
+**How wide.** The owner's export (1,781 entries: 733 from briefs, 690 from
+writers, 347 admins', 11 Wikipedia's) run through the joining: **395**
+handed the voice a marked h before a consonant or a vowel inside a word.
+
+**Fix, in `_joined`, so every entry is mended without touching a row:**
+- a short "ih" or "eh" loses its h, and the next consonant doubles where
+  English doubles one after a short vowel (b d f g l m n p r s t):
+  "Irrahn" (irritate), "Terrahn" (terror), "Zellenskee"; before any other
+  consonant only the h goes ("Atikohkan", "Likood");
+- an unstressed "uh" (lower case in the respelling - capitals mark stress)
+  is written "a", as English writes a schwa: "ab-dul-kuh-REEM" ->
+  "Abdulkareem", "uh-DAP-tuh-vist" -> "Adaptavist", "uh-DAH-nee" ->
+  "Adahnee". Doubled, it pulled the stress forward ("Uddahnee"), so it is
+  not doubled; a stressed "MUH" is left alone;
+- a marked vowel before a vowel loses its h and keeps one hyphen, a word
+  break and not §576's chop: "Ke-ahveh", "Ahja-erroh", "Bo-en";
+- "ah" and "oh" before a consonant are left: English writes them so
+  ("Bahrain", "Ohm").
+
+439 entries are voiced differently (165 writers', 156 briefs', 117 admins');
+395 to 14 with a breathed h. The 14 have the h inside one syllable
+("BAT-uhn", "beh-SEHR-ah", "rohd-REE-gehs"), where a rule would guess ("gehs"
+without its h may be "jess"); they are listed for an admin. The seed's Iran
+family now matches the owner's `ih-RAHN` (Iranian `ih-RAY-nee-un`). The
+export itself is not in the repository - it quotes episodes.
+
+**Not verified.** Nobody has heard one of the new forms. The check is on
+/admin: "hear all" (`/api/admin/pronunciations/hear-all`, 150 a run) says
+each entry with the live voice and the recogniser writes down what it heard,
+so Iran should now read close to `ih-RAHN` and not "eef-rahn". Its verdicts
+are hints (§325); the owner's ear decides.
+

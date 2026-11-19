@@ -80,8 +80,8 @@ SOURCES = ("admin", "seed", "wikipedia", "writer", "brief")
 #: the next boot, so a wrong seed is fixed by setting the right one.
 SEED = {
     # Countries and their people
-    "Iran": "ee-RAHN", "Iranian": "ee-RAH-nee-un", "Iranians": "ee-RAH-nee-unz",
-    "Iraq": "ee-RAHK", "Iraqi": "ee-RAH-kee", "Iraqis": "ee-RAH-keez",
+    "Iran": "ih-RAHN", "Iranian": "ih-RAY-nee-un", "Iranians": "ih-RAY-nee-unz",
+    "Iraq": "ih-RAHK", "Iraqi": "ih-RAH-kee", "Iraqis": "ih-RAH-keez",
     "Qatar": "KAH-tar", "Qatari": "KAH-tuh-ree", "Qataris": "KAH-tuh-reez",
     "Oman": "oh-MAHN", "Omani": "oh-MAH-nee", "Omanis": "oh-MAH-neez",
     "Bahrain": "bah-RAYN", "Bahraini": "bah-RAY-nee", "Bahrainis": "bah-RAY-neez", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
@@ -174,19 +174,57 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
 #: Letter pairs that are one sound when they meet, so the hyphen between them
 #: stays: "mat-hew" joined would be "mathew", a th.
 _DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
+#: A respelling's short vowels, written with an h ("ih", "eh", "uh"), and
+#: the consonants English doubles after one to keep it short (§657).
+_SHORT_VOWELS = frozenset(("ih", "eh"))
+#: Endings whose h is a real sound, not a vowel's mark ("shah", "pooh").
+_KEEP_H = frozenset(("shah",))
+_DOUBLES = frozenset("bdfglmnprst")
 
 
 def _joined(word: str) -> str:
     """One respelled word's syllables as one word: "sah-gah-poh" -> "sahgahpoh",
-    keeping a hyphen only where joining would make a new sound (§576)."""
-    parts = [p for p in word.split("-") if p]
-    out = parts[0] if parts else ""
-    for part in parts[1:]:
+    keeping a hyphen only where joining would make a new sound (§576).
+
+    `word` keeps its capitals, which mark the stressed syllable; what comes
+    back is lower case. A syllable's closing h only marks its vowel ("ih",
+    "eh", "uh", "ah", "oh"), and joined it is a sound the voice breathes:
+    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§657). So
+    where a marked vowel meets the next syllable inside a word:
+
+    * a short "ih" or "eh" loses its h, and the consonant after it doubles
+      where English doubles one to keep a vowel short ("Irrahn", as in
+      irritate; "Terrahn"; "Zellenskee"), else just loses its h;
+    * an unstressed "uh" - the schwa - is written "a", as English writes it
+      ("ab-dul-kuh-REEM" -> "Abdulkareem", "uh-DAH-nee" -> "Adahnee"):
+      doubled, it drew the stress ("Uddahnee");
+    * any marked vowel before another vowel loses its h and keeps a hyphen,
+      or the h is said ("ah-jah-EH-roh" was "Ahjahehroh").
+    """
+    raw = [p for p in word.split("-") if p]
+    parts = [p.lower() for p in raw]
+    if not parts:
+        return ""
+    out = parts[0]
+    for i, part in enumerate(parts[1:], 1):
         meet = out[-1:] + part[:1]
         # An h after a vowel or an h is swallowed when joined ("doh-hah" ->
         # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§656).
-        keep = meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh")
-        out += ("-" if keep else "") + part
+        if meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh"):
+            out += "-" + part
+            continue
+        marked = out[-2:] if (out[-1:] == "h" and out[-2:-1] in "aeiou"
+                              and out[-3:] not in _KEEP_H) else ""
+        if marked and part[:1] in "aeiou":
+            out = out[:-1] + "-" + part
+        elif marked in _SHORT_VOWELS and part[:2] not in _DIGRAPHS:
+            out = out[:-1] + (part[:1] if part[:1] in _DOUBLES else "") + part
+        elif marked == "uh" and raw[i - 1].islower() and part[:2] not in _DIGRAPHS:
+            out = out[:-2] + "a" + part
+        elif marked in _SHORT_VOWELS or marked == "uh":
+            out = out[:-1] + part           # before a digraph: the h only
+        else:
+            out += part
     return out
 
 
@@ -202,7 +240,7 @@ def voiced(say: str) -> str:
     owner heard every respelled name as choppy - so a word is handed over
     whole ("Sahgahpohlooteleh"), as the words it learned from are written.
     """
-    words = [_joined(w.lower()) for w in say.split()]
+    words = [_joined(w) for w in say.split()]
     return " ".join(w[:1].upper() + w[1:] for w in words if w)
 
 

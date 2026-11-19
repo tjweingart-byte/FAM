@@ -49,8 +49,8 @@ def test_no_dash_glues_words_once_chatterbox_has_cleaned_it():
 
 
 def test_a_respelling_reaches_the_voice_as_whole_words():
-    assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootehleh"
-    assert pronunciation.voiced("JAIR-in sah-gah-poh-loo-TEH-leh") == "Jairin Sahgahpohlootehleh"
+    assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootelleh"
+    assert pronunciation.voiced("JAIR-in sah-gah-poh-loo-TEH-leh") == "Jairin Sahgahpohlootelleh"
     assert speakable(pronunciation.voiced("YAH-nis")) == "Yahnis"
 
 

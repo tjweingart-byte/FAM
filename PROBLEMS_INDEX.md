@@ -648,3 +648,4 @@ and `limit` = Lines.
 | 39638 | 58 | 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
 | 39696 | 44 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
 | 39740 | 77 | 656. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19) |
+| 39817 | 48 | 657. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19) |

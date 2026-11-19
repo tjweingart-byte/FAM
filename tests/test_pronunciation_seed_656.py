@@ -17,8 +17,8 @@ def test_iran_is_respelled_without_any_model_listing_it(tmp_path):
     _, lex = _lex(tmp_path)
     said = lex.apply("Iran's foreign minister flew to Tehran. Iranian officials met.")
     assert "Iran" not in said.replace("Iranian", "")
-    assert said.startswith("Eerahn's")
-    assert "Tehrahn" in said and "Eerahneeun" in said
+    assert said.startswith("Irrahn's")
+    assert "Terrahn" in said and "Irrayneeun" in said
 
 
 def test_every_seed_is_a_clean_pair():
@@ -37,7 +37,7 @@ def test_an_admin_respelling_beats_the_seed_and_survives_a_reseed(tmp_path):
     bank, lex = _lex(tmp_path)
     lex.set("Iran", "ih-RAHN")
     again = pronunciation.Lexicon(bank)          # the next boot
-    assert again.apply("Iran") == "Ihrahn"
+    assert again.apply("Iran") == "Irrahn"
 
 
 def test_a_model_guess_does_not_replace_the_seed(tmp_path):
@@ -45,7 +45,7 @@ def test_a_model_guess_does_not_replace_the_seed(tmp_path):
     lex.entries()
     assert not bank.learn_pronunciation("Iran", "eye-RAN", "writer")
     assert not bank.learn_pronunciation("Iran", "ih-RAN", "wikipedia")
-    assert lex.apply("Iran") == "Eerahn"
+    assert lex.apply("Iran") == "Irrahn"
 
 
 def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
@@ -59,13 +59,13 @@ def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
 def test_an_h_after_a_vowel_keeps_its_hyphen():
     assert pronunciation.voiced("doh-hah") == "Doh-hah"
     assert pronunciation.voiced("muh-HOHMZ") == "Muh-hohmz"
-    assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootehleh"
+    assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootelleh"
     assert pronunciation.voiced("mat-hew") == "Mat-hew"
 
 
 def test_a_name_in_capitals_is_respelled_but_not_a_numeral(tmp_path):
     _, lex = _lex(tmp_path)
-    assert lex.apply("IRAN AND HAMAS") == "Eerahn AND Hahmahs"
+    assert lex.apply("IRAN AND HAMAS") == "Irrahn AND Hahmahs"
     assert lex.apply("Super Bowl XI") == "Super Bowl XI"
 
 
@@ -87,3 +87,30 @@ def test_an_admin_can_replace_xi(tmp_path):
 def test_accented_spellings_and_hyphenated_names_match(tmp_path):
     _, lex = _lex(tmp_path)
     assert lex.apply("Erdoğan met al-Qaeda's") == "Airdohwahn met al-Kyduh's"
+
+
+def test_a_short_vowel_before_a_consonant_doubles_it_and_loses_its_h():
+    """The owner's /admin check (§657): "ih-RAHN" handed over as "Ihrahn"
+    was heard as "eef-rahn" - the h breathed before the r."""
+    v = pronunciation.voiced
+    assert v("ih-RAHN") == "Irrahn"
+    assert v("teh-RAHN") == "Terrahn"
+    assert v("zeh-LEN-skee") == "Zellenskee"
+    assert v("muh-HOHMZ") == "Muh-hohmz"          # an h after a vowel keeps its hyphen
+    assert v("at-ih-KOH-kan") == "Atikohkan"      # k is not doubled, the h still goes
+    assert v("ih-SHAH") == "Ishah"                # nor a digraph
+
+
+def test_an_unstressed_uh_is_written_a_as_english_writes_it():
+    v = pronunciation.voiced
+    assert v("ab-dul-kuh-REEM") == "Abdulkareem"
+    assert v("uh-DAH-nee") == "Adahnee"           # not "Uddahnee", stress pulled forward
+    assert v("uh-DAP-tuh-vist") == "Adaptavist"
+    assert v("MUH-ham-mad") == "Muh-hammad"       # a stressed one is left
+
+
+def test_a_marked_vowel_before_a_vowel_loses_its_h():
+    v = pronunciation.voiced
+    assert v("ah-jah-EH-roh") == "Ahja-erroh"     # was "Ahjahehroh", an h said
+    assert v("BOH-en") == "Bo-en"
+    assert "h" not in v("ih-RAHN")[:3]

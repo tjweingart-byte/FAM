@@ -77,8 +77,8 @@ def test_a_learned_name_is_respelled_for_the_voice_and_nowhere_else(lexicon):
     lexicon.learn([("Sagapolutele", "sah-gah-poh-loo-TEH-leh")], "writer")
     said = speakable(lexicon.apply(
         "Sagapolutele threw for 285 yards, and Sagapolutele's night was long."))
-    assert said.startswith("Sahgahpohlootehleh threw for two hundred eighty-five")
-    assert "Sahgahpohlootehleh's night" in said
+    assert said.startswith("Sahgahpohlootelleh threw for two hundred eighty-five")
+    assert "Sahgahpohlootelleh's night" in said
     # The stressed capitals are not handed on: spoken_text would spell TEH.
     assert "T E H" not in said
 
@@ -90,13 +90,13 @@ def test_the_name_inside_a_longer_word_is_left_alone(lexicon):
 
 def test_a_known_word_is_found_inside_a_hyphenated_name(lexicon):
     lexicon.learn([("Keawe", "keh-AH-veh")], "writer")
-    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Kehahveh threw"
+    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Ke-ahveh threw"   # no h said (§657)
 
 
 def test_a_full_name_teaches_each_of_its_words(lexicon):
     """An episode names somebody in full once and by surname after that."""
     lexicon.learn([("Jaron Sagapolutele", "jah-RON sah-gah-poh-loo-TEH-leh")], "brief")
-    assert lexicon.apply("Sagapolutele scored") == "Sahgahpohlootehleh scored"
+    assert lexicon.apply("Sagapolutele scored") == "Sahgahpohlootelleh scored"
 
 
 def test_an_admin_respelling_is_never_replaced_by_a_models(lexicon):
@@ -178,7 +178,7 @@ def test_say_lines_before_the_script_are_kept_and_never_spoken(lexicon):
     assert notes.pronunciations == (
         ("Sagapolutele", "sah-gah-poh-loo-TEH-leh"), ("Keawe", "keh-AH-veh"))
     assert notes.title == "Cal's Quarterback Arrives"
-    assert lexicon.apply(spoken[0]).startswith("Sahgahpohlootehleh")
+    assert lexicon.apply(spoken[0]).startswith("Sahgahpohlootelleh")
 
 
 def test_a_say_line_mid_script_does_not_swallow_the_rest(lexicon):
@@ -241,7 +241,7 @@ def test_the_brief_respells_the_hard_names_it_resolves(monkeypatch, lexicon):
     # spoken before the writer's own lines could matter - already has it.
     plan = plan_episode("cal jks", 3, search=False)
     script_generator._take_brief_names(dataclasses.replace(plan, brief=brief))
-    assert lexicon.apply("Sagapolutele") == "Sahgahpohlootehleh"
+    assert lexicon.apply("Sagapolutele") == "Sahgahpohlootelleh"
     assert [r["name"] for r in voice_bank.bank().pronunciations()] == ["Sagapolutele"]
 
 
