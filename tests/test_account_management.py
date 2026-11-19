@@ -197,7 +197,7 @@ def test_the_settings_screen_gets_everything_it_shows(client):
     assert body["has_password"] is True
     assert [i["provider"] for i in body["identities"]] == ["email"]
     assert body["entitlements"]["tier"] == "free"
-    assert body["usage"]["episode"]["limit"] > 0
+    assert body["usage"]["ask"]["limit"] > 0
     assert body["sessions"][0]["current"] is True
 
 

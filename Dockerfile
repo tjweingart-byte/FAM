@@ -100,6 +100,7 @@ ENV CACHE_PATH=/data/scripts.db \
     CONSENT_DB=/data/consent.db \
     MODERATION_DB=/data/moderation.db \
     QUOTAS_DB=/data/quotas.db \
+    BILLING_DB=/data/billing.db \
     VOICE_REGISTRY_DB=/data/voice_registry.db \
     VOICE_BANK_DB=/data/voice_bank.db \
     CATEGORIES_DB=/data/categories.db \

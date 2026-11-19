@@ -134,9 +134,8 @@ def test_switching_it_on_is_one_setting(client, enforced):
 # --- 2. the refusal names what they were doing -----------------------------
 
 @pytest.mark.parametrize("surface, params, expected", [
-    ("search", {}, "searches"),
-    ("myfam", {"topic_id": "chip-supply"}, "episodes"),
-    ("godeeper", {"context": "a topic they just heard"}, "follow-ups"),
+    ("search", {}, "searches and Go Deepers"),
+    ("godeeper", {"context": "a topic they just heard"}, "searches and Go Deepers"),
 ])
 def test_the_refusal_is_about_the_thing_they_pressed(client, enforced, surface,
                                                      params, expected):
@@ -153,7 +152,7 @@ def test_the_refusal_is_about_the_thing_they_pressed(client, enforced, surface,
     body = refused.json()
     assert body["quota"]["service"] == expected, f"{surface} was named wrong"
     assert body["quota"]["title"] == (
-        f"You've reached your daily limit for {expected}"), body["quota"]["title"]
+        f"You've reached your weekly limit for {expected}"), body["quota"]["title"]
     assert expected in body["error"], "the sentence did not name the service either"
 
 

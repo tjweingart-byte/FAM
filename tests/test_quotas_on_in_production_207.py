@@ -113,5 +113,4 @@ def test_the_plans_sheet_is_told_whether_limits_are_live(admin_client, monkeypat
 def test_the_plans_note_is_worded_from_the_server():
     html = (ROOT / "static" / "index.html").read_text()
     assert "data.enforced === true" in html
-    assert "Your daily allowance comes back every day." in html
     assert "Everything is free for now." in html

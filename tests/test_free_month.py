@@ -83,12 +83,15 @@ def test_the_month_runs_from_launch_and_only_raises_a_plan(acc, wl):
     wl.set_free_month_starts(now - DAY)
     assert acc.account("me")["plan"] == "plus"
     assert acc.account("boss")["plan"] == "unlimited"     # never lowered
-    assert acc.account("nobody")["plan"] == "free"        # never earned
+    # §656: every account's month starts at launch, earned or not.
+    assert acc.account("nobody")["plan"] == "plus"
     fm = wl.free_month("me")
     assert fm["ends"] - fm["starts"] == waitlist_mod.FREE_MONTH_SECONDS
-    # A month later it is over.
+    # §656: an account made after the launch day starts its month the day it
+    # was made - these were made just now, so a launch a month ago leaves
+    # theirs running. (`test_billing_656` checks the month ending.)
     wl.set_free_month_starts(now - waitlist_mod.FREE_MONTH_SECONDS - DAY)
-    assert acc.account("me")["plan"] == "free"
+    assert acc.account("me")["plan"] == "plus"
     # The session path reads it too.
     wl.set_free_month_starts(now - DAY)
     token, _ = acc.new_session("me")
