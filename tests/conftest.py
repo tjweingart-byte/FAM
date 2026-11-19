@@ -313,7 +313,7 @@ DATA_ENVIRONMENT = (
     "VOICE_REGISTRY_DB", "TRENDING_BANK_DB", "FEEDBACK_DB", "PROVIDER_USAGE_DB",
     "LOCAL_NEWS_DB", "GDELT_EXPORT_DB", "CONSENT_DB", "MODERATION_DB",
     "LIVE_ROUTING_DB", "STORY_POOL_DB", "PIPELINE_ERRORS_DB", "WIKIMEDIA_DB",
-    "EPISODE_QUALITY_DB", "AGENTS_DB", "SURVEYS_DB",
+    "EPISODE_QUALITY_DB", "AGENTS_DB", "SURVEYS_DB", "BILLING_DB",
 )
 
 #: Tier limits. Read by `entitlements.py` rather than `config.py`, so the
@@ -364,6 +364,12 @@ VOICE_ENVIRONMENT = ("FAM_VOICES_DIR", "VOICES_DIR",
 LEAKY_ENVIRONMENT = (
     FAM_ENVIRONMENT + VOICE_ENVIRONMENT + DATA_ENVIRONMENT + EMBED_ENVIRONMENT
     + LIMIT_ENVIRONMENT
+    # §656: a developer's Stripe key must never reach the suite.
+    + ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_STUDENT",
+       "STRIPE_PRICE_SINGLE", "STRIPE_PRICE_FAM")
+    # §657: a developer's pinned root or product ids must not reach it either.
+    + ("APPLE_ROOT_SHA256", "APPLE_BUNDLE_ID", "APPLE_PRODUCT_STUDENT",
+       "APPLE_PRODUCT_SINGLE", "APPLE_PRODUCT_FAM")
 )
 
 #: Set, not cleared: it is what stops config.py reading the two env files.

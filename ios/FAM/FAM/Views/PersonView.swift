@@ -312,7 +312,7 @@ struct PersonView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(page?.topics ?? [], id: \.self) { topic in
-                            InterestChip(label: topic.label, height: 26, size: 11)  // a label, never a door (§656)
+                            InterestChip(label: topic.label, height: 26, size: 11)  // a label, never a door (§662)
                         }
                         if common > 0 {
                             InterestChip(label: "\(common) in common", common: true, height: 26, size: 11)

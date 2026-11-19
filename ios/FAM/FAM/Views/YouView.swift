@@ -340,7 +340,7 @@ struct YouView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(shown, id: \.id) { i in
-                            // A label, never a door (§656).
+                            // A label, never a door (§662).
                             InterestChip(label: i.label ?? i.id, height: 26, size: 11)
                         }
                     }

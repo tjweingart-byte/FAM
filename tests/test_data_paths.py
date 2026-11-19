@@ -29,6 +29,7 @@ import paths  # noqa: E402
 import preferences as P  # noqa: E402
 import categories as CAT  # noqa: E402
 import quotas as Q  # noqa: E402
+import billing as BIL  # noqa: E402
 import feedback as FB  # noqa: E402
 import surveys as SURV  # noqa: E402
 import consent as CON  # noqa: E402
@@ -76,6 +77,7 @@ STORES = [
     ("CONSENT_DB", "consent.db", CON.ConsentStore),
     ("MODERATION_DB", "moderation.db", MOD.ModerationStore),
     ("QUOTAS_DB", "quotas.db", Q.QuotaStore),
+    ("BILLING_DB", "billing.db", BIL.BillingStore),
     ("VOICE_REGISTRY_DB", "voice_registry.db", VR.VoiceRegistry),
     ("VOICE_BANK_DB", "voice_bank.db", VB.VoiceBank),
     ("CATEGORIES_DB", "categories.db", CAT.CategoryStore),

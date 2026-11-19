@@ -202,6 +202,8 @@ final class AppModel: ObservableObject {
     let mixes: MixesModel
     /// YourFAM: the profile, Settings and the shelves.
     let you: YouModel
+    /// Apple in-app purchase (§657).
+    let store: FAMStore
     /// Messages, Friends and profiles, and the notifications poll.
     let social: SocialModel
     /// Where a resumed episode should jump to once enough has arrived.
@@ -307,6 +309,7 @@ final class AppModel: ObservableObject {
         surveys = SurveysModel(api: api)
         social = SocialModel(api: api)
         you = YouModel(api: api, safety: safety)
+        store = FAMStore(api: api)
         speller = Speller(api: api)
         attachments = AttachModel(api: api)
         // The player calls back on the main queue (its delegate queue).
@@ -495,6 +498,12 @@ final class AppModel: ObservableObject {
     /// the FAM intro over the first screen, the first run on a phone that
     /// never finished it (an account let in off the waitlist), the Terms.
     func open() async {
+        // Apple's renewals and late purchases reach the server whenever
+        // they arrive (§657); a new plan redraws Settings' row.
+        store.onPlanChanged = { [weak self] in
+            Task { @MainActor in await self?.you.loadSettings() }
+        }
+        store.start()
         // What the server makes of this build, beside everything else
         // (IOS_APP.md: version 1.0 asks at launch).
         Task { await checkClient() }
@@ -1712,7 +1721,8 @@ final class AppModel: ObservableObject {
                                 cachedOnly: cachedOnly, episode: ep.episodeID,
                                 reading: ep.key.reading, askReading: askReading,
                                 voice: voice, voicePicked: picked,
-                                isPrivate: ep.isPrivate, attach: ep.attach)
+                                isPrivate: ep.isPrivate, attach: ep.attach,
+                                mix: ep.mixID)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
@@ -1945,6 +1955,7 @@ extension AppModel {
                          surface: "dailyfam",
                          topicID: (item.custom || item.follow) ? "" : item.id)
         ep.mixKey = list.key
+        ep.mixID = list.mixID
         let glide = LoadingModel.Glide(mixName: list.name,
                                        titles: list.order.map { list.items[$0].title },
                                        pos: list.pos, played: list.played,

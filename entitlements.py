@@ -77,7 +77,25 @@ WINDOWS: tuple[str, ...] = ("day", "week")
 #: combined allowance would either price Explore as if it wrote scripts, which
 #: makes the cheapest surface feel the most expensive, or price episodes as if
 #: they did not.
-RESOURCES: tuple[str, ...] = ("episode", "explore")
+#:
+#: §656 (the owner, 11.18): a third, `ask` - a search or a Go Deeper, the
+#: two things a free listener gets one of a week once the free month is over.
+#: Everything else a free listener plays (myFAM's rails, others' mixes up to
+#: half) is an `episode`, which the free tier no longer caps.
+RESOURCES: tuple[str, ...] = ("episode", "explore", "ask")
+
+#: The surfaces that spend an `ask` rather than an `episode` (§656). A
+#: script asked for by text (`/api/script`) is a search in all but its
+#: output, and writes a script every time.
+ASK_SURFACES: tuple[str, ...] = ("search", "godeeper", "script")
+
+
+def resource_for(resource: str, surface: str) -> str:
+    """Which allowance a spend comes out of: a search or a Go Deeper is an
+    `ask`, everything else stays what the caller named."""
+    if resource == "episode" and surface in ASK_SURFACES:
+        return "ask"
+    return resource
 
 #: What the listener was *doing* when they spent, in their own words.
 #:
@@ -92,9 +110,9 @@ RESOURCES: tuple[str, ...] = ("episode", "explore")
 #: already sends, so nothing new has to be passed from the client and the
 #: native app gets the same sentence without writing it a second time.
 SERVICE_LABELS: dict[str, str] = {
-    "search": "searches",
+    "search": "searches and Go Deepers",
     "myfam": "episodes",
-    "godeeper": "follow-ups",
+    "godeeper": "searches and Go Deepers",
     "explore": "Explore episodes",
     "script": "scripts",
 }
@@ -102,6 +120,7 @@ SERVICE_LABELS: dict[str, str] = {
 #: When the surface is unknown, fall back to the resource. Never empty: a
 #: refusal with a blank noun in it reads as a bug, which is what it would be.
 RESOURCE_LABELS: dict[str, str] = {
+    "ask": "searches and Go Deepers",
     "episode": "episodes",
     "explore": "Explore episodes",
 }
@@ -126,7 +145,9 @@ UNLIMITED = -1
 #: the same reason: a developer's widened cap must not quietly widen the suite.
 LIMIT_ENVIRONMENT: tuple[str, ...] = (
     "FREE_EPISODES_PER_DAY", "FREE_EXPLORE_PER_DAY", "FREE_MAX_MINUTES",
+    "FREE_ASKS_PER_WEEK",
     "PLUS_EPISODES_PER_WEEK", "PLUS_EXPLORE_PER_WEEK", "PLUS_MAX_MINUTES",
+    "PLUS_ASKS_PER_WEEK",
     "UNLIMITED_MAX_MINUTES",
 )
 
@@ -218,20 +239,27 @@ def _build_tiers() -> dict[str, "Tier"]:
     return {
         "free": Tier(
             name="free",
-            label="FAM",
-            blurb="A few episodes a day, and the whole of Explore to listen through.",
+            label="FAM Free",
+            # §656 (the owner, 11.18): after the free month, one search or Go
+            # Deeper a week; DailyFAM's tiles free; others' mixes to half way;
+            # no mixes of your own (`FEATURES["mixes"]`).
+            blurb="DailyFAM free, one search or Go Deeper a week, and half of any myFAM mix.",
             limits=(
-                Limit("episode", "day", _env_int("FREE_EPISODES_PER_DAY", 5)),
-                Limit("explore", "day", _env_int("FREE_EXPLORE_PER_DAY", 25)),
+                Limit("ask", "week", _env_int("FREE_ASKS_PER_WEEK", 1)),
+                Limit("episode", "day", _env_int("FREE_EPISODES_PER_DAY", UNLIMITED)),
+                Limit("explore", "day", _env_int("FREE_EXPLORE_PER_DAY", UNLIMITED)),
             ),
             max_minutes=_env_int("FREE_MAX_MINUTES", 10),
         ),
         "plus": Tier(
             name="plus",
-            label="FAM Plus",
-            blurb="Enough episodes a week to listen the way you actually listen.",
+            label="FAM Premium",
+            # Every paid plan - Student, Single, the FAM plan - and the free
+            # month buy this tier; all of it unlimited (the owner, 11.18).
+            blurb="Unlimited searches, Go Deepers and myFAM mixes of your own.",
             limits=(
-                Limit("episode", "week", _env_int("PLUS_EPISODES_PER_WEEK", 150)),
+                Limit("ask", "week", _env_int("PLUS_ASKS_PER_WEEK", UNLIMITED)),
+                Limit("episode", "week", _env_int("PLUS_EPISODES_PER_WEEK", UNLIMITED)),
                 Limit("explore", "week", _env_int("PLUS_EXPLORE_PER_WEEK", UNLIMITED)),
             ),
             max_minutes=_env_int("PLUS_MAX_MINUTES", 10),
@@ -241,6 +269,7 @@ def _build_tiers() -> dict[str, "Tier"]:
             label="FAM Unlimited",
             blurb="No ceiling.",
             limits=(
+                Limit("ask", "day", UNLIMITED),
                 Limit("episode", "day", UNLIMITED),
                 Limit("explore", "day", UNLIMITED),
             ),
@@ -304,9 +333,10 @@ FEATURES: tuple[Feature, ...] = (
     Feature("voice_choice", "Choose a voice", "free",
             "Voice is not part of the cache key, so switching reuses the "
             "script at ~90ms and zero API cost. Nearly free to give away."),
-    Feature("mixes", "Daily mixes", "free",
-            "Already gated on having an account, which is a different axis. "
-            "A mix holds topic ids and no audio, so it costs storage."),
+    Feature("mixes", "Daily mixes", "plus",
+            "§656, the owner 11.18: making a myFAM mix of your own - naming "
+            "one, adding topics, copying a public one - is paid. Listening "
+            "to somebody else's is free to half way (`billing.mix_allowance`)."),
     Feature("explore_new", "Explore New", "free",
             "The only surface offering anything outside an established taste. "
             "Gating discovery makes the free tier a smaller world, not a "

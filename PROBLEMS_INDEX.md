@@ -647,4 +647,10 @@ and `limit` = Lines.
 | 39602 | 36 | 653. Report a problem on the player, with the phone player's log (2026-11-18) |
 | 39638 | 58 | 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
 | 39696 | 44 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
-| 39740 | 20 | 656. Interest pills on a profile open nothing (2026-11-19) |
+| 39740 | 50 | 656. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18) |
+| 39790 | 51 | 657. Apple in-app purchase for the iPhone app (2026-11-18) |
+| 39841 | 24 | 658. Students verify with a .edu email (2026-11-18) |
+| 39865 | 37 | 659. The billing branch reviewed: ten fixes (2026-11-18) |
+| 39902 | 23 | 660. The billing branch reviewed again: three more (2026-11-18) |
+| 39925 | 18 | 661. A third look at the billing branch: three more (2026-11-18) |
+| 39943 | 20 | 662. Interest pills on a profile open nothing (2026-11-19) |

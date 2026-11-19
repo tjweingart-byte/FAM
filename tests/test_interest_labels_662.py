@@ -1,4 +1,4 @@
-"""§656: an interest pill on a profile is a label, never a door."""
+"""§662: an interest pill on a profile is a label, never a door."""
 from pathlib import Path
 
 INDEX = (Path(__file__).resolve().parent.parent / "static" / "index.html").read_text()
