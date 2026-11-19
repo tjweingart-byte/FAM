@@ -27,6 +27,11 @@ model call:
   would be too late for the only mention that matters.
 * **An admin** can fix any name on /admin, and an admin's respelling is never
   replaced by a model's.
+* **A seed** (§656, `SEED` below): well-known names an English speaker
+  says one way and the voice reads another - "Iran" as "eye-ran" - which no
+  model lists, because to a model they are not hard, and which the CMU scan
+  (`hard_words.py`) never flags, because the dictionary has them. Written to
+  the table once per process, under an admin and over everything else.
 * **Wikipedia** (10.16 #6, `wiki_pronounce.py`): every name a model adds is
   looked up in the background, and an article's own respelling or IPA
   replaces a model's guess it disagrees with. Below an admin, above both
@@ -63,7 +68,37 @@ SAY_MARKER = re.compile(r"<<\s*SAY\s*:\s*([^<>=]{1,80}?)\s*=\s*([^<>]{1,160}?)\s
 
 #: Where an entry came from. The order is precedence: an admin's respelling
 #: is never replaced by a model's.
-SOURCES = ("admin", "wikipedia", "writer", "brief")
+SOURCES = ("admin", "seed", "wikipedia", "writer", "brief")
+
+#: Names the voice says wrong although every listener knows them (§656).
+#: The owner: "We are still having pronunciation issues within the app, even
+#: with names as similar as the country name 'Iran'". The lexicon only ever
+#: learned names a model chose to list, and no model lists "Iran". These are
+#: the common American broadcast readings, chosen by hand and *unheard* in
+#: Chatterbox - /admin's "Hear 4 ways" is how one is checked. An admin's
+#: respelling replaces any of them; removing one on /admin brings it back at
+#: the next boot, so a wrong seed is fixed by setting the right one.
+SEED = {
+    # Countries and their people
+    "Iran": "ee-RAHN", "Iranian": "ee-RAH-nee-un", "Iranians": "ee-RAH-nee-unz",
+    "Iraq": "ee-RAHK", "Iraqi": "ee-RAH-kee", "Iraqis": "ee-RAH-keez",
+    "Qatar": "KAH-tar", "Qatari": "kuh-TAR-ee", "Oman": "oh-MAHN",
+    "Bahrain": "bah-RAYN", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
+    "Uruguay": "YOOR-uh-gway", "Myanmar": "MYAHN-mar", "Lesotho": "leh-SOO-too",
+    # Cities and places in the news
+    "Tehran": "teh-RAHN", "Kyiv": "KEE-yiv", "Beijing": "bay-JING",
+    "Doha": "DOH-hah", "Riyadh": "ree-YAHD", "Kabul": "KAH-bool",
+    "Gaza": "GAH-zuh", "Rafah": "RAH-fah", "Tbilisi": "tuh-bih-LEE-see",
+    "Qom": "kohm",
+    # Names and groups in the news
+    "Xi": "shee", "Xi Jinping": "shee jin-PING", "Erdogan": "AIR-doh-wahn",
+    "Khamenei": "khah-meh-NAY-ee", "Houthi": "HOO-thee", "Houthis": "HOO-theez",
+    "Hezbollah": "hez-boh-LAH", "Modi": "MOH-dee",
+}
+
+#: Seed names under three letters, allowed past `clean`'s length rule because
+#: they were chosen by hand ("Xi" is said in every story about China).
+_SHORT_SEED = frozenset({"Xi"})
 
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
@@ -201,7 +236,7 @@ class Lexicon:
     `RELOAD_SECONDS`, and at once after a write from this process.
     """
 
-    def __init__(self, store=None) -> None:
+    def __init__(self, store=None, seed: bool = True) -> None:
         self._store = store
         self._lock = threading.Lock()
         self._entries: dict[str, tuple[str, str]] = {}
@@ -211,6 +246,9 @@ class Lexicon:
         #: name -> (say, source, expires): respellings from personal episodes,
         #: in this process only and never in the table. See `hold`.
         self._held: dict[str, tuple[str, str, float]] = {}
+        #: False: the table is never seeded (`SEED`) - for tests about an
+        #: empty lexicon.
+        self._seeded = not seed
 
     def _bank(self):
         if self._store is not None:
@@ -236,10 +274,29 @@ class Lexicon:
             r"(?<![A-Za-zÀ-ÿĀ-ſ'’])(" + "|".join(re.escape(n) for n in names)
             + r")(?![A-Za-zÀ-ÿĀ-ſ])") if names else None)
 
+    def _seed(self) -> None:
+        """Write `SEED` to the table, once per process (§656). A seed never
+        replaces an admin's respelling (`learn_pronunciation` ranks it), and a
+        changed seed replaces the old one at the next boot."""
+        self._seeded = True
+        bank = self._bank()
+        added = 0
+        for name, say in SEED.items():
+            try:
+                if bank.learn_pronunciation(name, say, "seed"):
+                    added += 1
+            except Exception:  # noqa: BLE001 - a seed is never worth an outage
+                log.exception("pronunciation seed for %r could not be kept", name)
+                return
+        if added:
+            log.info("pronunciation: %d seeded name(s) written", added)
+
     def reload(self, force: bool = False) -> None:
         now = time.time()
         if not force and now - self._loaded < RELOAD_SECONDS:
             return
+        if not self._seeded:
+            self._seed()
         try:
             rows = self._bank().pronunciations()
         except Exception:  # noqa: BLE001 - a lexicon outage is not a voice outage

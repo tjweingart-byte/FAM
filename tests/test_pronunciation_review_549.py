@@ -35,7 +35,7 @@ class _Cache:
 def lexicon(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
     voice_bank.reset(bank)
-    pronunciation.reset(pronunciation.Lexicon(bank))
+    pronunciation.reset(pronunciation.Lexicon(bank, seed=False))  # starts empty (§656)
     bank.learn_pronunciation("Sagapolutele", "sah-gah-poh-loo-TEH-leh", "writer")
     bank.learn_pronunciation("Wembanyama", "wem-ban-YAH-mah", "admin")
     yield bank

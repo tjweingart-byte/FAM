@@ -39736,3 +39736,42 @@ browser (1.63.0), and the tests of everything touched after these fixes.
 (the 11.18 notes, Report a problem on the player), so this branch's
 sections are §654 and §655 and every reference it added was renumbered;
 `tests/test_ahead_batched_654.py`.
+
+## 656. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19)
+
+The owner: "We are still having pronunciation issues within the app, even
+with names as similar as the country name 'Iran'".
+
+**Why "Iran" was never respelled.** Every way into the lexicon (§165, §289,
+§325) started from a name somebody flagged as hard: EI's brief and the
+writer's `<<SAY:>>` lines list names *a model* finds hard, Wikipedia is only
+asked about names a model added, and `hard_words.py` lists words the CMU
+dictionary lacks. "Iran" is none of these - no model thinks it hard, and the
+dictionary has it - so it reached Chatterbox as its letters, which read it as
+"eye-ran". The same gap holds for every famous name an English reader says
+from habit rather than from the spelling: Iraq, Qatar, Niger, Kyiv, Beijing,
+Erdogan, Xi.
+
+**What changed.** `pronunciation.SEED` holds 33 such names with the common
+American broadcast reading ("Iran = ee-RAHN", handed to the voice as
+"Eerahn"). `Lexicon.reload` writes them to the shared table once per process
+as source `seed`, which ranks under an admin and over Wikipedia and both
+models (`SOURCES`, `voice_bank.learn_pronunciation`); `wiki_pronounce.check`
+never replaces a seed, as it never replaces an admin. Being rows in the table,
+they show on /admin, go out in the review export (§549) and can be heard four
+ways there. An admin's respelling replaces a seed for good; removing a seed
+brings it back at the next boot, so a wrong seed is fixed by setting the
+right one. Matching stays case-sensitive and whole-word: "Iran's" is
+respelled, "chile" (the pepper) and "XI" (the numeral) are not. "Xi" is the
+one seed under three letters, allowed past `clean` by name (`_SHORT_SEED`).
+
+Tests that are about an empty lexicon build it with `Lexicon(bank,
+seed=False)`; `tests/test_pronunciation_seed_656.py` pins the rest.
+
+**Not verified.** Nobody has heard any seed in Chatterbox - this container has
+no GPU. The respellings are hand-chosen, not measured; "Eerahn" may still
+come out wrong, and the place to find out is /admin's "Hear 4 ways" on the
+live voice, then an admin respelling for any that miss. The list is a floor of
+famous names, not a scan: a name the voice gets wrong that is neither listed
+nor flagged by a model is still missed, and the owner's next report of one is
+the signal to add it.

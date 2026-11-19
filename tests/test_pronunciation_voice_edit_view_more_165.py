@@ -38,7 +38,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def lexicon(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
     voice_bank.reset(bank)
-    lex = pronunciation.Lexicon(bank)
+    lex = pronunciation.Lexicon(bank, seed=False)  # starts empty (§656)
     pronunciation.reset(lex)
     yield lex
     pronunciation.reset(None)

@@ -647,3 +647,4 @@ and `limit` = Lines.
 | 39602 | 36 | 653. Report a problem on the player, with the phone player's log (2026-11-18) |
 | 39638 | 58 | 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
 | 39696 | 44 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
+| 39740 | 39 | 656. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19) |

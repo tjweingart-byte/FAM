@@ -101,6 +101,13 @@
    > only where joining makes a new sound), and a dash used as punctuation is
    > a comma (Chatterbox's `punc_norm` turned "won—again—on" into
    > "won-again-on").
+   > **Current (PROBLEMS.md §656, the owner: "even with names as similar as
+   > the country name 'Iran'"):** famous names no model lists and the CMU
+   > dictionary holds - Iran, Iraq, Qatar, Niger, Kyiv, Xi - are seeded
+   > (`pronunciation.SEED`, source `seed`, under an admin and over Wikipedia
+   > and the models), written to the table once per process so /admin shows
+   > and hears them. An admin's respelling replaces a seed; the seeds are
+   > unheard.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

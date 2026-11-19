@@ -348,7 +348,7 @@ def test_an_articles_respelling_wins_over_its_ipa():
 def lexicon(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
     voice_bank.reset(bank)
-    pronunciation.reset(pronunciation.Lexicon(bank))
+    pronunciation.reset(pronunciation.Lexicon(bank, seed=False))  # starts empty (§656)
     yield bank
     pronunciation.reset(None)
     voice_bank.reset(None)
