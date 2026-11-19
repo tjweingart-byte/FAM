@@ -39861,3 +39861,13 @@ each entry with the live voice and the recogniser writes down what it heard,
 so Iran should now read close to `ih-RAHN` and not "eef-rahn". Its verdicts
 are hints (§325); the owner's ear decides.
 
+**The 14 respelled by hand (same day, the owner: "respell the 14 yourself
+too").** Each loses its in-syllable h for the English spelling of the same
+sound (`er`, `air`, `un`, `uz`, `ez`), and "rohd-REE-gehs" becomes
+"rod-REE-ghez" so the g stays hard. The 13 that were a model's or
+Wikipedia's are seeds (`SEED`, "Respelled by hand"), so they replace those
+rows on the next boot; Libertad is an admin's row and a seed never replaces
+one, so it is the owner's edit on /admin (`lee-ber-TAHD`). A test now fails
+if any seed hands the voice a breathed h - it caught three of §656's own
+(Kherson, Pyongyang, Guterres), respelled. Unheard, like the rest.
+

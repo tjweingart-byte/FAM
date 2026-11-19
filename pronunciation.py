@@ -93,8 +93,8 @@ SEED = {
     "Gaza": "GAH-zuh", "Rafah": "RAH-fah", "Tbilisi": "tuh-bih-LEE-see",
     "Qom": "kohm", "Hormuz": "hor-MOOZ", "Fordow": "for-DOH", "Natanz": "nah-TAHNZ",
     "Khan Younis": "KAHN yoo-NEES", "Kharkiv": "KAR-kiv", "Donetsk": "duh-NETSK",
-    "Donbas": "don-BAHS", "Lviv": "luh-VEEV", "Kherson": "kehr-SAWN",
-    "Odesa": "oh-DESS-uh", "Seoul": "SOHL", "Pyongyang": "pyuhng-YAHNG",
+    "Donbas": "don-BAHS", "Lviv": "luh-VEEV", "Kherson": "ker-SAWN",
+    "Odesa": "oh-DESS-uh", "Seoul": "SOHL", "Pyongyang": "pyung-YAHNG",
     "Xinjiang": "shin-JYAHNG", "Shenzhen": "shen-JEN", "Taipei": "ty-PAY",
     "Des Moines": "deh MOYN", "Tucson": "TOO-sahn", "Boise": "BOY-see",
     "Spokane": "spoh-KAN",
@@ -105,7 +105,7 @@ SEED = {
     "Putin": "POO-tin", "Hamas": "hah-MAHS", "Qaeda": "KY-duh",
     "Zelensky": "zeh-LEN-skee", "Zelenskyy": "zeh-LEN-skee",
     "Kim Jong Un": "KIM jong OON", "Macron": "mah-KROHN", "Merz": "MAIRTS",
-    "Milei": "mee-LAY", "Guterres": "goo-TEHR-esh", "Noem": "NOHM",
+    "Milei": "mee-LAY", "Guterres": "goo-TAIR-esh", "Noem": "NOHM",
     "Leavitt": "LEV-it", "Thune": "THOON", "Alito": "uh-LEE-toh",
     # Sports (§656's audit): names an English reading gets wrong
     "Jokic": "YOH-kitch", "Doncic": "DON-chitch",
@@ -116,6 +116,16 @@ SEED = {
     # Companies and products in markets stories
     "Huawei": "WAH-way", "Xiaomi": "SHOW-mee", "Hyundai": "HUN-day",
     "Porsche": "POR-shuh", "Chipotle": "chih-POHT-lay", "Wegovy": "wee-GOH-vee",
+    # Respelled by hand (§657): a model's entry kept a vowel-marking h inside
+    # one syllable ("beh-SEHR-ah", "rohd-REE-gehs"), which no joining rule
+    # can mend without guessing. A seed outranks the writer's and the brief's
+    # row it replaces; an admin's row (Libertad) is changed on /admin.
+    "Becerra": "buh-SAIR-uh", "Bernabéu": "ber-nah-BAY-oo",
+    "Azerbaijan": "az-er-by-JAHN", "Bullock": "BUL-luk", "Bushehr": "boo-SHAIR",
+    "Cleopatra's": "klee-oh-PAT-ruz", "Glastonbury": "GLAS-tun-ber-ee",
+    "González": "gon-ZAH-lez", "Javier": "hah-VYAIR",
+    "Mountbatten-Windsor": "mownt-BAT-tun WIN-zer", "Rodríguez": "rod-REE-ghez",
+    "Samvat": "SUM-vut", "Sirianni": "sir-ee-AH-nee",
 }
 
 #: Seed names under three letters, allowed past `clean`'s length rule because

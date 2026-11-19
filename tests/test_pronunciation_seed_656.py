@@ -114,3 +114,11 @@ def test_a_marked_vowel_before_a_vowel_loses_its_h():
     assert v("ah-jah-EH-roh") == "Ahja-erroh"     # was "Ahjahehroh", an h said
     assert v("BOH-en") == "Bo-en"
     assert "h" not in v("ih-RAHN")[:3]
+
+
+def test_no_seed_hands_the_voice_a_breathed_h():
+    """§657: a vowel-marking h inside a word is breathed or said."""
+    import re
+    for name, say in pronunciation.SEED.items():
+        v = pronunciation.voiced(say).lower()
+        assert not re.search(r"(?<=[a-z])(?:ih|eh|uh)(?=[b-df-gj-np-tv-z])|[aeiou]h(?=[aeiou])", v), (name, v)
