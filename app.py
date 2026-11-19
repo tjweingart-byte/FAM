@@ -14,6 +14,7 @@ import asyncio
 import gzip
 import base64
 import dataclasses
+import hashlib
 import hmac
 import html
 import os
@@ -53,6 +54,8 @@ import taste_vectors
 from demo_script import DemoGenerator
 import credentials
 import client_versions
+import apple_iap
+import billing
 import entitlements
 import episode_quality
 import pipeline_errors
@@ -1234,6 +1237,7 @@ def _database_report() -> list[dict]:
         ("saved", "SAVED_DB", SAVED.path),
         ("shares", "SHARES_DB", SHARES.path),
         ("quotas", "QUOTAS_DB", QUOTAS.path),
+        ("billing", "BILLING_DB", BILLING.path),
         ("metering", "METERING_DB", METER.path),
         ("feedback", "FEEDBACK_DB", FEEDBACK.path),
         ("surveys", "SURVEYS_DB", SURVEY_STORE.path),
@@ -1934,7 +1938,34 @@ def _tier(request: Request) -> str:
     # `FAM_ADMIN_ACCOUNTS`, on the server - never by anything the client says.
     if _allowed_admin(listener):
         return "unlimited"
-    return entitlements.normalise(listener.tier if listener else "free")
+    tier_name = entitlements.normalise(listener.tier if listener else "free")
+    # A paid plan, from Stripe's signed webhook (§656): only ever raises.
+    if listener is not None and entitlements.rank(tier_name) < \
+            entitlements.rank(billing.PAID_TIER):
+        try:
+            if BILLING.paid(listener.user_id):
+                return billing.PAID_TIER
+        except Exception:  # noqa: BLE001 - a billing read never refuses a play
+            log.exception("could not read the subscription for %r",
+                          listener.user_id)
+    return tier_name
+
+
+def _require_feature(request: Request, key: str) -> None:
+    """Refuse a feature this listener's tier does not have (§656), with a
+    body the app turns into the plans sheet. Off while quotas are
+    (`ENFORCE_QUOTAS=0`): nothing is taken away before launch."""
+    if not quotas.settings_enforcing():
+        return
+    if entitlements.allows(_tier(request), key):
+        return
+    known = entitlements.feature(key)
+    words = {
+        "mixes": "Making your own myFAM mixes comes with FAM Premium. "
+                 "You can still listen to anybody's.",
+    }.get(key, f"{known.label if known else 'That'} comes with FAM Premium.")
+    raise HTTPException(status_code=403, detail=words,
+                        headers={"X-FAM-Upgrade": key})
 
 
 def _reserve(request: Request, resource: str, episode_key: str = "",
@@ -1955,6 +1986,8 @@ def _reserve(request: Request, resource: str, episode_key: str = "",
         # why - and not a free pass either: `_rate_limit` still applies.
         return None
     try:
+        # A search or a Go Deeper spends an `ask` (§656).
+        resource = entitlements.resource_for(resource, surface)
         return QUOTAS.reserve(user, _tier(request), resource,
                               episode_key=episode_key,
                               # What they were doing, in their words. The
@@ -2061,7 +2094,8 @@ def erase_listener(user_id: str) -> dict:
                         ("quotas", QUOTAS), ("messages", MESSAGES),
                         ("saved", SAVED), ("shares", SHARES),
                         ("voice_choice", _VoiceChoices()), ("push", PUSH),
-                        ("consent", CONSENT), ("moderation", MODERATION)):
+                        ("consent", CONSENT), ("moderation", MODERATION),
+                        ("billing", BILLING)):
         try:
             removed[name] = store.forget(user_id)
         except Exception:
@@ -2567,6 +2601,11 @@ def _health_report(request: Request) -> dict:
             "edition_batch_source": ("EDITION_BATCH env var"
                                      if os.environ.get("EDITION_BATCH", "").strip()
                                      else "config.py default"),
+            # Prefetch's script warms batched too (§654).
+            "prefetch_batch": settings.prefetch_batch,
+            "prefetch_batch_source": ("PREFETCH_BATCH env var"
+                                      if os.environ.get("PREFETCH_BATCH", "").strip()
+                                      else "config.py default"),
         },
         "research_words": sorted(research_words()),
         "cache": _cache_report(),
@@ -3523,6 +3562,15 @@ async def account_unlink(request: Request,
     return {"ok": bool(removed), "removed": removed}
 
 
+#: The most one "Follow all" follows (§669) - a group is smaller, and a
+#: contacts list past this is followed in a second tap.
+FOLLOW_ALL_MAX = 50
+#: The most follows one account makes in an hour through Follow all (§674):
+#: a person following their contacts and a group is well under it; a script
+#: following everybody it can find is not.
+FOLLOW_ALL_PER_HOUR = 200
+
+
 class FollowRequest(BaseModel):
     """Who to follow. By handle from a search, or by the id a search returned -
     never by a listener id the client made up, which is why both come from
@@ -3530,6 +3578,9 @@ class FollowRequest(BaseModel):
 
     handle: str = Field("", max_length=social_mod.MAX_HANDLE + 1)
     user_id: str = Field("", max_length=64)
+    # Where the Follow was tapped (§669), one of `social.FOLLOW_VIA`;
+    # anything else is kept as "". Never who - only which door.
+    via: str = Field("", max_length=32)
 
 
 class SendMessageRequest(BaseModel):
@@ -3892,7 +3943,37 @@ async def person_profile(request: Request,
         "ambassador": ACCOUNTS.is_ambassador(target),
         "follows": SOCIAL.follow_counts(target),
         **_person_friends(me, target),
+        "mutuals": _person_mutuals(me, target),
     }
+
+
+#: How many mutuals `/api/person` names (§666); `count` is all of them.
+MUTUALS_SHOWN = 30
+
+
+def _person_mutuals(me: str, target: str) -> dict:
+    """"Followed by Cooper, Molly and 4 others" (§666, the owner's ask):
+    the people **this listener follows** who follow `target`, on every
+    profile they open, whether or not they follow `target` themselves.
+
+    Only people already in the asker's own graph, so it says nothing about
+    a stranger the asker could not already see; their friends first, then
+    newest followed. Name, handle and face, never an id; nobody without a
+    handle, blocked either way or suspended.
+    """
+    if not me or me == target:
+        return {"count": 0, "people": []}
+    # One query over the whole graph (§674): `following`/`followers` stop at
+    # 500 rows, and a count read through them was short on a popular page.
+    pairs = SOCIAL.mutual_followers(me, target)
+    apart = MODERATION.apart(me)
+    pairs = [(uid, friend) for uid, friend in pairs if uid not in apart]
+    pairs.sort(key=lambda pair: not pair[1])          # friends first, stable
+    people = SOCIAL.people_by_id(uid for uid, _ in pairs)   # handles only
+    return {"count": len(people),
+            "people": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
+                        "explicit": p.get("explicit", False)}
+                       for p in people[:MUTUALS_SHOWN]]}
 
 
 def _person_friends(me: str, target: str) -> dict:
@@ -3948,6 +4029,197 @@ async def people_search(request: Request,
     return {"people": found}
 
 
+def _discoverable(user: str, people: list[dict]) -> list[dict]:
+    """`people` as discovery may show them to `user` (§665): nobody blocked
+    either way or suspended, nobody still on the waitlist - the same
+    boundary `/api/people` keeps - each with whether `user` follows them."""
+    people = _without_apart(user, people)
+    waiting = (WAITLIST.waitlisted_among(p["user_id"] for p in people)
+               if settings.waitlist else set())
+    following = {p["user_id"] for p in SOCIAL.following(user)}
+    out = []
+    for person in people:
+        if person["user_id"] in waiting or person["user_id"] == user:
+            continue
+        person["following"] = person["user_id"] in following
+        out.append(person)
+    return out
+
+
+@app.get("/api/friends/suggested")
+async def friends_suggested(request: Request,
+                            handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
+                            user_id: str = Query("", max_length=64)) -> dict:
+    """"Suggested for you" (§665).
+
+    With `handle` (or a `user_id` from this listener's own graph): the
+    people that person follows, for the row that opens under Follow on
+    their profile - **only once this listener follows them**, so the row is
+    something following somebody gives you, never a way to read a
+    stranger's graph. Without either: "Discover people" - who follows you
+    and is not followed back, then who the people you follow follow.
+    Each card says why in its own words (`reason`).
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    around = ""
+    if handle or user_id:
+        if user_id and user_id in {p["user_id"] for p in SOCIAL.following(user)}:
+            around = user_id
+        elif handle:
+            around = _person_by_handle(handle)
+        if not around or around == user or not SOCIAL.is_following(user, around) \
+                or not _reachable(user, around):
+            return {"people": [], "around": True}
+    found = SOCIAL.suggestions(user, around=around, limit=social_mod.SUGGESTION_LIMIT * 2)
+    return {"people": _discoverable(user, found)[:social_mod.SUGGESTION_LIMIT],
+            "around": bool(around)}
+
+
+#: The most address-book entries one `/api/friends/contacts` reads (§665),
+#: and one account in a day (§674): an address book is checked once or
+#: twice, and a script looping through a list of addresses is not.
+CONTACTS_MAX = 2000
+CONTACTS_PER_DAY = 6000
+#: Entries checked per account today: {user_id: (day, count)}. In memory,
+#: as `_rate_limit`'s bucket is - a restart forgives, a loop is stopped.
+_contacts_checked: dict[str, tuple[int, int]] = {}
+
+ShortStr = Annotated[str, Field(max_length=120)]
+
+
+class ContactEntry(BaseModel):
+    name: str = Field("", max_length=120)
+    tel: list[ShortStr] = Field(default_factory=list, max_length=8)
+    email: list[ShortStr] = Field(default_factory=list, max_length=8)
+
+
+class ContactsRequest(BaseModel):
+    contacts: list[ContactEntry] = Field(default_factory=list, max_length=CONTACTS_MAX)
+
+
+@app.post("/api/friends/contacts")
+async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
+    """"Your contacts on FAM" (§665): which of the contacts the listener
+    picked have an account, to follow from sign-up's Find your friends step
+    and the Friends page.
+
+    Only what the listener's phone handed over after they chose to share it
+    (the contact picker, or the native app's Contacts permission). **Nothing
+    posted is stored or logged** - not the numbers, not the names; a match is
+    returned with the name it had in *their* address book, and the rest is
+    forgotten when the request ends. Who is shown is who search would show:
+    a handle, not blocked, not suspended, not waitlisted.
+    """
+    _rate_limit(request)
+    user = _require_account(request)
+    day = int(time.time() // 86400)
+    was_day, done = _contacts_checked.get(user, (day, 0))
+    done = done if was_day == day else 0
+    if done + len(req.contacts) > CONTACTS_PER_DAY:
+        raise HTTPException(status_code=429, detail=(
+            "That's a lot of contacts for one day. Try again tomorrow."))
+    _contacts_checked[user] = (day, done + len(req.contacts))
+    phones, emails = [], []
+    for i, entry in enumerate(req.contacts):
+        phones.extend((t, i) for t in entry.tel)
+        emails.extend((e, i) for e in entry.email)
+    home = _contacts_home_code(user)
+    matched = ACCOUNTS.match_contacts(phones, emails, home_code=home)
+    people = SOCIAL.people_by_id(matched)
+    for person in people:
+        person["contact_name"] = req.contacts[matched[person["user_id"]]].name.strip()[:60]
+    shown = _discoverable(user, people)
+    _tell_contacts_you_joined(user, shown)
+    return {"people": shown}
+
+
+#: Time zones whose phones dial +1 (the US, Canada, Puerto Rico), for a
+#: listener whose own number does not say (§674).
+NANP_ZONES = frozenset({
+    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+    "America/Phoenix", "America/Anchorage", "America/Adak", "America/Boise",
+    "America/Detroit", "America/Juneau", "America/Menominee", "America/Metlakatla",
+    "America/Nome", "America/Sitka", "America/Yakutat", "Pacific/Honolulu",
+    "America/Toronto", "America/Vancouver", "America/Edmonton", "America/Winnipeg",
+    "America/Halifax", "America/St_Johns", "America/Regina", "America/Moncton",
+    "America/Glace_Bay", "America/Goose_Bay", "America/Whitehorse", "America/Dawson",
+    "America/Yellowknife", "America/Iqaluit", "America/Puerto_Rico",
+    "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "US/Alaska", "US/Hawaii",
+})
+
+
+def _contacts_home_code(user: str) -> str:
+    """The country a number saved without its code is read in: +1 when the
+    asker's own number is +1, or they have none and their device's clock is
+    in a +1 zone; otherwise "" and such a number is skipped (§674). It used
+    to read +1 for anybody without a number, so an email-only account in
+    India had its contacts' ten-digit mobiles matched to strangers in the US."""
+    own = (ACCOUNTS.account(user) or {}).get("phone") or ""
+    if own:
+        return "+1" if own.startswith("+1") else ""
+    zone = listener_clock.current()
+    if zone in NANP_ZONES or zone.startswith(("America/Indiana/", "America/Kentucky/",
+                                              "America/North_Dakota/")):
+        return "+1"
+    return ""
+
+
+def _tell_contacts_you_joined(user: str, found: list[dict]) -> None:
+    """"Molly just joined FAM" (§669), for the people a new account found
+    in its contacts and does not hear from yet. FAM keeps nobody's address
+    book, so this is the one direction it can know: the newcomer has your
+    number or address. Only for an account under `JOINED_NOTICE_NEW` old,
+    so an old account checking its contacts announces nothing. Whether it
+    is shown is decided again when it is read (`/api/friends/joined`).
+    Never raises: a notice is never worth the contacts answer."""
+    try:
+        created = float((ACCOUNTS.account(user) or {}).get("created") or 0)
+        if not created or time.time() - created > social_mod.JOINED_NOTICE_NEW:
+            return
+        for person in found:
+            uid = person.get("user_id") or ""
+            if uid and not SOCIAL.is_following(uid, user):
+                SOCIAL.add_joined_notice(uid, user)
+    except Exception:  # noqa: BLE001
+        log.exception("could not leave joined notices")
+
+
+@app.get("/api/friends/joined")
+async def friends_joined(request: Request) -> dict:
+    """Who joined FAM and has this listener in their contacts (§669), each
+    once: a notice is deleted when its card goes up
+    (`POST /api/friends/joined/seen`), so an app closed before it could show
+    one shows it next time. Only somebody discovery would show (a handle,
+    not blocked, suspended or waitlisted) and whom this listener does not
+    follow yet; any other is deleted here, never to come back."""
+    _read_limit(request)
+    user = _require_account(request)
+    about = SOCIAL.joined_notices(user)
+    if not about:
+        return {"people": []}
+    people = [p for p in _discoverable(user, SOCIAL.people_by_id(about))
+              if not p.get("following")]
+    shown = {p["user_id"] for p in people}
+    for uid in about:
+        if uid not in shown:
+            SOCIAL.drop_joined_notice(user, uid)
+    return {"people": people}
+
+
+class JoinedSeenRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+
+
+@app.post("/api/friends/joined/seen")
+async def friends_joined_seen(req: JoinedSeenRequest, request: Request) -> dict:
+    """The "just joined" card went up (§669): forget the notice. Only this
+    listener's own notice can be dropped - the pair is keyed on them."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": SOCIAL.drop_joined_notice(user, req.user_id)}
+
+
 @app.post("/api/friends/follow")
 async def friends_follow(req: FollowRequest, request: Request) -> dict:
     _rate_limit(request)
@@ -3963,10 +4235,58 @@ async def friends_follow(req: FollowRequest, request: Request) -> dict:
     if not target:
         raise HTTPException(status_code=404, detail="No listener by that handle.")
     try:
-        changed = SOCIAL.follow(user, target)
+        changed = SOCIAL.follow(user, target, via=req.via)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "changed": changed,
+            "counts": SOCIAL.follow_counts(user)}
+
+
+class FollowAllRequest(BaseModel):
+    """Follow several at once (§669): "Follow all" on your contacts, or on
+    the people in a group chat. By handle or by an id the server gave out,
+    exactly as one follow is."""
+
+    handles: list[Annotated[str, Field(max_length=social_mod.MAX_HANDLE + 1)]] = Field(
+        default_factory=list, max_length=FOLLOW_ALL_MAX)
+    user_ids: list[Annotated[str, Field(max_length=64)]] = Field(
+        default_factory=list, max_length=FOLLOW_ALL_MAX)
+    via: str = Field("", max_length=32)
+
+
+@app.post("/api/friends/follow-all")
+async def friends_follow_all(req: FollowAllRequest, request: Request) -> dict:
+    """One request and one pace for the whole list: a "Follow all" sent as
+    a follow per person ran into `_rate_limit` at the fourth. Whoever cannot
+    be followed - unknown, yourself, blocked, waitlisted - is skipped, and
+    the answer says how many were."""
+    _rate_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    targets: list[str] = []
+    for handle in req.handles:
+        uid = _person_by_handle(handle)
+        if uid:
+            targets.append(uid)
+    targets.extend(u for u in req.user_ids if u)
+    room = FOLLOW_ALL_PER_HOUR - SOCIAL.follows_since(user, time.time() - 3600)
+    if room <= 0:
+        raise HTTPException(status_code=429, detail=(
+            "You've followed a lot of people in the last hour. Try again later."))
+    followed, skipped, seen = 0, 0, set()
+    for target in targets:
+        if target in seen:
+            continue
+        seen.add(target)
+        if target == user or not _reachable(user, target) or followed >= room:
+            skipped += 1
+            continue
+        try:
+            followed += 1 if SOCIAL.follow(user, target, via=req.via) else 0
+        except social_mod.SocialError:
+            skipped += 1
+    skipped += len(req.handles) + len([u for u in req.user_ids if u]) - len(targets)
+    return {"ok": True, "followed": followed, "skipped": skipped,
             "counts": SOCIAL.follow_counts(user)}
 
 
@@ -4079,7 +4399,10 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
                         # Whether this listener and that member follow each
                         # other. Whoever made the group is friends with all
                         # of it; the others may not be (§520).
-                        "friend": uid != me and _mutual(me, uid)})
+                        "friend": uid != me and _mutual(me, uid),
+                        # Whether this listener follows them: what the
+                        # members sheet's Follow all counts (§669).
+                        "following": uid != me and SOCIAL.is_following(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
@@ -5367,7 +5690,355 @@ async def plans_read(request: Request) -> dict:
             # "everything is free" is false the day quotas are on, and a
             # "See plans" button with no checkout behind it is a dead end.
             "enforced": bool(settings.enforce_quotas),
-            "checkout": False}
+            # §656: true once Stripe is configured on this deploy.
+            "checkout": billing.configured(),
+            **_billing_snapshot(request, await _stripe_prices())}
+
+
+async def _stripe_prices() -> dict:
+    """Stripe's prices, off the event loop: a cache miss is up to three
+    network reads, and a slow Stripe must never stall the audio."""
+    if not billing.configured():
+        return {}
+    try:
+        return await asyncio.to_thread(billing.prices)
+    except Exception:  # noqa: BLE001 - a price read never fails the sheet
+        log.exception("could not read Stripe's prices")
+        return {}
+
+
+def _billing_snapshot(request: Request, priced: dict) -> dict:
+    """What is for sale and what this listener has (§656). Prices come from
+    Stripe (`_stripe_prices`), never from here; a plan Stripe could not
+    price has no number."""
+    listener = getattr(request.state, "listener", None)
+    user = listener.user_id if listener is not None and \
+        listener.is_authenticated else ""
+    selling = billing.for_sale()
+    offers = [{"plan": p, "label": billing.PLAN_LABELS[p],
+               "blurb": billing.PLAN_BLURBS[p],
+               "price": (priced.get(p) or {}).get("display", ""),
+               "for_sale": p in selling,
+               # §657: the iPhone app sells the same plan through the App
+               # Store under this product id; its price is Apple's.
+               "apple_product": apple_iap.product_id(p),
+               "seats": billing.FAM_SEATS if p == "fam" else 1}
+              for p in billing.PLANS]
+    mine = None
+    if user:
+        try:
+            sub = BILLING.subscription(user)
+            owner = BILLING.fam_owner(user)
+            own = BILLING.own_plan(user)
+            mine = {
+                "plan": own, "status": (sub or {}).get("status", ""),
+                # "stripe" or "apple" (§657): an App Store subscription is
+                # managed in the iPhone's settings, not Stripe's portal.
+                "store": (sub or {}).get("source", "") if own else "",
+                "renews_at": (sub or {}).get("period_end", 0.0),
+                "manage": bool((sub or {}).get("customer")),
+                # Whose plan, by name - never their account id
+                # (`listener-id-server`).
+                "fam_member_of": (_fam_owner_name(owner)
+                                  if owner and BILLING.own_plan(owner) == "fam" else ""),
+                "fam_members": len(BILLING.fam_members(user)) if own == "fam" else 0,
+            }
+        except Exception:  # noqa: BLE001
+            log.exception("could not read the subscription for %r", user)
+    student = None
+    if user:
+        try:
+            found = BILLING.student(user)
+            # §658: whether the Student plan may be bought, and until when.
+            student = {"verified": found["verified"], "email": found["email"],
+                       "expires": found["expires"]}
+        except Exception:  # noqa: BLE001
+            log.exception("could not read the student check for %r", user)
+    return {"offers": offers, "subscription": mine, "student": student}
+
+
+class StudentStart(BaseModel):
+    email: str = Field(..., max_length=254)
+
+
+class StudentConfirm(BaseModel):
+    code: str = Field(..., max_length=12)
+
+
+@app.post("/api/billing/student")
+async def student_start(req: StudentStart, request: Request) -> dict:
+    """Email a code to a .edu address (§658). The Student plan is sold only
+    to an account that has entered one, for a year at a time."""
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    if not mail_mod.status().get("available"):
+        raise HTTPException(status_code=503,
+                            detail="FAM can't send email right now, so a school "
+                                   "email can't be checked. Try again later.")
+    try:
+        code = BILLING.start_student(user, req.email)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    mail_mod.send_later(
+        req.email.strip().lower(), "Your FAM student code",
+        f"Your FAM student code is {code}.\n\n"
+        "Enter it in FAM to get the Student plan. It works for 15 minutes.\n"
+        "If you didn't ask for it, you can ignore this email.")
+    return {"ok": True, "sent_to": req.email.strip().lower()}
+
+
+@app.post("/api/billing/student/confirm")
+async def student_confirm(req: StudentConfirm, request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        found = BILLING.confirm_student(user, req.code)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"verified": found["verified"], "expires": found["expires"]}
+
+
+class CheckoutRequest(BaseModel):
+    plan: str = Field(..., max_length=16)
+
+
+def _billing_return(request: Request, outcome: str) -> str:
+    return _public_base(request).rstrip("/") + "/?billing=" + outcome
+
+
+@app.post("/api/billing/checkout")
+async def billing_checkout(req: CheckoutRequest, request: Request) -> dict:
+    """A Stripe Checkout page for one plan (§656). The app opens the URL; the
+    plan changes when Stripe's webhook says it was paid, never on return."""
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    if entitlements.at_least(_tier(request), "unlimited"):
+        raise HTTPException(status_code=400,
+                            detail="Your account is already unlimited.")
+    if BILLING.own_plan(user):
+        raise HTTPException(status_code=409,
+                            detail="You already have a plan. Manage it to change it.")
+    # §658: the Student plan is for a verified .edu address only.
+    if req.plan == "student" and not BILLING.student_verified(user):
+        raise HTTPException(status_code=403,
+                            detail="Verify your school email to get the Student plan.",
+                            headers={"X-FAM-Student": "verify"})
+    account = ACCOUNTS.account(user) or {}
+    sub = BILLING.subscription(user) or {}
+    try:
+        url = await asyncio.to_thread(
+            billing.create_checkout, user, req.plan,
+            _billing_return(request, "done"), _billing_return(request, "cancelled"),
+            email=account.get("email", ""), customer=sub.get("customer", ""))
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"url": url}
+
+
+@app.post("/api/billing/portal")
+async def billing_portal(request: Request) -> dict:
+    """Stripe's page for changing card or plan, or cancelling (§656)."""
+    _read_limit(request)
+    user = _require_account(request)
+    sub = BILLING.subscription(user) or {}
+    try:
+        url = await asyncio.to_thread(billing.create_portal, sub.get("customer", ""),
+                                      _billing_return(request, "managed"))
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"url": url}
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request) -> dict:
+    """Stripe's events (§656): the only thing that changes a paid plan.
+    Signed or refused; a repeat changes nothing."""
+    payload = await request.body()
+    try:
+        event = billing.verify_signature(
+            payload, request.headers.get("stripe-signature", ""),
+            billing._webhook_secret())
+    except billing.BillingError as exc:
+        log.warning("stripe webhook refused: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        done = await asyncio.to_thread(BILLING.apply, event)
+    except Exception as exc:  # noqa: BLE001 - Stripe retries a 500
+        log.exception("could not apply stripe event %s", event.get("id"))
+        pipeline_errors.record("billing", "webhook", str(exc), str(event.get("type")))
+        raise HTTPException(status_code=500, detail="Not applied.") from exc
+    log.info("stripe %s: %s", event.get("type"), done)
+    return {"ok": True}
+
+
+class AppleTransactionRequest(BaseModel):
+    transaction: str = Field(..., max_length=20000)
+
+
+@app.get("/api/billing/apple")
+async def apple_purchase_setup(request: Request) -> dict:
+    """What the iPhone app needs before it shows Apple's sheet (§657): the
+    `appAccountToken` this account buys with, and each plan's product id."""
+    _read_limit(request)
+    user = _require_account(request)
+    token = apple_iap.account_token(user)
+    BILLING.remember_apple_token(token, user)
+    sub = BILLING.subscription(user) or {}
+    return {"token": token, "products": apple_iap.products(),
+            # §658: the app offers Student only once this is true.
+            "student_verified": BILLING.student_verified(user),
+            "own_plan": BILLING.own_plan(user),
+            "store": sub.get("source", "") if BILLING.own_plan(user) else ""}
+
+
+@app.post("/api/billing/apple")
+async def apple_purchase(req: AppleTransactionRequest, request: Request) -> dict:
+    """A StoreKit 2 transaction the app just bought or restored (§657). The
+    JWS is checked against Apple's pinned root, and its `appAccountToken`
+    must be this account's - a transaction from somebody else's phone buys
+    nothing."""
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        payload = apple_iap.verify(req.transaction)
+        sub = apple_iap.subscription_from(payload)
+    except apple_iap.AppleError as exc:
+        log.warning("apple purchase refused for %s: %s", user, exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    token = apple_iap.account_token(user)
+    if sub["token"] != token:
+        log.warning("apple purchase for another account refused (%s)", user)
+        raise HTTPException(status_code=403,
+                            detail="That purchase belongs to another FAM account.")
+    BILLING.remember_apple_token(token, user)
+    if sub["plan"] == "student" and not BILLING.student_verified(user):
+        # Apple has already charged them, so the plan is theirs; the app
+        # offers Student only after the check (§658), so this is a build
+        # that skipped it, and is worth seeing.
+        log.warning("apple student plan bought without a verified .edu: %s", user)
+    BILLING.record_apple(user, sub)
+    log.info("apple %s: %s on %s (%s)", sub["environment"], user, sub["plan"], sub["status"])
+    return {"ok": True, "plan": sub["plan"], "status": sub["status"],
+            "tier": _tier(request)}
+
+
+#: Notification types that mean the subscription is in a billing grace
+#: period: still paid, while Apple retries the card.
+APPLE_GRACE = ("DID_FAIL_TO_RENEW",)
+
+
+@app.post("/api/billing/apple/notifications")
+async def apple_notifications(request: Request) -> dict:
+    """App Store Server Notifications v2 (§657): renewals, lapses, refunds.
+    Signed or refused; the transaction inside decides the plan."""
+    try:
+        body = await request.json()
+        if not isinstance(body, dict):
+            raise ValueError("The notification is not an object.")
+        note = apple_iap.verify(str(body.get("signedPayload") or ""))
+        data = note.get("data") or {}
+        if not data.get("signedTransactionInfo"):
+            # A TEST notification (App Store Connect's "Request a test
+            # notification"), or one about no transaction: signed, so
+            # answered 200, and nothing to change.
+            log.info("apple notification %s without a transaction",
+                     note.get("notificationType"))
+            return {"ok": True}
+        transaction = apple_iap.verify(str(data.get("signedTransactionInfo") or ""))
+        renewal = (apple_iap.verify(str(data["signedRenewalInfo"]))
+                   if data.get("signedRenewalInfo") else None)
+        grace = (note.get("notificationType") in APPLE_GRACE
+                 and note.get("subtype") == "GRACE_PERIOD")
+        sub = apple_iap.subscription_from(transaction, renewal, grace=grace)
+    except (apple_iap.AppleError, ValueError) as exc:
+        log.warning("apple notification refused: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    user = (BILLING.user_for_apple_token(sub["token"])
+            or BILLING.user_for_subscription("apple:" + sub["original"]))
+    if not user:
+        # Bought before the account fetched its token, or a test
+        # notification: nothing to change, and a 200 so Apple stops retrying.
+        log.info("apple notification for nobody we know (%s)", note.get("notificationType"))
+        return {"ok": True}
+    BILLING.record_apple(user, sub)
+    log.info("apple %s %s: %s %s", note.get("notificationType"), note.get("subtype") or "",
+             user, sub["status"])
+    return {"ok": True}
+
+
+class FamJoinRequest(BaseModel):
+    code: str = Field(..., max_length=20)
+
+
+def _fam_owner_name(owner: str) -> str:
+    who = SOCIAL.person(owner) or {}
+    return who.get("name") or who.get("handle") or "a FAM plan"
+
+
+def _fam_ref(owner: str, member: str) -> str:
+    return hashlib.sha256(f"fam:{owner}:{member}".encode()).hexdigest()[:16]
+
+
+@app.get("/api/billing/fam")
+async def fam_plan_read(request: Request) -> dict:
+    """The FAM plan's people, for its payer; or whose plan this account is on."""
+    _read_limit(request)
+    user = _require_account(request)
+    members = BILLING.fam_members(user)
+    people = []
+    for member in members:
+        who = SOCIAL.person(member) or {}
+        # A reference, never the id (`listener-id-server`).
+        people.append({"name": who.get("name") or "", "handle": who.get("handle") or "",
+                       "ref": _fam_ref(user, member)})
+    owner = BILLING.fam_owner(user)
+    on = SOCIAL.person(owner) or {} if owner else {}
+    return {"owner": BILLING.own_plan(user) == "fam", "seats": billing.FAM_SEATS,
+            "members": people,
+            "member_of": {"name": on.get("name") or "", "handle": on.get("handle") or ""}
+            if owner else None}
+
+
+@app.post("/api/billing/fam/invite")
+async def fam_plan_invite(request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    try:
+        return {"code": BILLING.fam_invite(user)}
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/billing/fam/join")
+async def fam_plan_join(req: FamJoinRequest, request: Request) -> dict:
+    _read_limit(request)
+    _rate_limit(request)
+    user = _require_account(request)
+    try:
+        BILLING.fam_join(user, req.code)
+    except billing.BillingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
+
+
+@app.post("/api/billing/fam/leave")
+async def fam_plan_leave(request: Request) -> dict:
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": BILLING.fam_leave(user)}
+
+
+@app.delete("/api/billing/fam/{member}")
+async def fam_plan_remove(member: str, request: Request) -> dict:
+    """The payer takes somebody off their FAM plan."""
+    _read_limit(request)
+    user = _require_account(request)
+    for member_id in BILLING.fam_members(user):
+        if _fam_ref(user, member_id) == member:
+            return {"ok": BILLING.fam_remove(user, member_id)}
+    return {"ok": False}
 
 
 @app.get("/api/voices")
@@ -5907,6 +6578,9 @@ class FeedbackRequest(BaseModel):
     page: str = Field("", max_length=2000)
     viewport: str = Field("", max_length=500)
     episode: Optional[FeedbackEpisode] = None
+    # The phone player's own log, sent by "Report a problem" on the player
+    # (§653). Its newest part is kept (`feedback.playback_tail`).
+    playback: str = Field("", max_length=200_000)
 
 
 async def _feedback_episode(ep: Optional[FeedbackEpisode]) -> Optional[dict]:
@@ -6103,7 +6777,7 @@ async def file_feedback(req: FeedbackRequest, request: Request) -> dict:
             page=req.page,
             viewport=req.viewport,
             agent=request.headers.get("user-agent", ""),
-            throttle_key=listener, episode=episode)
+            throttle_key=listener, episode=episode, playback=req.playback)
     except feedback_mod.FeedbackError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "id": report["id"]}
@@ -6771,6 +7445,8 @@ VIRAL_LOOPS = viral_loops_mod.ViralLoops(settings.viral_loops_api_token,
 PREFS = prefs_mod.PreferenceStore()
 METER = metering.MeterStore()
 QUOTAS = quotas.QuotaStore()
+#: Subscriptions, FAM-plan seats, half-a-mix counters (§656).
+BILLING = billing.BillingStore()
 MESSAGES = messages_mod.MessageStore()
 SAVED = saved_mod.SavedStore()
 SHARES = sharing.ShareStore()
@@ -7036,6 +7712,11 @@ WAITLIST_OPEN_PATHS = frozenset({
     # A FAM Ambassador code lets its account off the waitlist (§648, the
     # owner 11.18), so a waitlisted account must be able to enter one.
     "/api/ambassador",
+    # Stripe's webhook (§656) carries no session at all; its signature is
+    # its whole authority (`billing.verify_signature`).
+    "/api/billing/webhook",
+    # Apple's server notifications (§657), signed like the webhook above.
+    "/api/billing/apple/notifications",
 })
 #: Pages that are the app, sent to the waitlist instead while it is on. A mix
 #: link is a list of episodes to browse, which is the app. A shared *episode*
@@ -7412,6 +8093,108 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
+def _served_tile_query(topic_id: str) -> str:
+    """The question a DailyFAM tile with this id asks, if the server serves
+    one (§656 review): the evergreen bank, Start here, the live story pool or
+    the Trending edition - so a tile is free whether or not its episode is
+    written yet, and a made-up id buys nothing. Held in memory; no store
+    read, no network."""
+    for table in (topics_mod.BANK_BY_ID, topics_mod.STARTUP_BY_ID):
+        tile = table.get(topic_id)
+        if tile is not None:
+            return tile.query
+    now = time.time()
+    try:
+        for tile in topics_mod.live_topics(now):
+            if tile.id == topic_id:
+                return tile.query
+        for tile in topics_mod.topics_from_stories(
+                trending_bank.stories_in_memory(now), now=now):
+            if tile.id == topic_id:
+                return tile.query
+    except Exception:  # noqa: BLE001 - unknown is counted as a search
+        log.exception("could not look up tile %r", topic_id)
+    return ""
+
+
+def _mix_plays(found, query: str) -> bool:
+    return found is not None and any(mixes_mod.plays_item(i, query) for i in found.items)
+
+
+def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
+                   mix: str, cached_only: bool) -> str:
+    """The surface a play is counted against (§656): "godeeper" or "search"
+    spend an ask; "myfam" is a browse episode, free.
+
+    The surface, `topic_id` and `mix` are the client's words, so none of
+    them alone makes a play free - a free listener could otherwise name any
+    question a DailyFAM tile and search without limit. A play is a browse
+    episode only when the server can see it is one: an episode of the named
+    mix (or, for an older client that sends no `mix`, of one of the
+    listener's own mixes), a bank topic's own question, or - off the search
+    bar - an episode already written, which costs no model call."""
+    if cached_only:
+        return "explore"
+    if context:
+        return "godeeper"
+    query = plan.query
+    if mix and _mix_plays(MIXES.get_editable(user, mix)
+                          or MIXES.get_public(mix, viewer=user), query):
+        return "myfam"
+    served = _served_tile_query(topic_id) if topic_id else ""
+    if served and mixes_mod._plain(served) == mixes_mod._plain(query):
+        return "myfam"
+    # A shared link, a history replay, a tile: off the search bar, an
+    # episode already written is a replay, not a search.
+    if where != "search" and (plan.episode or _already_written(plan)):
+        return "myfam"
+    if where != "search" and (topic_id or mix or where in BROWSE_SURFACES):
+        try:
+            if user and any(_mix_plays(m, query) for m in MIXES.list_for_user(user)):
+                return "myfam"
+        except Exception:  # noqa: BLE001 - counted as a search, never refused
+            log.exception("could not read %r's mixes", user)
+    return "search"
+
+
+def _take_half_a_mix(request: Request, user: str, mix_id: str,
+                     episode_key: str) -> None:
+    """A free listener hears half of a myFAM mix a day (§656, the owner
+    11.18: "stopped half way through ... not able to finish it without the
+    subscription"). Counted as distinct episodes of that mix, so replaying
+    one is free; the one past half is refused with the plans sheet's
+    verdict. Nothing is counted while quotas are off, or for a paid tier."""
+    if not user or not quotas.settings_enforcing():
+        return
+    tier_name = _tier(request)
+    if entitlements.at_least(tier_name, billing.PAID_TIER):
+        return
+    found = MIXES.get_editable(user, mix_id) or MIXES.get_public(mix_id, viewer=user)
+    if found is None:
+        return
+    episodes = len([i for i in found.items if not getattr(i, "pending", False)])
+    if episodes <= 0:
+        return
+    allowance = billing.mix_allowance(episodes)
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    if BILLING.take_mix_episode(user, mix_id, day, episode_key or "", allowance):
+        return
+    resets = quotas.window_end("day", time.time())
+    verdict = {
+        "allowed": False, "resource": "mix", "tier": tier_name,
+        "window": "day", "used": allowance, "limit": allowance,
+        "unlimited": False, "remaining": 0, "resets_at": resets,
+        "charged": False, "service": "this mix",
+        "title": "You've heard half of this mix",
+        "message": (f"FAM Free plays {allowance} of this mix's {episodes} "
+                    "episodes a day. FAM Premium plays all of it."),
+    }
+    log.info("half a mix refused %s for %s", mix_id, user)
+    raise HTTPException(status_code=429, detail=verdict["message"],
+                        headers={"X-FAM-Quota": json.dumps(verdict),
+                                 "X-FAM-Refused-By": "quota"})
+
+
 def _may_be_private(where: str, context: str, topic_id: str) -> bool:
     """Whether this play may be private (§282, §285): a search, or a Go
     Deeper - a follow-up on what was heard (`context`), never a bank tile."""
@@ -7667,6 +8450,27 @@ class MixRequest(BaseModel):
     remove: Optional[list[str]] = Field(None, max_length=mixes_mod.MAX_TOPICS)
 
 
+def _adds_topics(mix, req: "MixRequest") -> bool:
+    """Whether a PATCH puts a topic into the mix that is not there now."""
+    if req.add:
+        return True
+    if req.topic_ids is None or mix is None:
+        return bool(req.topic_ids)
+    have = {item.id for item in mix.items}
+    for topic in req.topic_ids:
+        if isinstance(topic, dict):
+            try:
+                ident = mixes_mod.custom_item(topic.get("query", ""),
+                                              topic.get("title", "")).id
+            except mixes_mod.MixError:
+                return True
+        else:
+            ident = str(topic)
+        if ident not in have:
+            return True
+    return False
+
+
 def _merged_topics(mix, add, remove) -> list:
     """The mix's items as a `topic_ids` payload, with `remove` taken out and
     `add` put on the end - read from the mix as it is now, with no await
@@ -7905,6 +8709,7 @@ async def create_mix(req: MixRequest, request: Request):
         # Public unless the request says otherwise: a new mix is public by
         # default, at the owner's direction.
         account = _require_account(request)
+        _require_feature(request, "mixes")
         _require_can_post(account)
         # The cheap checks first, so a refused mix never pays for a photo check.
         mixes_mod.clean_name(req.name or "")
@@ -7926,6 +8731,10 @@ async def create_mix(req: MixRequest, request: Request):
 async def update_mix(mix_id: str, req: MixRequest, request: Request):
     _read_limit(request)
     account = _require_account(request)
+    # §656: making a mix is paid - so adding to one is; renaming, sharing,
+    # reordering or taking topics out of a mix they already have is not.
+    if _adds_topics(MIXES.get_editable(account, mix_id), req):
+        _require_feature(request, "mixes")
     kept = MIXES.get(account, mix_id)
     if kept is None and MIXES.is_member(mix_id, account):
         return await _update_joint_mix(mix_id, req, request, account)
@@ -8785,6 +9594,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     """The (+) on somebody else's mix: put it in this listener's DailyFAM."""
     _read_limit(request)
     user = _require_account(request)
+    _require_feature(request, "mixes")
     source = MIXES.get_public(mix_id)
     if not source:
         raise HTTPException(status_code=404,
@@ -8859,6 +9669,64 @@ async def mix_card(mix_id: str, request: Request) -> Response:
                              0, owner.get("handle") or "", pill="Daily mix")
     return Response(content=svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/@{handle}")
+async def open_profile_link(handle: str):
+    """A profile's own link, `familiarize.net/@handle` (§669): for meeting
+    somebody in person - texted, or read off a screen. Like a mix link it is
+    the app, opened on that profile (`/?person=`); whether the handle is
+    anybody, and whether the asker may see them, is `/api/person`'s to say,
+    so this answers the same for every handle and tells a guest nothing."""
+    try:
+        clean = social_mod.clean_handle(handle)
+    except social_mod.SocialError:
+        clean = ""
+    return RedirectResponse(url=f"/?person={quote(clean, safe='')}" if clean else "/",
+                            status_code=302)
+
+
+@app.get("/api/me/qr", include_in_schema=False)
+async def my_profile_qr(request: Request):
+    """This listener's profile link, `APP_HOME_URL/@handle`, as a QR code
+    (§670): for meeting somebody in person, scanned by any phone's camera.
+    An SVG of dark modules on nothing, so the card it sits on is its light
+    background; error correction M, which survives a cracked or dim screen.
+    Only your own: there is no handle parameter."""
+    _read_limit(request)
+    user = _require_account(request)
+    handle = SOCIAL.person(user).get("handle") or ""
+    if not handle:
+        raise HTTPException(status_code=404, detail="Choose a handle first, in Edit profile.")
+    return _profile_qr(handle)
+
+
+@app.get("/api/person/qr", include_in_schema=False)
+async def person_profile_qr(request: Request,
+                            handle: str = Query(..., max_length=social_mod.MAX_HANDLE + 1)):
+    """Somebody else's profile link as a QR code (§672), from their profile
+    page: to pass a friend on in person. Only for somebody this listener may
+    open (`_reachable`: not blocked either way, not suspended, not on the
+    waitlist unless already in their graph) - otherwise the same 404 as a
+    handle nobody has, so it tells nobody who exists."""
+    _read_limit(request)
+    user = _require_account(request)
+    target = _person_by_handle(handle)
+    if not target or target == user or not _reachable(user, target):
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    return _profile_qr(SOCIAL.person(target).get("handle") or "")
+
+
+def _profile_qr(handle: str) -> Response:
+    """`APP_HOME_URL/@handle` as an SVG QR code (§670)."""
+    import io
+    import segno
+    out = io.BytesIO()
+    segno.make(f"{settings.app_home_url}/@{handle}", error="m", micro=False).save(
+        out, kind="svg", scale=8, border=2, dark="#1a1714", light=None,
+        xmldecl=False, svgns=True, title=f"FAM @{handle}")
+    return Response(content=out.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "private, max-age=300"})
 
 
 @app.get("/m/{mix_id}")
@@ -12880,6 +13748,9 @@ async def audio(
     # cached search plays in the voice its audio is already kept in.
     voice_picked: bool = Query(False, description="The voice was picked for "
                                                   "this search, not left as it was"),
+    # §656: the myFAM mix this episode is played from, so a free listener's
+    # half of it can be counted. An older client never sends it.
+    mix: str = Query("", max_length=64, description="The mix this is played from"),
 ):
     """Stream the episode.
 
@@ -12946,9 +13817,15 @@ async def audio(
     # not requests. Five taps on one question used to spend a free listener's
     # whole day and then answer 429 to everything - for one episode, which they
     # had already paid for on the first tap.
+    if mix and not cached_only and not episode:
+        _take_half_a_mix(request, user, mix, _episode_key(plan))
     reserved = _reserve(request, "explore" if cached_only else "episode",
                         episode_key=_episode_key(plan),
-                        surface=_surface(cached_only, topic_id, context))
+                        # Whether this spends the week's one search is decided
+                        # from what the play is, never from what the client
+                        # calls it (§656 review).
+                        surface=_spend_surface(user, plan, where, topic_id,
+                                               context, mix, cached_only))
 
     try:
         pipeline = _make_pipeline(_episode_voice(user, where, plan, voice, voice_picked),

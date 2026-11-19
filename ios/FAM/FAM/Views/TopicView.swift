@@ -292,19 +292,3 @@ extension PersonPage {
     }
 }
 
-/// An interest chip that opens its Topic screen (`.yf-chip` as a button).
-struct InterestChipButton: View {
-    let topic: TopicOpen
-    var height: CGFloat = 23
-    var size: CGFloat = 10
-    let open: (TopicOpen) -> Void
-
-    var body: some View {
-        Button { open(topic) } label: {
-            InterestChip(label: topic.label, height: height, size: size)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.press)
-        .accessibilityHint("Opens episodes on this interest")
-    }
-}

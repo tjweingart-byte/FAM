@@ -36,6 +36,7 @@ on:
       - "voice_store.py"
       - "voice_bank.py"
       - "audio_utils.py"
+      - "pace_level.py"
       - "requirements.txt"
       - "requirements-chatterbox.txt"
       - "requirements-voice-worker.txt"

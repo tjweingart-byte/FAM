@@ -31,6 +31,8 @@ def enforced(monkeypatch):
     """Limits on, and small enough to reach inside a test."""
     monkeypatch.setattr(quotas, "settings_enforcing", lambda: True)
     monkeypatch.setenv("FREE_EPISODES_PER_DAY", "2")
+    # §656: a search is an ask; the same small number for the audio tests.
+    monkeypatch.setenv("FREE_ASKS_PER_WEEK", "2")
     monkeypatch.setenv("FREE_EXPLORE_PER_DAY", "3")
     entitlements.reload_tiers()
     yield
@@ -195,7 +197,7 @@ def test_the_refusal_carries_the_whole_verdict_not_just_a_sentence(client, enfor
 
 def test_the_allowance_is_visible_before_it_runs_out(client, enforced):
     client.post("/api/script", json={"query": "q", "minutes": 1})
-    usage = client.get("/api/entitlements").json()["usage"]["episode"]
+    usage = client.get("/api/entitlements").json()["usage"]["ask"]
     assert usage["used"] == 1 and usage["remaining"] == 1
 
 
@@ -223,7 +225,7 @@ def test_explore_replays_are_counted_separately_from_generation(client, enforced
     for _ in range(2):
         client.post("/api/script", json={"query": "q", "minutes": 1})
     usage = client.get("/api/entitlements").json()["usage"]
-    assert usage["episode"]["remaining"] == 0
+    assert usage["ask"]["remaining"] == 0
     assert usage["explore"]["remaining"] == 3
 
 
@@ -286,7 +288,7 @@ def test_an_episode_that_failed_before_costing_anything_is_refunded(client, enfo
 
     monkeypatch.setattr(appmod, "_make_pipeline", no_voice)
     assert client.get("/api/audio?q=anything&minutes=1&fmt=pcm").status_code == 503
-    assert client.get("/api/entitlements").json()["usage"]["episode"]["used"] == 0
+    assert client.get("/api/entitlements").json()["usage"]["ask"]["used"] == 0
 
 
 def test_a_tier_can_shorten_an_episode_but_never_lengthen_it(client, enforced,

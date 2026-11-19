@@ -29,7 +29,7 @@ settings:
   base:
     MARKETING_VERSION: "1.0.0"
     # Every upload needs a higher number; the spike used 1.
-    CURRENT_PROJECT_VERSION: "9"
+    CURRENT_PROJECT_VERSION: "10"
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
     # Apali, LLC (developer.apple.com > Membership), so a regenerated
@@ -99,6 +99,10 @@ targets:
         # while it is pressed (§297), and "Hey FAM" (§158, opt-in in
         # Settings) while FAM is open on screen - never in the background.
         NSMicrophoneUsageDescription: FAM listens while voice search is open, to turn what you say into a search, and while you press Speak on a story, to write what you say - and, only if you turn on "Hey FAM" in Settings, while FAM is open on your screen, for "Hey FAM".
+        # Find your friends (§665): read only when the listener taps "Find
+        # friends in your contacts"; the numbers and addresses are matched
+        # on the server and kept by nobody.
+        NSContactsUsageDescription: FAM checks your contacts' numbers and email addresses to show which of them are on FAM, only when you tap Find friends in your contacts. FAM keeps none of them.
         NSSpeechRecognitionUsageDescription: FAM turns what you say into the words of your search or your story, and listens for "Hey FAM" if you turn it on. On phones that can, this happens on the phone; otherwise Apple's speech recognition does it. Only the finished words are sent to FAM.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [$(GOOGLE_REVERSED_CLIENT_ID)]

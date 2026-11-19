@@ -67,6 +67,31 @@ final class FAMAPI: @unchecked Sendable {
         _ = try await send("POST", "api/v1/ambassador", body: ["code": code], as: Ignored.self)
     }
 
+    /// "Report a problem" on the player (the owner's 11.18 notes, §653):
+    /// what the listener typed, the episode on the player - which the
+    /// server reads its title, sources and transcript for, so the inbox
+    /// shows what was heard - and the player's own log, into /admin's
+    /// feedback inbox. A refusal is a 400 whose words say why.
+    func reportProblem(_ text: String, episode: Episode?, episodeID: String,
+                       playback: String, viewport: String) async throws {
+        var body: [String: Any] = [
+            "text": text, "screen": "player", "build": Self.client, "page": "ios",
+            "viewport": viewport,
+            "playback": playback,
+        ]
+        if let ep = episode {
+            var thumb = ""
+            if let url = ep.picture {
+                thumb = url.path + (url.query.map { "?" + $0 } ?? "")
+            }
+            body["episode"] = ["q": String(ep.key.query.prefix(500)), "minutes": ep.key.minutes,
+                               "context": String(ep.key.context.prefix(300)),
+                               "id": episodeID.isEmpty ? ep.episodeID : episodeID,
+                               "thumb": thumb]
+        }
+        _ = try await send("POST", "api/v1/feedback", body: body, as: Ignored.self)
+    }
+
     /// Claim the free month (§593): the same claim as the emailed link, for
     /// the signed-in account.
     func claimFreeMonth() async throws -> FreeMonthOffer {
@@ -369,7 +394,8 @@ final class FAMAPI: @unchecked Sendable {
                cachedOnly: Bool = false, episode: String = "",
                reading: String = "", askReading: Bool = false,
                voice: String = "", voicePicked: Bool = false,
-               isPrivate: Bool = false, attach: String = "") -> URLRequest {
+               isPrivate: Bool = false, attach: String = "",
+               mix: String = "") -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -404,6 +430,9 @@ final class FAMAPI: @unchecked Sendable {
         if isPrivate { items.append(URLQueryItem(name: "private", value: "1")) }
         // What the listener attached (`/api/attach`): ids, never the file.
         if !attach.isEmpty { items.append(URLQueryItem(name: "attach", value: String(attach.prefix(400)))) }
+        // The myFAM mix this plays from (§656): a free listener hears half
+        // of one, counted on the server.
+        if !mix.isEmpty { items.append(URLQueryItem(name: "mix", value: mix)) }
         var audioRequest = request("GET", "api/v1/audio", query: items)
         // A cold voice may be silent longer than URLSession's 60 s: the
         // loading screen's own give-up (§497, `voice_wait` + 15 s) decides,
@@ -2500,11 +2529,51 @@ extension FAMAPI {
     }
 
     /// Follow by the id the graph or a search returned, or by handle (a
-    /// friend of a friend has no id on this side).
-    func follow(userID: String = "", handle: String = "") async throws {
+    /// friend of a friend has no id on this side). `via` is where the
+    /// Follow was tapped (§669, `social.FOLLOW_VIA`), never who.
+    func follow(userID: String = "", handle: String = "", via: String = "") async throws {
         var body: [String: Any] = [:]
         if !userID.isEmpty { body["user_id"] = userID } else { body["handle"] = handle }
+        if !via.isEmpty { body["via"] = via }
         _ = try await send("POST", "api/v1/friends/follow", body: body, as: FollowAnswer.self)
+    }
+
+    /// Follow several at once (§669): contacts' Follow all. One request
+    /// and one pace; whoever cannot be followed is skipped.
+    func followAll(userIDs: [String], via: String) async throws -> FollowAllAnswer {
+        try await send("POST", "api/v1/friends/follow-all",
+                       body: ["user_ids": Array(userIDs.prefix(50)), "via": via], as: FollowAllAnswer.self)
+    }
+
+    /// "Suggested for you" (§665): with a handle, who that person follows -
+    /// only once this listener follows them; without, Discover people.
+    func suggested(handle: String = "") async throws -> [FollowPerson] {
+        let items = handle.isEmpty ? [] : [URLQueryItem(name: "handle", value: handle)]
+        return try await get("api/v1/friends/suggested", items, as: PeoplePage.self).people
+    }
+
+    /// "Your contacts on FAM" (§665): the contacts this listener let the
+    /// app read, matched on the server and forgotten there. The request
+    /// names the listener's clock (`X-FAM-TZ`) as every request does, which
+    /// is how a number saved without +1 is read (§674).
+    func contacts(_ entries: [ContactEntry]) async throws -> [FollowPerson] {
+        let body: [String: Any] = ["contacts": entries.prefix(2000).map { e in
+            ["name": String(e.name.prefix(120)),
+             "tel": Array(e.tel.prefix(8).map { String($0.prefix(120)) }),
+             "email": Array(e.email.prefix(8).map { String($0.prefix(120)) })] as [String: Any]
+        }]
+        return try await send("POST", "api/v1/friends/contacts", body: body, as: PeoplePage.self).people
+    }
+
+    /// "Molly just joined FAM" (§669): newcomers who have this listener in
+    /// their contacts, each shown once.
+    func joined() async throws -> [FollowPerson] {
+        try await get("api/v1/friends/joined", [], as: PeoplePage.self).people
+    }
+
+    /// The "just joined" card went up: the notice is forgotten.
+    func joinedSeen(_ userID: String) async {
+        _ = try? await send("POST", "api/v1/friends/joined/seen", body: ["user_id": userID], as: Ignored.self)
     }
 
     func unfollow(userID: String) async throws {
@@ -2693,8 +2762,28 @@ struct FollowPerson: Decodable, Hashable, Identifiable {
     let waitlisted: Bool?
     let followsBack: Bool?
     let following: Bool?
+    /// Suggested for you (§665): why this card, in the server's words
+    /// ("Follows you", "4 mutuals", "Suggested for you").
+    let reason: String?
+    /// Your contacts on FAM (§665): the name from this listener's own
+    /// address book, sent back from the request and kept nowhere.
+    let contactName: String?
 
     var id: String { userId }
+}
+
+/// One address-book entry for `/api/friends/contacts` (`ContactEntry`).
+struct ContactEntry: Hashable {
+    var name: String
+    var tel: [String]
+    var email: [String]
+}
+
+/// `POST /api/friends/follow-all`.
+struct FollowAllAnswer: Decodable {
+    let followed: Int?
+    let skipped: Int?
+    let counts: FollowCounts?
 }
 
 /// `GET /api/friends`.
@@ -2743,6 +2832,15 @@ struct PersonPage: Decodable {
     let `private`: Bool?
     /// A FAM Ambassador (§648): the tag under their name.
     let ambassador: Bool?
+    /// "Followed by Brady, Ian, and 45 others" (§666/§667): the people this
+    /// listener follows who follow them; absent from an older server.
+    let mutuals: PersonMutuals?
+}
+
+/// `mutuals` on `/api/person`: all of them counted, the first 30 named.
+struct PersonMutuals: Decodable, Hashable {
+    let count: Int?
+    let people: [PersonFriend]?
 }
 
 struct PersonMix: Decodable, Hashable, Identifiable {
@@ -2890,8 +2988,61 @@ extension FAMAPI {
     }
 
     /// Every tier and the one this listener is on (`/api/plans`); no prices.
+    /// Whether searches and Go Deepers are counted for this listener - the
+    /// free tier's one a week (§656). False when unknown.
+    func asksCapped() async -> Bool {
+        // Kept a minute, so the card after each episode does not wait on a
+        // round trip (`asksCapped` on the web).
+        if let kept = Self.asksCappedMemo.read(), Date().timeIntervalSince(kept.at) < 60 {
+            return kept.value
+        }
+        guard let page = try? await get("api/v1/entitlements", [], as: AskAllowance.self)
+        else { return false }
+        let value = page.enforced == true && page.usage?.ask?.unlimited == false
+        Self.asksCappedMemo.write(AskMemo(at: Date(), value: value))
+        return value
+    }
+    private static let asksCappedMemo = LockedMemo<AskMemo>()
+
     func plans() async throws -> PlansPage {
         try await get("api/v1/plans", [], as: PlansPage.self)
+    }
+
+    /// What Apple's sheet needs (§657): this account's `appAccountToken`
+    /// and each plan's App Store product id.
+    func appleSetup() async throws -> AppleSetup {
+        try await get("api/v1/billing/apple", [], as: AppleSetup.self)
+    }
+
+    /// A StoreKit 2 transaction, as Apple signed it: the server checks the
+    /// signature and that it was bought by this account, then sets the plan.
+    func appleTransaction(_ jws: String) async throws -> AppleVerdict {
+        try await send("POST", "api/v1/billing/apple", body: ["transaction": jws],
+                       as: AppleVerdict.self)
+    }
+
+    /// The FAM plan's one-use code for somebody to join with (§656).
+    func famPlanInvite() async throws -> String {
+        try await send("POST", "api/v1/billing/fam/invite", body: [:],
+                       as: FamPlanCode.self).code
+    }
+
+    /// Email a code to a .edu address (§658): the Student plan is sold only
+    /// to a verified one. Returns the address it went to.
+    func studentStart(_ email: String) async throws -> String {
+        try await send("POST", "api/v1/billing/student", body: ["email": email],
+                       as: StudentSent.self).sentTo
+    }
+
+    /// The code from that email; true once verified.
+    func studentConfirm(_ code: String) async throws -> Bool {
+        try await send("POST", "api/v1/billing/student/confirm", body: ["code": code],
+                       as: StudentVerdict.self).verified
+    }
+
+    func famPlanJoin(_ code: String) async throws {
+        _ = try await send("POST", "api/v1/billing/fam/join", body: ["code": code],
+                           as: Ignored.self)
     }
 
     /// The voice bank and the voice searches are spoken in (§147).
@@ -3100,6 +3251,88 @@ struct PlansPage: Decodable {
     let current: String?
     let enforced: Bool?
     let checkout: Bool?
+    /// What is sold (§656), and this account's subscription. Absent from an
+    /// older server.
+    let offers: [PlanOffer]?
+    let subscription: PlanSubscription?
+    /// The Student plan's .edu check (§658).
+    let student: StudentVerdict?
+}
+
+struct AskMemo { let at: Date; let value: Bool }
+
+/// One value behind a lock, for a memo read from any task.
+final class LockedMemo<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value?
+    func read() -> Value? { lock.lock(); defer { lock.unlock() }; return value }
+    func write(_ new: Value) { lock.lock(); value = new; lock.unlock() }
+}
+
+struct AskAllowance: Decodable {
+    struct Usage: Decodable { let ask: Allowance? }
+    struct Allowance: Decodable { let unlimited: Bool? }
+    let enforced: Bool?
+    let usage: Usage?
+}
+
+struct StudentSent: Decodable {
+    let sentTo: String
+}
+
+struct StudentVerdict: Decodable, Hashable {
+    let verified: Bool
+    let email: String?
+    let expires: Double?
+}
+
+/// One plan for sale: Student, Single, the FAM plan. The price shown in
+/// this app is Apple's (`Product.displayPrice`), never the server's.
+struct PlanOffer: Decodable, Hashable {
+    let plan: String
+    let label: String
+    let blurb: String?
+    let appleProduct: String?
+    let seats: Int?
+}
+
+struct PlanSubscription: Decodable, Hashable {
+    let plan: String?
+    let status: String?
+    /// "apple" or "stripe": which store can change or cancel it.
+    let store: String?
+    let famMemberOf: String?
+    let famMembers: Int?
+}
+
+struct AppleSetup: Decodable {
+    let token: String
+    /// Plan -> App Store product id, keyed by the server's plan names (put
+    /// back to snake case, as every server-keyed dictionary is).
+    let products: [String: String]
+    let ownPlan: String?
+    let store: String?
+
+    enum CodingKeys: String, CodingKey { case token, products, ownPlan, store }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        token = try c.decode(String.self, forKey: .token)
+        products = ShareTarget.serverKeyed(try c.decodeIfPresent([String: String].self,
+                                                                 forKey: .products)) ?? [:]
+        ownPlan = try c.decodeIfPresent(String.self, forKey: .ownPlan)
+        store = try c.decodeIfPresent(String.self, forKey: .store)
+    }
+}
+
+struct AppleVerdict: Decodable {
+    let plan: String?
+    let status: String?
+    let tier: String?
+}
+
+struct FamPlanCode: Decodable {
+    let code: String
 }
 
 struct PlanTier: Decodable, Hashable {

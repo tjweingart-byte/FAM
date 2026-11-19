@@ -1,4 +1,5 @@
-"""Training the writer (§522): high effort where nobody waits, the ear
+"""Training the writer (§522): more effort where nobody waits (medium since
+§654), the ear
 checks, where listeners stop, and before-and-after pairs made before launch.
 """
 from __future__ import annotations
@@ -19,11 +20,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ------------------------------------------------------------------ 1. effort
-def test_the_writer_thinks_hard_only_where_nobody_waits():
+def test_the_writer_thinks_harder_only_where_nobody_waits():
     assert sg.writer_for(ScriptNotes())[1] == "low"                    # searchFAM
     assert sg.writer_for(None)[1] == "low"
     for flags in ({"ahead": True}, {"edition": True}, {"prefetch": True}):
-        assert sg.writer_for(ScriptNotes(**flags))[1] == "high", flags
+        assert sg.writer_for(ScriptNotes(**flags))[1] == "medium", flags
     assert sg.writer_for(ScriptNotes(ahead=True))[0] == sg.writer_for(ScriptNotes())[0]
 
 
@@ -36,7 +37,7 @@ def test_an_editions_own_effort_still_wins(monkeypatch):
 
 def test_the_effort_is_copied_and_reported():
     text = open(os.path.join(ROOT, ".env.example")).read()
-    assert "\nAHEAD_WRITER_EFFORT=high\n" in text and "\nTEACHING_PAIRS=1\n" in text
+    assert "\nAHEAD_WRITER_EFFORT=medium\n" in text and "\nTEACHING_PAIRS=1\n" in text
     source = open(os.path.join(ROOT, "app.py")).read()
     assert '"ahead_writer_effort": writer_for(ScriptNotes(ahead=True))[1]' in source
 

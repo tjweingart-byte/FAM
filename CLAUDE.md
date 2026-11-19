@@ -172,7 +172,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
   respelled for the voice: EI's brief, the writer's `<<SAY: Name =
-  respelling>>` lines and Wikipedia (§289, over both) feed a lexicon; an
+  respelling>>` lines, Wikipedia (§289, over both) and a seed of famous names (Iran, §663) feed a lexicon; an
   admin fix is never overridden; only the voice's text changes -
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
@@ -243,6 +243,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows asymmetric; friend = mutual, derived; cards show the
   friends' faces. [op-follow-graph] [friends-listened]
+- **Find your friends**: sign-up's third step; contacts matched, never kept
+  (a newcomer's match leaves one "just joined" notice, §669); Suggested for
+  you cards, after a follow its people; doors on both tabs; follows record
+  where they were tapped (`via`). [find-friends]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),
@@ -259,7 +263,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   changeable; identity step after sign-up only; `identityMode`/`introMode` decide
   X, button label and return target; a settings row is an editor, never the
   first run again; interests are **one sideways-scrolling line** under Edit
-  profile / Saved for Later on yours and a friend's page - Edit profile
+  profile / Saved for Later on yours and a friend's page, labels that open nothing - Edit profile
   holds the five, ranked by `taste`; hero + Vibes/Mixes tiles, friends' too; showing ≠ liking;
   `/api/person` shows pinned or declared-minus-hidden, never history. [op-profile-hub]
 - Attachments: extracted at attach time, never on the generation path; failures
@@ -375,11 +379,11 @@ Caching and prefetch
   anything personal, report `None` not `0`. [prefetch-same-key]
 - A prefetch candidate carries a reason in words; sources never call a model or
   the network. [candidate-reason]
-- **Brief: Haiku 5.5, medium**, untimed; **writer: Haiku, low; high ahead**;
+- **Brief: Haiku 5.5, medium**, untimed; **writer: Haiku, low; medium ahead**;
   composer, placer, thumbnails `MODEL`; priced per model. [small-calls-haiku]
 - **Writer savings change no word and cost no episode**: its
-  instructions are one cacheable block (`PROMPT_CACHE`); the Trending and
-  DailyFAM editions batch their writers (`EDITION_BATCH`), read by the same
+  instructions are one cacheable block (`PROMPT_CACHE`); every writer
+  written ahead is batched (editions, write-ahead, prefetch), read by the same
   `_ScriptReader`, and whatever a batch does not answer in time is written
   live from what was already prepared. Nothing a listener waits on is batched. [writer-savings]
 
@@ -430,8 +434,11 @@ Accounts, tiers, sharing
   page plays the three sign-up samples as replays, own picture only; a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there;
   a guest at the address gets the app's sign-in/sign-up, not `/waitlist`. [waitlist-gate]
-- **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited`; no
-  checkout [tiers-off]; 5 invites: free month [free-month];
+- **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited` [tiers-off];
+  every account's free month from launch [free-month];
+- **Paid by Stripe on the web, Apple IAP on iPhone** (`billing.py`, `apple_iap.py`):
+  Student (.edu-verified), Single, FAM plan (4) all `plus`, unlimited; free: 1 search/Go Deeper
+  a week, tiles free, half a mix, no own mixes; signed events set plans [web-billing]
   let in: mail+text a claim link, month at launch [waitlist-notice]
 - An admin-made **ambassador code**: tag, free unlimited, off the waitlist; revocable [ambassadors]
 - A refusal names what the listener was doing (`service_label`), composed

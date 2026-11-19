@@ -27,6 +27,11 @@ model call:
   would be too late for the only mention that matters.
 * **An admin** can fix any name on /admin, and an admin's respelling is never
   replaced by a model's.
+* **A seed** (§663, `SEED` below): well-known names an English speaker
+  says one way and the voice reads another - "Iran" as "eye-ran" - which no
+  model lists, because to a model they are not hard, and which the CMU scan
+  (`hard_words.py`) never flags, because the dictionary has them. Written to
+  the table once per process, under an admin and over everything else.
 * **Wikipedia** (10.16 #6, `wiki_pronounce.py`): every name a model adds is
   looked up in the background, and an article's own respelling or IPA
   replaces a model's guess it disagrees with. Below an admin, above both
@@ -63,11 +68,77 @@ SAY_MARKER = re.compile(r"<<\s*SAY\s*:\s*([^<>=]{1,80}?)\s*=\s*([^<>]{1,160}?)\s
 
 #: Where an entry came from. The order is precedence: an admin's respelling
 #: is never replaced by a model's.
-SOURCES = ("admin", "wikipedia", "writer", "brief")
+SOURCES = ("admin", "seed", "wikipedia", "writer", "brief")
+
+#: Names the voice says wrong although every listener knows them (§663).
+#: The owner: "We are still having pronunciation issues within the app, even
+#: with names as similar as the country name 'Iran'". The lexicon only ever
+#: learned names a model chose to list, and no model lists "Iran". These are
+#: the common American broadcast readings, chosen by hand and *unheard* in
+#: Chatterbox - /admin's "Hear 4 ways" is how one is checked. An admin's
+#: respelling replaces any of them; removing one on /admin brings it back at
+#: the next boot, so a wrong seed is fixed by setting the right one.
+SEED = {
+    # Countries and their people
+    "Iran": "ih-RAHN", "Iranian": "ih-RAY-nee-un", "Iranians": "ih-RAY-nee-unz",
+    "Iraq": "ih-RAHK", "Iraqi": "ih-RAH-kee", "Iraqis": "ih-RAH-keez",
+    "Qatar": "KAH-tar", "Qatari": "KAH-tuh-ree", "Qataris": "KAH-tuh-reez",
+    "Oman": "oh-MAHN", "Omani": "oh-MAH-nee", "Omanis": "oh-MAH-neez",
+    "Bahrain": "bah-RAYN", "Bahraini": "bah-RAY-nee", "Bahrainis": "bah-RAY-neez", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
+    "Uruguay": "YOOR-uh-gway", "Venezuela": "veh-neh-ZWAY-luh",
+    "Venezuelan": "veh-neh-ZWAY-lun", "Caribbean": "kair-ih-BEE-un", "Myanmar": "MYAHN-mar", "Lesotho": "leh-SOO-too",
+    # Cities and places in the news
+    "Tehran": "teh-RAHN", "Kyiv": "KEE-yiv", "Beijing": "bay-JING",
+    "Doha": "DOH-hah", "Riyadh": "ree-YAHD", "Kabul": "KAH-bool",
+    "Gaza": "GAH-zuh", "Rafah": "RAH-fah", "Tbilisi": "tuh-bih-LEE-see",
+    "Qom": "kohm", "Hormuz": "hor-MOOZ", "Fordow": "for-DOH", "Natanz": "nah-TAHNZ",
+    "Khan Younis": "KAHN yoo-NEES", "Kharkiv": "KAR-kiv", "Donetsk": "duh-NETSK",
+    "Donbas": "don-BAHS", "Lviv": "luh-VEEV", "Kherson": "ker-SAWN",
+    "Odesa": "oh-DESS-uh", "Seoul": "SOHL", "Pyongyang": "pyung-YAHNG",
+    "Xinjiang": "shin-JYAHNG", "Shenzhen": "shen-JEN", "Taipei": "ty-PAY",
+    "Des Moines": "deh MOYN", "Tucson": "TOO-sahn", "Boise": "BOY-see",
+    "Spokane": "spoh-KAN",
+    # Names and groups in the news
+    "Xi": "shee", "Xi Jinping": "shee jin-PING", "Erdogan": "AIR-doh-wahn",
+    "Erdoğan": "AIR-doh-wahn", "Khamenei": "kah-meh-NAY-ee", "Houthi": "HOO-thee", "Houthis": "HOO-theez",
+    "Hezbollah": "hez-boh-LAH", "Modi": "MOH-dee",
+    "Putin": "POO-tin", "Hamas": "hah-MAHS", "Qaeda": "KY-duh",
+    "Zelensky": "zeh-LEN-skee", "Zelenskyy": "zeh-LEN-skee",
+    "Kim Jong Un": "KIM jong OON", "Macron": "mah-KROHN", "Merz": "MAIRTS",
+    "Milei": "mee-LAY", "Guterres": "goo-TAIR-esh", "Noem": "NOHM",
+    "Leavitt": "LEV-it", "Thune": "THOON", "Alito": "uh-LEE-toh",
+    # Sports (§663's audit): names an English reading gets wrong
+    "Jokic": "YOH-kitch", "Doncic": "DON-chitch",
+    "Antetokounmpo": "an-teh-toh-KOON-poh", "Kelce": "KEL-see",
+    "Mahomes": "muh-HOHMZ", "Mbappe": "em-bah-PAY", "Mbappé": "em-bah-PAY",
+    "Djokovic": "JOH-kuh-vitch", "Gauff": "GAWF", "Pulisic": "POO-lih-sik",
+    "Leclerc": "luh-KLAIR", "Draisaitl": "DRY-sy-tul",
+    # Companies and products in markets stories
+    "Huawei": "WAH-way", "Xiaomi": "SHOW-mee", "Hyundai": "HUN-day",
+    "Porsche": "POR-shuh", "Chipotle": "chih-POHT-lay", "Wegovy": "wee-GOH-vee",
+    # Respelled by hand (§664): a model's entry kept a vowel-marking h inside
+    # one syllable ("beh-SEHR-ah", "rohd-REE-gehs"), which no joining rule
+    # can mend without guessing. A seed outranks the writer's and the brief's
+    # row it replaces; an admin's row (Libertad) is changed on /admin.
+    "Becerra": "buh-SAIR-uh", "Bernabéu": "ber-nah-BAY-oo",
+    "Azerbaijan": "az-er-by-JAHN", "Bullock": "BUL-luk", "Bushehr": "boo-SHAIR",
+    "Cleopatra's": "klee-oh-PAT-ruz", "Glastonbury": "GLAS-tun-ber-ee",
+    "González": "gon-ZAH-lez", "Javier": "hah-VYAIR",
+    "Mountbatten-Windsor": "mownt-BAT-tun WIN-zer", "Rodríguez": "rod-REE-ghez",
+    "Samvat": "SUM-vut", "Sirianni": "sir-ee-AH-nee",
+}
+
+#: Seed names under three letters, allowed past `clean`'s length rule because
+#: they were chosen by hand ("Xi" is said in every story about China) - for
+#: the seed, an admin's fix, "Hear 4 ways" and the review upload alike.
+_SHORT_SEED = frozenset({"Xi"})
 
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
 RELOAD_SECONDS = 60.0
+
+#: How long after a failed seed (`Lexicon.seed`) it is tried again.
+SEED_RETRY_SECONDS = 300.0
 
 #: How long a personal episode's respellings are held in memory (§165).
 #: Long enough for the longest episode to finish speaking, and never written
@@ -102,7 +173,8 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
         return None
     if not any(c.isupper() for c in name):
         return None
-    if name.lower() in _COMMON or len(name.replace(" ", "")) < 3:
+    if name.lower() in _COMMON or (len(name.replace(" ", "")) < 3
+                                   and name not in _SHORT_SEED):
         return None
     if say.replace("-", "").replace(" ", "").lower() == \
             re.sub(r"[^a-z]", "", name.lower()):
@@ -117,15 +189,60 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
 #: Letter pairs that are one sound when they meet, so the hyphen between them
 #: stays: "mat-hew" joined would be "mathew", a th.
 _DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
+#: A respelling's short vowels, written with an h ("ih", "eh", "uh"), and
+#: the consonants English doubles after one to keep it short (§664).
+_SHORT_VOWELS = frozenset(("ih", "eh"))
+#: Sources whose names are also matched in capitals (§663).
+_CAPS_SOURCES = frozenset(("admin", "seed", "wikipedia"))
+#: Endings whose h is a real sound, not a vowel's mark ("shah", "pooh").
+_KEEP_H = frozenset(("shah",))
+_DOUBLES = frozenset("bdfglmnprst")
 
 
 def _joined(word: str) -> str:
     """One respelled word's syllables as one word: "sah-gah-poh" -> "sahgahpoh",
-    keeping a hyphen only where joining would make a new sound (§576)."""
-    parts = [p for p in word.split("-") if p]
-    out = parts[0] if parts else ""
-    for part in parts[1:]:
-        out += ("-" if (out[-1:] + part[:1]) in _DIGRAPHS else "") + part
+    keeping a hyphen only where joining would make a new sound (§576).
+
+    `word` keeps its capitals, which mark the stressed syllable; what comes
+    back is lower case. A syllable's closing h only marks its vowel ("ih",
+    "eh", "uh", "ah", "oh"), and joined it is a sound the voice breathes:
+    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§664). So
+    where a marked vowel meets the next syllable inside a word:
+
+    * a short "ih" or "eh" loses its h, and the consonant after it doubles
+      where English doubles one to keep a vowel short ("Irrahn", as in
+      irritate; "Terrahn"; "Zellenskee"), else just loses its h;
+    * an unstressed "uh" - the schwa - is written "a", as English writes it
+      ("ab-dul-kuh-REEM" -> "Abdulkareem", "uh-DAH-nee" -> "Adahnee"):
+      doubled, it drew the stress ("Uddahnee");
+    * any marked vowel before another vowel loses its h and keeps a hyphen,
+      or the h is said ("ah-jah-EH-roh" was "Ahjahehroh").
+    """
+    raw = [p for p in word.split("-") if p]
+    parts = [p.lower() for p in raw]
+    if not parts:
+        return ""
+    out = parts[0]
+    for i, part in enumerate(parts[1:], 1):
+        meet = out[-1:] + part[:1]
+        # An h after a vowel or an h is swallowed when joined ("doh-hah" ->
+        # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§663).
+        if meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh"):
+            out += "-" + part
+            continue
+        marked = out[-2:] if (out[-1:] == "h" and out[-2:-1]
+                              and out[-2:-1] in "aeiou"
+                              and not out.endswith(tuple(_KEEP_H))) else ""
+        if marked and part[:1] in "aeiou":
+            out = out[:-1] + "-" + part
+        elif marked in _SHORT_VOWELS and part[:2] not in _DIGRAPHS:
+            out = out[:-1] + (part[:1] if part[:1] in _DOUBLES else "") + part
+        elif marked == "uh" and not raw[i - 1].isupper() and part[:2] not in _DIGRAPHS:
+            out = out[:-2] + "a" + part
+        elif marked in _SHORT_VOWELS or marked == "uh":
+            out = out[:-1] + part           # before a digraph: the h only
+        else:
+            out += part
     return out
 
 
@@ -141,7 +258,7 @@ def voiced(say: str) -> str:
     owner heard every respelled name as choppy - so a word is handed over
     whole ("Sahgahpohlooteleh"), as the words it learned from are written.
     """
-    words = [_joined(w.lower()) for w in say.split()]
+    words = [_joined(w) for w in say.split()]
     return " ".join(w[:1].upper() + w[1:] for w in words if w)
 
 
@@ -201,16 +318,25 @@ class Lexicon:
     `RELOAD_SECONDS`, and at once after a write from this process.
     """
 
-    def __init__(self, store=None) -> None:
+    def __init__(self, store=None, seed: bool = True) -> None:
         self._store = store
         self._lock = threading.Lock()
         self._entries: dict[str, tuple[str, str]] = {}
         self._stored: dict[str, tuple[str, str]] = {}
         self._pattern: Optional[re.Pattern] = None
+        #: `_entries` plus each name's capitals (`_compile`): what `apply` matches.
+        self._lookup: dict[str, tuple[str, str]] = {}
         self._loaded = 0.0
         #: name -> (say, source, expires): respellings from personal episodes,
         #: in this process only and never in the table. See `hold`.
         self._held: dict[str, tuple[str, str, float]] = {}
+        #: False: the table is never seeded (`SEED`) - for tests about an
+        #: empty lexicon.
+        self._seeded = not seed
+        #: When seeding last started, so a failed seed is retried after
+        #: `SEED_RETRY_SECONDS` and never twice at once.
+        self._seed_tried = 0.0
+        self._seeding = False
 
     def _bank(self):
         if self._store is not None:
@@ -228,18 +354,91 @@ class Lexicon:
         return merged
 
     def _compile(self) -> None:
-        self._entries = self._merged()
-        names = sorted(self._entries, key=len, reverse=True)
+        entries = self._merged()
+        self._entries = entries
+        # A name in capitals ("IRAN", "HAMAS" in a headline) is matched too
+        # (§663): `speakable` turns it into "Iran" only after the lexicon
+        # has looked, and matching is by case. From four letters, so "XI"
+        # the numeral is never "Xi"; only for respellings a person or a
+        # reference chose (`_CAPS_SOURCES`), not ~1,400 model guesses; where
+        # two names share capitals the better-ranked respelling wins; and
+        # only in the matching table - `entries()` lists real names.
+        rank = {src: i for i, src in enumerate(SOURCES)}
+        lookup = dict(entries)
+        caps: dict[str, tuple[str, str]] = {}
+        for name, value in entries.items():
+            upper = name.upper()
+            if (value[1] in _CAPS_SOURCES and len(name.replace(" ", "")) >= 4
+                    and upper != name and upper not in entries):
+                held = caps.get(upper)
+                if held is None or rank.get(value[1], 99) < rank.get(held[1], 99):
+                    caps[upper] = value
+        lookup.update(caps)
+        self._lookup = lookup
+        names = sorted(lookup, key=len, reverse=True)
         self._pattern = (re.compile(
             # A hyphen is a boundary, so "Keawe" is found in "Jaron-Keawe";
             # a letter or an apostrophe before it is not ("O'Keawe").
             r"(?<![A-Za-zÀ-ÿĀ-ſ'’])(" + "|".join(re.escape(n) for n in names)
             + r")(?![A-Za-zÀ-ÿĀ-ſ])") if names else None)
 
+    def seed(self) -> bool:
+        """Write `SEED` to the table (§663). A seed never replaces an admin's
+        respelling (`learn_pronunciation` ranks it), a changed seed replaces
+        the old one, and a name taken out of `SEED` is taken out of the
+        table. True once every seed is written; on a failure, False, and the
+        next `reload` tries again after `SEED_RETRY_SECONDS`. Never raises.
+        """
+        try:
+            bank = self._bank()
+            added = failed = 0
+            for name, say in SEED.items():
+                try:
+                    if bank.learn_pronunciation(name, say, "seed"):
+                        added += 1
+                except Exception:  # noqa: BLE001 - a seed is never worth an outage
+                    failed += 1
+                    log.exception("pronunciation seed for %r could not be kept", name)
+            # One an admin has since set is an admin's row and is left alone.
+            for row in bank.pronunciations():
+                if row.get("source") == "seed" and row["name"] not in SEED:
+                    bank.forget_pronunciation(row["name"])
+        except Exception:  # noqa: BLE001
+            log.exception("pronunciation: the seed could not be written")
+            return False
+        if added:
+            log.info("pronunciation: %d seeded name(s) written", added)
+        if failed:
+            return False
+        self._seeded = True
+        return True
+
+    def _seed_in_background(self) -> None:
+        """Seed off the listener's path (§663): the first `reload` is usually
+        inside an episode's first chunk, and a hundred database round trips
+        in front of it is the wait the spec forbids. When it is done the
+        table is read again, so the seeds are matched from then on."""
+        with self._lock:
+            now = time.time()
+            if self._seeded or self._seeding or now - self._seed_tried < SEED_RETRY_SECONDS:
+                return
+            self._seeding, self._seed_tried = True, now
+
+        def run() -> None:
+            try:
+                if self.seed():
+                    self.reload(force=True)
+            finally:
+                self._seeding = False
+
+        threading.Thread(target=run, name="pronunciation-seed", daemon=True).start()
+
     def reload(self, force: bool = False) -> None:
         now = time.time()
         if not force and now - self._loaded < RELOAD_SECONDS:
             return
+        if not self._seeded:
+            self._seed_in_background()
         try:
             rows = self._bank().pronunciations()
         except Exception:  # noqa: BLE001 - a lexicon outage is not a voice outage
@@ -270,7 +469,7 @@ class Lexicon:
         try:
             self.reload()
             with self._lock:
-                pattern, entries = self._pattern, self._entries
+                pattern, entries = self._pattern, self._lookup
             if pattern is None:
                 return text
             return pattern.sub(lambda m: voiced(entries[m.group(1)][0]), text)

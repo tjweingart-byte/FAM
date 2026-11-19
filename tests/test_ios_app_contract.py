@@ -250,7 +250,9 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     # `trackGenSteps` sends exactly these same fields.
     # `link` asks for a replay's kept file instead of a stream (§252).
     not_key = {"fmt", "link", "own", "cached_only", "episode", "ask_reading",
-               "voice", "voice_picked", "private", "attach"}
+               "voice", "voice_picked", "private", "attach",
+               # §656: which mix it plays from - counted, never the key.
+               "mix"}
     assert names("audio") - not_key == names("progress"), (names("audio"), names("progress"))
 
 
@@ -699,7 +701,7 @@ def test_every_server_keyed_dictionary_is_put_back_to_snake_case_584():
     assert "tagLabels = ShareTarget.serverKeyed(" in api
     # Every [String: ...] the app decodes is one of the known, normalised ones.
     decoded = re.findall(r"^    let (\w+): \[String: (\w+)\]\??", api, re.M)
-    normalised = {"targets", "detail", "tagParent", "tagLabels"}
+    normalised = {"targets", "detail", "tagParent", "tagLabels", "products"}
     assert {name for name, _ in decoded} == normalised
     for name, _ in decoded:
         assert name in normalised or re.search(r"%s = ShareTarget\.serverKeyed\(" % name, api), name

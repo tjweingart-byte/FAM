@@ -27,6 +27,11 @@ struct PersonView: View {
     @State private var unflipped = false
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
+    /// Find your friends (§665-§672): the row under Follow, "Followed by",
+    /// and their QR code.
+    @ObservedObject private var find = FindFriendsModel.shared
+    @State private var mutualsOpen = false
+    @State private var qr: QRSubject?
     /// A mix of theirs already in your myFAM, asked about before it goes.
 
     /// `.yf-person .yf-hero`'s wash, the top bar's colour at the top.
@@ -66,6 +71,8 @@ struct PersonView: View {
                         hero
                         if let page { stats(page, proxy: proxy) }
                         actions.padding(.top, 14)
+                        mutuals
+                        afterFollow
                         interests
                         tabs.id("tabs")
                         grid
@@ -99,6 +106,57 @@ struct PersonView: View {
                            say: { model.nowPlaying.say($0) }) { _ in }
         }
         .famSheet(item: $confirm) { spec in FAMActionSheet(spec: spec) }
+        .famSheet(isPresented: $mutualsOpen) {
+            MutualsSheet(people: page?.mutuals?.people ?? []).famObjects(model)
+        }
+        .famSheet(item: $qr) { subject in ProfileQRCard(subject: subject).famObjects(model) }
+    }
+
+    // MARK: - Find your friends on a profile
+
+    /// "Followed by Brady, Ian, and 45 others" (§667): under Follow, on the
+    /// left, on anybody's profile - the people you follow who follow them.
+    @ViewBuilder private var mutuals: some View {
+        if let m = page?.mutuals, (m.count ?? 0) > 0, !(m.people ?? []).isEmpty {
+            MutualsLine(mutuals: m) { mutualsOpen = true }
+                .padding(.top, 12)
+        }
+    }
+
+    /// Suggested for you, sliding open under Follow once you follow them
+    /// (§665): the people they follow, which the server gives only then.
+    @ViewBuilder private var afterFollow: some View {
+        if !handle.isEmpty, find.aroundHandle == handle, !find.visible(find.around).isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Suggested for you").monoLabel(10, color: FAMColor.copper, tracking: 1.3)
+                    Spacer()
+                    Button { social.open(.friends) } label: {
+                        Text("See all").font(FAMFont.body(12, .semibold)).foregroundStyle(FAMColor.text)
+                    }
+                    .buttonStyle(.press)
+                }
+                SuggestCards(people: find.around, via: "after_follow")
+            }
+            .padding(.top, 16)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    /// Their QR code (§672): a square after Follow, for passing a friend
+    /// on in person.
+    @ViewBuilder private var qrButton: some View {
+        if !handle.isEmpty {
+            Button { qr = QRSubject(handle: handle, name: page?.name ?? open.name, mine: false) } label: {
+                WebIcon(path: FindIcons.qr, size: 15)
+                    .foregroundStyle(FAMColor.text)
+                    .frame(width: 34, height: 34)
+                    .overlay(Circle().stroke(FAMColor.borderStrong))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel("Show their QR code")
+        }
     }
 
     private func load() async {
@@ -292,6 +350,7 @@ struct PersonView: View {
                 .buttonStyle(.press)
                 .disabled(working)
             }
+            qrButton
         }
         .frame(maxWidth: .infinity)
     }
@@ -312,7 +371,7 @@ struct PersonView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(page?.topics ?? [], id: \.self) { topic in
-                            InterestChipButton(topic: topic, height: 26, size: 11) { social.open(.topic($0)) }
+                            InterestChip(label: topic.label, height: 26, size: 11)  // a label, never a door (§662)
                         }
                         if common > 0 {
                             InterestChip(label: "\(common) in common", common: true, height: 26, size: 11)
@@ -542,9 +601,12 @@ struct PersonView: View {
         let h = handle
         if !id.isEmpty { flipped = true }
         Task {
-            await social.follow(userID: id, handle: id.isEmpty ? h : "")
-            // Their vibes and interests open with the follow (§638).
+            await social.follow(userID: id, handle: id.isEmpty ? h : "",
+                                via: open.via.isEmpty ? "profile" : open.via)
+            // Their vibes and interests open with the follow (§638), and
+            // the people they follow slide open under it (§665).
             await load()
+            await find.loadAround(api: model.api, handle: h.isEmpty ? handle : h)
             flipped = false
             working = false
         }
@@ -582,7 +644,7 @@ struct PersonView: View {
     private func followFriend(_ f: PersonFriend) {
         followedHandles.insert(f.handle)
         Task {
-            let ok = await social.follow(handle: f.handle)
+            let ok = await social.follow(handle: f.handle, via: "their_friends")
             if !ok { followedHandles.remove(f.handle) }
         }
     }

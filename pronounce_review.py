@@ -50,7 +50,7 @@ The voice reads English spelling only, so each hard name is respelled.
 Attached is a CSV of every respelling on file. Columns:
   name            the name as written
   current_say     how the voice is told to say it now
-  source          who wrote current_say: admin (a person), wikipedia, writer or brief (two AI models)
+  source          who wrote current_say: admin (a person), seed (a built-in list chosen by hand), wikipedia, writer or brief (two AI models)
   wikipedia_say / wikipedia_ipa / wikipedia_status   what Wikipedia said, if anything
   context         a sentence the name appeared in, to tell you WHO this is
   episode         the episode that sentence came from

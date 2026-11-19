@@ -41,7 +41,7 @@ def client(monkeypatch):
 def lexicon(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voice_bank.db"))
     voice_bank.reset(bank)
-    pronunciation.reset(pronunciation.Lexicon(bank))
+    pronunciation.reset(pronunciation.Lexicon(bank, seed=False))  # starts empty (§663)
     yield bank
     pronunciation.reset(None)
     voice_bank.reset(None)
@@ -116,7 +116,7 @@ def test_a_check_sends_what_an_episode_sends_and_compares(lexicon, monkeypatch):
 
     monkeypatch.setattr(voice_check, "say_and_hear", say_and_hear)
     result = run(voice_check.check("Sagapolutele", with_audio=True))
-    assert sent == ["Sahgahpohlootehleh"], "the respelling, as the voice gets it"
+    assert sent == ["Sahgahpohlootelleh"], "the respelling, as the voice gets it"
     assert result["expected"] == "sah-gah-poh-loo-TEH-leh"
     assert result["verdict"] == voice_check.MATCHES
     assert result["audio"].startswith("data:audio/wav;base64,")

@@ -94,6 +94,11 @@ STALE_CLAIM_SECONDS = 20 * 60
 #: How long a bank episode outlives the longest its edition can be shown
 #: (`TRENDING_BANK_MAX_AGE_HOURS`), so a tap in the last minute still finds it.
 EPISODE_GRACE_SECONDS = 3600
+#: How long the "Start here" write-ahead's batch is waited for (§654): a
+#: third of the grace, so a batch that does not end leaves the live fallback
+#: forty minutes before last slot's episodes expire and the cards lose their
+#: names. Never longer than `EDITION_BATCH_WAIT_SECONDS`.
+STARTUP_BATCH_WAIT_SECONDS = EPISODE_GRACE_SECONDS / 3
 #: What a build cut short by a shutdown writes, so the next boot retries at once.
 INTERRUPTED = "interrupted: the server stopped during the build"
 #: How often a running server re-reads the edition, so a build finished by
@@ -970,6 +975,24 @@ async def write_episode(story, generator, cache, minutes: int,
         return _failure(story, exc, notes)
 
 
+def _written_meanwhile(cache, key: str, notes, rewrite: bool) -> bool:
+    """Whether a tap wrote this key while its batch was out (§179), so the
+    answer arriving now is set aside. Without `rewrite` any current episode
+    counts. With it (the "Start here" write-ahead, §654) the key normally
+    holds last slot's episode, which is meant to be replaced - so only one
+    sourced after this episode was prepared is a tap's."""
+    if not cache.get(key):
+        return False
+    if not rewrite:
+        return True
+    mine = float(getattr(notes, "sourced_at", 0) or 0)
+    try:
+        theirs = float(cache.sourced_at(key) or 0)
+    except Exception:  # noqa: BLE001 - a cache without the clock rewrites
+        return False
+    return bool(mine and theirs > mine)
+
+
 def _batches(generator) -> bool:
     """Whether this edition's writers go out as one batch (§179)."""
     return bool(settings.edition_batch
@@ -981,7 +1004,8 @@ def _batches(generator) -> bool:
 
 async def write_batched(stories: list, generator, cache, minutes: int,
                         expires_at: float, alive=None,
-                        origin: str = "trending") -> dict:
+                        origin: str = "trending", rewrite: bool = False,
+                        wait_seconds: Optional[float] = None) -> dict:
     """Every story's episode, the writers sent as one batch (§179).
 
     Each story is prepared exactly as `write_episode` prepares it - brief,
@@ -990,6 +1014,12 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     price and each answer is read by the same reader a stream uses. A writer
     the batch did not answer is written live from what it already has.
     Returns story id -> result. Never raises.
+
+    `rewrite` is `write_episode`'s (the "Start here" write-ahead, §654): the
+    key is written although it is current, so an answer is never set aside
+    because the key is already in the cache - that is last slot's episode,
+    which taps go on hearing until this one replaces it. `wait_seconds`
+    shortens the batch's wait below `EDITION_BATCH_WAIT_SECONDS`.
     """
     import claude_batch
     import prefetch
@@ -1001,7 +1031,7 @@ async def write_batched(stories: list, generator, cache, minutes: int,
             alive()
         notes = None
         try:
-            started = await _start(story, generator, cache, minutes)
+            started = await _start(story, generator, cache, minutes, rewrite)
             if isinstance(started, dict):
                 results[story.id] = started
                 continue
@@ -1017,12 +1047,13 @@ async def write_batched(stories: list, generator, cache, minutes: int,
     answers = await claude_batch.run(
         generator.client,
         {cid: entry[5] for cid, entry in waiting.items()},
-        wait_seconds=settings.edition_batch_wait_seconds,
+        wait_seconds=(settings.edition_batch_wait_seconds if wait_seconds is None
+                      else min(wait_seconds, settings.edition_batch_wait_seconds)),
         poll_seconds=settings.edition_batch_poll_seconds, alive=alive)
     for cid, (story, plan, key, notes, prepared, _) in waiting.items():
         message = answers.get(cid)
         try:
-            if cache.get(key):
+            if _written_meanwhile(cache, key, notes, rewrite):
                 # A tap wrote this story while the batch was out (§179). Keep
                 # the tap's episode and its audio; the answer arriving now
                 # would archive it and draw it a different voice.
@@ -1225,12 +1256,25 @@ async def write_startup(now: Optional[float] = None, generator=None,
     results: dict = {}
     try:
         expires_at = next_slot(now).timestamp() + EPISODE_GRACE_SECONDS
-        for spec in startup.STARTUP_TOPICS:
-            topic_id, query = spec[0], spec[3]
+        questions = [_Question(spec[3], spec[0]) for spec in startup.STARTUP_TOPICS]
+
+        def alive() -> None:
             store().touch(sid, now + (time.monotonic() - started))
-            results[topic_id] = await write_episode(
-                _Question(query), generator, cache, config.BROWSE_MINUTES,
-                expires_at, origin="startup", rewrite=True)
+
+        if _batches(generator):
+            # Written ahead like the edition beside it, so batched like it
+            # (§654, the owner: "the writer for episodes written ahead should
+            # be batched"); a writer the batch does not answer is written live.
+            results = await write_batched(
+                questions, generator, cache, config.BROWSE_MINUTES, expires_at,
+                alive=alive, origin="startup", rewrite=True,
+                wait_seconds=STARTUP_BATCH_WAIT_SECONDS)
+        else:
+            for question in questions:
+                alive()
+                results[question.id] = await write_episode(
+                    question, generator, cache, config.BROWSE_MINUTES,
+                    expires_at, origin="startup", rewrite=True)
         written = sum(1 for r in results.values() if r.get("status") == "written")
         store().done(sid, now, f"{written} of {len(results)} written")
         log.info("startup episodes: %s - %d of %d written, $%.4f", sid, written,
@@ -1254,8 +1298,10 @@ async def write_startup(now: Optional[float] = None, generator=None,
 
 @dataclass(frozen=True)
 class _Question:
-    """What `write_episode` reads off a story: its question."""
+    """What `write_episode` reads off a story: its question, and the id its
+    result is filed under (the "Start here" topic's)."""
     query: str
+    id: str = ""
 
 
 def _placed(story):
@@ -1324,16 +1370,14 @@ async def run_forever(generator=None, cache=None,
         log.info("trending bank: boot catch-up held %.0fs so it does not start "
                  "in the same second as the story sweep", initial_delay)
         await asyncio.sleep(initial_delay)
-    while True:
-        # "Start here" first (§179): its eight episodes are written live and
-        # their cards lose their names an hour after the slot, while a batched
-        # edition can take up to `EDITION_BATCH_WAIT_SECONDS` - so the short,
-        # deadline-bound job does not wait behind the long one.
+    async def startup_tick() -> None:
         try:
             if generator is not None and startup_due():
                 await write_startup(generator=generator, cache=cache)
         except Exception:  # noqa: BLE001
             log.exception("startup episodes: the scheduler tick failed")
+
+    async def edition_tick() -> None:
         try:
             if settings.trending_bank and due():
                 row = store().status(slot_id(last_slot()))
@@ -1341,6 +1385,14 @@ async def run_forever(generator=None, cache=None,
                             force=_retry_at_once(row))
         except Exception:  # noqa: BLE001
             log.exception("trending bank: the scheduler tick failed")
+
+    while True:
+        # "Start here" and the edition side by side (§179, §654): the
+        # write-ahead's cards lose their names an hour after the slot, and
+        # both are batched now - the write-ahead for at most
+        # `STARTUP_BATCH_WAIT_SECONDS`, the edition for up to
+        # `EDITION_BATCH_WAIT_SECONDS` - so neither waits behind the other.
+        await asyncio.gather(startup_tick(), edition_tick())
         await asyncio.sleep(max(5.0, min(60.0, next_slot().timestamp() - time.time())))
 
 

@@ -167,6 +167,14 @@ def main() -> int:
                 "the handle field did not clean what was typed into it"
             page.evaluate("saveIdentity()")
 
+            # Find your friends comes between who you are and what you like
+            # (§665): skippable, and never a dead end.
+            page.wait_for_selector("#screen-findfriends.active", timeout=10000)
+            assert page.query_selector("#screen-findfriends .entry-skip, "
+                                       "#screen-findfriends [onclick*='afterFindFriends']"), \
+                "Find your friends has no way past it"
+            page.evaluate("afterFindFriends()")
+
             page.wait_for_selector("#screen-intro.active .cat-row",
                                    timeout=10000, state="attached")
             # The long list of topics, straight away - the wheel of six
@@ -5021,9 +5029,10 @@ def main() -> int:
             assert page.evaluate(
                 """() => !!document.querySelector("#plansList .plan-row.current")"""
             ), "the plans sheet does not say which plan they are on"
-            # Said out loud, not discovered by tapping: there is no checkout.
+            # Said out loud, not discovered by tapping: no checkout on this
+            # deploy (§656: Stripe is not configured in a preview).
             note = page.text_content("#plansList .plan-note") or ""
-            assert "aren\u2019t available yet" in note, (
+            assert "aren\u2019t on sale yet" in note, (
                 f"the plans sheet does not say upgrading is unavailable: {note!r}")
 
             page.evaluate("closePlans()")
@@ -5727,6 +5736,91 @@ def main() -> int:
 
         check("The 11.16 notes: edit topics, two friends tabs, captions that scroll, a lock",
               the_owners_1116_notes)
+
+        def a_swipe_down_puts_the_player_away():
+            """The owner's 11.18 notes: swipe down on the player to collapse
+            it into the mini player. It minimises, as the Home mark does, and
+            never stops; a swipe on the scrubber is a seek, not a close."""
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("""
+                TOPICS['_smoke_swipe'] = { title: 'Why bonds move', prompt: 'why bonds move',
+                                           source: 'Your search', surface: 'search',
+                                           caption: '' };
+                generate('_smoke_swipe');
+            """)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.wait_for_timeout(300)
+            swipe = """([sel, x, y0, y1]) => {
+                var el = document.querySelector(sel);
+                function t(y){ return new Touch({ identifier: 1, target: el, clientX: x, clientY: y }); }
+                el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [t(y0)], changedTouches: [t(y0)] }));
+                el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [t(y1)] }));
+            }"""
+            page.evaluate(swipe, ["#screen-player .progress-wrap", 180, 300, 500])
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player", \
+                "a drag on the scrubber put the player away"
+            # Nor a drag on the open captions card: that is the card's (it
+            # closes captions) or reading back through its transcript.
+            page.evaluate("toggleCC()")
+            page.wait_for_timeout(200)
+            page.evaluate("document.getElementById('cc-text').scrollTop = 40")
+            page.evaluate(swipe, ["#ccPanel #cc-text", 180, 300, 500])
+            page.wait_for_timeout(300)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-player", \
+                "a drag in the captions put the player away"
+            if page.evaluate("document.getElementById('ccPanel').classList.contains('on')"):
+                page.evaluate("toggleCC()")
+            page.wait_for_timeout(200)
+            page.evaluate(swipe, ["#screen-player", 180, 200, 420])
+            page.wait_for_timeout(400)
+            assert page.eval_on_selector(".screen.active", "e => e.id") == "screen-home", \
+                "a swipe down did not put the player away"
+            assert page.evaluate("FamAudio.isActive()"), "the swipe stopped the episode"
+            bar = page.query_selector("#screen-home #nowBar")
+            assert bar and bar.is_visible(), "no mini player after the swipe"
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        check("The 11.18 notes: a swipe down puts the player away into the mini player",
+              a_swipe_down_puts_the_player_away)
+
+        def report_a_problem_from_the_player():
+            """§653: the player's ⋯ menu has "Report a problem", beside and
+            apart from Report, and it opens the report box carrying this
+            episode."""
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); setTab('home')")
+            page.wait_for_timeout(300)
+            page.evaluate("""
+                TOPICS['_smoke_problem'] = { title: 'Why bonds move', prompt: 'why bonds move',
+                                             source: 'Your search', surface: 'search',
+                                             caption: '' };
+                generate('_smoke_problem');
+            """)
+            page.wait_for_selector("#screen-player.active", timeout=15000)
+            page.wait_for_function("FamAudio.isActive()", timeout=15000)
+            page.evaluate("openPlayerMenu()")
+            page.wait_for_timeout(400)
+            rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))"
+                ".map(e => e.textContent.trim())")
+            assert "Report a problem" in rows, f"no Report a problem in the menu: {rows}"
+            page.evaluate("""() => Array.from(document.querySelectorAll('#sheetCard .sheet-item'))
+                .find(e => e.textContent.trim() === 'Report a problem').click()""")
+            page.wait_for_timeout(500)
+            assert page.is_visible("#feedbackOverlay"), "the report box did not open"
+            ctx = page.text_content("#feedbackCtx") or ""
+            assert "screen player" in ctx and "transcript" in ctx, \
+                f"the report does not carry the episode: {ctx}"
+            page.click("#feedbackCancel")
+            page.wait_for_timeout(200)
+            page.evaluate("stopSpeech(); hideNowBar(); clearGenOverlay(); openMyFamTab()")
+            page.wait_for_timeout(300)
+
+        check("§653: Report a problem on the player opens the report box with the episode",
+              report_a_problem_from_the_player)
 
         if errors:
             failures.append(f"page errors: {errors}")

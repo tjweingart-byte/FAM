@@ -39500,3 +39500,1019 @@ escapes everything it draws; installed clients' contracts pass; the Swift
 reads as compiling (Swift 5 mode, every type and modifier it names exists).
 
 **Not verified:** the Swift is still not compiled here.
+
+## 651. The voice's always-on worker moved off the 4090: ~$40 a day to ~$14 (2026-11-18)
+
+Reported by the owner: RunPod was costing about $40 a day with one active
+worker. The endpoint `FAM` had **24 GB PRO (RTX 4090)** ticked, $1.34/h -
+about $32 a day for the always-on worker alone, not the ~$0.47/h the cost
+docs assumed - plus flex workers from §613's Max workers 4.
+
+**Console, changed by the owner:** GPUs 16 GB RTX A4500 and RTX 4000 Ada
+($0.58/h), 24 GB RTX A5000 and RTX 3090 ($0.75/h, out of capacity that day,
+kept ticked); not the 4090, RTX 2000 Ada, A4000 or L4. Active workers 1,
+Max workers 2 (down from 4), idle timeout 5 s. Worker priority is Availability, so the
+ticked cards are a set, not an order; the A4500 had the most capacity.
+
+**Why those cards:** Chatterbox's token stage is autoregressive, so its speed
+follows memory bandwidth rather than memory. The A4500 (~640 GB/s) is about
+60% of the 4090 (~1,000 GB/s) - an estimate, not measured - so roughly 2.5-3x
+realtime instead of 4.6x: playback stays ahead, a fresh episode's first word
+is a second or two later, and anything `voice_ahead.py` voiced is a replay
+either way. The 2000 Ada (~220 GB/s) would be near realtime. Same weights and
+reference, so the voice should be unchanged; `verify_voice.py --fingerprint`
+on the new card confirms it, and `SYNTHESIS_REALTIME_FACTOR` should be
+re-measured there.
+
+**Now:** `render.yaml` sets `REMOTE_VOICE_FLEX_WORKERS=1` for `fam` (was 3),
+equal to the console's Max workers less its Active workers, so at most two
+chunks are in flight and nothing waits in RunPod's queue for a worker that
+cannot start. Two listeners voiced at once can start the one flex worker,
+billed per second for its boot, the chunk and a 5 s idle timeout; a third
+waits its turn in FAM's queue. `REMOTE_VOICE.md`'s GPU line names the new set.
+
+## 652. The owner's 11.18 notes: the first sentence still twice, swipe the player down, Instagram's link again (2026-11-18)
+
+The owner's PDF "11.18.26 Implementations", three notes.
+
+**1. "The first sentence is still being repeated twice sometimes in
+episodes."** §637 found no definite cause and left two candidates: the
+writer saying its opening again (guarded since by `RepeatGuard`) or the
+voice reading the short first chunk twice (only reported, by
+`_note_if_said_twice`). The owner's captions check, which would separate
+them, has not come back. "Still", after the writer's guard, makes the
+voice the likelier of the two, and it was the better fit already: the
+first chunk is one sentence alone, Chatterbox's English model has no
+check against reading a text again, and a chunk is seeded from voice +
+words (§176), so a bad reading of a sentence recurs every time that
+sentence is voiced - "some episodes", always the same ones.
+
+So the worker now acts on it instead of only the app reporting it:
+`ChatterboxEngine._retake_if_said_twice` (`tts.py`) measures each reading
+with `pace_level.said_ratio` - speech length (silence at either end not
+counted) over what the words take at `TARGET_WPM` - and one at
+`SAID_TWICE_RATIO` (1.6) or more, four words up, is read once more from a
+second seed (`salt + "\nretake"`, so both draws stay reproducible). The take
+nearer the planned length is kept, so a retake cut short is not swapped in;
+one retake at most; never raises. `CHATTERBOX_RETAKE=0` turns it off. The
+ratio and the word floor moved to `pace_level` and the app's report reads
+the same ones, so the report now fires only when both takes were long. The
+worker's `/health` counts `retakes`. `pace_level.py` added to
+`voice-worker.yml`'s paths (the worker imports it now).
+
+Cost: a second synthesis only for a reading already wrong; on §651's
+A4500 (~2.5-3x realtime, estimated) about a second more before the first
+word of an affected episode. A secondary effect, inferred: a doubled first
+chunk was also the pace every later chunk was levelled towards
+(`pace_level`), so the rest of such an episode ran up to 15% slow.
+
+**Not verified:** the 1.6 is still not measured on the real voice, and no
+real doubled reading has been reproduced here (no GPU). It reaches the card
+when RunPod rebuilds from `Main`. Episodes already kept with the repeat keep
+it until they age out (a week), since kept audio is replayed, not re-voiced.
+If it persists after that, the captions check decides: twice in the
+captions is the writer.
+
+**2. "Ability to swipe down on audio player to collapse into mini
+player."** iOS: `PlayerView.collapseDrag` - a drag that starts plainly
+downward moves the whole player with the finger (the page under it shows
+through the clear cover), and past 120 pt or flicked it closes the way the
+Home mark does (`showPlayer = false`, shrinking into the mini player; never
+stops, [transport]); otherwise it springs back. Not on the scrubber (its
+drag wins), not on the captions card while captions are on (its swipe down
+still closes captions), not with a sheet or popup up. Web: the player's
+touch handler minimises on a swipe down over 90 px, not from the bar, a
+field, a modal, What's next's grid or the open captions card (its own swipe
+closes captions; a drag in its scrolled transcript is reading back - caught
+in the pre-merge review, where the card's handler let such a drag through
+to the player). Smoke: "The 11.18 notes: a swipe down ...". **Not verified:**
+the Swift is compiled by `ios.yml` on push, not here, and not tried on a
+phone.
+
+**3. "Is it possible to embed the link to the episode on the tile card on
+Instagram so when you click on the tile it takes you to the episode."**
+Answered in §648 and unchanged: Instagram lets no app make a story picture
+tappable; the Link sticker, added by the person posting, is the only
+tappable link in a story. Since §648 the Instagram tile leaves the
+episode's `/s/<id>` link on the clipboard for that sticker's Paste - in a
+TestFlight build from after §648.
+
+Tests: `tests/test_retake_652.py`.
+
+## 653. Report a problem on the player, with the phone player's log (2026-11-18)
+
+Asked in §652's reply, the owner: "Yes, add Report a problem to the player
+menu." The reason it was offered: the iPhone player keeps a timestamped log
+of everything playback does - asked, first byte (with the cache state and
+wire format), first audio, held for the loading screen, released, ran out
+of audio, emptied and refilled, reconnects and the bytes skipped, Opus or
+link fallbacks - in `StreamPlayer.lines`, and nothing ever sent it
+anywhere; the iPhone app had no way to file a report at all. For the first
+sentence heard twice (§637, §652) that log, beside the episode's
+transcript, says which of three things it was: the transcript with the
+sentence twice (the writer), a reconnect or refill near the start (the
+phone), or neither (the voice).
+
+**Server.** `/api/feedback` takes `playback`, the player's log, kept in a
+new `playback` column (added to an older inbox on open) as its newest
+`feedback.MAX_PLAYBACK` (40,000) characters cut at a line
+(`playback_tail`). /admin's inbox shows it behind a **Playback log**
+button beside **Episode**, escaped.
+
+**iPhone.** The player's ⋯ menu has **Report a problem** (the circled
+exclamation) above **Report**, which stays the harmful-content report.
+`ProblemReportSheet`: a box, Send report, Cancel; the words stay if
+sending fails, with the server's reason. Sent with the episode on the
+player (its query, minutes, context, the id its audio arrived with and its
+picture - the server reads title, sources and transcript as it already does
+for the web) and the log, headed by the player's phase and position at the
+moment. `FAMAPI.reportProblem`.
+
+**Web.** The same row opens the existing report box, which already carries
+the episode when it is opened from the player. The web player keeps no log.
+
+Tests: `tests/test_report_problem_653.py`; smoke "§653: Report a problem
+...". **Not verified:** the Swift compiles in `ios.yml` on push, not here;
+not tried on a phone.
+
+## 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18)
+
+Reported by the owner, with /admin's tiles (Claude per episode 1.47¢ against
+the 1¢ plan, 1.5x): "The per episode costs of claude have been going up
+significantly." The 7-day figure is all of Claude's spend less the agents'
+nightly jobs, over the episodes written to the cache. It cannot say whether a
+source of spend grew or the count of episodes fell: listener taps, prefetch
+(whose `brief` warms write no episode), the editions, push, topic titles,
+quality grading, the photo check and Egan's outreach are all in the top of
+the fraction, and only cached episodes in the bottom. Nothing in §612-§651
+added a Claude call to an episode; which source grew is in production's
+spend table, not in this container.
+
+**Built, at the owner's direction:**
+
+1. **`cost_watch.by_day`**, in `report()` as `by_day` and drawn under the
+   tiles on /admin's "Cost per episode" (`costByDayHtml`): each UTC day of
+   the window, ¢ per episode, episodes written, Claude in all, the nightly
+   agents taken out of their own day, and dollars by spend source; then the
+   episodes written by surface (`origin`). The 7-day tile is unchanged.
+2. **`AHEAD_WRITER_EFFORT` defaults to `medium`** (high since §522): the
+   editions, the write-ahead and prefetch's script warms. searchFAM stays at
+   `EFFORT` (low); the ahead brief (`EI_AHEAD_EFFORT`, high) and Shakespeare
+   are not the writer and are unchanged. If the Render dashboard sets
+   `AHEAD_WRITER_EFFORT`, that wins - `/api/health` -> writer ->
+   `ahead_writer_effort_source` says which.
+3. **Every ahead writer batched.** Trending, DailyFAM, rails and push already
+   were (§179; rails and push go through `daily_edition.run_slot`). Now:
+   - the "Start here" write-ahead goes through `trending_bank.write_batched`
+     under `EDITION_BATCH`, with `rewrite` so last slot's episode under the
+     same key is not mistaken for a tap that raced the batch;
+   - prefetch's script warms (`PREFETCH_LEVEL=script` only) go out as one
+     batch per cycle (`PREFETCH_BATCH=1`, in `/api/health`): each is
+     prepared as before (brief, evidence, the volatile and ambiguous checks),
+     then the writers are sent together; a background task reads the
+     answers with the same reader, writes live what the batch did not
+     answer, and keeps a tap's episode written meanwhile. Its keys are held
+     in `_batched_keys`, so no cycle warms them twice, and while a batch is
+     out a cycle warms briefs only: a batched writer is paid when it returns,
+     after the budget checks, so the budget is overrun by at most one cycle's
+     writers (`PREFETCH_PER_CYCLE`). `Prefetcher._store` is the tail both
+     paths share (the TTL test now reads it).
+
+`tests/test_ahead_batched_654.py`; five older tests that pinned `high`
+updated.
+
+**Trade-off said aloud:** a batched prefetch warm is not in the cache until
+its batch ends (usually minutes, at most `EDITION_BATCH_WAIT_SECONDS`), so a
+tap on that tile in between writes live and the batch's answer is set aside,
+paid at half price. The brief is still kept at once, so the tap keeps the
+brief's saving.
+
+**Not verified:** the saving itself - what medium and the batches take off
+Claude per episode shows in the by-day table from the next deploy. Whether
+medium writes worse than high is unmeasured; `tools/editor_eval.py --run
+--arms none,none_low` with `AHEAD_WRITER_EFFORT` set each way would say,
+on the owner's key.
+
+## 655. The branch double-checked: §654 reviewed (2026-11-18)
+
+The owner asked for every change on the branch to be checked again. Read
+line by line here, and by an independent reviewer given the diff and not
+this session's conclusions. Found and fixed, each with a test that fails
+without the fix:
+
+1. **The write-ahead waited a whole batch before Trending.** `run_forever`
+   ran "Start here" first *because* it was the short, deadline-bound job
+   (§179); batched, it could take `EDITION_BATCH_WAIT_SECONDS` (an hour) -
+   as long as last slot's episodes stay current (`EPISODE_GRACE_SECONDS`),
+   leaving the live fallback no time, and holding the edition an hour
+   behind it. Now its batch is waited for `STARTUP_BATCH_WAIT_SECONDS`
+   (20 minutes), and the two jobs run side by side (`asyncio.gather`).
+2. **`rewrite` could write over a tap** (the reviewer). It skipped the
+   "a tap wrote it while the batch was out" check, since the key holds
+   last slot's episode on purpose. `_written_meanwhile` now keeps an
+   episode sourced after this one was prepared - a listener's - and
+   replaces only an older one.
+3. **Prefetch's live fallback skipped `warm`'s checks** (the reviewer): an
+   unanswered batched warm was streamed whatever the listener load, budget
+   or `PREFETCH` said. `_live_fallback_refused` asks the same three
+   questions; refused, the brief is kept and charged as one.
+4. **A batched warm a tap beat was charged as an episode**; it is a brief.
+5. **`PREFETCH_BATCH=` (empty) turned batching off** where `EDITION_BATCH=`
+   leaves it on; now parsed alike.
+6. `cost_watch.report` read the week's episode rows twice per /admin draw;
+   once now, handed to `by_day`. `warm`'s docstring names `"batched"`.
+
+**Known and left, said aloud:** a batched prefetch warm is charged when its
+batch returns, so the budget can be overrun by one cycle's writers, and a
+restart while a batch is out loses that charge (the briefs were paid, the
+answers dropped). The nightly agents taken out of Claude's dollars are every
+`background` agent call, any vendor - as the 7-day figure has always done.
+
+**Verified:** the full `./dev.sh check` on §654 (7,943 passed), the five
+browser smoke runs after matching Python's Playwright to the container's
+browser (1.63.0), and the tests of everything touched after these fixes.
+
+**Merged with Main** before the pull request: Main had taken §652 and §653
+(the 11.18 notes, Report a problem on the player), so this branch's
+sections are §654 and §655 and every reference it added was renumbered;
+`tests/test_ahead_batched_654.py`.
+
+## 656. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18)
+
+**Asked (the owner, 11.18, with Brady's message: "limit searches and no
+playlists for customers who do not pay. Dailyfam should be free ... College
+students $3.99, regular single customers $9.99, and FAM plan @ $14.99"):**
+a payment system for the tiers; every account's free trial starts when the
+app is released, not the beta; after the free month one free search/Go
+Deeper per week; free listeners can listen to other people's myFAM mixes
+but not make their own, and are stopped half way through a mix; DailyFAM's
+tiles free outside Go Deeper. Asked, the owner chose: half a mix means
+**half its episodes**; every paid plan **unlimited**; the FAM plan **up to
+4, by invite**; **Stripe only** - then: "Ideally we have all payments be
+redirected to a website to avoid the 30% fee that apple takes."
+
+**Built (rule `web-billing`):** `billing.py` - `BillingStore` (subscriptions,
+webhook events seen, FAM-plan seats and one-use invite codes, the
+half-a-mix counter; `BILLING_DB`) and three Stripe calls over `httpx`
+(Checkout, the billing portal, a Price read) plus the webhook's HMAC check.
+`app._tier` raises an account to `plus` while its subscription, or the FAM
+plan it has a seat on, is live. `entitlements` gains the `ask` resource
+(search and Go Deeper: one a week free, unlimited paid); the free tier's
+`episode` and `explore` are uncapped; `mixes` moves to `plus`.
+`_take_half_a_mix` counts distinct episodes per mix per UTC day for a free
+listener and answers the 429 the limit card already draws. The free month
+is every account's, from the launch day or from joining if later
+(`accounts._with_free_month`). The plans sheet lists Student, Single and
+the FAM plan with Stripe's price, opens checkout, and offers Manage
+subscription, a FAM-plan code and joining one. Everything is behind
+`ENFORCE_QUOTAS`, still `0` in production.
+
+**Reversed on purpose:** `tier-spend` (a feature, own mixes, moved behind a
+tier; `TAKEN_FROM_FREE` in `tests/test_entitlements.py`) and, once quotas are
+on, `account-gates-kept` (a plan now gates hearing a mix's second half).
+`free-month` no longer depends on five friends.
+
+**Not done, and why:**
+- **Student verification.** Nothing checks that a Student buyer is a
+  student; Stripe does not. A verification service (SheerID or similar)
+  or an .edu address is the owner's decision.
+- **The iOS app** links to nothing yet. Linking out is allowed on the US
+  storefront only (Epic v. Apple; the commission on linked sales was still
+  before the district court), and outside the US it may not point at a
+  purchase at all (APP_STORE.md 3.1.1).
+- **Stripe's dashboard:** three Prices, a webhook endpoint at
+  `/api/billing/webhook` sending `checkout.session.completed` and
+  `customer.subscription.*`, the portal configured - and the keys set as
+  credentials. Nothing was spent and no key was used here.
+- **A free listener's mixes made before launch** stay theirs to play (to
+  half) and delete; editing them is the paid part.
+
+## 657. Apple in-app purchase for the iPhone app (2026-11-18)
+
+**Asked (the owner, 11.18):** "add apple in-app purchase for the iphone app
+too" - after §656's web-only Stripe checkout and the conversion numbers
+(RevenueCat's Dipsea test: ~28% of paywall views paid through Apple's sheet,
+~18% through a web link-out; at FAM's prices a web checkout must convert at
+~90% of Apple's to come out ahead at the 15% small-business rate).
+
+**Built (rule `web-billing`, Current):**
+- `apple_iap.py`: verifies an App Store JWS - ES256, `x5c` chain of three,
+  each certificate signed by the next and in date, the root pinned by
+  SHA-256 (Apple Root CA - G3), Apple's marker OIDs on leaf
+  (1.2.840.113635.100.6.11.1) and intermediate (1.2.840.113635.100.6.2.1) -
+  and turns a transaction into {plan, status, original, period_end}. A
+  revoked transaction is cancelled; a lapsed one expired; a grace period
+  `past_due` to its end. Product ids default to
+  `net.familiarize.fam.{student,single,famplan}.monthly`.
+- `app.py`: `GET /api/billing/apple` (the account's `appAccountToken` and
+  the product ids), `POST /api/billing/apple` (a signed transaction; 403 if
+  its token is another account's), `POST /api/billing/apple/notifications`
+  (Server Notifications v2). `/api/plans` offers carry `apple_product`, the
+  subscription its `store`.
+- `BillingStore`: `subscriptions.source`, `apple_tokens` (token -> account,
+  for notifications), `record_apple`.
+- iOS: `Store.swift` (`FAMStore`: products, purchase with the account
+  token, `Transaction.updates` from launch, Restore purchases; a
+  transaction is finished only once the server has it); `PlansSheet` lists
+  the plans at Apple's `displayPrice`, Manage subscription
+  (`AppStore.showManageSubscriptions`), the FAM-plan code and joining one,
+  Restore purchases, and the auto-renew terms with Terms and Privacy links.
+  Mix episodes now send `mix` (§656's half a mix); the server also takes an
+  older client's `surface=dailyfam`/`myfam` as a browse play, so a build
+  without `mix` does not spend the week's one search on a mix.
+- Web: an Apple subscription's Manage row says to change it on the iPhone.
+
+**Not verified, and why:**
+- **The Swift was not compiled** - this container has no Xcode. The first
+  Xcode build is the check; StoreKit testing wants a `.storekit`
+  configuration file (Xcode: File > New > StoreKit Configuration File, synced
+  from App Store Connect) and a sandbox tester.
+- **The pinned root fingerprint** is Apple's published SHA-256 for Apple Root
+  CA - G3, written from the published value: apple.com was not reachable
+  from here. If it were wrong every purchase would be refused (fail closed),
+  which the first sandbox purchase shows; `APPLE_ROOT_SHA256` overrides it.
+
+**Owner's steps:** App Store Connect: three auto-renewable subscriptions in
+one group with the product ids above (or set `APPLE_PRODUCT_*`), prices
+$3.99/$9.99/$14.99, Family Sharing off (the FAM plan's seats are FAM's);
+App Store Server Notifications v2 URL `https://<host>/api/billing/apple/notifications`
+for production and sandbox; Paid Apps agreement and banking.
+
+## 658. Students verify with a .edu email (2026-11-18)
+
+**Asked (the owner, 11.18):** "make students verify with a .edu email" -
+§656 noted that nothing checked a Student buyer was a student.
+
+**Built (rule `web-billing`, Current):** `billing.is_edu` (a `.edu` domain
+only, not `.edu.au` or `.ac.uk` - the owner's words, and the US is where the
+plan is sold first); `BillingStore` `students` table - a hashed six-digit
+code, 15 minutes, five tries, five codes an hour, verified for a year, one
+address for one account at a time. `POST /api/billing/student` emails the
+code through `mail.py` (503 with a sentence when mail is not configured,
+so staging cannot verify anybody); `POST /api/billing/student/confirm`.
+Stripe checkout refuses Student until verified (403, `X-FAM-Student`);
+`/api/plans` and `GET /api/billing/apple` say whether the account is
+verified. Web: tapping Student asks for the address, then the code, then
+opens checkout. iPhone: the same two alerts before Apple's sheet; a
+Student purchase Apple reports for an unverified account is kept, since
+Apple has charged, and logged.
+
+**Open:** students outside the US (`.ac.uk`, `.edu.au`) cannot verify; a
+graduate keeps the price until their year runs out; an address on a school
+domain that alumni keep for life passes. A verification service (SheerID)
+would close those if they matter.
+
+## 659. The billing branch reviewed: ten fixes (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this
+branch", then "yes fix all ten". The review (code-review, high) found:
+
+1. **A Stripe event was marked seen before it was applied**, so one whose
+   write failed was a "repeat" on Stripe's retry and never applied - a paid
+   customer with no plan. Now `seen_event` / `apply` / `mark_event`.
+2. **Two stores, one row:** an ended Stripe subscription's late event
+   overwrote a live Apple one (and the reverse). `record` now refuses an
+   ending from one store over the other's live plan.
+3. **The free search allowance was the client's to waive:** any request
+   naming `surface=dailyfam` was a free browse episode, so a crafted URL
+   searched without limit. `_spend_surface` now decides from what the play
+   is (`mixes.plays_item`, the bank, the cache).
+4. **`/api/script` had become unlimited for free** (its `episode` was
+   uncapped). It is an ask now.
+5. **Stripe's prices were read on the event loop**, and a failure was never
+   remembered: a slow Stripe stalled every stream at each plans sheet. Now
+   `asyncio.to_thread`, and five minutes' memory of a failure.
+6. **Out-of-order Stripe events** overwrote newer ones. Each row is dated
+   (`event_at`) and an older event is skipped.
+7. **Apple's grace period** held only for `DID_FAIL_TO_RENEW`; any other
+   notification, or a restore, ended it. Read from the renewal info now, and
+   a restore cannot undo a recorded grace.
+8. **The mix gate was every PATCH**, so a free listener could not share,
+   rename or prune a mix they had. Only adding is gated (`_adds_topics`).
+9. **Asking for a student code at a new address dropped the verification
+   held.** The address waits in `pending` until its code is entered, and is
+   checked against other accounts again then.
+10. **The iPhone said "you weren't charged"** when Apple had charged and
+    only the server's confirmation failed. `FAMStore.Unconfirmed` now says
+    so and points at Restore purchases.
+
+Tests for each are in `test_billing_656.py`, `test_apple_iap_657.py` and
+`test_student_658.py`. The Swift is still uncompiled here.
+
+## 660. The billing branch reviewed again: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(after §659).
+
+1. **A DailyFAM tile not yet written spent the week's one search.** §659
+   made a play free only when the server could see it was browse - but a
+   live-story or bank tile tapped before its episode was written was not
+   one of the things it could see, against the owner's "DailyFAM tiles
+   should be free". `app._served_tile_query` now recognises a tile the
+   server serves (bank, Start here, the live pool, the Trending edition,
+   all in memory) when the question is that tile's own.
+2. **The post-episode countdown spent the week's one Go Deeper by itself.**
+   Its lead tile is Go Deeper's suggestion, played as a follow-up after 15
+   s untouched - for a free listener, a search they never asked for, and a
+   limit card after every episode once it was gone. Where asks are counted
+   (`/api/entitlements` `usage.ask`), the suggestion moves to second and the
+   countdown starts a free episode; web `asksCapped`, iOS
+   `FAMAPI.asksCapped`.
+3. **A FAM-plan member was sent the payer's account id**
+   (`subscription.fam_member_of`, against `listener-id-server`). It is the
+   payer's name now.
+
+## 661. A third look at the billing branch: three more (2026-11-18)
+
+**Asked (the owner, 11.18):** "Double check all changes made in this branch"
+(a third time), read this time through the iPhone half and the edges.
+
+1. **The iPhone kept the first account's `appAccountToken`** for the life
+   of the app (`FAMStore.setup`), so after a sign-out and another sign-in on
+   the same phone the second account bought with the first's token: Apple
+   charged, and the server refused it as another account's. It is asked
+   fresh for every purchase now.
+2. **Apple's TEST notification was a 400** - it carries no transaction -
+   so App Store Connect's "Request a test notification" reported the URL
+   broken. A signed notification with no transaction is answered 200 and
+   changes nothing; a body that is not an object is a 400, not a 500.
+3. **The card after each episode waited on a round trip** to
+   `/api/entitlements` on the iPhone (§660). Kept a minute
+   (`FAMAPI.asksCapped`), as the web keeps it.
+
+## 662. Interest pills on a profile open nothing (2026-11-19)
+
+The owner, with screenshots of YourFAM and the "INTEREST - Concerts" screen
+a pill opened: "When you click on one of the interests groups in someone's
+profile, they shouldn't go into anything. There is no reason for that."
+
+The Topic screen behind each pill (§95's "a Topic screen behind every
+interest chip") was a door to a grid that said little about the person -
+the Concerts screen held William and Kate and Trump's Asia trip. So the pill
+is now a label: `<span class="yf-chip label">` with `cursor:default`, no
+onclick, on your own page (`openInterestAt` deleted), a friend's page
+(`openPersonInterest` deleted) and the chat header (`openThreadInterest`
+deleted); `interestChipsHTML` lost its `opener` argument. The empty state
+("Add interests in Edit profile") stays a button - it has an editor behind it.
+`openTopic` and its screen stay for the other places that open it.
+The iOS app did the same (`InterestChipButton` on YourFAM, a person's page
+and the chat header); it is deleted and the three draw `InterestChip`.
+No Swift compiler here - the next Xcode build is its check.
+`tests/test_interest_labels_662.py` pins it.
+
+## 663. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19)
+
+The owner: "We are still having pronunciation issues within the app, even
+with names as similar as the country name 'Iran'".
+
+**Why "Iran" was never respelled.** Every way into the lexicon (§165, §289,
+§325) started from a name somebody flagged as hard: EI's brief and the
+writer's `<<SAY:>>` lines list names *a model* finds hard, Wikipedia is only
+asked about names a model added, and `hard_words.py` lists words the CMU
+dictionary lacks. "Iran" is none of these - no model thinks it hard, and the
+dictionary has it - so it reached Chatterbox as its letters, which read it as
+"eye-ran". The same gap holds for every famous name an English reader says
+from habit rather than from the spelling: Iraq, Qatar, Niger, Kyiv, Beijing,
+Erdogan, Xi.
+
+**What changed.** `pronunciation.SEED` holds 36 such names (Venezuela, Venezuelan and Caribbean at the owner's request) with the common
+American broadcast reading ("Iran = ee-RAHN", handed to the voice as
+"Eerahn"). `Lexicon.reload` writes them to the shared table once per process
+as source `seed`, which ranks under an admin and over Wikipedia and both
+models (`SOURCES`, `voice_bank.learn_pronunciation`); `wiki_pronounce.check`
+never replaces a seed, as it never replaces an admin. Being rows in the table,
+they show on /admin, go out in the review export (§549) and can be heard four
+ways there. An admin's respelling replaces a seed for good; removing a seed
+brings it back at the next boot, so a wrong seed is fixed by setting the
+right one. Matching stays case-sensitive and whole-word: "Iran's" is
+respelled, "chile" (the pepper) and "XI" (the numeral) are not. "Xi" is the
+one seed under three letters, allowed past `clean` by name (`_SHORT_SEED`).
+
+Tests that are about an empty lexicon build it with `Lexicon(bank,
+seed=False)`; `tests/test_pronunciation_seed_663.py` pins the rest.
+
+**Not verified.** Nobody has heard any seed in Chatterbox - this container has
+no GPU. The respellings are hand-chosen, not measured; "Eerahn" may still
+come out wrong, and the place to find out is /admin's "Hear 4 ways" on the
+live voice, then an admin respelling for any that miss. The list is a floor of
+famous names, not a scan: a name the voice gets wrong that is neither listed
+nor flagged by a model is still missed, and the owner's next report of one is
+the signal to add it.
+
+**The list audited from outside (same day).** At the owner's request a
+separate agent, handed the code and the list but not this reasoning, audited
+both. What it found and what was done:
+
+- *An h after a vowel was swallowed when syllables were joined (§576):*
+  "doh-hah" reached the voice as "Dohhah", "muh-HOHMZ" as "Muhhohmz", an
+  admin's "voy-cheh-HOF-skah" as "Voychehhofskah". `_joined` now keeps that
+  hyphen, as it keeps the one before a digraph ("Doh-hah"). This changes how
+  every such entry in the table is voiced, admins' included.
+- *A name in capitals was never respelled:* the lexicon matches by case and
+  runs before `speakable` turns "IRAN" into "Iran". `_compile` now adds the
+  capitals form of every name of four letters or more ("XI" the numeral is
+  still never "Xi").
+- *A seed taken out of `SEED` stayed in the table for good:* `_seed` now
+  removes rows still marked `seed` whose name is gone.
+- *An admin could not replace "Xi"* (`clean`'s three-letter rule); `set`
+  now lets a `_SHORT_SEED` name through.
+- *Added (57):* plurals and adjectives of seeded countries (Qataris, Omani,
+  Bahraini...), Ukraine and Iran war places (Kharkiv, Lviv, Odesa, Hormuz,
+  Fordow, Natanz, Khan Younis), leaders (Putin, Zelensky/Zelenskyy, Macron,
+  Merz, Milei, Guterres, Kim Jong Un, Noem, Leavitt, Thune, Alito), Hamas and
+  Qaeda, East Asian places (Seoul, Taipei, Shenzhen, Xinjiang, Pyongyang), US
+  towns (Des Moines, Tucson, Boise, Spokane), athletes (Jokic, Doncic,
+  Antetokounmpo, Kelce, Mahomes, Mbappe/Mbappé, Djokovic, Gauff, Pulisic,
+  Leclerc, Draisaitl), companies (Huawei, Xiaomi, Hyundai, Porsche,
+  Chipotle, Wegovy) and "Erdoğan" with its accent. Qatari's stress and
+  Khamenei's opening "Kh" were changed.
+- *Not taken:* the audit would drop Venezuela, Caribbean, Uruguay, Chile and
+  Doha as spellings the voice probably already reads right. Venezuela and
+  Caribbean were the owner's own request and stay; the rest stay until
+  heard. Left out as unsure: Pezeshkian, Zaporizhzhia, Swiatek, Shein,
+  Tiingo (its own pronunciation unchecked), Bogota (the New Jersey town).
+- *Open:* the audit thinks "Eerahn" may be heard as "EAR-ahn" and proposes
+  "ir-RAHN" ("Irrahn", as in irritate). Unchanged until the owner hears both
+  on /admin's "Hear 4 ways". Phrase entries cannot yet tell names apart
+  ("Niger Delta = NY-jer DEL-tuh" would also store "Niger" by `_split`), and
+  diacritics are not folded, so each accented spelling is its own entry.
+
+## 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19)
+
+The owner set Iran to `ih-RAHN` on /admin, and the voice check beside it
+said "The voice said it a little differently: eef-rahn ... 67% alike"
+(/i f r a n/). The owner: "iran sounds weird", then, with the whole list
+exported: "expand that search to potentially similar issues, this could be a
+problem throughout the whole pronunciations page."
+
+**Cause.** A respelling marks a bare vowel with an h ("ih", "eh", "uh",
+"ah", "oh"). Since §576 a word's syllables are joined before the voice gets
+them, so "ih-RAHN" arrived as "Ihrahn" - an h before an r, which English
+does not have and Chatterbox breathed, heard as an f. Where the next
+syllable began with a vowel the h was said outright: Keawe `keh-AH-veh`
+arrived as "Kehahveh".
+
+**How wide.** The owner's export (1,781 entries: 733 from briefs, 690 from
+writers, 347 admins', 11 Wikipedia's) run through the joining: **395**
+handed the voice a marked h before a consonant or a vowel inside a word.
+
+**Fix, in `_joined`, so every entry is mended without touching a row:**
+- a short "ih" or "eh" loses its h, and the next consonant doubles where
+  English doubles one after a short vowel (b d f g l m n p r s t):
+  "Irrahn" (irritate), "Terrahn" (terror), "Zellenskee"; before any other
+  consonant only the h goes ("Atikohkan", "Likood");
+- an unstressed "uh" (lower case in the respelling - capitals mark stress)
+  is written "a", as English writes a schwa: "ab-dul-kuh-REEM" ->
+  "Abdulkareem", "uh-DAP-tuh-vist" -> "Adaptavist", "uh-DAH-nee" ->
+  "Adahnee". Doubled, it pulled the stress forward ("Uddahnee"), so it is
+  not doubled; a stressed "MUH" is left alone;
+- a marked vowel before a vowel loses its h and keeps one hyphen, a word
+  break and not §576's chop: "Ke-ahveh", "Ahja-erroh", "Bo-en";
+- "ah" and "oh" before a consonant are left: English writes them so
+  ("Bahrain", "Ohm").
+
+439 entries are voiced differently (165 writers', 156 briefs', 117 admins');
+395 to 14 with a breathed h. The 14 have the h inside one syllable
+("BAT-uhn", "beh-SEHR-ah", "rohd-REE-gehs"), where a rule would guess ("gehs"
+without its h may be "jess"); they are listed for an admin. The seed's Iran
+family now matches the owner's `ih-RAHN` (Iranian `ih-RAY-nee-un`). The
+export itself is not in the repository - it quotes episodes.
+
+**Not verified.** Nobody has heard one of the new forms. The check is on
+/admin: "hear all" (`/api/admin/pronunciations/hear-all`, 150 a run) says
+each entry with the live voice and the recogniser writes down what it heard,
+so Iran should now read close to `ih-RAHN` and not "eef-rahn". Its verdicts
+are hints (§325); the owner's ear decides.
+
+**The 14 respelled by hand (same day, the owner: "respell the 14 yourself
+too").** Each loses its in-syllable h for the English spelling of the same
+sound (`er`, `air`, `un`, `uz`, `ez`), and "rohd-REE-gehs" becomes
+"rod-REE-ghez" so the g stays hard. The 13 that were a model's or
+Wikipedia's are seeds (`SEED`, "Respelled by hand"), so they replace those
+rows on the next boot; Libertad is an admin's row and a seed never replaces
+one, so it is the owner's edit on /admin (`lee-ber-TAHD`). A test now fails
+if any seed hands the voice a breathed h - it caught three of §663's own
+(Kherson, Pyongyang, Guterres), respelled. Unheard, like the rest.
+
+**The branch reviewed before merging (same day).** A separate agent, handed
+the diff and not this reasoning, reviewed §663-§664. Fixed:
+- *A seed that failed at boot was never retried, and ran on the listener's
+  path* (a hundred database round trips inside the first chunk's first
+  `reload`, against `[nothing-before-material]`'s "only work before the tap").
+  `Lexicon.seed` is now public and returns whether every seed was written;
+  `reload` starts it in a thread (`_seed_in_background`), never twice at once,
+  again after `SEED_RETRY_SECONDS` on a failure, and reads the table again
+  when it is done.
+- *Two names with the same capitals took the worse respelling* ("Mcilroy" a
+  brief's, "McIlroy" an admin's: "MCILROY" got the brief's). The better-ranked
+  source wins; capitals are matched only for `admin`, `seed` and `wikipedia`
+  rows (`_CAPS_SOURCES`), not the ~1,400 model guesses ("GREEN CHILE" was a
+  risk); and they live in the matching table only - `entries()` lists real
+  names, so `tools/stress_trial.py` no longer voices "IRAN" beside "Iran".
+- *Stress was read from lower case*, so a title-cased first syllable
+  ("Kuh-REEM") counted as stressed: now only capitals do.
+- *`_KEEP_H` never matched* (a 3-letter slice against "shah"): "shah-EEN" is
+  "Shaheen". *A lone "h" syllable before a vowel* gave a leading hyphen
+  ("h-ah" -> "-ah").
+- *"Xi" passed only the admin's form*: `clean` itself now lets a
+  `_SHORT_SEED` name through, so "Hear 4 ways" and the review upload take it
+  too, with `clean`'s normalising.
+- *"seed" was unexplained*: /admin calls it "built in", and the reviewer's
+  prompt names it.
+- Tests: the admin-beats-seed test set the seed's own reading (vacuous); the
+  breathed-h test could not see a word's first syllable. Both fixed, and
+  retry, the background start, capitals ranking and title case are tested.
+Left as it is: removing a name from `SEED` deletes its row even when the
+seed had replaced a model's, which a model relearns the next time it lists
+the name.
+
+## 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18)
+
+**The owner's ask (11.18, with a screenshot of Instagram's profile):** make
+adding friends easier and have the app direct people to it - a "your
+contacts that are on the app" page early in sign-up; after Follow, a row of
+the people that person follows, as Instagram slides open; more ways to
+encourage it; and the Friends page was hard to find.
+
+**What was there:** the Friends page (search by handle, Invite, Friends |
+Following) was reached from YourFAM's friends *count*, a follow banner,
+Messages' empty note and the friends rail's Find new friends pill. Nothing
+in sign-up mentioned friends, and nothing suggested anybody.
+
+**What changed** (`find-friends`, `docs/claude/open-problems.md`):
+1. **Sign-up's third step is Find your friends** (`screen-findfriends`;
+   the step bars count four). After the handle so the people found can find
+   you back, before the interests. Contacts, a search by name or handle,
+   People you may know, Invite; Next and Skip go on by name.
+2. **`POST /api/friends/contacts`** matches the contacts the listener picked
+   against account phones and emails (`accounts.match_contacts`, through
+   `identities` too) and returns each match with the name from *their*
+   address book. Nothing posted is stored or logged. A ten-digit number is
+   read as +1 when the asker's own number is +1 or absent, otherwise
+   skipped. On the web the button exists only where the Contact Picker does
+   (Chrome on Android); **iPhone Safari has none**, so on an iPhone this
+   pays only in the native app, which is not built yet (PARITY.md row).
+3. **`GET /api/friends/suggested`** (`social.suggestions`): Discover people -
+   who follows you unfollowed back, then who your follows follow, ranked by
+   how many of your follows follow them. With `handle`: who that person
+   follows, **only once you follow them** - before, an empty list, so the
+   row is something following gives you rather than a way to read a
+   stranger's graph. Filtered as search is (handle, not apart, not
+   waitlisted). This narrows `op-friend-profile`: who somebody *follows*
+   was not shown to non-friends before; the friends list still is not.
+4. **Cards** (`suggestCardsHTML`): face, name, why ("Follows you", "N
+   mutuals", "Suggested for you"), Follow, an X kept in localStorage. On
+   the Friends page (above the tabs), YourFAM (Discover people, See all),
+   the sign-up step, and the person page under Follow, sliding open.
+5. **Doors**: an add-person square beside Edit profile / Saved for Later,
+   a Find face before Invite on DailyFAM's row; the Friends search says
+   "Search by name or @handle" (it always searched names too).
+
+**Verified:** `tests/test_find_friends.py` (12); the 779 tests that touch
+the friends code, names or screens; a real server with seeded accounts in
+Chromium at phone size - the step, contacts with a stubbed picker,
+YourFAM's Discover people, the Friends page, and the row after Follow.
+**Not verified:** a real Contact Picker on an Android phone; the native app
+(not built); whether the step raises follows - there is no event for it.
+
+
+## 666. Mutuals on every profile, three looks for the owner (2026-11-18)
+
+**The owner's ask (11.18, a message thread with the Instagram screenshot):**
+"when you view someone's profile, whether you follow them or not, it still
+displays mutuals", and two or three ways it could look.
+
+**What changed:** `/api/person` carries `mutuals` (`_person_mutuals`): the
+people the viewer follows who follow the profile's owner, counted in full,
+the first 30 named - name, handle, face, never an id; the viewer's friends
+first; nobody without a handle, blocked either way or suspended. Only people
+already in the viewer's own graph, so it shows nothing about strangers.
+On a friend's page (`renderFriendProfile`) one of three looks, by
+`MUTUALS_LOOK` (or `famMutualsLook` on the device, for comparing):
+- **line** (shown): three overlapped faces and "Followed by Molly, Cooper
+  and 4 others" under the handle, as Instagram has it;
+- **stat**: a fourth number beside friends / vibes / mixes, "6 mutuals";
+- **row**: a "6 mutuals" heading over a sideways row of faces and first
+  names under the buttons, like dailyFAM's faces, each a profile.
+Each opens the whole list ("Followed by", the friends-who-listened sheet).
+
+**Verified:** two tests in `tests/test_find_friends.py` (visible without
+following; nobody unfollowed named); the three looks photographed on a
+real server. **Owed:** the owner's pick, then the other two looks deleted.
+
+
+## 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18)
+
+**The owner's ask (11.18):** "These 2 are good. When people are following
+each other and view each others accounts, it should also show the mutuals.
+This should look similar to the icons that are shown on each tile in
+DailyFAM. It should show 4 peoples icons in the same format, and it should
+be on the left side of the screen right under the follow button. It should
+say \"Followed by Brady, Ian, and 45 others\"."
+
+**What changed:** `MUTUALS_LOOK` and the "stat" and "row" looks are gone.
+`mutualsLineHTML` draws up to four (`MUTUAL_FACES`) faces with
+`friendFaceHtml` - the dailyFAM tile's own `.src-marks` / `.friend-face`
+marks, titled with the person's name rather than "listened" - and
+`mutualsWords` writes "Followed by **Brady**, **Ian**, and 45 others" (two
+names: "A and B"; one: "A"). It is the `mutuals` part, placed straight after
+the Follow / Message row and left-aligned, so it shows on a friend's page as
+on anybody's; Suggested for you (§665) now opens under it.
+
+**A bug the full check found (§665):** `./dev.sh check` passed its 7,983
+tests and failed four browser smoke checks. Two were the smoke's own
+expectation (interests straight after identity); it now waits for
+`#screen-findfriends`, asserts there is a way past it, and goes on. Two were
+real: a guest, or anyone taking "skip" at the account step, was sent to Find
+your friends, which needs an account to follow from. `afterAccount` with
+`askWhoTheyAre: false` and `afterIdentity` without an account now go
+straight to the interests.
+
+**Verified:** photographed on a real server, two accounts following each
+other with five mutuals: four faces, "Followed by Eli, Dana, and 3 others",
+under Follow on the left. **Not verified:** the full check is re-run below
+in the commit that carries this.
+
+## 668. No follow-back nudge (2026-11-19)
+
+**The owner (11.19), on §665's brainstorm:** "dont add the follow back
+nudge". The idea (item 3) was a prompt to follow somebody back after they
+opened an episode you sent, or followed you. It was never built; this
+records that it is not to be, at `rule:find-friends`. What already exists
+is unchanged: Discover cards may say "Follows you" as their reason and
+list those people first (§665). That is a suggestion's reason, not a
+prompt, and stays unless the owner says otherwise.
+
+## 669. Five ways into the graph, from the owner's picks (2026-11-19)
+
+**The owner (11.19), on §665's brainstorm:** "do 1, 2, not 3, 4, not 5, not
+6, 7, 8, 9" - and earlier "dont add the follow back nudge" (§668), "keep the
+follows you cards".
+
+**What changed:**
+- **9, where a follow came from.** `follows.via` (a migration, "" for every
+  older row), one of `social.FOLLOW_VIA` or `signup_` + one on the Find your
+  friends step; anything else is stored as "". `FollowRequest.via`; the
+  client reads the nearest `data-via` around the tapped button
+  (`followViaFrom`), set on Suggested for you (`suggested`), the row under
+  Follow (`after_follow`), contacts (`contacts`, Follow all `contacts_all`),
+  search results, a profile's buttons (`profile`, `profile_link` when the
+  profile came from its link), a profile's friends (`their_friends`), the
+  Friends lists, a group's Follow all, the joined card and the friends
+  rail's card. `/admin` answers "Where did follows come from this week?"
+  (recipe `follow_sources`, grouped, windowed).
+- **1, the friends rail while it is nearly empty.** Under three follows
+  (`FRIENDS_RAIL_GOAL`) the rail ends in a card - "Find your friends",
+  "Follow 3 people and this row fills with what they're hearing", three
+  steps and "1 of 3", up to three Discover people with Follow, and Find
+  friends. A slot (`#friendsRailFind`) in the rail's markup, painted by
+  `paintFriendsRailFind` after every draw and whenever the friends list or
+  suggestions arrive, so the rails' redraw test is unchanged.
+- **2, "Molly just joined FAM".** FAM keeps nobody's address book (§665), so
+  the one direction it can know is the newcomer's. When an account under a
+  week old finds people in its contacts, each of them who does not follow it
+  gets one notice: `joined_notices` holds the pair and the time, never a
+  number, address or name, is deleted when its card goes up (`POST
+  /api/friends/joined/seen`; a card still waiting behind Terms or the
+  activation sheet is tried again every 3s) and after a fortnight regardless, and goes with either account
+  (`SocialStore.forget`). It is shown only if discovery would show the
+  newcomer and the listener does not already follow them, as the follower
+  popup's card with "just joined FAM" and Follow, 2.5s after boot so it never
+  races "started following you". The newcomer learns nothing from it.
+- **8, Follow all in a group.** A group's members sheet offers "Follow all
+  N" (or "Follow Ana") for the members not followed; `members[].following`
+  says which. It, and contacts' Follow all, use the new `POST
+  /api/friends/follow-all` (up to 50, one `_rate_limit`): **§665's contacts
+  Follow all sent a follow per person and the fourth was refused by the
+  pace**, a bug found here.
+- **7, a profile link.** `/@handle` redirects to `/?person=<handle>`; the
+  app opens that profile (`openLinkedPerson`), or holds it for sign-up and
+  shows them first on Find your friends ("Shared their profile with you").
+  "Your profile link" with Share tops the Friends page; the step has "Share
+  your profile link".
+
+**Not built:**
+- **4** (a Follow on the "friends listened" faces): those faces are only
+  ever mutual friends, already followed, so there is never a Follow to
+  offer, and showing anybody else's listening breaks private listening.
+- **The QR code for 7.** No QR library is installed here and installing one
+  was refused in this session; a QR encoder written by hand could not be
+  checked by scanning it (nothing here decodes one). With the owner's yes,
+  `segno` (pure Python) in `requirements.txt` and an SVG endpoint for
+  `/@handle` is the small step left.
+
+**Verified:** `tests/test_find_friends.py` gains ten tests (via kept and
+closed, the admin recipe, the endpoint passing it, Follow all in one request
+with skips, a joined notice raised once, none from an old account, notices
+erased with an account, the profile link's redirect, group members'
+`following`). **Not verified:** a real phone scanning or tapping a `/@`
+link through the App Store app; a universal link in the iOS app (PARITY.md).
+
+## 670. The profile link's QR code (2026-11-19)
+
+**The owner (11.19):** "add segno and build the QR code" - the step §669
+left waiting.
+
+**What changed:** `segno==1.6.6` (pure Python, no dependencies) in
+`requirements.txt`. `GET /api/me/qr` draws this listener's own
+`APP_HOME_URL/@handle` (§669) as an SVG - no handle parameter, so nobody
+else's code can be asked for; 401 without an account, 404 without a handle;
+dark modules (#1a1714) on nothing, scale 8, quiet zone 2, error correction
+M. "Your profile link" on the Friends page gains a QR button that opens a
+card (`#qrOverlay`): the code on a white frame in either theme (a camera
+cannot read a dark code on a dark card), the handle, the link, "Point a phone
+camera at this to open your profile and follow you", and Share your link.
+
+**Verified:** two tests - the endpoint's SVG is byte-for-byte segno's code
+for the expected `/@ana` URL, and the account and handle gates; the card
+photographed on a real server with the image loaded. **Not verified:** a
+phone actually scanning it. Nothing here decodes a QR code (Chromium on
+Linux has no `BarcodeDetector`), so the code's content rests on segno and on
+the URL test; one scan with a phone camera settles it.
+
+## 671. The QR button on YourFAM (2026-11-19)
+
+**The owner (11.19):** "put the QR button on YourFAM too".
+
+**What changed:** a square QR button (`yfIcon("qr")`) after the add-person
+square beside Edit profile and Saved for Later, for an account with a
+handle; it opens §670's card (`openProfileQR`). The Friends page's QR button
+draws the same icon from `yfIcon` rather than its own copy.
+
+**Verified:** on a real server at 360 and 390 px wide the row of four does
+not overflow, and the tap opens the card with the code loaded; a test pins
+the button to `renderProfile`. **Not verified:** the row under the largest
+phone text sizes (`large-text`).
+
+## 672. A friend's QR code, on their profile (2026-11-19)
+
+**The owner (11.19):** "put it on a friend's profile too".
+
+**What changed:** a QR square after Follow (and Message) on anybody's
+profile (`personQRButton`, `data-act="qr"`; §645's in-place patch of that
+row leaves it where it is). It opens the same card (`showQRCard`) with their
+code, their `/@handle`, "Point a phone camera at this to open Ian's
+profile." and Share their link. The code comes from `GET /api/person/qr
+?handle=`, which draws only for somebody this listener may open
+(`_reachable`: not blocked either way, suspended or on the waitlist outside
+their graph) and answers anything else - and your own handle, which is
+`/api/me/qr` - with the 404 an unknown handle gets, so it tells nobody who
+exists. Both endpoints share `_profile_qr`.
+
+**Verified:** a test (their code byte-for-byte, unknown and own 404,
+signed out 401); on a real server at 360 px the square sits after Follow,
+stays after following, and opens the card with the code loaded. **Not
+verified:** a phone scanning it (as §670).
+
+## 673. Square corners behind every card on a phone (2026-11-19)
+
+**The owner (11.19), on §672's QR card:** "The corners look weird" - the
+screenshot showed the page's light background at all four corners, outside
+the dimming.
+
+**Cause:** `.modal-overlay`, `.sheet-overlay` and `.fam-loading` are
+rounded 34px to sit inside the phone drawn on a desktop screen. At phone
+width (`max-width:520px`) that drawing is turned off and the screen is
+square, but the overlays kept their radius, so every card, sheet and the
+loading screen let the page show through at the corners. Older than this
+packet; the QR card only made it obvious.
+
+**What changed:** inside the phone-width block, `body .modal-overlay, body
+.sheet-overlay, body .fam-loading{ border-radius:0; }` - `body` because
+the rounded rule comes later in the file and won at equal specificity (the
+first try measured 34px still). Also: a friend's QR card named them by
+handle ("iansol's profile") when the page was opened by handle; it now
+takes the name `/api/person` returned, as the page does.
+
+**Verified:** computed radius 0px at 390 px and 34px on the 800 px desktop
+frame; photographed; "Ian's profile" read off the card.
+
+## 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19)
+
+**The owner (11.19):** "Double check all changes in this branch and get this
+ready to merge into main."
+
+**Merged Main first.** Main had moved 26 commits and its sections ran to
+§664, the same numbers as this branch's nine; this branch's were renumbered
+§665-§673 everywhere they are cited (115 references) before the merge. One
+conflict in code: the profile's interests comment, which Main rewrote
+(§662) beside this branch's mutuals and suggestions lines - both kept.
+
+**A review of the whole branch against Main found six things, all fixed:**
+1. **A crafted link ran script.** `/?person=` went from the address bar
+   into the profile's `followHandle('...')` onclick; `escapeHtml` turns a
+   quote into `&#39;`, which the browser decodes back before the script
+   runs, so `/?person=');alert(1)//` executed on tapping Follow.
+   `linkHandle` now admits only `[a-z0-9._]{2,24}` from the URL and from
+   sessionStorage, and drops anything else.
+2. **Strangers matched as contacts abroad.** A number saved without a
+   country code was read as +1 for any account with no phone of its own, so
+   an email-only account in India had its contacts' ten-digit mobiles
+   matched to US accounts - shown as "In your contacts as Amma" and sent a
+   "just joined" card. Now +1 only when the asker's number is +1, or they
+   have none and the device's `X-FAM-TZ` is a +1 zone (`NANP_ZONES`);
+   otherwise skipped.
+3. **Mutuals undercounted on a popular page.** `_person_mutuals`
+   intersected `following(me)` and `followers(target)`, both 500 rows, so
+   a mutual older than the target's newest 500 followers was missed.
+   `SocialStore.mutual_followers` counts in one query over the whole graph.
+4. **The contacts lookup was an enumeration and a megaphone.** 2,000
+   addresses a request under the model bucket was ~40,000 lookups a minute,
+   and a new account pushed its "just joined" card to every match. Now
+   `CONTACTS_PER_DAY` (6,000 entries per account a day, 429 past it) and
+   `JOINED_NOTICE_MAX` (50 per newcomer). Also: a shown notice was deleted,
+   so the same newcomer could raise it again within its week; it is now
+   marked `shown` and pruned at a fortnight.
+5. **Follow all multiplied follow throughput fifty times.** Now at most
+   `FOLLOW_ALL_PER_HOUR` (200) follows an hour through it, counted from
+   the follows table; past it, 429.
+6. **List items had no length cap** in `FollowAllRequest` and
+   `ContactEntry`; now bounded.
+
+**Verified:** six tests for the six (the 520-follower page, the Kolkata
+and Chicago zones, the daily cap, the notice cap and once-only, the hourly
+cap, the handle check), and the earlier contacts tests now send the zone
+the web client sends on every call. **Not verified:** the iOS app sending
+`X-FAM-TZ` on `/api/friends/contacts` (PARITY.md); the per-day contacts
+count is in process memory like `_rate_limit`'s bucket, so a restart
+forgives it.
+
+## 675. iOS build 10: the audit of Main since build 9, and Find your friends on the iPhone (2026-11-19)
+
+**Asked.** "Start a new iOS build from all the changes that have come since
+the last one."
+
+**The audit.** Every pull request merged after build 9 (#307), #308-#325,
+read for what it gave a listener and checked against the Swift:
+
+| PR | What | On the iPhone |
+|---|---|---|
+| #308 (§618) | Continue cut off on Android web | Web only |
+| #309 (§619) | Let in, the email alone signs in; the first password typed twice | In the PR |
+| #310, #311 (§620) | The security audit | Server only; its open item A (email change without a password) is held back *because* it would break installed iOS builds |
+| #312 (§621-§624) | Facebook link card, post photo, clip, post kit | Server, landing page and `/admin` only (the photo and clip are admin tools on the web too) |
+| #313 (§625-§636) | The writer's examples and material check | Server only |
+| #314 (§637) | The 11.16 notes | In the PR |
+| #315 (§638) | Private mode, followers-only profiles | In the PR |
+| #316, #319, #321, #324 (§639, §651, §654-§655, §663-§664) | Admin counts, the voice worker, Claude per episode, pronunciation | Server only |
+| #317 (§640-§647) | Motion round three | Web only by design: each section says `Motion.swift` is separate work (PARITY.md) |
+| #318 (§648-§650) | Ambassadors, the keyboard, Instagram's link | In the PR |
+| #320 (§652-§653) | Swipe the player down, Report a problem | In the PR |
+| #322 (§656-§661) | Stripe, Apple in-app purchase, students | In the PR |
+| #323 (§662) | Interest pills open nothing | In the PR |
+| #325 (§665-§674) | Finding friends, mutuals, five ways into the graph, the QR code, square card corners | **Missing: built here** (only a PARITY.md "Not yet" row); the corners are web CSS |
+
+**Find your friends on the iPhone** (`FindFriends.swift`; PARITY.md's row):
+* Sign-up's third of four steps (`EntryStep.findFriends`, `StepMarks`
+  counts four): after who you are, for an account let in
+  (`AppModel.afterIdentity`; one still waiting goes to the interests, as
+  the web's `afterIdentity` without an account), before the interests.
+  The heading, lede, search by name or @handle, People you may know,
+  Share your profile link and Invite friends to FAM are the web's; Next and
+  Skip go on to the interests. A profile link held from before sign-up is
+  first, "Shared their profile with you".
+* Your contacts on FAM through the Contacts permission
+  (`NSContactsUsageDescription`), asked only from "Find friends in your
+  contacts": names, numbers and addresses of up to 2,000 people, posted to
+  `/api/friends/contacts` with the listener's `X-FAM-TZ` as every request
+  is (§674's +1 reading), kept nowhere on the phone. Refused, it says to
+  allow Contacts in Settings and offers Open Settings. Follow all is one
+  `/api/friends/follow-all`.
+* Suggested for you / Discover people cards (`SuggestCards`): face, name,
+  the server's `reason`, Follow, an X remembered on the device; on the
+  Friends page above the tabs (now pinned as they scroll, as the web's
+  sticky tabs), on YourFAM with See all, on the step, and sliding open
+  under Follow on a profile once followed (`?handle=`).
+* "Followed by **Brady**, **Ian**, and 45 others" with four faces under
+  Follow on every profile (§667, `mutuals` decoded), opening the list.
+* "just joined FAM" (§669): the follower popup with Follow, 2.5 s after the
+  notifications' bootstrap, never over another card, the notice forgotten
+  when it goes up.
+* Every follow says where it was tapped (`via`, §669): contacts,
+  contacts_all, suggested, after_follow, search, profile, profile_link,
+  their_friends, friends_page, joined, and `signup_` before those on the
+  step.
+* `/@handle` (and `/?person=`) open the profile in the app, only a
+  handle's own characters admitted (§674's `linkHandle`); YourFAM's
+  add-person and QR squares; the Friends page's "Your profile link" with QR
+  and Share; a QR square after Follow on anybody's profile. The code is
+  drawn on the phone (Core Image, error correction M) from the same
+  `home/@handle` link the server encodes - no SVG renderer and no request.
+
+**The build.** `CURRENT_PROJECT_VERSION` 10; `releases/contracts/ios-1.0.0.json`
+recut with `--force` (110 routes, 31 shapes; nothing removed - the five
+friends routes added, and the billing, ambassador, entitlements and feedback
+routes #318-#322 had added to the Swift without a recut); the registry's
+build is 10. Build 10 replaces build 9.
+
+**Not built (PARITY.md):** the friends rail's "Find your friends" card under
+three follows, a group's Follow all, DailyFAM's Find face. **Owner's call:**
+`/@*` is not added to `apple-app-site-association` - once there, every
+installed build would get `/@` links, and builds 1-9 do nothing with them;
+until it is, a `/@` link or a scanned code opens the web app, which opens the
+profile. The App Store privacy answers may want contacts named, though
+nothing posted is stored.
+
+Tests: `tests/test_build10_find_friends_ios.py`. **Not verified here:** no
+Xcode in this container - the Swift compiles in `ios.yml`; the Contacts
+prompt, the QR scanning and the layout at large text want a phone.

@@ -87,6 +87,11 @@ pyspellchecker>=0.8
 # that paints pictures needs it; serving them needs nothing.
 Pillow>=10.0
 
+# A profile's QR code (§670, `/api/me/qr.svg`): the `/@handle` link drawn as
+# an SVG for somebody in the same room to scan. Pure Python, no other
+# dependencies.
+segno==1.6.6
+
 # The finance workbook (`financials.py`, `/api/admin/financials.xlsx`): every
 # service FAM pays for and what it spent each day, as an Excel file built on
 # request. Only the admin download imports it.

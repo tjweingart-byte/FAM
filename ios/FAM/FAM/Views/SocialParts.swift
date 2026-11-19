@@ -538,7 +538,8 @@ struct FollowerPopup: View {
                     .padding(.top, 6)
                     .padding(.bottom, 12)
                 (Text(name).font(FAMFont.heading(16, .semibold)).foregroundColor(FAMColor.text)
-                 + Text(" started following you").font(FAMFont.heading(16, .medium)).foregroundColor(FAMColor.textMuted))
+                 + Text(social.followerJoined ? " just joined FAM" : " started following you")
+                    .font(FAMFont.heading(16, .medium)).foregroundColor(FAMColor.textMuted))
                     .multilineTextAlignment(.center)
                     .lineSpacing(5.6)
                 if let h = person.handle, !h.isEmpty {
@@ -548,7 +549,7 @@ struct FollowerPopup: View {
                         .foregroundStyle(FAMColor.textFaint)
                         .padding(.top, 5)
                 }
-                if person.followsBack == true {
+                if person.followsBack == true && !social.followerJoined {
                     // `#nfAlready`: Geist Mono 8.5, uppercase, sage (shot 34).
                     Text("You already follow them \u{2014} you are friends.")
                         .monoLabel(8.5, color: FAMColor.sage, tracking: 0.425)
@@ -556,7 +557,7 @@ struct FollowerPopup: View {
                         .padding(.top, 18)
                         .padding(.bottom, 10)
                 } else {
-                    ModalButton(label: "Follow back", primary: true, wide: true,
+                    ModalButton(label: social.followerJoined ? "Follow" : "Follow back", primary: true, wide: true,
                                 enabled: !social.followingBack) { social.followBack(person) }
                         .padding(.top, 14)
                         .padding(.bottom, 8)
