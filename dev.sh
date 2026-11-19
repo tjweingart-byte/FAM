@@ -102,6 +102,10 @@ if command -v node >/dev/null 2>&1 && $PY -c "import playwright" 2>/dev/null; th
   # against a zero-spend server.
   $PY tools/smoke_activation.py \
     || { echo "  (activation smoke test failed)"; smoke_failed=1; }
+  # A stream that breaks part-way (§685): asked again by the episode's id,
+  # or what arrived played out before saying so - a real browser, no server.
+  $PY tools/smoke_reconnect.py \
+    || { echo "  (reconnect smoke test failed)"; smoke_failed=1; }
 else
   printf '  \033[1mSKIPPED: the browser smoke test did not run.\033[0m\n'
   printf '  Nothing below was checked in a browser. To fix:\n'

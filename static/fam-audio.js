@@ -73,6 +73,79 @@ window.FamAudio = (function () {
      checking off its steps before the first word (§148). */
   var held = false;
 
+  /* ---- Recovering, and saying what happened (§685) --------------------
+   *
+   * The 11.16 report: "My episode paused 2/3 of the way through and did not
+   * continue" (Android web). The web player kept no record of what playback
+   * did, so the report could not say which of three things it was:
+   *
+   *  - **The stream broke** part-way. Before this, everything stopped the
+   *    moment it did - the audio already here was thrown away mid-word - and
+   *    nothing asked again. Now what has arrived plays on, and a stream that
+   *    names its episode (X-FAM-Episode) is asked for again by that id
+   *    (`?episode=`, which replays and never writes), up to three times,
+   *    skipping the samples already here: what the iPhone player does
+   *    (§653's "reconnects"). An episode that is not kept answers 409; the
+   *    listener hears everything that arrived, then is told it broke off.
+   *  - **The browser suspended the audio** on its own (another app took
+   *    the sound, the screen locked). The pause button still said playing,
+   *    so the first tap paused and nothing happened. Now the player asks
+   *    once to carry on; if the browser will not, the controls say paused,
+   *    so one tap plays.
+   *  - **The audio ran dry** waiting for the voice and resumed only on the
+   *    next timer tick, which a hidden page gets about once a minute. Now
+   *    audio that arrives into an empty queue is scheduled at once.
+   *
+   * Every one of these is written to `log`, which a Report a problem sends
+   * (`playbackLog`), as the iPhone's does.
+   */
+  var log = [];
+  var logStart = 0;
+  var MAX_LOG = 400;
+  var wantPaused = false;  // the listener paused; any other suspension was not them
+  var dryAt = -1;          // when the queue ran out of audio mid-stream
+  var brokenOff = null;    // the stream broke for good: told once what arrived has played
+  var phase = "idle";
+
+  function note(line) {
+    var now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    if (!logStart) logStart = now;
+    log.push("+" + ((now - logStart) / 1000).toFixed(1) + "s " + line);
+    if (log.length > MAX_LOG) log.splice(0, log.length - MAX_LOG);
+  }
+  function secs(samples) { return (samples / sampleRate).toFixed(1) + "s"; }
+
+  function playbackLog() {
+    if (!log.length) return "";
+    var head = "web player, " + phase +
+      (ctx ? ", context " + ctx.state + ", at " + secs(positionSamples()) +
+             " of " + secs(totalSamples) + " arrived" +
+             (streamDone ? " (all of it)" : "") : "") +
+      (hidden() ? ", page hidden" : "");
+    return head + "\n" + log.join("\n");
+  }
+
+  /* The browser, not the listener, stopped the clock: ask once to go on,
+     and if it will not, say paused so one tap resumes. */
+  function watchContext(c, myToken) {
+    try {
+      c.onstatechange = function () {
+        if (myToken !== token || c !== ctx) return;
+        note("audio context " + c.state + (wantPaused ? " (the listener paused)" : ""));
+        if (c.state === "running" || wantPaused || ended || !active) return;
+        holdMediaChannel();
+        var asked = c.resume();
+        if (asked && asked.catch) asked.catch(function () {});
+        setTimeout(function () {
+          if (myToken !== token || c !== ctx || c.state === "running"
+              || wantPaused || ended || !active) return;
+          note("the browser kept the audio paused; the controls say paused");
+          if (handlers.onInterrupted) handlers.onInterrupted();
+        }, 700);
+      };
+    } catch (e) {}
+  }
+
   /* ---- Speed without pitch -------------------------------------------
    *
    * `playbackRate` on a buffer source resamples: 1.5x speech comes back a
@@ -152,6 +225,11 @@ window.FamAudio = (function () {
     }
     pcm.set(int16, totalSamples);
     totalSamples += int16.length;
+    if (dryAt >= 0 && ctx) {
+      note("refilled after " + (ctx.currentTime - dryAt).toFixed(1) + "s without audio");
+      dryAt = -1;
+      tick();  // at once: a hidden page's timer may not come for a minute
+    }
   }
 
   /* Current playback position in samples, derived from the audio clock so it
@@ -281,11 +359,25 @@ window.FamAudio = (function () {
       playHead = when + buf.duration / (stretch ? 1 : rate);
     }
 
-    if (!ended && streamDone && cursor >= totalSamples && ctx.currentTime >= playHead - 0.05) {
+    var drained = cursor >= totalSamples && ctx.currentTime >= playHead - 0.05;
+    if (!ended && streamDone && drained) {
       ended = true;
       active = false;
+      phase = "ended";
+      note("ended at " + secs(totalSamples));
       releaseMediaChannel();
       if (handlers.onEnd) handlers.onEnd();
+    } else if (!ended && brokenOff && drained) {
+      // Everything that arrived has been heard; now say it broke off.
+      ended = true;
+      active = false;
+      phase = "broke off";
+      note("played all " + secs(totalSamples) + " that arrived; telling the listener");
+      releaseMediaChannel();
+      if (handlers.onError) handlers.onError(brokenOff);
+    } else if (!streamDone && drained && totalSamples && dryAt < 0) {
+      dryAt = ctx.currentTime;
+      note("ran out of audio at " + secs(totalSamples) + "; waiting for more");
     }
   }
 
@@ -377,7 +469,17 @@ window.FamAudio = (function () {
   // (now throttled) tick. Coming back needs nothing - the queue already
   // scheduled keeps playing, and the short one resumes as it drains.
   try {
-    document.addEventListener("visibilitychange", function () { tick(); });
+    document.addEventListener("visibilitychange", function () {
+      if (ctx && active) note(hidden() ? "page hidden" : "page shown");
+      // Back in sight with the clock stopped by the browser, not the
+      // listener (§685): carry on.
+      if (!hidden() && ctx && active && !wantPaused && !ended
+          && ctx.state !== "running" && ctx.state !== "closed") {
+        var asked = ctx.resume();
+        if (asked && asked.catch) asked.catch(function () {});
+      }
+      tick();
+    });
   } catch (e) {}
 
   // The session type is harmless to set early and costs nothing, so the first
@@ -459,14 +561,26 @@ window.FamAudio = (function () {
     return wholeSupport;
   }
 
+  function freshLog(what) {
+    log = [];
+    logStart = 0;
+    wantPaused = false;
+    dryAt = -1;
+    brokenOff = null;
+    phase = "starting";
+    note(what);
+  }
+
   function play(query, minutes, h, context, voice, listener) {
     handlers = h || {};
     stop();
     var myToken = ++token;
     active = true;
+    freshLog("asked " + JSON.stringify(String(query).slice(0, 120)) + ", " + minutes + " min");
     holdMediaChannel();
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    watchContext(ctx, myToken);
     controller = new AbortController();
     timer = setInterval(tick, 80);
     resetStretch(0);
@@ -516,6 +630,12 @@ window.FamAudio = (function () {
 
     keepable = false;
     episodeId = "";
+    // Asked again after a break (§685): PCM, whatever came first - Opus
+    // framing need not be the same bytes twice, samples are.
+    var askedUrl = url;
+    var serverRate = 0;
+    var retries = 0;
+    var deliverTo = null;
     // Where to stream the episode if a link to its kept audio will not play,
     // and this play's own abort signal: a skip must cancel its R2 download
     // even if another play has started since.
@@ -585,14 +705,16 @@ window.FamAudio = (function () {
           throw err;
         });
       }
-      sampleRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      sampleRate = serverRate = Number(res.headers.get("X-Sample-Rate")) || 22050;
       stage("found");
       var cacheState = res.headers.get("X-FAM-Cache") || "";
       keepable = res.headers.get("X-FAM-Keepable") === "1";
       episodeId = res.headers.get("X-FAM-Episode") || "";
+      note("first byte (cache " + (cacheState || "-") + ", " +
+           (res.headers.get("X-FAM-Audio-Link") === "1" ? "link"
+            : res.headers.get("X-FAM-Audio-Format") === "opus" ? "opus" : "pcm") +
+           ", " + sampleRate + " Hz" + (episodeId ? "" : ", no episode id") + ")");
 
-      var leftover = new Uint8Array(0);
-      var received = 0;
       var first = true;
 
       // Samples in, from either format: buffered, and the first ones start
@@ -604,7 +726,9 @@ window.FamAudio = (function () {
         first = false;
         var begin = function () {
           if (myToken !== token || !ctx) return;
+          if (held) note("released for the first word");
           held = false;
+          phase = "playing";
           playHead = ctx.currentTime;
           tick();
           if (handlers.onFirstAudio) handlers.onFirstAudio();
@@ -613,11 +737,14 @@ window.FamAudio = (function () {
           // The caller starts it. Told whether this was a replay,
           // because a replay has no steps to finish first.
           held = true;
+          note("first audio; held for the loading steps");
           handlers.startGate(begin, { cache: cacheState });
         } else {
+          note("first audio");
           begin();
         }
       }
+      deliverTo = deliver;
 
       if (res.headers.get("X-FAM-Audio-Link") === "1") {
         // A replay read straight from the bucket (§252). If the file will not
@@ -641,39 +768,101 @@ window.FamAudio = (function () {
                         deliver, myToken);
       }
 
-      function pump() {
-        return reader.read().then(function (r) {
-          if (myToken !== token) return;
-          if (r.done) {
-            streamDone = true;
-            if (received === 0) throw new Error("The server sent an empty briefing.");
-            return;
-          }
-          received += r.value.length;
-
-          // A 16-bit sample can straddle a chunk boundary; carry the odd byte.
-          var bytes = r.value;
-          if (leftover.length) {
-            var merged = new Uint8Array(leftover.length + bytes.length);
-            merged.set(leftover, 0); merged.set(bytes, leftover.length);
-            bytes = merged;
-          }
-          var usable = bytes.length - (bytes.length % 2);
-          leftover = bytes.slice(usable);
-          if (usable) {
-            deliver(new Int16Array(
-              bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
-          }
-          return pump();
-        });
-      }
-      return pump();
-    }).catch(function (err) {
+      return pumpPcm(reader, deliver, myToken, 0);
+    }).catch(function failed(err) {
       if (err && err.name === "AbortError") return;
       if (myToken !== token) return;
-      active = false;
-      if (handlers.onError) handlers.onError(err);
+      if (!totalSamples || err.status) {
+        // Nothing arrived (or the server said no): the failure it was.
+        if (retries) {
+          note("asked again and refused" + (err.status ? " (" + err.status + ")" : "") +
+               ": " + (err.message || err));
+          return giveUp(err);
+        }
+        note("failed before any audio: " + (err && err.message || err));
+        active = false;
+        phase = "failed";
+        if (handlers.onError) handlers.onError(err);
+        return;
+      }
+      note("stream broke at " + secs(totalSamples) + " arrived: " + (err && err.message || err));
+      // Asked again only by the episode's own id, at the rate it arrived at:
+      // anything else could splice a different episode onto this one.
+      if (!episodeId || sampleRate !== serverRate || retries >= 3) return giveUp(err);
+      retries += 1;
+      var wait = Math.pow(2, retries);
+      note("asking again in " + wait + "s, try " + retries + " of 3");
+      var again = askedUrl.replace("&fmt=FMT", "&fmt=pcm") + "&reconnect=1" +
+        (/[?&]episode=/.test(askedUrl) ? "" : "&episode=" + encodeURIComponent(episodeId));
+      setTimeout(function () {
+        if (myToken !== token || !active) return;
+        fetch(again, { signal: ctl.signal }).then(function (res) {
+          if (!res.ok) {
+            var e = new Error("The episode is not kept (" + res.status + ").");
+            e.status = res.status;
+            throw e;
+          }
+          return res;
+        }).then(handleAgain).catch(failed);
+      }, wait * 1000);
     });
+
+    function handleAgain(res) {
+      note("reconnected; skipping the " + secs(totalSamples) + " already here");
+      return pumpPcm(res.body.getReader(), deliverTo, myToken, totalSamples * 2);
+    }
+
+    /* Plays what arrived, then says it broke off (`tick`). */
+    function giveUp(err) {
+      if (myToken !== token) return;
+      var e = new Error("The connection dropped part-way through, so this episode stops here.");
+      e.brokeOff = true;
+      e.cause = err;
+      brokenOff = e;
+      note("not asking again; playing out the " + secs(totalSamples) + " that arrived");
+      tick();
+    }
+  }
+
+  /* Raw 16-bit PCM off a response, after dropping `skip` bytes (a
+     reconnect's front, already here). */
+  function pumpPcm(reader, deliver, myToken, skip) {
+    var leftover = new Uint8Array(0);
+    var received = 0;
+    function pump() {
+      return reader.read().then(function (r) {
+        if (myToken !== token) return;
+        if (r.done) {
+          if (received === 0 && !skip) throw new Error("The server sent an empty briefing.");
+          streamDone = true;
+          note("all " + secs(totalSamples) + " arrived");
+          tick();
+          return;
+        }
+        var bytes = r.value;
+        if (skip > 0) {
+          var drop = Math.min(skip, bytes.length);
+          skip -= drop;
+          bytes = bytes.subarray(drop);
+          if (!bytes.length) return pump();
+        }
+        received += bytes.length;
+        // A 16-bit sample can straddle a chunk boundary; carry the odd byte.
+        if (leftover.length) {
+          var merged = new Uint8Array(leftover.length + bytes.length);
+          merged.set(leftover, 0); merged.set(bytes, leftover.length);
+          bytes = merged;
+        }
+        var usable = bytes.length - (bytes.length % 2);
+        leftover = bytes.slice(usable);
+        if (usable) {
+          deliver(new Int16Array(
+            bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + usable)));
+        }
+        return pump();
+      });
+    }
+    return pump();
   }
 
   /* Read "fam-opus v1" off the response, decode it, and deliver Int16 at the
@@ -764,6 +953,8 @@ window.FamAudio = (function () {
             // padded, and a caption must never run past the voice.
             if (finalLength >= 0 && totalSamples > finalLength) totalSamples = finalLength;
             streamDone = true;
+            note("all " + (totalSamples / sampleRate).toFixed(1) + "s arrived" +
+                 (finalLength >= 0 ? "" : " (no end marker)"));
             if (received === 0) throw new Error("The server sent an empty briefing.");
           });
         }
@@ -934,9 +1125,11 @@ window.FamAudio = (function () {
     stop();
     var myToken = ++token;
     active = true;
+    freshLog("played from this device");
     holdMediaChannel();
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
+    watchContext(ctx, myToken);
     timer = setInterval(tick, 80);
     resetStretch(0);
     sampleRate = Number(rate) || 22050;
@@ -948,6 +1141,7 @@ window.FamAudio = (function () {
 
     ctx.resume().then(function () {
       if (myToken !== token) return;
+      phase = "playing";
       playHead = ctx.currentTime;
       tick();
       if (handlers.onFirstAudio) handlers.onFirstAudio();
@@ -991,11 +1185,20 @@ window.FamAudio = (function () {
   }
 
   function pause() {
+    if (ctx && !wantPaused) note("paused at " + secs(positionSamples()));
+    wantPaused = true;
     if (ctx && ctx.state === "running") ctx.suspend();
     releaseMediaChannel();
   }
   function resume() {
-    if (ctx && ctx.state === "suspended") { holdMediaChannel(); ctx.resume(); }
+    if (ctx && wantPaused) note("resumed at " + secs(positionSamples()));
+    wantPaused = false;
+    // "interrupted" too (Safari): a context the system stopped, not us.
+    if (ctx && ctx.state !== "running" && ctx.state !== "closed") {
+      holdMediaChannel();
+      var asked = ctx.resume();
+      if (asked && asked.catch) asked.catch(function () {});
+    }
   }
   function isPaused() { return !!ctx && ctx.state === "suspended"; }
 
@@ -1082,5 +1285,7 @@ window.FamAudio = (function () {
     // what the listening history keeps so a row replays exactly this one.
     // "" before the response, for an attachment, and for a device replay.
     episode: function () { return episodeId; },
+    // What playback did, timestamped (§685): sent with Report a problem.
+    playbackLog: playbackLog,
   };
 })();

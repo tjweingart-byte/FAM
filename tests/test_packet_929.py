@@ -80,7 +80,11 @@ def test_a_hidden_page_queues_far_ahead_in_longer_slices():
     assert "SLICE *" not in AUDIO
     # Topped up on the event, not only on the throttled timer.
     assert "if (hidden()) tick();" in AUDIO
-    assert 'addEventListener("visibilitychange", function () { tick(); })' in AUDIO
+    # Going out of sight queues the long way at once (§685 added a log line
+    # and a resume to the same listener; the tick is still its last word).
+    listener = AUDIO[AUDIO.index('addEventListener("visibilitychange"'):]
+    listener = listener[:listener.index("} catch (e) {}")]
+    assert "tick();" in listener
 
 
 # --- 4: "Start here" written ahead ------------------------------------------

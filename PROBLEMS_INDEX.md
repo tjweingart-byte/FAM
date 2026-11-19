@@ -676,3 +676,4 @@ and `limit` = Lines.
 | 40820 | 92 | 682. The iPhone app catches up, part two: round-three motion (2026-11-17) |
 | 40912 | 32 | 683. iOS build 11: the iPhone's round-three catch-up and Find your friends, together (2026-11-19) |
 | 40944 | 17 | 684. Xcode's one warning: KeyboardDismiss's `weak var` (2026-11-19) |
+| 40961 | 66 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |

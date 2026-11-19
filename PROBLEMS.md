@@ -40957,3 +40957,69 @@ field took the caret in the 120 ms after the tap.
 
 The build number is unchanged (11 went to TestFlight); the next upload
 raises it.
+
+## 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19)
+
+**Reported** (Report a problem, screen `player`, build web/live @ 62f5526,
+980x1847, a one-minute episode on the Epstein forensic evidence). Filed
+beside it, from build 3205ddd: the activation step's Continue cut off on
+Android web - that is the report §618 answered on 11.14, after that build;
+nothing more to do for it.
+
+**What could be read.** Nothing said which way it stopped: the web player
+kept no log (§653 gave the iPhone one and sent it with a report; the web's
+report box sent none). The inbox's transcript is the stored script, which
+the server writes only once it has spoken the whole episode - so the server
+most likely finished and the stop was in the browser. Reading
+`static/fam-audio.js`, three ways a web play stops part-way and stays
+stopped:
+
+1. **The stream broke** (a dropped connection, Wi-Fi to cellular). The
+   catch set `active = false`, so the scheduler stopped at once - the audio
+   already here, up to `VOICE_LEAD_SECONDS` of it (§614), thrown away
+   mid-word - and the app drew paused and toasted. Nothing asked again; the
+   iPhone player reconnects three times (§653's log).
+2. **The browser suspended the AudioContext** (another app took the sound,
+   the screen locked). Nothing listened for it: the button still said
+   playing, so the listener's first tap paused (a no-op) and only the second
+   played. `resume()` also ignored Safari's `interrupted` state.
+3. **The audio ran dry** waiting for the voice and was picked up only by
+   the 80 ms timer, which a hidden page gets about once a minute.
+
+**Now.**
+
+- A break after audio has arrived keeps playing what is here. A stream that
+  named its episode (`X-FAM-Episode`) is asked again by that id
+  (`episode=`, which replays and never writes, `fmt=pcm` - samples are the
+  same bytes twice, Opus framing need not be - and `reconnect=1`) after 2,
+  4, 8 s, skipping the samples already held. An episode that is not kept
+  answers 409: never a different episode spliced onto the first. Given up,
+  everything that arrived plays out, *then* `onError` with `brokeOff` ("The
+  connection dropped part-way through, so this episode stops here.").
+- `/api/audio?reconnect=1` records no play row: one tap, one play.
+- A context the listener did not pause is asked once to resume (and again
+  when the page comes back into sight); if the browser will not, the new
+  `onInterrupted` handler draws paused, so one tap plays.
+- Audio arriving into an empty queue is scheduled at once.
+- `FamAudio.playbackLog()`: asked, first byte (cache, wire format, rate,
+  whether it had an episode id), held / released, ran dry / refilled after
+  Ns, broke / asked again / reconnected / gave up, context state changes,
+  pauses, page hidden / shown, ended. Report a problem sends it as
+  `playback` (the field §653 added), so /admin's **Playback log** button
+  works for web reports too, and the next report says which of the three it
+  was.
+
+Tests: `tests/test_reconnect_685.py`; `tools/smoke_reconnect.py` (in
+`dev.sh` and CI) drives the player in Chromium against a server that cuts
+the chunked stream part-way: kept -> reconnects and ends holding exactly the
+whole episode; 409 -> plays out all that arrived, then says so; no episode
+id -> never asks again. `test_packet_929` pinned the old visibility
+listener's text; it now pins that the listener still ends in `tick()`.
+
+**Not verified:** a real Android phone, and which of the three this report
+was - the log answers that next time. Only a kept episode can be resumed: a
+first play whose stream breaks is cancelled on the server (§614) unless it
+was saved, shared or vibed, so it plays out and says so. A reconnect onto
+an episode re-voiced from its script (no kept audio) may be a fraction of a
+second off at the join (§132's 0.161 s over three minutes); kept audio is
+exact.

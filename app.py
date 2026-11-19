@@ -13734,6 +13734,10 @@ async def audio(
                                           "in the bucket (§252)"),
     link_failed: bool = Query(False, description="This stream is the fallback "
                                                  "for a link that would not play"),
+    reconnect: bool = Query(False, description="The web player asking again "
+                                               "for an episode whose stream broke "
+                                               "part-way (§685): the play was "
+                                               "recorded by the first request"),
     private: bool = Query(False, description="A private search (searchFAM's "
                                              "incognito, §282): the play is not "
                                              "recorded and what it writes is on "
@@ -14145,7 +14149,9 @@ async def audio(
     write_pending = stats.cache != "hit"
     # A link's fallback (§252) was already recorded when the link was made:
     # one tap is one play, however many requests it took to sound.
-    if user and _remembers(request) and not link_failed and not private:
+    # A stream that broke and was asked for again (§685) is the same play.
+    if (user and _remembers(request) and not link_failed and not reconnect
+            and not private):
         SOCIAL.seen(user)
         play_row = EVENTS.record(
             topics_mod.Event(
