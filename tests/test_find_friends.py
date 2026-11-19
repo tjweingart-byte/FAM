@@ -308,3 +308,11 @@ def test_a_qr_code_needs_an_account_and_a_handle(client):
     assert client.get("/api/me/qr").status_code == 401
     client.post("/api/auth/signup", json={"email": "nohandle@b.com", "password": "password12"})
     assert client.get("/api/me/qr").status_code == 404
+
+
+def test_your_own_page_has_the_qr_button():
+    """§662: beside the add-person square on YourFAM, opening §661's card."""
+    index = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "static", "index.html")).read()
+    body = index.split("  function renderProfile(p, o){", 1)[1].split("\n  function ", 1)[0]
+    assert 'onclick="openProfileQR()"' in body and 'yfIcon("qr"' in body

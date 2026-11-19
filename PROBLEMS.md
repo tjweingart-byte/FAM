@@ -39941,3 +39941,17 @@ photographed on a real server with the image loaded. **Not verified:** a
 phone actually scanning it. Nothing here decodes a QR code (Chromium on
 Linux has no `BarcodeDetector`), so the code's content rests on segno and on
 the URL test; one scan with a phone camera settles it.
+
+## 662. The QR button on YourFAM (2026-11-19)
+
+**The owner (11.19):** "put the QR button on YourFAM too".
+
+**What changed:** a square QR button (`yfIcon("qr")`) after the add-person
+square beside Edit profile and Saved for Later, for an account with a
+handle; it opens §661's card (`openProfileQR`). The Friends page's QR button
+draws the same icon from `yfIcon` rather than its own copy.
+
+**Verified:** on a real server at 360 and 390 px wide the row of four does
+not overflow, and the tap opens the card with the code loaded; a test pins
+the button to `renderProfile`. **Not verified:** the row under the largest
+phone text sizes (`large-text`).

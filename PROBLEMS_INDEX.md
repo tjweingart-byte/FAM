@@ -653,3 +653,4 @@ and `limit` = Lines.
 | 39848 | 10 | 659. No follow-back nudge (2026-11-19) |
 | 39858 | 65 | 660. Five ways into the graph, from the owner's picks (2026-11-19) |
 | 39923 | 22 | 661. The profile link's QR code (2026-11-19) |
+| 39945 | 14 | 662. The QR button on YourFAM (2026-11-19) |
