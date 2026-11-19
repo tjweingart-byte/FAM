@@ -45,7 +45,23 @@ extension AppModel {
         case episode(String)
         case mix(String)
         case join(String)
+        /// `/@handle` (§669): somebody's profile.
+        case person(String)
     }
+
+    /// Only a handle's own characters ever come from a link (§674's
+    /// `linkHandle`): lower-cased, without the @, 2-24 of `[a-z0-9._]`.
+    static func linkHandle(_ raw: String) -> String? {
+        var h = raw.trimmingCharacters(in: .whitespaces).lowercased()
+        if h.hasPrefix("@") { h.removeFirst() }
+        guard (2...24).contains(h.count),
+              h.allSatisfy({ ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "." || $0 == "_" })
+        else { return nil }
+        return h
+    }
+
+    /// The handle a profile link left for after sign-up (`famLinkedPerson`).
+    static let linkedHandleKey = "fam.linkedPerson"
 
     static func sharedLink(_ url: URL) -> AppLink? {
         let host = (url.host ?? "").lowercased()
@@ -53,6 +69,9 @@ extension AppModel {
         let known: Set<String> = ["familiarize.net", "www.familiarize.net", ours]
         guard url.scheme == "https" || url.scheme == "http", known.contains(host) else { return nil }
         let parts = url.path.split(separator: "/").map(String.init)
+        if parts.count == 1, parts[0].hasPrefix("@"), let h = linkHandle(parts[0]) {
+            return .person(h)
+        }
         if parts.count >= 2 {
             let value = String(parts[1].prefix(64))
             if !value.isEmpty {
@@ -72,6 +91,9 @@ extension AppModel {
         if let token = query.first(where: { $0.name == "join" })?.value, !token.isEmpty {
             return .join(String(token.prefix(64)))
         }
+        if let raw = query.first(where: { $0.name == "person" })?.value, let h = linkHandle(raw) {
+            return .person(h)
+        }
         return nil
     }
 
@@ -83,6 +105,11 @@ extension AppModel {
         if let last = lastLink, last.link == link, Date().timeIntervalSince(last.at) < 2 { return }
         lastLink = (link: link, at: Date())
         pendingLink = url
+        // A profile link is kept for the sign-up's Find your friends step
+        // too, where it is the first person shown (§669).
+        if case let .person(handle) = link, stage != .ready || entry != nil {
+            UserDefaults.standard.set(handle, forKey: Self.linkedHandleKey)
+        }
         if stage == .ready && entry == nil {
             openPendingLink()
             return
@@ -123,8 +150,28 @@ extension AppModel {
             case let .episode(id): await self.openLinkedEpisode(id)
             case let .mix(id): await self.openLinkedMix(id)
             case let .join(token): await self.joinLinkedMix(token)
+            case let .person(handle): self.openLinkedPerson(handle)
             }
         }
+    }
+
+    /// `/@handle` (`openLinkedPerson`): their profile, with "Follow" saying
+    /// where it came from; the held handle is spent.
+    func openLinkedPerson(_ handle: String) {
+        UserDefaults.standard.removeObject(forKey: Self.linkedHandleKey)
+        social.openPerson(handle: handle, via: "profile_link")
+    }
+
+    /// The person a held profile link names, for Find your friends: found
+    /// by the search a handle would find (the same people discovery shows),
+    /// or nobody.
+    func loadLinkedPerson() async {
+        guard linkedPerson == nil,
+              let held = UserDefaults.standard.string(forKey: Self.linkedHandleKey),
+              let handle = Self.linkHandle(held) else { return }
+        let found = (try? await api.people(handle)) ?? []
+        linkedPerson = found.first { ($0.handle ?? "").lowercased() == handle }
+        if linkedPerson != nil { UserDefaults.standard.removeObject(forKey: Self.linkedHandleKey) }
     }
 
     /// `/s/<id>`: the episode the listen page plays - the question at its

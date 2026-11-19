@@ -4,11 +4,11 @@
       "platform": "ios",
       "version": "1.0.0",
       "status": "supported",
-      "released": "2026-11-14",
-      "commit": "f3d2d32edc19c2b2e6ccc2c17720a4556439996b",
+      "released": "2026-11-19",
+      "commit": "cb666c6e0aba613103b8995f65d181a73c6b5a50",
       "contract": "releases/contracts/ios-1.0.0.json",
-      "build": "9",
-      "notes": "The first App Store submission (\u00a7537). The header is ios/1.0.0+<build>; the registry matches on the version alone, so raising CURRENT_PROJECT_VERSION per upload changes nothing here - set build to the one Apple approves. Recut with --force from the submitted commit if the app's routes change before it ships; recut for build 4 (\u00a7565), for build 7 (\u00a7584's second audit), the first cut to read the app's relative api/v1/ calls, and for build 8 (\u00a7605: the tour, the free month's claim), and for build 9 (\u00a7617: the 11.14 notes, \u00a7606's password-first step, \u00a7612's episode ids on saves, vibes and shares), which replaces build 8."
+      "build": "10",
+      "notes": "The first App Store submission (\u00a7537). The header is ios/1.0.0+<build>; the registry matches on the version alone, so raising CURRENT_PROJECT_VERSION per upload changes nothing here - set build to the one Apple approves. Recut with --force from the submitted commit if the app's routes change before it ships; recut for build 4 (\u00a7565), for build 7 (\u00a7584's second audit), the first cut to read the app's relative api/v1/ calls, and for build 8 (\u00a7605: the tour, the free month's claim), and for build 9 (\u00a7617: the 11.14 notes, \u00a7606's password-first step, \u00a7612's episode ids on saves, vibes and shares), which replaces build 8., and for build 10 (\u00a7675: Find your friends on the iPhone - contacts, Suggested for you, Follow all, mutuals, just joined, the /@handle link and its QR code), which replaces build 9."
     },
     {
       "platform": "web",

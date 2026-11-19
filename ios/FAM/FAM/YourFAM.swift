@@ -20,6 +20,9 @@ enum YouRoute: Hashable {
 /// you are, then your interests. `checking` while the server is asked.
 enum EntryStep: Equatable {
     case checking, identity, interests
+    /// Find your friends (§665): after who you are, before the interests;
+    /// only for an account let in, which can follow from it.
+    case findFriends
     /// Let in off the waitlist with the email alone (§606): a password
     /// first, before who you are (`password_needed`).
     case password
@@ -361,7 +364,15 @@ extension AppModel {
         let hasPlace = !(place?.city ?? "").isEmpty || !(place?.region ?? "").isEmpty
             || !(place?.country ?? "").isEmpty
         let named = !(profile?.name ?? "").isEmpty && !(profile?.handle ?? "").isEmpty
-        entry = (named && hasPlace) ? .interests : .identity
+        // Already set up: on to who they know, as `afterIdentity` (§665).
+        entry = (named && hasPlace) ? afterIdentity : .identity
+    }
+
+    /// After who you are (`afterIdentity`): Find your friends for an
+    /// account let in (§665), which can follow from it; the interests for
+    /// one still waiting (the step needs somebody who can follow).
+    var afterIdentity: EntryStep {
+        stage == .ready && listener?.authenticated == true ? .findFriends : .interests
     }
 
     /// The first run finished or skipped (`finishEntry`): into DailyFAM.

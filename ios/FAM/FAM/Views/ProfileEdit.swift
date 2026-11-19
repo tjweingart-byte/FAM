@@ -792,7 +792,7 @@ struct IdentityView: View {
             if editing {
                 dismiss()
             } else {
-                model.entry = .interests
+                model.entry = model.afterIdentity
             }
         }
     }
@@ -832,7 +832,7 @@ struct IdentityView: View {
                 return
             }
             // "Skip for now" skips the code too: a wrong one never blocks it.
-            model.entry = .interests
+            model.entry = model.afterIdentity
         }
     }
 
@@ -1119,7 +1119,7 @@ struct InterestsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
             } else {
-                StepMarks(step: 3)
+                StepMarks(step: 4)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {

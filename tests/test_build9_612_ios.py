@@ -76,6 +76,8 @@ def test_a_gone_episode_still_asks_the_question():
     assert 'again.episodeID = ""' in model
 
 
-def test_build_9():
+def test_build_9_or_later():
+    # Build 10 (§675) carries §612 forward; its own test pins the number.
     project = (ROOT / "ios" / "FAM" / "project.yml").read_text()
-    assert 'CURRENT_PROJECT_VERSION: "9"' in project
+    build = re.search(r'CURRENT_PROJECT_VERSION: "(\d+)"', project)
+    assert build and int(build.group(1)) >= 9

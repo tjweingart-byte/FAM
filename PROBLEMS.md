@@ -40436,3 +40436,83 @@ the web client sends on every call. **Not verified:** the iOS app sending
 `X-FAM-TZ` on `/api/friends/contacts` (PARITY.md); the per-day contacts
 count is in process memory like `_rate_limit`'s bucket, so a restart
 forgives it.
+
+## 675. iOS build 10: the audit of Main since build 9, and Find your friends on the iPhone (2026-11-19)
+
+**Asked.** "Start a new iOS build from all the changes that have come since
+the last one."
+
+**The audit.** Every pull request merged after build 9 (#307), #308-#325,
+read for what it gave a listener and checked against the Swift:
+
+| PR | What | On the iPhone |
+|---|---|---|
+| #308 (§618) | Continue cut off on Android web | Web only |
+| #309 (§619) | Let in, the email alone signs in; the first password typed twice | In the PR |
+| #310, #311 (§620) | The security audit | Server only; its open item A (email change without a password) is held back *because* it would break installed iOS builds |
+| #312 (§621-§624) | Facebook link card, post photo, clip, post kit | Server, landing page and `/admin` only (the photo and clip are admin tools on the web too) |
+| #313 (§625-§636) | The writer's examples and material check | Server only |
+| #314 (§637) | The 11.16 notes | In the PR |
+| #315 (§638) | Private mode, followers-only profiles | In the PR |
+| #316, #319, #321, #324 (§639, §651, §654-§655, §663-§664) | Admin counts, the voice worker, Claude per episode, pronunciation | Server only |
+| #317 (§640-§647) | Motion round three | Web only by design: each section says `Motion.swift` is separate work (PARITY.md) |
+| #318 (§648-§650) | Ambassadors, the keyboard, Instagram's link | In the PR |
+| #320 (§652-§653) | Swipe the player down, Report a problem | In the PR |
+| #322 (§656-§661) | Stripe, Apple in-app purchase, students | In the PR |
+| #323 (§662) | Interest pills open nothing | In the PR |
+| #325 (§665-§674) | Finding friends, mutuals, five ways into the graph, the QR code, square card corners | **Missing: built here** (only a PARITY.md "Not yet" row); the corners are web CSS |
+
+**Find your friends on the iPhone** (`FindFriends.swift`; PARITY.md's row):
+* Sign-up's third of four steps (`EntryStep.findFriends`, `StepMarks`
+  counts four): after who you are, for an account let in
+  (`AppModel.afterIdentity`; one still waiting goes to the interests, as
+  the web's `afterIdentity` without an account), before the interests.
+  The heading, lede, search by name or @handle, People you may know,
+  Share your profile link and Invite friends to FAM are the web's; Next and
+  Skip go on to the interests. A profile link held from before sign-up is
+  first, "Shared their profile with you".
+* Your contacts on FAM through the Contacts permission
+  (`NSContactsUsageDescription`), asked only from "Find friends in your
+  contacts": names, numbers and addresses of up to 2,000 people, posted to
+  `/api/friends/contacts` with the listener's `X-FAM-TZ` as every request
+  is (§674's +1 reading), kept nowhere on the phone. Refused, it says to
+  allow Contacts in Settings and offers Open Settings. Follow all is one
+  `/api/friends/follow-all`.
+* Suggested for you / Discover people cards (`SuggestCards`): face, name,
+  the server's `reason`, Follow, an X remembered on the device; on the
+  Friends page above the tabs (now pinned as they scroll, as the web's
+  sticky tabs), on YourFAM with See all, on the step, and sliding open
+  under Follow on a profile once followed (`?handle=`).
+* "Followed by **Brady**, **Ian**, and 45 others" with four faces under
+  Follow on every profile (§667, `mutuals` decoded), opening the list.
+* "just joined FAM" (§669): the follower popup with Follow, 2.5 s after the
+  notifications' bootstrap, never over another card, the notice forgotten
+  when it goes up.
+* Every follow says where it was tapped (`via`, §669): contacts,
+  contacts_all, suggested, after_follow, search, profile, profile_link,
+  their_friends, friends_page, joined, and `signup_` before those on the
+  step.
+* `/@handle` (and `/?person=`) open the profile in the app, only a
+  handle's own characters admitted (§674's `linkHandle`); YourFAM's
+  add-person and QR squares; the Friends page's "Your profile link" with QR
+  and Share; a QR square after Follow on anybody's profile. The code is
+  drawn on the phone (Core Image, error correction M) from the same
+  `home/@handle` link the server encodes - no SVG renderer and no request.
+
+**The build.** `CURRENT_PROJECT_VERSION` 10; `releases/contracts/ios-1.0.0.json`
+recut with `--force` (110 routes, 31 shapes; nothing removed - the five
+friends routes added, and the billing, ambassador, entitlements and feedback
+routes #318-#322 had added to the Swift without a recut); the registry's
+build is 10. Build 10 replaces build 9.
+
+**Not built (PARITY.md):** the friends rail's "Find your friends" card under
+three follows, a group's Follow all, DailyFAM's Find face. **Owner's call:**
+`/@*` is not added to `apple-app-site-association` - once there, every
+installed build would get `/@` links, and builds 1-9 do nothing with them;
+until it is, a `/@` link or a scanned code opens the web app, which opens the
+profile. The App Store privacy answers may want contacts named, though
+nothing posted is stored.
+
+Tests: `tests/test_build10_find_friends_ios.py`. **Not verified here:** no
+Xcode in this container - the Swift compiles in `ios.yml`; the Contacts
+prompt, the QR scanning and the layout at large text want a phone.
