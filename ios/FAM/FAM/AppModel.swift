@@ -102,6 +102,9 @@ final class AppModel: ObservableObject {
     /// This member's referral link while the waitlist runs, fetched ahead
     /// because a share sheet must open inside the tap (`loadInviteLink`).
     @Published private(set) var inviteLink: String?
+    /// Somebody whose `/@handle` link opened the app before it could show
+    /// them (§669): first on Find your friends, "Shared their profile with you".
+    @Published var linkedPerson: FollowPerson?
     /// The YourFAM tab's stack (Settings, the shelves), and the first-run
     /// step after an account is made or signed in (`afterAccount`).
     @Published var youPath: [YouRoute] = []
@@ -972,6 +975,7 @@ final class AppModel: ObservableObject {
         mixPath = []
         dailyPath = []
         inviteLink = nil
+        linkedPerson = nil
         dropFirstFeed()
         // The episodes and the page kept on this phone are this listener's
         // (`forgetOfflineCopies`): the next person on it starts clean.

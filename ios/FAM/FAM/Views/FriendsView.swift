@@ -21,12 +21,16 @@ struct FriendsView: View {
     @State private var invite: [Any]?
     /// The tab asked for (`friendsTab`); `shownTab` is the one drawn.
     @State private var tab: FriendsTab = .friends
+    /// Your profile link's QR card (§670).
+    @State private var qr: QRSubject?
+    @ObservedObject private var find = FindFriendsModel.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // `.back-row`: the double chevron (stroke 2.6, .85) and "Friends".
             YouBackRow(title: "Friends") { social.back() }
-            ModalField(placeholder: "Find someone by handle", text: $search, plain: true)
+            // It always searched names too (§665).
+            ModalField(placeholder: "Search by name or @handle", text: $search, plain: true)
                 .padding(.horizontal, 18)
                 .task(id: search) { await lookUp() }
             Button { inviteNewUsers() } label: {
@@ -43,23 +47,35 @@ struct FriendsView: View {
             .buttonStyle(.press)
             .padding(.horizontal, 18)
             .padding(.top, 10)
-            // Above the list, so the tabs stay put while it scrolls
-            // (`.fr-tabs{ position:sticky }`); not over a handle search.
-            if found == nil, let g = social.graph {
-                FriendsTabs(tab: shownTab(g), friends: g.friends.count, following: g.following.count) { tab = $0 }
-                    .padding(.top, 12)
-            }
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if let found {
-                        results(found)
-                    } else {
-                        graphView
+                // Your profile link, your contacts on FAM and Discover
+                // people above the tabs (§665, `friendsFind`), and the tabs
+                // pinned once they reach the top (`.fr-tabs{ position:sticky }`);
+                // none of it over a search.
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    if found == nil {
+                        findSection
+                            .padding(.horizontal, 18)
+                    }
+                    Section {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if let found {
+                                results(found)
+                            } else {
+                                graphView
+                            }
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.top, 12)
+                        .padding(.bottom, 18)
+                    } header: {
+                        if found == nil, let g = social.graph {
+                            FriendsTabs(tab: shownTab(g), friends: g.friends.count, following: g.following.count) { tab = $0 }
+                                .padding(.top, 12)
+                                .background(FAMColor.background)
+                        }
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, 18)
             }
             // A tab opens at its top (`showFriendsTab`: `scrollTop = 0`).
             .id(tab)
@@ -73,9 +89,32 @@ struct FriendsView: View {
         // Your handle, for the invite's "I'm @handle".
         .task { if social.me == nil { await social.loadMe() } }
         .task { await social.friendsOpened() }
+        .task(id: model.listener?.userId) {
+            find.prepare(for: model.listener?.userId)
+            await find.loadDiscover(api: model.api)
+        }
+        .famSheet(item: $qr) { subject in ProfileQRCard(subject: subject).famObjects(model) }
         .sheet(isPresented: Binding(get: { invite != nil }, set: { if !$0 { invite = nil } })) {
             ActivityView(items: invite ?? []) { invite = nil }
                 .tourCover()
+        }
+    }
+
+    // MARK: Finding friends (§665, §669, §670)
+
+    @ViewBuilder private var findSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !social.myHandle.isEmpty {
+                ProfileLinkRow(handle: social.myHandle,
+                               showQR: { qr = QRSubject(handle: social.myHandle) },
+                               share: { invite = model.profileLinkItems(QRSubject(handle: social.myHandle)) })
+                    .padding(.top, 12)
+            }
+            ContactsBlock()
+            if !find.visible(find.discover).isEmpty {
+                FindRail(title: "Discover people")
+                SuggestCards(people: find.discover, via: "suggested")
+            }
         }
     }
 
@@ -240,7 +279,7 @@ struct FriendsView: View {
     private func follow(_ p: FollowPerson) {
         flipping.insert(p.userId)
         Task {
-            let ok = await social.follow(userID: p.userId)
+            let ok = await social.follow(userID: p.userId, via: found == nil ? "friends_page" : "search")
             flipping.remove(p.userId)
             if ok {
                 search = ""

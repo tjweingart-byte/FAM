@@ -371,9 +371,11 @@ extension View {
     }
 }
 
-/// The sign-up steps (`firstRunStep`): three marks, copper up to this one.
+/// The sign-up steps (`firstRunStep`): four marks - the account, who you
+/// are, Find your friends (§665), your interests - copper up to this one.
 struct StepMarks: View {
     let step: Int
+    static let count = 4
     /// The unfilled marks (`--border-strong` on the page): light's measured
     /// grey, or dark's border over the dark page.
     private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
@@ -383,7 +385,7 @@ struct StepMarks: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(1...3, id: \.self) { i in
+            ForEach(1...Self.count, id: \.self) { i in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Self.track)
                     if i <= step {
@@ -405,7 +407,7 @@ struct StepMarks: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Step \(step) of 3")
+        .accessibilityLabel("Step \(step) of \(Self.count)")
     }
 }
 

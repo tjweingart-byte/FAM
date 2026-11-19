@@ -14,6 +14,8 @@ struct YouView: View {
     @EnvironmentObject private var you: YouModel
 
     @State private var editing = false
+    /// Your QR code (§671).
+    @State private var qr: QRSubject?
     @State private var held: MyVibe?
     @State private var story: StoryReel?
     /// The note composer, from your picture or its (+) (§297).
@@ -37,6 +39,7 @@ struct YouView: View {
             IdentityView(mode: .edit).famObjects(model)
         }
         .famSheet(item: $held) { v in holdSheet(v) }
+        .famSheet(item: $qr) { subject in ProfileQRCard(subject: subject).famObjects(model) }
         .fullScreenCover(item: $story) { reel in
             StoryViewer(reel: reel, markSeen: markSeen, seenAt: { seen[$0] ?? 0 },
                         openMine: { showMine() }, origin: reel.origin)
@@ -92,6 +95,8 @@ struct YouView: View {
             stats(p, proxy: proxy)
             buttons(p)
             interests(p)
+            // Discover people with See all (§665, `hubDiscoverHTML`).
+            DiscoverPeopleSection()
             tabs.id("shelf")
             grid(p)
         } else if you.profileState == .failed {
@@ -309,9 +314,27 @@ struct YouView: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(.press)
+            // Find your friends (§665) and your QR code (§671), squares
+            // after the two; the QR only once there is a handle to link.
+            square(FindIcons.addPerson, label: "Find friends") { social.open(.friends) }
+            if let h = p.handle, !h.isEmpty {
+                square(FindIcons.qr, label: "Show your QR code") { qr = QRSubject(handle: h) }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 14)
+    }
+
+    private func square(_ icon: Path, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            WebIcon(path: icon, size: 15)
+                .foregroundStyle(FAMColor.text)
+                .frame(width: 34, height: 34)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.borderStrong))
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.press)
+        .accessibilityLabel(label)
     }
 
     // MARK: - Interests (`interests_shown`, at most `interests_max`)

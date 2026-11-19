@@ -2529,11 +2529,51 @@ extension FAMAPI {
     }
 
     /// Follow by the id the graph or a search returned, or by handle (a
-    /// friend of a friend has no id on this side).
-    func follow(userID: String = "", handle: String = "") async throws {
+    /// friend of a friend has no id on this side). `via` is where the
+    /// Follow was tapped (§669, `social.FOLLOW_VIA`), never who.
+    func follow(userID: String = "", handle: String = "", via: String = "") async throws {
         var body: [String: Any] = [:]
         if !userID.isEmpty { body["user_id"] = userID } else { body["handle"] = handle }
+        if !via.isEmpty { body["via"] = via }
         _ = try await send("POST", "api/v1/friends/follow", body: body, as: FollowAnswer.self)
+    }
+
+    /// Follow several at once (§669): contacts' Follow all. One request
+    /// and one pace; whoever cannot be followed is skipped.
+    func followAll(userIDs: [String], via: String) async throws -> FollowAllAnswer {
+        try await send("POST", "api/v1/friends/follow-all",
+                       body: ["user_ids": Array(userIDs.prefix(50)), "via": via], as: FollowAllAnswer.self)
+    }
+
+    /// "Suggested for you" (§665): with a handle, who that person follows -
+    /// only once this listener follows them; without, Discover people.
+    func suggested(handle: String = "") async throws -> [FollowPerson] {
+        let items = handle.isEmpty ? [] : [URLQueryItem(name: "handle", value: handle)]
+        return try await get("api/v1/friends/suggested", items, as: PeoplePage.self).people
+    }
+
+    /// "Your contacts on FAM" (§665): the contacts this listener let the
+    /// app read, matched on the server and forgotten there. The request
+    /// names the listener's clock (`X-FAM-TZ`) as every request does, which
+    /// is how a number saved without +1 is read (§674).
+    func contacts(_ entries: [ContactEntry]) async throws -> [FollowPerson] {
+        let body: [String: Any] = ["contacts": entries.prefix(2000).map { e in
+            ["name": String(e.name.prefix(120)),
+             "tel": Array(e.tel.prefix(8).map { String($0.prefix(120)) }),
+             "email": Array(e.email.prefix(8).map { String($0.prefix(120)) })] as [String: Any]
+        }]
+        return try await send("POST", "api/v1/friends/contacts", body: body, as: PeoplePage.self).people
+    }
+
+    /// "Molly just joined FAM" (§669): newcomers who have this listener in
+    /// their contacts, each shown once.
+    func joined() async throws -> [FollowPerson] {
+        try await get("api/v1/friends/joined", [], as: PeoplePage.self).people
+    }
+
+    /// The "just joined" card went up: the notice is forgotten.
+    func joinedSeen(_ userID: String) async {
+        _ = try? await send("POST", "api/v1/friends/joined/seen", body: ["user_id": userID], as: Ignored.self)
     }
 
     func unfollow(userID: String) async throws {
@@ -2722,8 +2762,28 @@ struct FollowPerson: Decodable, Hashable, Identifiable {
     let waitlisted: Bool?
     let followsBack: Bool?
     let following: Bool?
+    /// Suggested for you (§665): why this card, in the server's words
+    /// ("Follows you", "4 mutuals", "Suggested for you").
+    let reason: String?
+    /// Your contacts on FAM (§665): the name from this listener's own
+    /// address book, sent back from the request and kept nowhere.
+    let contactName: String?
 
     var id: String { userId }
+}
+
+/// One address-book entry for `/api/friends/contacts` (`ContactEntry`).
+struct ContactEntry: Hashable {
+    var name: String
+    var tel: [String]
+    var email: [String]
+}
+
+/// `POST /api/friends/follow-all`.
+struct FollowAllAnswer: Decodable {
+    let followed: Int?
+    let skipped: Int?
+    let counts: FollowCounts?
 }
 
 /// `GET /api/friends`.
@@ -2772,6 +2832,15 @@ struct PersonPage: Decodable {
     let `private`: Bool?
     /// A FAM Ambassador (§648): the tag under their name.
     let ambassador: Bool?
+    /// "Followed by Brady, Ian, and 45 others" (§666/§667): the people this
+    /// listener follows who follow them; absent from an older server.
+    let mutuals: PersonMutuals?
+}
+
+/// `mutuals` on `/api/person`: all of them counted, the first 30 named.
+struct PersonMutuals: Decodable, Hashable {
+    let count: Int?
+    let people: [PersonFriend]?
 }
 
 struct PersonMix: Decodable, Hashable, Identifiable {

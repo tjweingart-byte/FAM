@@ -48,6 +48,9 @@ struct PersonOpen: Hashable {
     var userID: String = ""
     var name: String = ""
     var avatar: String = ""
+    /// Where the profile was opened from, for its Follow (§669): "" is
+    /// "profile"; a `/@handle` link is "profile_link".
+    var via: String = ""
 }
 
 /// A social screen shown over another tab, with its own stack.
@@ -153,6 +156,9 @@ final class SocialModel: ObservableObject {
         bannerQueue = []
         bannerTask?.cancel()
         raised = []
+        followerJoined = false
+        joinedQueue = []
+        FindFriendsModel.shared.prepare(for: nil)
     }
 
     // MARK: - Navigation
@@ -245,7 +251,7 @@ final class SocialModel: ObservableObject {
     }
 
     /// A profile by handle (no handle: "They have not chosen a handle yet").
-    func openPerson(handle: String, userID: String = "", name: String = "", avatar: String = "") {
+    func openPerson(handle: String, userID: String = "", name: String = "", avatar: String = "", via: String = "") {
         let h = handle.hasPrefix("@") ? String(handle.dropFirst()) : handle
         guard !h.isEmpty || !userID.isEmpty else {
             say("They have not chosen a handle yet")
@@ -253,7 +259,7 @@ final class SocialModel: ObservableObject {
         }
         var id = userID
         if id.isEmpty, let known = person(handle: h) { id = known.userId }
-        open(.person(PersonOpen(handle: h, userID: id, name: name, avatar: avatar)))
+        open(.person(PersonOpen(handle: h, userID: id, name: name, avatar: avatar, via: via)))
     }
 
     /// A conversation with somebody in the graph or a search.
@@ -383,9 +389,9 @@ final class SocialModel: ObservableObject {
 
     /// `followPerson`: by id, then the graph re-read. Returns whether it worked.
     @discardableResult
-    func follow(userID: String = "", handle: String = "", quiet: Bool = false) async -> Bool {
+    func follow(userID: String = "", handle: String = "", via: String = "", quiet: Bool = false) async -> Bool {
         do {
-            try await api.follow(userID: userID, handle: handle)
+            try await api.follow(userID: userID, handle: handle, via: via)
             await loadGraph()
             if !quiet { say("Following") }
             return true
@@ -427,6 +433,12 @@ final class SocialModel: ObservableObject {
             await loadGraph()
             Task { await loadMe() }
             checkNewFollowers()
+            // "___ just joined FAM" (§669), 2.5 s after, so it never races
+            // "started following you" for the card.
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                await self?.checkJoined()
+            }
         } else {
             await poll()
         }
@@ -579,8 +591,40 @@ final class SocialModel: ObservableObject {
     func checkNewFollowers() {
         guard follower == nil, let next = graph?.announce?.first(where: { !raised.contains($0.userId) }) else { return }
         raised.insert(next.userId)
+        followerJoined = false
         follower = next
         Task { await api.followerAnnounced(next.userId) }
+    }
+
+    // MARK: "Molly just joined FAM" (§669)
+
+    /// The popup is a newcomer who has you in their contacts, not a follower:
+    /// "just joined FAM" and Follow.
+    @Published private(set) var followerJoined = false
+    private var joinedQueue: [FollowPerson] = []
+
+    /// Who joined with this listener in their contacts, each shown once.
+    func checkJoined() async {
+        guard let people = try? await api.joined(), !people.isEmpty else { return }
+        joinedQueue += people.filter { p in !joinedQueue.contains { $0.userId == p.userId } }
+        showNextJoined()
+    }
+
+    /// Never over another card: asked again 3 s later while one is up. The
+    /// notice is forgotten when its card goes up (`/api/friends/joined/seen`).
+    func showNextJoined() {
+        guard !joinedQueue.isEmpty else { return }
+        if follower != nil || newChatOpen {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self?.showNextJoined()
+            }
+            return
+        }
+        let next = joinedQueue.removeFirst()
+        Task { await api.joinedSeen(next.userId) }
+        followerJoined = true
+        follower = next
     }
 
     /// The follow-back in flight, so a second tap sends nothing.
@@ -595,16 +639,18 @@ final class SocialModel: ObservableObject {
         followingBack = true
         Task {
             do {
-                try await api.follow(userID: p.userId)
+                let joined = followerJoined
+                try await api.follow(userID: p.userId, via: joined ? "joined" : "")
                 followingBack = false
                 if follower?.userId == p.userId { follower = nil }
                 let name = (p.name ?? "").isEmpty ? "they" : (p.name ?? "")
-                say("You and \(name) are friends now")
+                say(joined ? "Following" : "You and \(name) are friends now")
                 await loadGraph()
                 Task { await loadMe() }
                 // The next follower waits for this popup to have gone.
                 try? await Task.sleep(nanoseconds: 400_000_000)
                 checkNewFollowers()
+                showNextJoined()
             } catch {
                 followingBack = false
                 say(SocialModel.sentence(error, else: "Could not follow them back"))
@@ -617,6 +663,7 @@ final class SocialModel: ObservableObject {
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)
             self?.checkNewFollowers()
+            self?.showNextJoined()
         }
     }
 

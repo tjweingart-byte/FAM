@@ -174,6 +174,8 @@ struct RootView: View {
                     IdentityView(mode: .firstRun)
                 case .interests:
                     InterestsView(mode: .firstRun)
+                case .findFriends:
+                    FindFriendsView()
                 case .password:
                     PasswordFirstView()
                 case nil:

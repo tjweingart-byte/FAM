@@ -1,11 +1,12 @@
 {
-  "commit": "f3d2d32edc19c2b2e6ccc2c17720a4556439996b",
-  "cut": "2026-11-14",
+  "commit": "cb666c6e0aba613103b8995f65d181a73c6b5a50",
+  "cut": "2026-11-19",
   "platform": "ios",
   "routes": [
     "/api/account",
     "/api/account/identity",
     "/api/activation",
+    "/api/ambassador",
     "/api/attach",
     "/api/audio",
     "/api/auth/login",
@@ -18,6 +19,11 @@
     "/api/auth/reset/finish",
     "/api/auth/reset/start",
     "/api/auth/signup",
+    "/api/billing/apple",
+    "/api/billing/fam/invite",
+    "/api/billing/fam/join",
+    "/api/billing/student",
+    "/api/billing/student/confirm",
     "/api/categories",
     "/api/categories/episodes",
     "/api/categories/mine",
@@ -25,14 +31,21 @@
     "/api/client-status",
     "/api/consent",
     "/api/echo",
+    "/api/entitlements",
     "/api/episode/card",
     "/api/episode/topic",
     "/api/event",
+    "/api/feedback",
     "/api/free-month/claim",
     "/api/friends",
     "/api/friends/announced",
+    "/api/friends/contacts",
     "/api/friends/follow",
+    "/api/friends/follow-all",
+    "/api/friends/joined",
+    "/api/friends/joined/seen",
     "/api/friends/seen",
+    "/api/friends/suggested",
     "/api/godeeper",
     "/api/godeeper/dismiss",
     "/api/health",
@@ -104,6 +117,7 @@
   "shapes": {
     "/api/auth/me": {
       "activation_needed": "boolean",
+      "ambassador": "boolean",
       "authenticated": "boolean",
       "display_name": "string",
       "email": "string",
@@ -197,6 +211,83 @@
         "scope": "string",
         "terms_url": "string",
         "version": "number"
+      }
+    },
+    "/api/entitlements": {
+      "blurb": "string",
+      "enforced": "boolean",
+      "features": [
+        "string"
+      ],
+      "label": "string",
+      "limits": {
+        "ask": {
+          "count": "number",
+          "resource": "string",
+          "unlimited": "boolean",
+          "window": "string"
+        },
+        "episode": {
+          "count": "number",
+          "resource": "string",
+          "unlimited": "boolean",
+          "window": "string"
+        },
+        "explore": {
+          "count": "number",
+          "resource": "string",
+          "unlimited": "boolean",
+          "window": "string"
+        }
+      },
+      "max_minutes": "number",
+      "tier": "string",
+      "usage": {
+        "ask": {
+          "allowed": "boolean",
+          "charged": "boolean",
+          "limit": "number",
+          "message": "string",
+          "remaining": "number",
+          "resets_at": "number",
+          "resource": "string",
+          "service": "string",
+          "tier": "string",
+          "title": "string",
+          "unlimited": "boolean",
+          "used": "number",
+          "window": "string"
+        },
+        "episode": {
+          "allowed": "boolean",
+          "charged": "boolean",
+          "limit": "number",
+          "message": "string",
+          "remaining": "number",
+          "resets_at": "number",
+          "resource": "string",
+          "service": "string",
+          "tier": "string",
+          "title": "string",
+          "unlimited": "boolean",
+          "used": "number",
+          "window": "string"
+        },
+        "explore": {
+          "allowed": "boolean",
+          "charged": "boolean",
+          "limit": "number",
+          "message": "string",
+          "remaining": "number",
+          "resets_at": "number",
+          "resource": "string",
+          "service": "string",
+          "tier": "string",
+          "title": "string",
+          "unlimited": "boolean",
+          "used": "number",
+          "window": "string"
+        }
       }
     },
     "/api/episode/card": {
@@ -414,6 +505,19 @@
           "min_tier": "string"
         }
       ],
+      "offers": [
+        {
+          "apple_product": "string",
+          "blurb": "string",
+          "for_sale": "boolean",
+          "label": "string",
+          "plan": "string",
+          "price": "string",
+          "seats": "number"
+        }
+      ],
+      "student": "null",
+      "subscription": "null",
       "tiers": [
         {
           "blurb": "string",
@@ -492,6 +596,7 @@
         "label": "string",
         "region": "string"
       },
+      "private_mode": "boolean",
       "private_search": "boolean",
       "profile_interests": [],
       "public_interests": [],
