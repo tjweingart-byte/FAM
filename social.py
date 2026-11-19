@@ -96,6 +96,8 @@ SUGGESTION_LIMIT = 12
 #: account must be for its contacts check to raise one.
 JOINED_NOTICE_LIFE = 14 * 86400
 JOINED_NOTICE_NEW = 7 * 86400
+#: The most "just joined" notices one newcomer raises (§674).
+JOINED_NOTICE_MAX = 50
 
 # Where a Follow can be tapped (§669). A follow made on sign-up's Find your
 # friends step carries "signup_" before the place on that step, so the step
@@ -610,6 +612,14 @@ class SocialStore:
                        PRIMARY KEY (user_id, about)
                    )"""
             )
+            # Shown, not deleted, so "once per pair" holds while a newcomer
+            # can still raise one: the row goes when it is a fortnight old,
+            # by which time its newcomer is past `JOINED_NOTICE_NEW`.
+            try:
+                conn.execute("ALTER TABLE joined_notices ADD COLUMN"
+                             " shown INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS announced (
                        user_id  TEXT NOT NULL,
@@ -1559,8 +1569,14 @@ class SocialStore:
 
     def add_joined_notice(self, user_id: str, about: str, at: float = 0.0) -> bool:
         """Tell `user_id` that `about` joined (§669). Once per pair, ever:
-        a second contacts check by the same newcomer adds nothing."""
+        a second contacts check by the same newcomer adds nothing, and one
+        newcomer raises at most `JOINED_NOTICE_MAX` - so a script holding an
+        address list cannot put its card in front of everybody on it."""
         if not user_id or not about or user_id == about:
+            return False
+        raised = self._conn().execute(
+            "SELECT COUNT(*) FROM joined_notices WHERE about = ?", (about,)).fetchone()[0]
+        if raised >= JOINED_NOTICE_MAX:
             return False
         cur = self._conn().execute(
             "INSERT INTO joined_notices (user_id, about, at) VALUES (?, ?, ?)"
@@ -1575,15 +1591,36 @@ class SocialStore:
         conn = self._conn()
         conn.execute("DELETE FROM joined_notices WHERE at < ?", (now - JOINED_NOTICE_LIFE,))
         rows = conn.execute(
-            "SELECT about FROM joined_notices WHERE user_id = ? ORDER BY at DESC",
-            (user_id,)).fetchall()
+            "SELECT about FROM joined_notices WHERE user_id = ? AND shown = 0"
+            " ORDER BY at DESC", (user_id,)).fetchall()
         return [r[0] for r in rows]
 
     def drop_joined_notice(self, user_id: str, about: str) -> bool:
-        """Shown, so gone: never raised again on any device."""
+        """Shown, so done: never raised again on any device. Marked rather
+        than deleted, so the same newcomer cannot raise it a second time."""
         cur = self._conn().execute(
-            "DELETE FROM joined_notices WHERE user_id = ? AND about = ?", (user_id, about))
+            "UPDATE joined_notices SET shown = 1 WHERE user_id = ? AND about = ?"
+            " AND shown = 0", (user_id, about))
         return bool(cur.rowcount)
+
+    def mutual_followers(self, viewer: str, target: str) -> list[tuple[str, bool]]:
+        """The people `viewer` follows who follow `target` (§666), every one
+        of them - the graph reads stop at 500, a count must not - as (id,
+        whether they follow `viewer` back), newest followed first."""
+        rows = self._conn().execute(
+            "SELECT f1.followee, EXISTS (SELECT 1 FROM follows f3"
+            "   WHERE f3.follower = f1.followee AND f3.followee = ?)"
+            " FROM follows f1 JOIN follows f2"
+            "   ON f2.follower = f1.followee AND f2.followee = ?"
+            " WHERE f1.follower = ? ORDER BY f1.at DESC",
+            (viewer, target, viewer)).fetchall()
+        return [(r[0], bool(r[1])) for r in rows]
+
+    def follows_since(self, user_id: str, since: float) -> int:
+        """How many follows `user_id` has made since `since`."""
+        return self._conn().execute(
+            "SELECT COUNT(*) FROM follows WHERE follower = ? AND at >= ?",
+            (user_id, since)).fetchone()[0]
 
     def follow_sources(self, since: float = 0.0) -> dict:
         """How many follows came from where (§669), "" as "other"."""

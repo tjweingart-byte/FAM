@@ -24902,19 +24902,26 @@
   }
   // `/?person=<handle>`: open them once the app knows who is here, and take
   // it out of the address so a reload does not open it again.
+  // Only a handle's own characters ever leave the address bar (§674): it is
+  // drawn into onclick strings, where an entity-escaped quote is a quote.
+  function linkHandle(raw){
+    var h = String(raw || "").trim().replace(/^@/, "").toLowerCase();
+    return /^[a-z0-9._]{2,24}$/.test(h) ? h : "";
+  }
   function openLinkedPerson(){
     var handle = "";
     try { handle = new URLSearchParams(location.search).get("person") || ""; } catch(e){}
     if(!handle){
       try { handle = sessionStorage.getItem("famLinkedPerson") || ""; } catch(e){}
-      if(!handle || !AUTH.authenticated) return;
+      if(!linkHandle(handle) || !AUTH.authenticated) return;
     }
     try {
       var u = new URL(location.href);
       u.searchParams.delete("person");
       history.replaceState(null, "", u.pathname + u.search + u.hash);
     } catch(e){}
-    handle = handle.replace(/^@/, "").slice(0, 32);
+    handle = linkHandle(handle);
+    if(!handle){ try { sessionStorage.removeItem("famLinkedPerson"); } catch(e){} return; }
     linkedPerson = { handle: handle, person: null };
     if(!AUTH.authenticated){
       // Held for sign-up's Find your friends step.
@@ -24935,7 +24942,7 @@
   function loadLinkedPerson(){
     if(!linkedPerson){
       var h = "";
-      try { h = sessionStorage.getItem("famLinkedPerson") || ""; } catch(e){}
+      try { h = linkHandle(sessionStorage.getItem("famLinkedPerson")); } catch(e){}
       if(!h) return;
       linkedPerson = { handle: h, person: null };
     }

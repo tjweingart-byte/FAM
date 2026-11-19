@@ -100,6 +100,11 @@ def test_junk_in_an_address_book_matches_nobody(accounts):
 
 # --- through the app ------------------------------------------------------
 
+#: The device's clock, as every web request carries it (`X-FAM-TZ`): what
+#: lets a number saved without +1 be read as one for an account with no
+#: phone of its own (§674).
+US = {"X-FAM-TZ": "America/New_York"}
+
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(appmod, "_rate_limit", lambda request: None)
@@ -126,7 +131,7 @@ def test_contacts_on_fam_come_back_with_the_name_in_your_address_book(client):
         {"name": "Nobody", "tel": ["+15550000000"]},
         {"name": "Ana from work", "tel": ["(415) 555-0199"]},
         {"name": "Me", "email": ["ben@b.com"]},
-    ]})
+    ]}, headers=US)
     assert r.status_code == 200
     people = r.json()["people"]
     assert [(p["handle"], p["contact_name"], p["following"]) for p in people] == [
@@ -237,8 +242,10 @@ def test_somebody_new_who_has_you_in_their_contacts_is_announced_once(client):
     signed_in(client, "ana@b.com", "Ana", "ana", phone="+14155550111")
     client.post("/api/auth/logout")
     signed_in(client, "ben@b.com", "Ben", "ben")
-    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]})
-    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]})
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]},
+                headers=US)
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]},
+                headers=US)
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
     first = client.get("/api/friends/joined").json()["people"]
@@ -254,7 +261,8 @@ def test_an_old_account_checking_its_contacts_announces_nothing(client):
     client.post("/api/auth/logout")
     ben = signed_in(client, "ben@b.com", "Ben", "ben")
     appmod.ACCOUNTS._conn().execute("UPDATE accounts SET created = 0 WHERE user_id = ?", (ben,))
-    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550112"]}]})
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550112"]}]},
+                headers=US)
     client.post("/api/auth/logout")
     client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
     assert client.get("/api/friends/joined").json()["people"] == []
@@ -334,3 +342,65 @@ def test_a_friends_qr_code_is_their_link_and_only_for_somebody_you_may_open(clie
     assert client.get("/api/person/qr?handle=ben").status_code == 404, "your own is /api/me/qr"
     client.post("/api/auth/logout")
     assert client.get("/api/person/qr?handle=ana").status_code == 401
+
+
+# --- §674: the branch review's fixes --------------------------------------
+
+def test_mutuals_are_counted_past_the_500_row_graph_reads(graph):
+    graph.follow("me", "a")
+    graph.follow("a", "ian")
+    for i in range(520):                      # Ian's newer followers bury Ana's
+        graph.follow(f"x{i}", "ian", at=10_000 + i)
+    assert [uid for uid, _ in graph.mutual_followers("me", "ian")] == ["a"]
+
+
+def test_a_number_without_its_code_is_not_read_as_us_for_an_email_only_account_abroad(client):
+    signed_in(client, "ana@b.com", "Ana", "ana", phone="+19815550123")
+    client.post("/api/auth/logout")
+    signed_in(client, "ravi@b.com", "Ravi", "ravi")
+    body = {"contacts": [{"name": "Amma", "tel": ["9815550123"]}]}
+    abroad = client.post("/api/friends/contacts", json=body,
+                         headers={"X-FAM-TZ": "Asia/Kolkata"}).json()["people"]
+    assert abroad == [], "an Indian mobile matched a stranger in the US"
+    home = client.post("/api/friends/contacts", json=body,
+                       headers={"X-FAM-TZ": "America/Chicago"}).json()["people"]
+    assert [p["handle"] for p in home] == ["ana"]
+
+
+def test_a_day_of_contacts_checks_is_capped(client, monkeypatch):
+    monkeypatch.setattr(appmod, "CONTACTS_PER_DAY", 3)
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    two = {"contacts": [{"name": "a", "email": ["a@x.com"]}, {"name": "b", "email": ["b@x.com"]}]}
+    assert client.post("/api/friends/contacts", json=two).status_code == 200
+    assert client.post("/api/friends/contacts", json=two).status_code == 429
+
+
+def test_a_newcomer_raises_a_bounded_number_of_notices_and_each_once(graph, monkeypatch):
+    monkeypatch.setattr(social_mod, "JOINED_NOTICE_MAX", 2)
+    assert graph.add_joined_notice("a", "me")
+    assert graph.add_joined_notice("b", "me")
+    assert not graph.add_joined_notice("c", "me"), "past the cap"
+    graph.drop_joined_notice("a", "me")
+    assert not graph.add_joined_notice("a", "me"), "shown once is shown"
+    assert graph.joined_notices("a") == []
+
+
+def test_follow_all_stops_at_the_hourly_cap(client, monkeypatch):
+    monkeypatch.setattr(appmod, "FOLLOW_ALL_PER_HOUR", 2)
+    for email, name, handle in (("a1@b.com", "A1", "aone"), ("a2@b.com", "A2", "atwo"),
+                                ("a3@b.com", "A3", "athree")):
+        signed_in(client, email, name, handle)
+        client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    r = client.post("/api/friends/follow-all", json={"handles": ["aone", "atwo", "athree"]}).json()
+    assert r["followed"] == 2 and r["skipped"] == 1
+    assert client.post("/api/friends/follow-all", json={"handles": ["athree"]}).status_code == 429
+
+
+def test_a_linked_handle_is_checked_before_it_is_drawn():
+    index = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "static", "index.html")).read()
+    body = index.split("  function openLinkedPerson(){", 1)[1].split("\n  function ", 1)[0]
+    assert "linkHandle(" in body
+    rule = index.split("  function linkHandle(raw){", 1)[1].split("\n  }", 1)[0]
+    assert "/^[a-z0-9._]{2,24}$/" in rule

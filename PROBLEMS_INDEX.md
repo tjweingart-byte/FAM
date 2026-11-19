@@ -665,3 +665,4 @@ and `limit` = Lines.
 | 40333 | 14 | 671. The QR button on YourFAM (2026-11-19) |
 | 40347 | 20 | 672. A friend's QR code, on their profile (2026-11-19) |
 | 40367 | 23 | 673. Square corners behind every card on a phone (2026-11-19) |
+| 40390 | 50 | 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19) |

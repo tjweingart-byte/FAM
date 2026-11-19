@@ -3565,6 +3565,10 @@ async def account_unlink(request: Request,
 #: The most one "Follow all" follows (§669) - a group is smaller, and a
 #: contacts list past this is followed in a second tap.
 FOLLOW_ALL_MAX = 50
+#: The most follows one account makes in an hour through Follow all (§674):
+#: a person following their contacts and a group is well under it; a script
+#: following everybody it can find is not.
+FOLLOW_ALL_PER_HOUR = 200
 
 
 class FollowRequest(BaseModel):
@@ -3959,15 +3963,17 @@ def _person_mutuals(me: str, target: str) -> dict:
     """
     if not me or me == target:
         return {"count": 0, "people": []}
-    mine = _without_apart(me, SOCIAL.following(me))
-    friend_ids = {p["user_id"] for p in SOCIAL.friends(me)}
-    theirs = {p["user_id"] for p in SOCIAL.followers(target)}
-    both = [p for p in mine if p["user_id"] in theirs and p.get("handle")]
-    both.sort(key=lambda p: p["user_id"] not in friend_ids)
-    return {"count": len(both),
+    # One query over the whole graph (§674): `following`/`followers` stop at
+    # 500 rows, and a count read through them was short on a popular page.
+    pairs = SOCIAL.mutual_followers(me, target)
+    apart = MODERATION.apart(me)
+    pairs = [(uid, friend) for uid, friend in pairs if uid not in apart]
+    pairs.sort(key=lambda pair: not pair[1])          # friends first, stable
+    people = SOCIAL.people_by_id(uid for uid, _ in pairs)   # handles only
+    return {"count": len(people),
             "people": [{"name": p["name"], "handle": p["handle"], "avatar": p["avatar"],
                         "explicit": p.get("explicit", False)}
-                       for p in both[:MUTUALS_SHOWN]]}
+                       for p in people[:MUTUALS_SHOWN]]}
 
 
 def _person_friends(me: str, target: str) -> dict:
@@ -4070,14 +4076,22 @@ async def friends_suggested(request: Request,
             "around": bool(around)}
 
 
-#: The most address-book entries one `/api/friends/contacts` reads (§665).
+#: The most address-book entries one `/api/friends/contacts` reads (§665),
+#: and one account in a day (§674): an address book is checked once or
+#: twice, and a script looping through a list of addresses is not.
 CONTACTS_MAX = 2000
+CONTACTS_PER_DAY = 6000
+#: Entries checked per account today: {user_id: (day, count)}. In memory,
+#: as `_rate_limit`'s bucket is - a restart forgives, a loop is stopped.
+_contacts_checked: dict[str, tuple[int, int]] = {}
+
+ShortStr = Annotated[str, Field(max_length=120)]
 
 
 class ContactEntry(BaseModel):
     name: str = Field("", max_length=120)
-    tel: list[str] = Field(default_factory=list, max_length=8)
-    email: list[str] = Field(default_factory=list, max_length=8)
+    tel: list[ShortStr] = Field(default_factory=list, max_length=8)
+    email: list[ShortStr] = Field(default_factory=list, max_length=8)
 
 
 class ContactsRequest(BaseModel):
@@ -4099,15 +4113,18 @@ async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
     """
     _rate_limit(request)
     user = _require_account(request)
+    day = int(time.time() // 86400)
+    was_day, done = _contacts_checked.get(user, (day, 0))
+    done = done if was_day == day else 0
+    if done + len(req.contacts) > CONTACTS_PER_DAY:
+        raise HTTPException(status_code=429, detail=(
+            "That's a lot of contacts for one day. Try again tomorrow."))
+    _contacts_checked[user] = (day, done + len(req.contacts))
     phones, emails = [], []
     for i, entry in enumerate(req.contacts):
         phones.extend((t, i) for t in entry.tel)
         emails.extend((e, i) for e in entry.email)
-    # A number saved without its country code is read as the asker's own
-    # country - known only for +1, whose national numbers are ten digits.
-    # Anywhere else such a number is skipped rather than guessed.
-    own = (ACCOUNTS.account(user) or {}).get("phone") or ""
-    home = "+1" if (not own or own.startswith("+1")) else ""
+    home = _contacts_home_code(user)
     matched = ACCOUNTS.match_contacts(phones, emails, home_code=home)
     people = SOCIAL.people_by_id(matched)
     for person in people:
@@ -4115,6 +4132,37 @@ async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
     shown = _discoverable(user, people)
     _tell_contacts_you_joined(user, shown)
     return {"people": shown}
+
+
+#: Time zones whose phones dial +1 (the US, Canada, Puerto Rico), for a
+#: listener whose own number does not say (§674).
+NANP_ZONES = frozenset({
+    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+    "America/Phoenix", "America/Anchorage", "America/Adak", "America/Boise",
+    "America/Detroit", "America/Juneau", "America/Menominee", "America/Metlakatla",
+    "America/Nome", "America/Sitka", "America/Yakutat", "Pacific/Honolulu",
+    "America/Toronto", "America/Vancouver", "America/Edmonton", "America/Winnipeg",
+    "America/Halifax", "America/St_Johns", "America/Regina", "America/Moncton",
+    "America/Glace_Bay", "America/Goose_Bay", "America/Whitehorse", "America/Dawson",
+    "America/Yellowknife", "America/Iqaluit", "America/Puerto_Rico",
+    "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "US/Alaska", "US/Hawaii",
+})
+
+
+def _contacts_home_code(user: str) -> str:
+    """The country a number saved without its code is read in: +1 when the
+    asker's own number is +1, or they have none and their device's clock is
+    in a +1 zone; otherwise "" and such a number is skipped (§674). It used
+    to read +1 for anybody without a number, so an email-only account in
+    India had its contacts' ten-digit mobiles matched to strangers in the US."""
+    own = (ACCOUNTS.account(user) or {}).get("phone") or ""
+    if own:
+        return "+1" if own.startswith("+1") else ""
+    zone = listener_clock.current()
+    if zone in NANP_ZONES or zone.startswith(("America/Indiana/", "America/Kentucky/",
+                                              "America/North_Dakota/")):
+        return "+1"
+    return ""
 
 
 def _tell_contacts_you_joined(user: str, found: list[dict]) -> None:
@@ -4199,8 +4247,10 @@ class FollowAllRequest(BaseModel):
     the people in a group chat. By handle or by an id the server gave out,
     exactly as one follow is."""
 
-    handles: list[str] = Field(default_factory=list, max_length=FOLLOW_ALL_MAX)
-    user_ids: list[str] = Field(default_factory=list, max_length=FOLLOW_ALL_MAX)
+    handles: list[Annotated[str, Field(max_length=social_mod.MAX_HANDLE + 1)]] = Field(
+        default_factory=list, max_length=FOLLOW_ALL_MAX)
+    user_ids: list[Annotated[str, Field(max_length=64)]] = Field(
+        default_factory=list, max_length=FOLLOW_ALL_MAX)
     via: str = Field("", max_length=32)
 
 
@@ -4219,12 +4269,16 @@ async def friends_follow_all(req: FollowAllRequest, request: Request) -> dict:
         if uid:
             targets.append(uid)
     targets.extend(u for u in req.user_ids if u)
+    room = FOLLOW_ALL_PER_HOUR - SOCIAL.follows_since(user, time.time() - 3600)
+    if room <= 0:
+        raise HTTPException(status_code=429, detail=(
+            "You've followed a lot of people in the last hour. Try again later."))
     followed, skipped, seen = 0, 0, set()
     for target in targets:
         if target in seen:
             continue
         seen.add(target)
-        if target == user or not _reachable(user, target):
+        if target == user or not _reachable(user, target) or followed >= room:
             skipped += 1
             continue
         try:

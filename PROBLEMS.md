@@ -40386,3 +40386,53 @@ takes the name `/api/person` returned, as the page does.
 
 **Verified:** computed radius 0px at 390 px and 34px on the 800 px desktop
 frame; photographed; "Ian's profile" read off the card.
+
+## 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19)
+
+**The owner (11.19):** "Double check all changes in this branch and get this
+ready to merge into main."
+
+**Merged Main first.** Main had moved 26 commits and its sections ran to
+§664, the same numbers as this branch's nine; this branch's were renumbered
+§665-§673 everywhere they are cited (115 references) before the merge. One
+conflict in code: the profile's interests comment, which Main rewrote
+(§662) beside this branch's mutuals and suggestions lines - both kept.
+
+**A review of the whole branch against Main found six things, all fixed:**
+1. **A crafted link ran script.** `/?person=` went from the address bar
+   into the profile's `followHandle('...')` onclick; `escapeHtml` turns a
+   quote into `&#39;`, which the browser decodes back before the script
+   runs, so `/?person=');alert(1)//` executed on tapping Follow.
+   `linkHandle` now admits only `[a-z0-9._]{2,24}` from the URL and from
+   sessionStorage, and drops anything else.
+2. **Strangers matched as contacts abroad.** A number saved without a
+   country code was read as +1 for any account with no phone of its own, so
+   an email-only account in India had its contacts' ten-digit mobiles
+   matched to US accounts - shown as "In your contacts as Amma" and sent a
+   "just joined" card. Now +1 only when the asker's number is +1, or they
+   have none and the device's `X-FAM-TZ` is a +1 zone (`NANP_ZONES`);
+   otherwise skipped.
+3. **Mutuals undercounted on a popular page.** `_person_mutuals`
+   intersected `following(me)` and `followers(target)`, both 500 rows, so
+   a mutual older than the target's newest 500 followers was missed.
+   `SocialStore.mutual_followers` counts in one query over the whole graph.
+4. **The contacts lookup was an enumeration and a megaphone.** 2,000
+   addresses a request under the model bucket was ~40,000 lookups a minute,
+   and a new account pushed its "just joined" card to every match. Now
+   `CONTACTS_PER_DAY` (6,000 entries per account a day, 429 past it) and
+   `JOINED_NOTICE_MAX` (50 per newcomer). Also: a shown notice was deleted,
+   so the same newcomer could raise it again within its week; it is now
+   marked `shown` and pruned at a fortnight.
+5. **Follow all multiplied follow throughput fifty times.** Now at most
+   `FOLLOW_ALL_PER_HOUR` (200) follows an hour through it, counted from
+   the follows table; past it, 429.
+6. **List items had no length cap** in `FollowAllRequest` and
+   `ContactEntry`; now bounded.
+
+**Verified:** six tests for the six (the 520-follower page, the Kolkata
+and Chicago zones, the daily cap, the notice cap and once-only, the hourly
+cap, the handle check), and the earlier contacts tests now send the zone
+the web client sends on every call. **Not verified:** the iOS app sending
+`X-FAM-TZ` on `/api/friends/contacts` (PARITY.md); the per-day contacts
+count is in process memory like `_rate_limit`'s bucket, so a restart
+forgives it.
