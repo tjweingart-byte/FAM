@@ -207,3 +207,16 @@ def test_xi_goes_through_every_admin_path():
     assert pronunciation.clean("Xi", "shee.") == ("Xi", "shee")
     assert pronunciation.clean("Xi", "xi") is None          # respelled as itself
     assert pronunciation.clean("Ok", "oh-KAY") is None      # only the seed's short names
+
+
+def test_a_short_vowels_h_inside_one_syllable_is_taken_out():
+    """§665: Libertad's "lee-behr-TAHD" was heard as "luh-bay-her-tahd"."""
+    v = pronunciation.voiced
+    assert v("lee-behr-TAHD") == "Leebairtahd"
+    assert v("boo-SHEHR") == "Booshair"
+    assert v("AZ-uhr-by-JAHN") == "Azerbyjahn"
+    assert v("sihr-ee-AH-nee") == "Sireeahnee"
+    assert v("GLAS-tuhn-ber-ee") == "Glastunberee"
+    assert v("rohd-REE-gehs") == "Rohdreeghess"     # g stays hard, s not "lay"
+    assert v("AHD-mee") == "Ahdmee"                 # ah and oh were heard right
+    assert v("bah-LOHN") == "Bahlohn"

@@ -199,6 +199,34 @@ _KEEP_H = frozenset(("shah",))
 _DOUBLES = frozenset("bdfglmnprst")
 
 
+#: A short vowel's marking h *inside* one syllable, before a consonant of
+#: that syllable ("behr", "tuhn", "sihr"). The voice says that h: the owner
+#: heard Libertad's "lee-behr-TAHD" as "luh-bay-her-tahd" (§665). "ah" and
+#: "oh" are left: "-rahn" and "-tahd" were heard right.
+_INSIDE = re.compile(r"(ih|eh|uh)(?=[b-df-gj-np-tv-z])")
+#: Before an r, the vowel as English spells that sound: "ehr" is "air"
+#: (Bushehr, Becerra), "ihr" is "ir" (sir), "uhr" is "er" (Azerbaijan).
+_BEFORE_R = {"eh": "ai", "ih": "i", "uh": "e"}
+
+
+def _inside(syllable: str) -> str:
+    """One syllable with a short vowel's inner h taken out (§665): "behr"
+    -> "bair", "sihr" -> "sir", "tuhn" -> "tun", "lehs" -> "less"."""
+    def fix(m: re.Match) -> str:
+        vowel, rest = m.group(1), syllable[m.end():]
+        if rest[:1] == "r":
+            return _BEFORE_R[vowel]
+        out = vowel[0]
+        # A hard g stays hard before e or i ("gehs" -> "ghes", not "jes").
+        if vowel[0] in "ei" and syllable[m.start() - 1:m.start()] == "g":
+            out = "h" + out
+        # A word's last "s" after a short vowel is doubled, or "les" is "lay".
+        if rest == "s":
+            out += "s"
+        return out
+    return _INSIDE.sub(fix, syllable)
+
+
 def _joined(word: str) -> str:
     """One respelled word's syllables as one word: "sah-gah-poh" -> "sahgahpoh",
     keeping a hyphen only where joining would make a new sound (§576).
@@ -219,7 +247,7 @@ def _joined(word: str) -> str:
       or the h is said ("ah-jah-EH-roh" was "Ahjahehroh").
     """
     raw = [p for p in word.split("-") if p]
-    parts = [p.lower() for p in raw]
+    parts = [_inside(p.lower()) for p in raw]
     if not parts:
         return ""
     out = parts[0]

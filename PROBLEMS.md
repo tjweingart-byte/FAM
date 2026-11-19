@@ -40516,3 +40516,24 @@ nothing posted is stored.
 Tests: `tests/test_build10_find_friends_ios.py`. **Not verified here:** no
 Xcode in this container - the Swift compiles in `ios.yml`; the Contacts
 prompt, the QR scanning and the layout at large text want a phone.
+
+## 665. An h inside a syllable: Libertad heard as "luh-bay-her-tahd" (2026-11-19)
+
+The owner played Libertad on /admin (`lee-behr-TAHD`, their own row) and the
+voice said "luh-bay-her-tahd" ("This actually sounds way off ... Could this
+explain some of the continued mispronunciations"). It does: a short vowel's
+marking h *inside* one syllable, before that syllable's consonant ("behr"),
+is said - "be-her" - the same breathed h as §664's Iran, inside a syllable
+rather than between two. §664 left these 14 entries of the owner's export to
+hand respelling (13 seeded); every model will keep writing more.
+
+`_inside` now mends each syllable before joining: "eh", "ih", "uh" before a
+consonant of the same syllable lose the h - before an r as English spells the
+sound ("behr" -> "bair", "sihr" -> "sir", "uhr" -> "er"), otherwise the bare
+vowel ("tuhn" -> "tun"), a g before e or i kept hard ("gehs" -> "ghess"), and
+a final "s" after the vowel doubled ("lehs" -> "less", not French "les").
+"ah" and "oh" are left: both clips heard "-rahn" and "-tahd" right, and 249
+entries use them. Libertad now reaches the voice as "Leebairtahd" without
+the owner's edit; the export has 0 entries with a breathed h left (395 at
+§664's start). Unheard, like the rest: /admin's "hear all" is the check.
+
