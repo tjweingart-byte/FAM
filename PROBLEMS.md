@@ -40516,3 +40516,190 @@ nothing posted is stored.
 Tests: `tests/test_build10_find_friends_ios.py`. **Not verified here:** no
 Xcode in this container - the Swift compiles in `ios.yml`; the Contacts
 prompt, the QR scanning and the layout at large text want a phone.
+
+## 676. An h inside a syllable: Libertad heard as "luh-bay-her-tahd" (2026-11-19)
+
+The owner played Libertad on /admin (`lee-behr-TAHD`, their own row) and the
+voice said "luh-bay-her-tahd" ("This actually sounds way off ... Could this
+explain some of the continued mispronunciations"). It does: a short vowel's
+marking h *inside* one syllable, before that syllable's consonant ("behr"),
+is said - "be-her" - the same breathed h as §664's Iran, inside a syllable
+rather than between two. §664 left these 14 entries of the owner's export to
+hand respelling (13 seeded); every model will keep writing more.
+
+`_inside` now mends each syllable before joining: "eh", "ih", "uh" before a
+consonant of the same syllable lose the h - before an r as English spells the
+sound ("behr" -> "bair", "sihr" -> "sir", "uhr" -> "er"), otherwise the bare
+vowel ("tuhn" -> "tun"), a g before e or i kept hard ("gehs" -> "ghess"), and
+a final "s" after the vowel doubled ("lehs" -> "less", not French "les").
+"ah" and "oh" are left: both clips heard "-rahn" and "-tahd" right, and 249
+entries use them. Libertad now reaches the voice as "Leebairtahd" without
+the owner's edit; the export has 0 entries with a breathed h left (395 at
+§664's start). Unheard, like the rest: /admin's "hear all" is the check.
+
+## 677. The whole pronunciation list audited, the joining rules redone, and a rulebook (2026-11-19)
+
+The owner: "Read through the whole list and check for problems like this.
+Especially the new changes. Run a full audit", then: "I want to create a
+rulebook that is stored so a new branch can be informed on how chatterbox
+pronounces different things and can write and edit new pronunciations
+correctly" - "make it a skill, and open the PR when done".
+
+**The audit.** The owner's export (1,781 entries) plus the seed, 1,842 rows,
+517 of them voiced differently since §664, split four ways and read row by
+row by four separate agents, each given the code and the heard evidence
+("Ihrahn" -> "eef-rahn", "Leebehrtahd" -> "luh-bay-her-tahd", "-rahn" and
+"-tahd" right) and judging only the text the voice is handed. 407 findings
+(42 high, 202 medium, 163 low). All four found, independently, that §664's
+own doubling was wrong.
+
+**The rules, redone (`_joined`, `_glide`):**
+- *Doubling only on a stressed syllable* (and a word opening "ih", Iran):
+  unstressed, the doubled consonant took the stress - "dih-TROYT" was
+  "Dittroyt", "zeh-LEN-skee" "Zellenskee", "MIL-ih-band" "Millibband",
+  "JEM-ih-nye" "Jeminnye". Never before a cluster ("Jibbrawltar"); a k
+  doubles as ck ("Nuckulz").
+- *An unstressed "uh"* is "a" just before the stress or opening the word
+  ("Abdulkareem", "Abishayk"); after the stress it is left as written - "a"
+  there made a new stressed vowel ("Kahmaluh"). Open question for the ear.
+- *Before a syllable starting with h* the vowel's mark goes, not the h, and
+  no hyphen: "Dohah", "Mohahmed", "Netunyahoo", "Muhammad" (§663's hyphen
+  chopped them: "Netunyah-hoo").
+- *Vowels meeting* get a glide - y after e/i, w after o/u ("Veeyetnahm" for
+  "Veeetnahm", "Sheezoowohkah", "Bowen"); after an a, a hyphen.
+- *Never three of one letter* ("Grosssee").
+- *A name in capitals of its own* ("HSBC") is handed over a syllable a word,
+  "Aych Ess Bee See", not "Aitchessbeesee".
+- *A row stored the wrong way round* ("troo-HEE-yoh" = Trujillo; three more)
+  is refused by `clean` and skipped by `reload` (`looks_respelled`).
+
+**The data (`pronounce_data/audited.json`).** `respell`: 126 corrected
+respellings of model and seed rows, merged into `SEED` (Ghislaine, Thomas
+Tuchel, Antetokounmpo's spellings, Shizuoka, initialisms spaced, Guayaquil,
+Callao and Trujillo the right way round...). `plain`: 193 names the voice
+reads right as written - Detroit, Vietnam, LeBron, Peru, Selena Gomez,
+Costa (which fired on every Contra Costa) - `pronunciation.PLAIN`: no
+model's, seed's or Wikipedia's respelling is used for them and a model's
+line for one is not learned; an admin's still is. Seeds dropped on the
+auditors' advice (Chipotle, Doha, Taipei, Mahomes...); Iran, Iraq and their
+forms, Venezuela and Caribbean kept (the owner's).
+
+**The owner's own rows.** 40 corrections and 25 removals the auditors
+proposed for admin rows are not applied - an admin's respelling is never
+replaced by code. They went to the owner as a file for /admin's review
+upload and a list to remove.
+
+After all of it, re-run over the export: 1,646 entries still respelled; none
+hands the voice a short vowel's h before a consonant except an "uh" after
+the stress (left, above); no triple letters; no three-vowel runs; 18 hyphens,
+each a digraph or an a meeting a vowel.
+
+**The rulebook** is a project skill, `.claude/skills/pronunciation/SKILL.md`:
+what the voice is given and in what order, the format, every joining rule
+with an example, when to leave a name plain, initialisms, sources and
+precedence, the /admin tools, the open questions for the ear, and a checklist.
+`tests/test_skill_pronunciation_677.py` runs every example in its table
+through `voiced`, so it cannot describe a voice the code no longer produces.
+
+**Not verified.** Nothing here was heard. The auditors judged spelling, not
+sound; "hear all" on /admin after deploy is the check, and the three open
+questions in the skill are what to listen for.
+
+## 678. The owner's ear: Iran right, Kamala "kah-moo-lu" - every unstressed "uh" is "a" (2026-11-19)
+
+The owner listened after §677 deployed: "Ih-RAHN sounds right. Kamala sounds
+like kah-moo(like a cow)-luh, it should be kah-muh-lah. Does not sound
+breathy though." The recogniser had said the opposite of both: "eef-rahn"
+for Iran, "said as meant, 83%" for Kamala. The ear wins (§325: the
+recogniser's verdict is a hint).
+
+So §677's open question 1 is answered, not as asked: an "uh" after the
+stress is not breathed but read as the "u" of "mu" - "moo". Every unstressed
+"uh" is now written "a", as English writes that vowel, including a word's
+last syllable: "KAH-muh-luh" -> "Kahmala", "GAH-zuh" -> "Gahza",
+"uh-DAP-tuh-vist" -> "Adaptavist", "muh-hah-RAHJ" -> "Mahahrahj". Not before
+w or y ("Kuhwy", not "aw"), and a one-syllable word is left. Question 2 is
+answered too: "Irrahn" is right.
+
+The names picked for the owner to check turned up two more:
+- *"NVIDIA" (`en-VID-ee-uh`) was spaced as letters*, "En Vid Ee Uh" - §677
+  spaced every name in capitals. Now only a respelling made wholly of
+  letters' names (`_LETTER_NAMES`) is spaced: NVIDIA is "Envideeya", ASML
+  still "Ay Ess Em El".
+- *"shah-HED" was "Shahhed"*: a real h before an h syllable is one h.
+
+The skill's table took Kamala's new form - its test failed on the old one,
+which is what it is for - and its open questions are now what is left
+unheard. Not verified: none of the new forms has been heard.
+
+## 679. The owner's ear, second round: letters left to spoken_text, ordinary words left alone, the check heard alone (2026-11-19)
+
+The owner played §678's suggested names on /admin after deploy. Heard right:
+Capito, Eugenie, Etihad, Premanand Maharaj, Doué, Libertad; Tehran "pretty
+good"; Raúl Torrez right "but too long of a pause". Heard wrong: Kamala "still
+a little off" (Kahmala, recogniser "kah-mah-lu"); Emery "way off", with a
+"dast" (Emaree, "dahs-tee-muhr-ray"); Gemini "terrible" (Jeminye,
+"jeh-meh-nee-eye"); Guterres "shouldn't have the sh"; Nurmagomedov "a little
+off" (Nurmahgohmeddov); Duet "off" (Doowet, "dah-u"); Fuad "way off"
+(Foowahd, "sohf-wah"); Ka'imi "should sound more like kie"; NVIDIA "em
+instead of en", stress on the last i (Envideeya); ASML "way off" (Ay Ess Em
+El, "ah-ee-yes-mel").
+
+What the round says:
+- **The /admin check plays the word alone** (`voice_check.what_is_sent`:
+  the word, no sentence), and a lone word is where this voice garbles most -
+  the "dahs-tee" before Emery is the voice inventing a start. An episode
+  always has a sentence round a name. Judged again in one ("Hear 4 ways",
+  `pronounce_review.CARRIER`) before a rule changes on a single bad word.
+- **An initialism needs no entry.** `spoken_text` already spells capitals
+  ("A S M L", §567). `_said` now leaves a capitals name whose respelling is
+  only its letters' names to it; ASML, MSCI, HSBC are "A S M L" again. A
+  capitals word it knows is said as a word: with no entry NVIDIA is
+  "Envidia". The writer's "Nvidia" joined `PLAIN`.
+- **An ordinary word respelled is worse than the word** (Gemini, Duet,
+  Emery: all three were on the audit's list of the owner's rows to remove).
+- **A hyphen is a pause** (Raúl), and **"w" after "oo" before a vowel
+  failed twice** (Duet, Fuad) while "Dooway" (Doué) worked. Two vowels
+  meeting is the open question; no rule changed on two words heard alone.
+- Guterres, Ka'imi and Kamala are the respellings themselves, not a rule:
+  they are the owner's rows. Five edits went to the owner as a file for
+  /admin's review upload (Guterres `goo-TAIR-ess`, Nurmagomedov
+  `nur-mah-goh-MED-ov`, Ka'imi `KYE ee-mee`, Fuad `FWAHD`, Kamala
+  `KAH-muh-lah`), with removing Gemini, Duet, Emery, NVIDIA and ASML.
+
+The skill now holds the whole heard table, its lessons and the warning about
+the lone-word check. Not verified: the five edits and the letters change are
+unheard.
+
+## 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19)
+
+§679 put the writer's "Nvidia" on `PLAIN` and suggested the owner remove
+their "NVIDIA" row. The owner: "NVIDIA being removed? NVIDIA is the main
+reason we started the pronunciations list it was super inconsistent.
+rethink this we want structure on that one".
+
+They were right, and §679 made it worse: "NVIDIA" (the owner's row,
+`en-VID-ee-uh`) reached the voice as "Envideeya", heard "em-vu-dee-ah" with
+the stress on the last i, while "Nvidia" fell through to `spoken_text`'s
+"Envidia" (§569) - two readings of one company in one episode.
+
+Then the owner heard both rows side by side: "the second sounds perfect and
+the first sounds bad, how are they different". The second - the writer's
+"Nvidia" row, sent through `PLAIN` to `spoken_text` - was "Envidia"; the
+first, their own row, "Envideeya". The difference is the end: "-dia" reads
+like any English "-ia" word, "-deeya" spells a stressed "dee-ya".
+
+So `SEED` holds "Nvidia" and "nVidia" as `en-VID-ia` -> **"Envidia"**, the
+reading heard as perfect (a first try in this branch, "En Vidya", was reasoned
+and never heard, and was replaced before merging). A seed is matched in
+capitals, so NVIDIA, Nvidia, nVidia, "NVIDIA's" and "Nvidia-backed" all
+reach the voice as "Envidia". "Nvidia" is off `PLAIN`. The owner's own
+"NVIDIA" row still wins for that spelling: set it to `en-VID-ia` (or remove
+it) on /admin. A test pins one reading for every spelling, and the skill says
+a name the product leans on gets one structured entry, never "plain".
+
+The same round: Gemini fixed by hand and Duet fixed by the owner, Emery
+removed, ASML "sounds good" (§679's letters), and "all look solid" - except
+Fuad (`foo-AHD`, the owner's row, "Foowahd"), "so far off it's not funny":
+`FWAHD` ("Fwahd") is the suggestion, to be heard in a sentence.
+

@@ -114,6 +114,11 @@
    > consonant after "ih"/"eh" ("Irrahn"), writing an unstressed "uh" as "a"
    > ("Abdulkareem"), keeping a hyphen before a vowel ("Ke-ahveh"). 395 of
    > the owner's 1,781 entries had it; unheard.
+   > **Current (PROBLEMS.md §676-§677):** the whole list was audited; the
+   > joining rules double only on a stressed syllable, glide between vowels,
+   > and leave famous names plain (`pronunciation.PLAIN`). **How to write or
+   > edit a pronunciation is the `pronunciation` skill**
+   > (`.claude/skills/pronunciation/SKILL.md`) - read it first.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

@@ -90,7 +90,7 @@ def test_the_name_inside_a_longer_word_is_left_alone(lexicon):
 
 def test_a_known_word_is_found_inside_a_hyphenated_name(lexicon):
     lexicon.learn([("Keawe", "keh-AH-veh")], "writer")
-    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Ke-ahveh threw"   # no h said (§664)
+    assert lexicon.apply("Jaron-Keawe threw") == "Jaron-Keyahveh threw"   # a glide (§677)
 
 
 def test_a_full_name_teaches_each_of_its_words(lexicon):
@@ -255,7 +255,7 @@ def test_a_personal_episodes_names_are_said_right_and_never_kept(lexicon):
     script_generator._take_pronunciations(
         "<<SAY: Wojciechowska = voy-cheh-HOF-skah>> Hello.", None,
         script_generator._names_are_shared(personal))
-    assert lexicon.apply("Wojciechowska wrote") == "Voycheh-hofskah wrote"   # the h kept (§663)
+    assert lexicon.apply("Wojciechowska wrote") == "Voychehofskah wrote"   # the mark goes, the h stays (§677)
     assert voice_bank.bank().pronunciations() == []
     # And never offered to another episode's writer as "on file".
     assert pronunciation.known_in("Wojciechowska") == []

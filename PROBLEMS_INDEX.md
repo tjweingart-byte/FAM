@@ -667,3 +667,8 @@ and `limit` = Lines.
 | 40367 | 23 | 673. Square corners behind every card on a phone (2026-11-19) |
 | 40390 | 50 | 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19) |
 | 40440 | 80 | 675. iOS build 10: the audit of Main since build 9, and Find your friends on the iPhone (2026-11-19) |
+| 40520 | 20 | 676. An h inside a syllable: Libertad heard as "luh-bay-her-tahd" (2026-11-19) |
+| 40540 | 68 | 677. The whole pronunciation list audited, the joining rules redone, and a rulebook (2026-11-19) |
+| 40608 | 27 | 678. The owner's ear: Iran right, Kamala "kah-moo-lu" - every unstressed "uh" is "a" (2026-11-19) |
+| 40635 | 39 | 679. The owner's ear, second round: letters left to spoken_text, ordinary words left alone, the check heard alone (2026-11-19) |
+| 40674 | 33 | 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19) |
