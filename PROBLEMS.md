@@ -41030,3 +41030,24 @@ exact.
 log's `"\n"` as a newline - an unterminated string literal. The first
 backslash the player ever held. Now the replacement is a function, so the
 script goes in verbatim.
+
+**Double-checked (reading the whole branch diff).** Four fixes:
+
+- The catch read `err.status` without `err`: a `null` rejection would have
+  thrown inside the error handler. Guarded.
+- Safari ends an "interrupted" context by running again on its own. Once
+  `onInterrupted` has drawn paused, that would play under a paused button:
+  a context that starts running while the listener's pause stands is
+  suspended again.
+- A reconnect that comes back at another sample rate is refused (it would
+  splice at the wrong speed) and plays out instead.
+- `[failures-visible]`: every reconnect the server answers is a NOTICE row
+  on /admin ("stream broke; the player asked again"), so how often streams
+  break is counted, not only seen in one listener's log.
+
+Held against the rules: `[player-no-autogen]` - a reconnect asks by
+`episode=`, which never writes; `[old-clients]` - a new optional query
+parameter, nothing removed; `[heard-not-tapped]`/`[limit-episodes]` - no
+second play row, and the allowance already counts by episode key. Tests:
+four in `tests/test_reconnect_685.py`; both preview smokes and
+`smoke_reconnect.py` pass after the change.

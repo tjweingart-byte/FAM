@@ -50,21 +50,35 @@ def test_a_reconnect_records_no_second_play(tmp_path, monkeypatch):
     assert len(rows) == 1, "a reconnect is the same play, never a second"
 
 
+def test_a_reconnect_is_counted_on_admin(tmp_path, monkeypatch):
+    import pipeline_errors
+
+    client, _, appmod = _client(tmp_path, monkeypatch)
+    noted = []
+    monkeypatch.setattr(pipeline_errors, "record",
+                        lambda *a, **k: noted.append((a, k)))
+    first = _get(client)
+    assert not [n for n in noted if "asked again" in n[0][1]]
+    _get(client, episode=first.headers["x-fam-episode"], reconnect=1)
+    assert [n for n in noted if "asked again" in n[0][1]], "a broken stream is visible"
+
+
 def test_a_reconnect_for_an_episode_not_kept_is_refused(tmp_path, monkeypatch):
     client, engine, appmod = _client(tmp_path, monkeypatch)
     first = _get(client)
     episode = first.headers["x-fam-episode"]
     appmod.SCRIPT_CACHE._conn().execute("DELETE FROM scripts")
-    voiced = engine.calls if hasattr(engine, "calls") else None
+    voiced = engine.calls
     again = _get(client, episode=episode, reconnect=1)
     assert again.status_code == 409, "never a new episode under the old one's front"
-    if voiced is not None:
-        assert engine.calls == voiced
+    assert engine.calls == voiced, "nothing voiced for a reconnect it refused"
 
 
 def test_the_player_asks_again_by_the_episodes_id():
     js = open(os.path.join(ROOT, "static", "fam-audio.js"), encoding="utf-8").read()
     assert '"&reconnect=1"' in js
+    assert "rate !== serverRate" in js, "never spliced at another rate"
+    assert 'c.state === "running" && wantPaused' in js, "the listener's pause wins"
     assert '"&episode=" + encodeURIComponent(episodeId)' in js
     assert 'replace("&fmt=FMT", "&fmt=pcm")' in js, "asked again as PCM, the same samples"
     assert "playbackLog: playbackLog" in js

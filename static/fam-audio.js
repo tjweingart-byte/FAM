@@ -132,6 +132,13 @@ window.FamAudio = (function () {
       c.onstatechange = function () {
         if (myToken !== token || c !== ctx) return;
         note("audio context " + c.state + (wantPaused ? " (the listener paused)" : ""));
+        if (c.state === "running" && wantPaused) {
+          // Safari ends an interruption by running again on its own; the
+          // controls say paused, so the listener's pause wins.
+          var stopping = c.suspend();
+          if (stopping && stopping.catch) stopping.catch(function () {});
+          return;
+        }
         if (c.state === "running" || wantPaused || ended || !active) return;
         holdMediaChannel();
         var asked = c.resume();
@@ -772,11 +779,11 @@ window.FamAudio = (function () {
     }).catch(function failed(err) {
       if (err && err.name === "AbortError") return;
       if (myToken !== token) return;
-      if (!totalSamples || err.status) {
+      if (!totalSamples || (err && err.status)) {
         // Nothing arrived (or the server said no): the failure it was.
         if (retries) {
-          note("asked again and refused" + (err.status ? " (" + err.status + ")" : "") +
-               ": " + (err.message || err));
+          note("asked again and refused" + (err && err.status ? " (" + err.status + ")" : "") +
+               ": " + (err && err.message || err));
           return giveUp(err);
         }
         note("failed before any audio: " + (err && err.message || err));
@@ -808,6 +815,13 @@ window.FamAudio = (function () {
     });
 
     function handleAgain(res) {
+      var rate = Number(res.headers.get("X-Sample-Rate")) || 22050;
+      if (rate !== serverRate) {
+        // Spliced at another rate it would play at the wrong speed.
+        var e = new Error("The episode came back at " + rate + " Hz, not " + serverRate + ".");
+        e.status = res.status;
+        throw e;
+      }
       note("reconnected; skipping the " + secs(totalSamples) + " already here");
       return pumpPcm(res.body.getReader(), deliverTo, myToken, totalSamples * 2);
     }

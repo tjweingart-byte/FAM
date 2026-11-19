@@ -14149,7 +14149,14 @@ async def audio(
     write_pending = stats.cache != "hit"
     # A link's fallback (§252) was already recorded when the link was made:
     # one tap is one play, however many requests it took to sound.
-    # A stream that broke and was asked for again (§685) is the same play.
+    # A stream that broke and was asked for again (§685) is the same play -
+    # and a failure, so /admin counts it ([failures-visible]).
+    if reconnect:
+        pipeline_errors.record(
+            "episode", "stream broke; the player asked again",
+            "the listener's connection dropped part-way and the web player "
+            "reconnected by the episode's id", plan.query,
+            severity=pipeline_errors.NOTICE)
     if (user and _remembers(request) and not link_failed and not reconnect
             and not private):
         SOCIAL.seen(user)
