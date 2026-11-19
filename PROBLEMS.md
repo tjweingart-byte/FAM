@@ -39844,3 +39844,13 @@ straight to the interests.
 other with five mutuals: four faces, "Followed by Eli, Dana, and 3 others",
 under Follow on the left. **Not verified:** the full check is re-run below
 in the commit that carries this.
+
+## 659. No follow-back nudge (2026-11-19)
+
+**The owner (11.19), on §656's brainstorm:** "dont add the follow back
+nudge". The idea (item 3) was a prompt to follow somebody back after they
+opened an episode you sent, or followed you. It was never built; this
+records that it is not to be, at `rule:find-friends`. What already exists
+is unchanged: Discover cards may say "Follows you" as their reason and
+list those people first (§656). That is a suggestion's reason, not a
+prompt, and stays unless the owner says otherwise.

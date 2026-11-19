@@ -1141,6 +1141,7 @@ the door. `private` tells the page to say the account is private.
 > your own face is a control before you follow anybody.
 
 <!-- rule:find-friends -->
+> **Current (PROBLEMS.md §659, the owner's 11.19 answer to the brainstorm):** **no follow-back nudge** - nothing prompts a listener to follow back somebody who followed them, messaged them or opened an episode they sent. Never add one.
 > **Current (PROBLEMS.md §657, the owner's ask):** every profile shows its **mutuals** - the people you follow who follow them - whether or not you follow them (`/api/person` `mutuals`: `count` and up to 30 names, handles and faces, your friends first, never an id). The owner's look (§658): up to four overlapped faces drawn as a dailyFAM tile's friends-listened faces (`friendFaceHtml`), then "Followed by Brady, Ian, and 45 others", on the left right under Follow, on every profile including a friend's; a tap opens the whole list. The other two looks are deleted.
 **Finding friends is a step, a page and a row** (PROBLEMS.md §656, the
 owner's 11.18 ask: "it should be easier to add friends, and the app should
