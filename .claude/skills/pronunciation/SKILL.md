@@ -98,10 +98,12 @@ it wrong - Iran was respelled because the owner heard it.
 
 ## 5. Initialisms, codes and capitals
 
-- A name in capitals of its own ("HSBC", "MSCI") is handed over **a
-  syllable a word**: `aych-ess-bee-SEE` -> "Aych Ess Bee See". Joined, it
-  was "Aitchessbeesee". `spoken_text` already spells a capitals word it
-  does not know (§567), so an initialism usually needs no entry at all.
+- **An initialism needs no entry.** `spoken_text` spells a capitals word
+  as letters ("ASML" -> "A S M L", §567) and says one it knows as a word
+  ("NVIDIA" -> "Envidia"). An entry respelled only in letters' names is
+  ignored for that reason: "Ay Ess Em El" was heard "ah-ee-yes-mel" (§679).
+  A capitals name respelled as a word is handed over a syllable a word
+  only if every syllable is a letter's name.
 - A mixed name with an initialism ("ChatGPT", "OpenAI") is not in capitals:
   write the letters as separate words, `chat jee pee TEE`.
 - An ordinary name's capitals ("IRAN" in a headline) match its entry, from
@@ -141,13 +143,35 @@ This container has no GPU: nothing here can hear Chatterbox. Say so.
   with four readers, and keep it out of the repository (it quotes
   episodes).
 
-**Heard by the owner** (§678): "Irrahn" right; "Kahmuhluh" wrong -
-"kah-moo-lu", not breathy, so every unstressed "uh" is now "a".
+**Heard by the owner** (§678-§679), voiced form -> what they heard:
+
+| name | voice got | heard |
+|---|---|---|
+| Iran | Irrahn | right |
+| Kamala | Kahmuhluh, then Kahmala | "kah-moo-lu", then "a little off" |
+| Libertad | Leebairtahd | right |
+| Tehran | Terahn | pretty good, the te a little weird |
+| Capito, Eugenie | Kapitoh, Yoozhanee | right, ok |
+| Etihad, Premanand Maharaj | Etihahd, Praymanund Mahahrahj | right |
+| Doué | Dooway | right |
+| Raúl Torrez | Ra-ool Torez | right, but **a hyphen is a long pause** |
+| Gemini, Duet, Emery | Jeminye, Doowet, Emaree | terrible, off, way off |
+| Fuad | Foowahd | way off |
+| Guterres | Gooterresh | bad: the sh (the respelling, not a rule) |
+| NVIDIA | Envideeya | em for en, stress on the last i |
+| ASML | Ay Ess Em El | way off |
+
+Lessons: an ordinary word respelled (Gemini, Duet, Emery) is worse than
+the word; "w" after "oo" before a vowel failed twice (Duet, Fuad); a
+hyphen is a pause, not a join. **The /admin check plays the word alone**,
+with no sentence, and a lone word is where this voice garbles most (the
+"dahs-tee" before Emery): judge a bad one again in a sentence ("Hear 4
+ways" says it inside `pronounce_review.CARRIER`) before changing a rule.
 
 **Open questions for the ear** (unheard, decided by reasoning):
 
-1. Does an unstressed syllable left undoubled read long ("Terahn" as
-   TEER-ahn, "Zelenskee" as ZEE-lenskee)?
+1. What should two vowels meeting become? "w" after "oo" failed (Duet,
+   Fuad), a hyphen pauses (Raúl), a plain join risks a new vowel pair.
 2. Does "a" for an unstressed "uh" ever take the stress ("Kahmala" as
    kah-MAH-la, "Akraman")?
 3. Do the remaining hyphens ("Ahja-erroh", "Mat-hew") chop the word?
