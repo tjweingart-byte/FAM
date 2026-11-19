@@ -21,7 +21,7 @@ def test_iran_is_respelled_without_any_model_listing_it(tmp_path):
     said = lex.apply("Iran's foreign minister flew to Tehran. Iranian officials met.")
     assert "Iran" not in said.replace("Iranian", "")
     assert said.startswith("Irrahn's")
-    assert "Terrahn" in said and "Irrayneeun" in said
+    assert "Terahn" in said and "Irrayneeyun" in said
 
 
 def test_every_seed_is_a_clean_pair():
@@ -62,8 +62,8 @@ def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
 # The outside audit of the list (§663).
 
 def test_an_h_after_a_vowel_keeps_its_hyphen():
-    assert pronunciation.voiced("doh-hah") == "Doh-hah"
-    assert pronunciation.voiced("muh-HOHMZ") == "Muh-hohmz"
+    assert pronunciation.voiced("doh-hah") == "Dohah"
+    assert pronunciation.voiced("muh-HOHMZ") == "Muhohmz"
     assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootelleh"
     assert pronunciation.voiced("mat-hew") == "Mat-hew"
 
@@ -99,9 +99,9 @@ def test_a_short_vowel_before_a_consonant_doubles_it_and_loses_its_h():
     was heard as "eef-rahn" - the h breathed before the r."""
     v = pronunciation.voiced
     assert v("ih-RAHN") == "Irrahn"
-    assert v("teh-RAHN") == "Terrahn"
-    assert v("zeh-LEN-skee") == "Zellenskee"
-    assert v("muh-HOHMZ") == "Muh-hohmz"          # an h after a vowel keeps its hyphen
+    assert v("teh-RAHN") == "Terahn"     # unstressed: no doubling (§677)
+    assert v("zeh-LEN-skee") == "Zelenskee"
+    assert v("muh-HOHMZ") == "Muhohmz"          # an h after a vowel keeps its hyphen
     assert v("at-ih-KOH-kan") == "Atikohkan"      # k is not doubled, the h still goes
     assert v("ih-SHAH") == "Ishah"                # nor a digraph
 
@@ -110,14 +110,14 @@ def test_an_unstressed_uh_is_written_a_as_english_writes_it():
     v = pronunciation.voiced
     assert v("ab-dul-kuh-REEM") == "Abdulkareem"
     assert v("uh-DAH-nee") == "Adahnee"           # not "Uddahnee", stress pulled forward
-    assert v("uh-DAP-tuh-vist") == "Adaptavist"
-    assert v("MUH-ham-mad") == "Muh-hammad"       # a stressed one is left
+    assert v("uh-DAP-tuh-vist") == "Adaptuhvist"   # after the stress: as written (§677)
+    assert v("MUH-ham-mad") == "Muhammad"         # the mark goes, the h stays (§677)
 
 
 def test_a_marked_vowel_before_a_vowel_loses_its_h():
     v = pronunciation.voiced
-    assert v("ah-jah-EH-roh") == "Ahja-erroh"     # was "Ahjahehroh", an h said
-    assert v("BOH-en") == "Bo-en"
+    assert v("ah-jah-EH-roh") == "Ahja-erroh"     # was "Ahjahehroh"; after an a, a hyphen
+    assert v("BOH-en") == "Bowen"               # a glide, not a hyphen (§677)
     assert "h" not in v("ih-RAHN")[:3]
 
 
@@ -126,7 +126,7 @@ def test_no_seed_hands_the_voice_a_breathed_h():
     import re
     for name, say in pronunciation.SEED.items():
         v = pronunciation.voiced(say).lower()
-        assert not re.search(r"(?:ih|eh|uh)(?=[b-df-gj-np-tv-z])|[aeiou]h(?=[aeiou])", v), (name, v)
+        assert not re.search(r"(?:ih|eh|uh)(?=[b-df-gj-np-tv-z])", v), (name, v)
 
 
 
@@ -210,13 +210,67 @@ def test_xi_goes_through_every_admin_path():
 
 
 def test_a_short_vowels_h_inside_one_syllable_is_taken_out():
-    """§665: Libertad's "lee-behr-TAHD" was heard as "luh-bay-her-tahd"."""
+    """§676: Libertad's "lee-behr-TAHD" was heard as "luh-bay-her-tahd"."""
     v = pronunciation.voiced
     assert v("lee-behr-TAHD") == "Leebairtahd"
     assert v("boo-SHEHR") == "Booshair"
     assert v("AZ-uhr-by-JAHN") == "Azerbyjahn"
-    assert v("sihr-ee-AH-nee") == "Sireeahnee"
+    assert v("sihr-ee-AH-nee") == "Sireeyahnee"
     assert v("GLAS-tuhn-ber-ee") == "Glastunberee"
     assert v("rohd-REE-gehs") == "Rohdreeghess"     # g stays hard, s not "lay"
     assert v("AHD-mee") == "Ahdmee"                 # ah and oh were heard right
     assert v("bah-LOHN") == "Bahlohn"
+
+
+# The audit of the whole list (§677).
+
+def test_doubling_only_where_the_syllable_is_stressed():
+    v = pronunciation.voiced
+    assert v("dih-TROYT") == "Ditroyt"            # was "Dittroyt", DIT stressed
+    assert v("MIL-ih-band") == "Miliband"         # was "Millibband"
+    assert v("BREH-mee-no") == "Bremmeeno"        # stressed: doubled
+    assert v("NUH-kulz") == "Nuckulz"             # a k doubles as "ck"
+    assert v("kih-GAH-lee") == "Kigahlee"         # only a word that starts "ih"
+    assert v("jib-RAWL-tar") == "Jibrawltar"      # never before a cluster
+
+
+def test_vowels_meeting_get_a_glide_and_letters_never_triple():
+    v = pronunciation.voiced
+    assert v("vee-ET-nahm") == "Veeyetnahm"       # was "Veeetnahm"
+    assert v("shee-zoo-OH-kah") == "Sheezoowohkah"
+    assert v("GROS-see") == "Grossee"             # was "Grosssee"
+    assert v("net-un-YAH-hoo") == "Netunyahoo"    # was "Netunyah-hoo"
+
+
+def test_an_initialism_is_said_letter_by_letter(tmp_path):
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("QXSC", "kyoo-ex-ess-SEE", "writer")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("QXSC rose") == "Kyoo Ex Ess See rose"   # joined: "Kyooexesssee"
+
+
+def test_a_row_stored_the_wrong_way_round_is_never_used(tmp_path):
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("troo-HEE-yoh", "Trujillo", "writer")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("troo-HEE-yoh") == "troo-HEE-yoh"
+    assert pronunciation.clean("pah-EE-tah", "Paita") is None
+    assert pronunciation.clean("Jaron-Keawe", "JAIR-on keh-AH-veh")
+
+
+def test_a_plain_name_keeps_its_spelling_unless_an_admin_says(tmp_path):
+    assert "Detroit" in pronunciation.PLAIN and "Detroit" not in pronunciation.SEED
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("Detroit", "dih-TROYT", "brief")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("Detroit won") == "Detroit won"
+    assert not pronunciation._cleaned([("Vietnam", "vee-ET-nahm")])
+    lex.set("Detroit", "dee-TROYT")               # an admin's still counts
+    assert lex.apply("Detroit") == "Deetroyt"
+
+
+def test_the_audit_data_loads_and_every_respelling_is_clean():
+    assert len(pronunciation.PLAIN) > 150
+    for name, say in pronunciation._AUDITED.items():
+        assert pronunciation.clean(name, say), name
+        assert name not in pronunciation.PLAIN, name
