@@ -909,6 +909,65 @@ class AccountStore:
         ).fetchone()
         return row[0] if row else ""
 
+    def match_contacts(self, phones, emails, home_code: str = "+1") -> dict:
+        """Which accounts a listener's address book reaches: {user_id: index}.
+
+        "Your contacts on FAM" (§665). `phones` and `emails` are what the
+        phone's contact picker returned, each paired with the index of the
+        contact it came from, so the screen can say "In your contacts as
+        Mom" without the server keeping a name. **Nothing posted is stored or
+        logged**: the lookup is a read, and what does not match is forgotten
+        when this returns.
+
+        A number saved without a country code is read as +1 when `home_code`
+        is "+1" (the asker's own number's, or theirs has none) and skipped
+        otherwise - for this lookup only. Storing one
+        that way was refused (`clean_phone`) because it could make two people
+        own one account; matching cannot.
+        """
+        wanted_phone: dict[str, int] = {}
+        wanted_email: dict[str, int] = {}
+        for raw, idx in phones:
+            digits = re.sub(r"[^\d+]", "", str(raw or ""))[:MAX_PHONE * 2]
+            if digits.startswith("00"):
+                digits = "+" + digits[2:]
+            if digits and not digits.startswith("+"):
+                if home_code != "+1":
+                    continue
+                if len(digits) == 11 and digits.startswith("1"):
+                    digits = digits[1:]
+                if len(digits) != 10:
+                    continue
+                digits = "+1" + digits
+            try:
+                wanted_phone.setdefault(clean_phone(digits), idx)
+            except AuthError:
+                continue
+        for raw, idx in emails:
+            try:
+                wanted_email.setdefault(clean_email(raw), idx)
+            except AuthError:
+                continue
+        found: dict[str, int] = {}
+        conn = self._conn()
+
+        def look(sql: str, wanted: dict[str, int]) -> None:
+            keys = list(wanted)
+            for start in range(0, len(keys), 400):
+                chunk = keys[start:start + 400]
+                marks = ",".join("?" for _ in chunk)
+                for user_id, value in conn.execute(sql.format(marks=marks), chunk).fetchall():
+                    if user_id and value in wanted:
+                        found.setdefault(user_id, wanted[value])
+
+        look("SELECT user_id, phone FROM accounts WHERE phone IN ({marks})", wanted_phone)
+        look("SELECT user_id, subject FROM identities WHERE provider = 'phone'"
+             " AND subject IN ({marks})", wanted_phone)
+        look("SELECT user_id, email FROM accounts WHERE email IN ({marks})", wanted_email)
+        look("SELECT user_id, LOWER(email) FROM identities WHERE LOWER(email) IN ({marks})",
+             wanted_email)
+        return found
+
     def set_plan(self, user_id: str, plan: str) -> str:
         """Move an account between plans. Requires an account: a plan is a
         billing relationship, and there is nobody to bill without one."""

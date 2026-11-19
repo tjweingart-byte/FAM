@@ -655,4 +655,14 @@ and `limit` = Lines.
 | 39925 | 18 | 661. A third look at the billing branch: three more (2026-11-18) |
 | 39943 | 20 | 662. Interest pills on a profile open nothing (2026-11-19) |
 | 39963 | 77 | 663. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19) |
-| 40040 | 90 | 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19) |
+| 40040 | 89 | 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19) |
+| 40129 | 50 | 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18) |
+| 40179 | 25 | 666. Mutuals on every profile, three looks for the owner (2026-11-18) |
+| 40204 | 32 | 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18) |
+| 40236 | 10 | 668. No follow-back nudge (2026-11-19) |
+| 40246 | 65 | 669. Five ways into the graph, from the owner's picks (2026-11-19) |
+| 40311 | 22 | 670. The profile link's QR code (2026-11-19) |
+| 40333 | 14 | 671. The QR button on YourFAM (2026-11-19) |
+| 40347 | 20 | 672. A friend's QR code, on their profile (2026-11-19) |
+| 40367 | 23 | 673. Square corners behind every card on a phone (2026-11-19) |
+| 40390 | 50 | 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19) |

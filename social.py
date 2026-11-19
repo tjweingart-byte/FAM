@@ -88,6 +88,44 @@ class Echo:
         }
 
 
+#: How many "Suggested for you" cards one answer carries (§665): a row
+#: that scrolls sideways, Instagram's, never a directory.
+SUGGESTION_LIMIT = 12
+
+#: How long "X just joined FAM" waits to be seen (§669), and how new an
+#: account must be for its contacts check to raise one.
+JOINED_NOTICE_LIFE = 14 * 86400
+JOINED_NOTICE_NEW = 7 * 86400
+#: The most "just joined" notices one newcomer raises (§674).
+JOINED_NOTICE_MAX = 50
+
+# Where a Follow can be tapped (§669). A follow made on sign-up's Find your
+# friends step carries "signup_" before the place on that step, so the step
+# can be counted whole and by its parts. Anything else is stored as "".
+FOLLOW_VIA = frozenset({
+    "contacts", "contacts_all", "suggested", "after_follow", "search",
+    "profile", "their_friends", "friends_page", "listened", "group", "profile_link",
+    "joined", "friends_rail",
+})
+
+
+def follow_via(via: str) -> str:
+    """The closed name of where a follow came from, or "" for unknown."""
+    via = (via or "").strip().lower()
+    base = via[len("signup_"):] if via.startswith("signup_") else via
+    return via if base in FOLLOW_VIA else ""
+
+
+def suggestion_reason(mutuals: int, follows_you: bool) -> str:
+    """The one line under a suggested face (§665), worded for its number:
+    "Follows you", "1 mutual", "4 mutuals", else "Suggested for you"."""
+    if follows_you:
+        return "Follows you"
+    if mutuals > 0:
+        return f"{mutuals} mutual" + ("" if mutuals == 1 else "s")
+    return "Suggested for you"
+
+
 def explicit_name(name, handle) -> bool:
     """Whether a name or handle swears, so the interface draws the E beside
     it the way it does beside an episode (§224, at the owner's direction:
@@ -411,6 +449,15 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS follows_followee"
                          " ON follows(followee, at)")
+            # Where a follow was tapped (§669): one of `FOLLOW_VIA`, "" for
+            # anywhere else and for every follow made before it was asked.
+            # The only record of which way into the graph works, so the
+            # owner can tell contacts from suggestions from the sign-up step.
+            try:
+                conn.execute("ALTER TABLE follows ADD COLUMN"
+                             " via TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Likes and dislikes on an episode (§134, Explore's thumbs). One
             # row per person per episode, keyed like a vibe - `(query,
             # minutes)` - so the three counts on a card are about the same
@@ -553,6 +600,26 @@ class SocialStore:
                    )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS notes_user ON notes(user_id, at)")
+            # "Molly just joined FAM" (§669): somebody new found this
+            # listener among their contacts. Only the pair and when - never
+            # a number, an email or a name from anybody's address book - and
+            # the row is deleted when it is shown, or after a fortnight.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS joined_notices (
+                       user_id TEXT NOT NULL,
+                       about   TEXT NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, about)
+                   )"""
+            )
+            # Shown, not deleted, so "once per pair" holds while a newcomer
+            # can still raise one: the row goes when it is a fortnight old,
+            # by which time its newcomer is past `JOINED_NOTICE_NEW`.
+            try:
+                conn.execute("ALTER TABLE joined_notices ADD COLUMN"
+                             " shown INTEGER NOT NULL DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # already there
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS announced (
                        user_id  TEXT NOT NULL,
@@ -1480,7 +1547,8 @@ class SocialStore:
 
     # --- the follow graph -------------------------------------------------
 
-    def follow(self, user_id: str, target_id: str, at: float = 0.0) -> bool:
+    def follow(self, user_id: str, target_id: str, at: float = 0.0,
+               via: str = "") -> bool:
         """Follow somebody. Idempotent, and returns whether anything changed.
 
         Refuses to follow yourself - not a moral position, a correctness one:
@@ -1494,10 +1562,72 @@ class SocialStore:
             raise SocialError("You cannot follow yourself.")
         now = at or time.time()
         cur = self._conn().execute(
-            "INSERT INTO follows (follower, followee, at) VALUES (?, ?, ?)"
+            "INSERT INTO follows (follower, followee, at, via) VALUES (?, ?, ?, ?)"
             " ON CONFLICT (follower, followee) DO NOTHING",
-            (user_id, target_id, now))
+            (user_id, target_id, now, follow_via(via)))
         return bool(cur.rowcount)
+
+    def add_joined_notice(self, user_id: str, about: str, at: float = 0.0) -> bool:
+        """Tell `user_id` that `about` joined (§669). Once per pair, ever:
+        a second contacts check by the same newcomer adds nothing, and one
+        newcomer raises at most `JOINED_NOTICE_MAX` - so a script holding an
+        address list cannot put its card in front of everybody on it."""
+        if not user_id or not about or user_id == about:
+            return False
+        raised = self._conn().execute(
+            "SELECT COUNT(*) FROM joined_notices WHERE about = ?", (about,)).fetchone()[0]
+        if raised >= JOINED_NOTICE_MAX:
+            return False
+        cur = self._conn().execute(
+            "INSERT INTO joined_notices (user_id, about, at) VALUES (?, ?, ?)"
+            " ON CONFLICT (user_id, about) DO NOTHING",
+            (user_id, about, at or time.time()))
+        return bool(cur.rowcount)
+
+    def joined_notices(self, user_id: str, now: float = 0.0) -> list[str]:
+        """Who joined, newest first, for `user_id`; any notice past
+        `JOINED_NOTICE_LIFE` is deleted for everybody on the way."""
+        now = now or time.time()
+        conn = self._conn()
+        conn.execute("DELETE FROM joined_notices WHERE at < ?", (now - JOINED_NOTICE_LIFE,))
+        rows = conn.execute(
+            "SELECT about FROM joined_notices WHERE user_id = ? AND shown = 0"
+            " ORDER BY at DESC", (user_id,)).fetchall()
+        return [r[0] for r in rows]
+
+    def drop_joined_notice(self, user_id: str, about: str) -> bool:
+        """Shown, so done: never raised again on any device. Marked rather
+        than deleted, so the same newcomer cannot raise it a second time."""
+        cur = self._conn().execute(
+            "UPDATE joined_notices SET shown = 1 WHERE user_id = ? AND about = ?"
+            " AND shown = 0", (user_id, about))
+        return bool(cur.rowcount)
+
+    def mutual_followers(self, viewer: str, target: str) -> list[tuple[str, bool]]:
+        """The people `viewer` follows who follow `target` (§666), every one
+        of them - the graph reads stop at 500, a count must not - as (id,
+        whether they follow `viewer` back), newest followed first."""
+        rows = self._conn().execute(
+            "SELECT f1.followee, EXISTS (SELECT 1 FROM follows f3"
+            "   WHERE f3.follower = f1.followee AND f3.followee = ?)"
+            " FROM follows f1 JOIN follows f2"
+            "   ON f2.follower = f1.followee AND f2.followee = ?"
+            " WHERE f1.follower = ? ORDER BY f1.at DESC",
+            (viewer, target, viewer)).fetchall()
+        return [(r[0], bool(r[1])) for r in rows]
+
+    def follows_since(self, user_id: str, since: float) -> int:
+        """How many follows `user_id` has made since `since`."""
+        return self._conn().execute(
+            "SELECT COUNT(*) FROM follows WHERE follower = ? AND at >= ?",
+            (user_id, since)).fetchone()[0]
+
+    def follow_sources(self, since: float = 0.0) -> dict:
+        """How many follows came from where (§669), "" as "other"."""
+        rows = self._conn().execute(
+            "SELECT via, COUNT(*) FROM follows WHERE at >= ? GROUP BY via",
+            (since,)).fetchall()
+        return {(via or "other"): n for via, n in rows}
 
     def sever(self, a: str, b: str) -> int:
         """A block (`moderation.py`): no follow either way, and neither is the
@@ -1720,6 +1850,77 @@ class SocialStore:
             "SELECT user_id FROM people WHERE handle = ?", (wanted,)).fetchone()
         return row[0] if row else ""
 
+    def people_by_id(self, ids) -> list[dict]:
+        """Name, handle and face for each id that has a handle, in `ids`'
+        order. Somebody without a handle is not findable (`find_people`),
+        so they are not returned here either."""
+        ids = [i for i in dict.fromkeys(ids) if i]
+        rows: dict[str, tuple] = {}
+        for start in range(0, len(ids), 400):
+            chunk = ids[start:start + 400]
+            marks = ",".join("?" for _ in chunk)
+            try:
+                for r in self._conn().execute(
+                        "SELECT user_id, name, handle, avatar FROM people"
+                        f" WHERE handle != '' AND user_id IN ({marks})", chunk).fetchall():
+                    rows[r[0]] = r
+            except Exception:
+                log.exception("could not read people")
+                return []
+        return [{"user_id": r[0], "name": r[1] or "", "handle": r[2] or "",
+                 "avatar": r[3] or "", "explicit": explicit_name(r[1], r[2])}
+                for r in (rows[i] for i in ids if i in rows)]
+
+    def suggestions(self, user_id: str, around: str = "",
+                    limit: int = SUGGESTION_LIMIT) -> list[dict]:
+        """People this listener may want to follow (§665), best first.
+
+        With `around` - somebody they have just followed - it is the people
+        **that person follows**: the row Instagram slides open under Follow.
+        Without, "Discover people": whoever follows this listener and is not
+        followed back, then whoever the people they follow follow.
+
+        Ranked by how many of the people this listener follows already follow
+        each one (`mutuals`, what the card says), follows-you first in the
+        general list. Never this listener, never `around`, never somebody
+        already followed, never somebody without a handle. Who is blocked,
+        suspended or waitlisted is the endpoint's to remove, as for search.
+        """
+        if not user_id:
+            return []
+        mine = [p["user_id"] for p in self.following(user_id)]
+        mine_set = set(mine)
+        follows_me = {p["user_id"] for p in self.followers(user_id)}
+        # How many of mine follow each person: one query per 400 follows.
+        mutuals: dict[str, int] = {}
+        for start in range(0, len(mine), 400):
+            chunk = mine[start:start + 400]
+            marks = ",".join("?" for _ in chunk)
+            try:
+                for (followee,) in self._conn().execute(
+                        f"SELECT followee FROM follows WHERE follower IN ({marks})",
+                        chunk).fetchall():
+                    mutuals[followee] = mutuals.get(followee, 0) + 1
+            except Exception:
+                log.exception("could not read the follow graph")
+                return []
+        if around:
+            pool = [p["user_id"] for p in self.following(around, limit=200)]
+        else:
+            pool = list(follows_me) + list(mutuals)
+        skip = mine_set | {user_id, around}
+        pool = [i for i in dict.fromkeys(pool) if i not in skip]
+        order = {i: n for n, i in enumerate(pool)}
+        people = self.people_by_id(pool)
+        for person in people:
+            uid = person["user_id"]
+            person["mutuals"] = mutuals.get(uid, 0)
+            person["follows_you"] = uid in follows_me
+            person["reason"] = suggestion_reason(person["mutuals"], person["follows_you"])
+        people.sort(key=lambda p: (not p["follows_you"] if not around else 0,
+                                   -p["mutuals"], order[p["user_id"]]))
+        return people[:max(0, int(limit))]
+
     def find_people(self, term: str, exclude_user: str = "",
                     limit: int = 20) -> list[dict]:
         """Look somebody up by handle or name, to follow or share with.
@@ -1789,6 +1990,10 @@ class SocialStore:
             removed += cur.rowcount or 0
             cur = self._conn().execute(
                 "DELETE FROM close_friends WHERE owner = ? OR member = ?",
+                (user_id, user_id))
+            removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM joined_notices WHERE user_id = ? OR about = ?",
                 (user_id, user_id))
             removed += cur.rowcount or 0
         except Exception:

@@ -40126,3 +40126,313 @@ Left as it is: removing a name from `SEED` deletes its row even when the
 seed had replaced a model's, which a model relearns the next time it lists
 the name.
 
+## 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18)
+
+**The owner's ask (11.18, with a screenshot of Instagram's profile):** make
+adding friends easier and have the app direct people to it - a "your
+contacts that are on the app" page early in sign-up; after Follow, a row of
+the people that person follows, as Instagram slides open; more ways to
+encourage it; and the Friends page was hard to find.
+
+**What was there:** the Friends page (search by handle, Invite, Friends |
+Following) was reached from YourFAM's friends *count*, a follow banner,
+Messages' empty note and the friends rail's Find new friends pill. Nothing
+in sign-up mentioned friends, and nothing suggested anybody.
+
+**What changed** (`find-friends`, `docs/claude/open-problems.md`):
+1. **Sign-up's third step is Find your friends** (`screen-findfriends`;
+   the step bars count four). After the handle so the people found can find
+   you back, before the interests. Contacts, a search by name or handle,
+   People you may know, Invite; Next and Skip go on by name.
+2. **`POST /api/friends/contacts`** matches the contacts the listener picked
+   against account phones and emails (`accounts.match_contacts`, through
+   `identities` too) and returns each match with the name from *their*
+   address book. Nothing posted is stored or logged. A ten-digit number is
+   read as +1 when the asker's own number is +1 or absent, otherwise
+   skipped. On the web the button exists only where the Contact Picker does
+   (Chrome on Android); **iPhone Safari has none**, so on an iPhone this
+   pays only in the native app, which is not built yet (PARITY.md row).
+3. **`GET /api/friends/suggested`** (`social.suggestions`): Discover people -
+   who follows you unfollowed back, then who your follows follow, ranked by
+   how many of your follows follow them. With `handle`: who that person
+   follows, **only once you follow them** - before, an empty list, so the
+   row is something following gives you rather than a way to read a
+   stranger's graph. Filtered as search is (handle, not apart, not
+   waitlisted). This narrows `op-friend-profile`: who somebody *follows*
+   was not shown to non-friends before; the friends list still is not.
+4. **Cards** (`suggestCardsHTML`): face, name, why ("Follows you", "N
+   mutuals", "Suggested for you"), Follow, an X kept in localStorage. On
+   the Friends page (above the tabs), YourFAM (Discover people, See all),
+   the sign-up step, and the person page under Follow, sliding open.
+5. **Doors**: an add-person square beside Edit profile / Saved for Later,
+   a Find face before Invite on DailyFAM's row; the Friends search says
+   "Search by name or @handle" (it always searched names too).
+
+**Verified:** `tests/test_find_friends.py` (12); the 779 tests that touch
+the friends code, names or screens; a real server with seeded accounts in
+Chromium at phone size - the step, contacts with a stubbed picker,
+YourFAM's Discover people, the Friends page, and the row after Follow.
+**Not verified:** a real Contact Picker on an Android phone; the native app
+(not built); whether the step raises follows - there is no event for it.
+
+
+## 666. Mutuals on every profile, three looks for the owner (2026-11-18)
+
+**The owner's ask (11.18, a message thread with the Instagram screenshot):**
+"when you view someone's profile, whether you follow them or not, it still
+displays mutuals", and two or three ways it could look.
+
+**What changed:** `/api/person` carries `mutuals` (`_person_mutuals`): the
+people the viewer follows who follow the profile's owner, counted in full,
+the first 30 named - name, handle, face, never an id; the viewer's friends
+first; nobody without a handle, blocked either way or suspended. Only people
+already in the viewer's own graph, so it shows nothing about strangers.
+On a friend's page (`renderFriendProfile`) one of three looks, by
+`MUTUALS_LOOK` (or `famMutualsLook` on the device, for comparing):
+- **line** (shown): three overlapped faces and "Followed by Molly, Cooper
+  and 4 others" under the handle, as Instagram has it;
+- **stat**: a fourth number beside friends / vibes / mixes, "6 mutuals";
+- **row**: a "6 mutuals" heading over a sideways row of faces and first
+  names under the buttons, like dailyFAM's faces, each a profile.
+Each opens the whole list ("Followed by", the friends-who-listened sheet).
+
+**Verified:** two tests in `tests/test_find_friends.py` (visible without
+following; nobody unfollowed named); the three looks photographed on a
+real server. **Owed:** the owner's pick, then the other two looks deleted.
+
+
+## 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18)
+
+**The owner's ask (11.18):** "These 2 are good. When people are following
+each other and view each others accounts, it should also show the mutuals.
+This should look similar to the icons that are shown on each tile in
+DailyFAM. It should show 4 peoples icons in the same format, and it should
+be on the left side of the screen right under the follow button. It should
+say \"Followed by Brady, Ian, and 45 others\"."
+
+**What changed:** `MUTUALS_LOOK` and the "stat" and "row" looks are gone.
+`mutualsLineHTML` draws up to four (`MUTUAL_FACES`) faces with
+`friendFaceHtml` - the dailyFAM tile's own `.src-marks` / `.friend-face`
+marks, titled with the person's name rather than "listened" - and
+`mutualsWords` writes "Followed by **Brady**, **Ian**, and 45 others" (two
+names: "A and B"; one: "A"). It is the `mutuals` part, placed straight after
+the Follow / Message row and left-aligned, so it shows on a friend's page as
+on anybody's; Suggested for you (§665) now opens under it.
+
+**A bug the full check found (§665):** `./dev.sh check` passed its 7,983
+tests and failed four browser smoke checks. Two were the smoke's own
+expectation (interests straight after identity); it now waits for
+`#screen-findfriends`, asserts there is a way past it, and goes on. Two were
+real: a guest, or anyone taking "skip" at the account step, was sent to Find
+your friends, which needs an account to follow from. `afterAccount` with
+`askWhoTheyAre: false` and `afterIdentity` without an account now go
+straight to the interests.
+
+**Verified:** photographed on a real server, two accounts following each
+other with five mutuals: four faces, "Followed by Eli, Dana, and 3 others",
+under Follow on the left. **Not verified:** the full check is re-run below
+in the commit that carries this.
+
+## 668. No follow-back nudge (2026-11-19)
+
+**The owner (11.19), on §665's brainstorm:** "dont add the follow back
+nudge". The idea (item 3) was a prompt to follow somebody back after they
+opened an episode you sent, or followed you. It was never built; this
+records that it is not to be, at `rule:find-friends`. What already exists
+is unchanged: Discover cards may say "Follows you" as their reason and
+list those people first (§665). That is a suggestion's reason, not a
+prompt, and stays unless the owner says otherwise.
+
+## 669. Five ways into the graph, from the owner's picks (2026-11-19)
+
+**The owner (11.19), on §665's brainstorm:** "do 1, 2, not 3, 4, not 5, not
+6, 7, 8, 9" - and earlier "dont add the follow back nudge" (§668), "keep the
+follows you cards".
+
+**What changed:**
+- **9, where a follow came from.** `follows.via` (a migration, "" for every
+  older row), one of `social.FOLLOW_VIA` or `signup_` + one on the Find your
+  friends step; anything else is stored as "". `FollowRequest.via`; the
+  client reads the nearest `data-via` around the tapped button
+  (`followViaFrom`), set on Suggested for you (`suggested`), the row under
+  Follow (`after_follow`), contacts (`contacts`, Follow all `contacts_all`),
+  search results, a profile's buttons (`profile`, `profile_link` when the
+  profile came from its link), a profile's friends (`their_friends`), the
+  Friends lists, a group's Follow all, the joined card and the friends
+  rail's card. `/admin` answers "Where did follows come from this week?"
+  (recipe `follow_sources`, grouped, windowed).
+- **1, the friends rail while it is nearly empty.** Under three follows
+  (`FRIENDS_RAIL_GOAL`) the rail ends in a card - "Find your friends",
+  "Follow 3 people and this row fills with what they're hearing", three
+  steps and "1 of 3", up to three Discover people with Follow, and Find
+  friends. A slot (`#friendsRailFind`) in the rail's markup, painted by
+  `paintFriendsRailFind` after every draw and whenever the friends list or
+  suggestions arrive, so the rails' redraw test is unchanged.
+- **2, "Molly just joined FAM".** FAM keeps nobody's address book (§665), so
+  the one direction it can know is the newcomer's. When an account under a
+  week old finds people in its contacts, each of them who does not follow it
+  gets one notice: `joined_notices` holds the pair and the time, never a
+  number, address or name, is deleted when its card goes up (`POST
+  /api/friends/joined/seen`; a card still waiting behind Terms or the
+  activation sheet is tried again every 3s) and after a fortnight regardless, and goes with either account
+  (`SocialStore.forget`). It is shown only if discovery would show the
+  newcomer and the listener does not already follow them, as the follower
+  popup's card with "just joined FAM" and Follow, 2.5s after boot so it never
+  races "started following you". The newcomer learns nothing from it.
+- **8, Follow all in a group.** A group's members sheet offers "Follow all
+  N" (or "Follow Ana") for the members not followed; `members[].following`
+  says which. It, and contacts' Follow all, use the new `POST
+  /api/friends/follow-all` (up to 50, one `_rate_limit`): **§665's contacts
+  Follow all sent a follow per person and the fourth was refused by the
+  pace**, a bug found here.
+- **7, a profile link.** `/@handle` redirects to `/?person=<handle>`; the
+  app opens that profile (`openLinkedPerson`), or holds it for sign-up and
+  shows them first on Find your friends ("Shared their profile with you").
+  "Your profile link" with Share tops the Friends page; the step has "Share
+  your profile link".
+
+**Not built:**
+- **4** (a Follow on the "friends listened" faces): those faces are only
+  ever mutual friends, already followed, so there is never a Follow to
+  offer, and showing anybody else's listening breaks private listening.
+- **The QR code for 7.** No QR library is installed here and installing one
+  was refused in this session; a QR encoder written by hand could not be
+  checked by scanning it (nothing here decodes one). With the owner's yes,
+  `segno` (pure Python) in `requirements.txt` and an SVG endpoint for
+  `/@handle` is the small step left.
+
+**Verified:** `tests/test_find_friends.py` gains ten tests (via kept and
+closed, the admin recipe, the endpoint passing it, Follow all in one request
+with skips, a joined notice raised once, none from an old account, notices
+erased with an account, the profile link's redirect, group members'
+`following`). **Not verified:** a real phone scanning or tapping a `/@`
+link through the App Store app; a universal link in the iOS app (PARITY.md).
+
+## 670. The profile link's QR code (2026-11-19)
+
+**The owner (11.19):** "add segno and build the QR code" - the step §669
+left waiting.
+
+**What changed:** `segno==1.6.6` (pure Python, no dependencies) in
+`requirements.txt`. `GET /api/me/qr` draws this listener's own
+`APP_HOME_URL/@handle` (§669) as an SVG - no handle parameter, so nobody
+else's code can be asked for; 401 without an account, 404 without a handle;
+dark modules (#1a1714) on nothing, scale 8, quiet zone 2, error correction
+M. "Your profile link" on the Friends page gains a QR button that opens a
+card (`#qrOverlay`): the code on a white frame in either theme (a camera
+cannot read a dark code on a dark card), the handle, the link, "Point a phone
+camera at this to open your profile and follow you", and Share your link.
+
+**Verified:** two tests - the endpoint's SVG is byte-for-byte segno's code
+for the expected `/@ana` URL, and the account and handle gates; the card
+photographed on a real server with the image loaded. **Not verified:** a
+phone actually scanning it. Nothing here decodes a QR code (Chromium on
+Linux has no `BarcodeDetector`), so the code's content rests on segno and on
+the URL test; one scan with a phone camera settles it.
+
+## 671. The QR button on YourFAM (2026-11-19)
+
+**The owner (11.19):** "put the QR button on YourFAM too".
+
+**What changed:** a square QR button (`yfIcon("qr")`) after the add-person
+square beside Edit profile and Saved for Later, for an account with a
+handle; it opens §670's card (`openProfileQR`). The Friends page's QR button
+draws the same icon from `yfIcon` rather than its own copy.
+
+**Verified:** on a real server at 360 and 390 px wide the row of four does
+not overflow, and the tap opens the card with the code loaded; a test pins
+the button to `renderProfile`. **Not verified:** the row under the largest
+phone text sizes (`large-text`).
+
+## 672. A friend's QR code, on their profile (2026-11-19)
+
+**The owner (11.19):** "put it on a friend's profile too".
+
+**What changed:** a QR square after Follow (and Message) on anybody's
+profile (`personQRButton`, `data-act="qr"`; §645's in-place patch of that
+row leaves it where it is). It opens the same card (`showQRCard`) with their
+code, their `/@handle`, "Point a phone camera at this to open Ian's
+profile." and Share their link. The code comes from `GET /api/person/qr
+?handle=`, which draws only for somebody this listener may open
+(`_reachable`: not blocked either way, suspended or on the waitlist outside
+their graph) and answers anything else - and your own handle, which is
+`/api/me/qr` - with the 404 an unknown handle gets, so it tells nobody who
+exists. Both endpoints share `_profile_qr`.
+
+**Verified:** a test (their code byte-for-byte, unknown and own 404,
+signed out 401); on a real server at 360 px the square sits after Follow,
+stays after following, and opens the card with the code loaded. **Not
+verified:** a phone scanning it (as §670).
+
+## 673. Square corners behind every card on a phone (2026-11-19)
+
+**The owner (11.19), on §672's QR card:** "The corners look weird" - the
+screenshot showed the page's light background at all four corners, outside
+the dimming.
+
+**Cause:** `.modal-overlay`, `.sheet-overlay` and `.fam-loading` are
+rounded 34px to sit inside the phone drawn on a desktop screen. At phone
+width (`max-width:520px`) that drawing is turned off and the screen is
+square, but the overlays kept their radius, so every card, sheet and the
+loading screen let the page show through at the corners. Older than this
+packet; the QR card only made it obvious.
+
+**What changed:** inside the phone-width block, `body .modal-overlay, body
+.sheet-overlay, body .fam-loading{ border-radius:0; }` - `body` because
+the rounded rule comes later in the file and won at equal specificity (the
+first try measured 34px still). Also: a friend's QR card named them by
+handle ("iansol's profile") when the page was opened by handle; it now
+takes the name `/api/person` returned, as the page does.
+
+**Verified:** computed radius 0px at 390 px and 34px on the 800 px desktop
+frame; photographed; "Ian's profile" read off the card.
+
+## 674. The branch double-checked before merging: §665-§673 reviewed (2026-11-19)
+
+**The owner (11.19):** "Double check all changes in this branch and get this
+ready to merge into main."
+
+**Merged Main first.** Main had moved 26 commits and its sections ran to
+§664, the same numbers as this branch's nine; this branch's were renumbered
+§665-§673 everywhere they are cited (115 references) before the merge. One
+conflict in code: the profile's interests comment, which Main rewrote
+(§662) beside this branch's mutuals and suggestions lines - both kept.
+
+**A review of the whole branch against Main found six things, all fixed:**
+1. **A crafted link ran script.** `/?person=` went from the address bar
+   into the profile's `followHandle('...')` onclick; `escapeHtml` turns a
+   quote into `&#39;`, which the browser decodes back before the script
+   runs, so `/?person=');alert(1)//` executed on tapping Follow.
+   `linkHandle` now admits only `[a-z0-9._]{2,24}` from the URL and from
+   sessionStorage, and drops anything else.
+2. **Strangers matched as contacts abroad.** A number saved without a
+   country code was read as +1 for any account with no phone of its own, so
+   an email-only account in India had its contacts' ten-digit mobiles
+   matched to US accounts - shown as "In your contacts as Amma" and sent a
+   "just joined" card. Now +1 only when the asker's number is +1, or they
+   have none and the device's `X-FAM-TZ` is a +1 zone (`NANP_ZONES`);
+   otherwise skipped.
+3. **Mutuals undercounted on a popular page.** `_person_mutuals`
+   intersected `following(me)` and `followers(target)`, both 500 rows, so
+   a mutual older than the target's newest 500 followers was missed.
+   `SocialStore.mutual_followers` counts in one query over the whole graph.
+4. **The contacts lookup was an enumeration and a megaphone.** 2,000
+   addresses a request under the model bucket was ~40,000 lookups a minute,
+   and a new account pushed its "just joined" card to every match. Now
+   `CONTACTS_PER_DAY` (6,000 entries per account a day, 429 past it) and
+   `JOINED_NOTICE_MAX` (50 per newcomer). Also: a shown notice was deleted,
+   so the same newcomer could raise it again within its week; it is now
+   marked `shown` and pruned at a fortnight.
+5. **Follow all multiplied follow throughput fifty times.** Now at most
+   `FOLLOW_ALL_PER_HOUR` (200) follows an hour through it, counted from
+   the follows table; past it, 429.
+6. **List items had no length cap** in `FollowAllRequest` and
+   `ContactEntry`; now bounded.
+
+**Verified:** six tests for the six (the 520-follower page, the Kolkata
+and Chicago zones, the daily cap, the notice cap and once-only, the hourly
+cap, the handle check), and the earlier contacts tests now send the zone
+the web client sends on every call. **Not verified:** the iOS app sending
+`X-FAM-TZ` on `/api/friends/contacts` (PARITY.md); the per-day contacts
+count is in process memory like `_rate_limit`'s bucket, so a restart
+forgives it.
