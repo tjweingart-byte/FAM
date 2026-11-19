@@ -84,7 +84,8 @@ SEED = {
     "Iraq": "ee-RAHK", "Iraqi": "ee-RAH-kee", "Iraqis": "ee-RAH-keez",
     "Qatar": "KAH-tar", "Qatari": "kuh-TAR-ee", "Oman": "oh-MAHN",
     "Bahrain": "bah-RAYN", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
-    "Uruguay": "YOOR-uh-gway", "Myanmar": "MYAHN-mar", "Lesotho": "leh-SOO-too",
+    "Uruguay": "YOOR-uh-gway", "Venezuela": "veh-neh-ZWAY-luh",
+    "Venezuelan": "veh-neh-ZWAY-lun", "Caribbean": "kair-ih-BEE-un", "Myanmar": "MYAHN-mar", "Lesotho": "leh-SOO-too",
     # Cities and places in the news
     "Tehran": "teh-RAHN", "Kyiv": "KEE-yiv", "Beijing": "bay-JING",
     "Doha": "DOH-hah", "Riyadh": "ree-YAHD", "Kabul": "KAH-bool",
