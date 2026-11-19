@@ -20,12 +20,15 @@ def swift(rel: str) -> str:
     return (SRC / rel).read_text()
 
 
-def test_the_build_is_ten_everywhere_it_is_written():
+def test_the_build_is_ten_or_later_and_the_same_everywhere_it_is_written():
+    # Build 11 (§681) is build 10 renumbered: App Store Connect already
+    # held a 10. The project and the registry must name the same build.
     project = (IOS / "project.yml").read_text()
-    assert 'CURRENT_PROJECT_VERSION: "10"' in project
+    build = re.search(r'CURRENT_PROJECT_VERSION: "(\d+)"', project)
+    assert build and int(build.group(1)) >= 10
     registry = json.loads((ROOT / "releases" / "registry.json").read_text())
     ios = [r for r in registry["releases"] if r["platform"] == "ios" and r["version"] == "1.0.0"]
-    assert ios and ios[0]["build"] == "10"
+    assert ios and ios[0]["build"] == build.group(1)
 
 
 def test_contacts_are_asked_for_only_with_a_reason_shown():

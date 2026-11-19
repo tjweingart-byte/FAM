@@ -672,3 +672,4 @@ and `limit` = Lines.
 | 40608 | 27 | 678. The owner's ear: Iran right, Kamala "kah-moo-lu" - every unstressed "uh" is "a" (2026-11-19) |
 | 40635 | 39 | 679. The owner's ear, second round: letters left to spoken_text, ordinary words left alone, the check heard alone (2026-11-19) |
 | 40674 | 33 | 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19) |
+| 40707 | 20 | 681. iOS build 11: build 10 renumbered (2026-11-19) |

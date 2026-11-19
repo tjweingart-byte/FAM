@@ -40703,3 +40703,23 @@ removed, ASML "sounds good" (§679's letters), and "all look solid" - except
 Fuad (`foo-AHD`, the owner's row, "Foowahd"), "so far off it's not funny":
 `FWAHD` ("Fwahd") is the suggestion, to be heard in a sentence.
 
+
+## 681. iOS build 11: build 10 renumbered (2026-11-19)
+
+**Asked.** The owner, with App Store Connect's TestFlight list open (builds
+3 and 5-10 under 1.0.0, build 10 already testing with 25 installs): "It
+should be version 11 no?"
+
+**Why.** App Store Connect already held a build 10 for 1.0.0, and it refuses
+a second upload with the same version and build number. §675's app is
+uploaded as 11. `CURRENT_PROJECT_VERSION` 11; the registry's build is 11.
+
+**Main since §675** (#327-#331): #327 is §675 itself. #328-#331
+(§676-§680) are the pronunciation audit and the owner's ear rounds:
+`pronunciation.py` and `pronounce_data/` only, applied on the server to the
+text handed to the voice, so every installed build hears them once the
+server is deployed. Nothing in `ios/` changed and no route changed, so
+`releases/contracts/ios-1.0.0.json` is not recut.
+
+Tests: `tests/test_build10_find_friends_ios.py` now requires the project and
+the registry to name the same build, 10 or later.
