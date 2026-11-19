@@ -9845,6 +9845,11 @@
                         // The picture the player is showing (10.10 #3).
                         thumb: (typeof PLAYER_CARD !== "undefined" && PLAYER_CARD.thumb) || "" };
       }
+      // What playback did, timestamped (§685), as the iPhone sends it
+      // (§653): a stop part-way says whether the stream broke, the browser
+      // paused it, or the audio ran dry.
+      var playback = window.FamAudio && FamAudio.playbackLog && FamAudio.playbackLog();
+      if(playback) out.playback = playback;
       return out;
     }
     function close(){ overlay.hidden = true; openBtn.focus(); }
@@ -9852,7 +9857,8 @@
       var c = context();
       document.getElementById("feedbackCtx").textContent =
         "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport
-        + (c.episode ? " \u00b7 this episode's title, picture, sources and transcript" : "");
+        + (c.episode ? " \u00b7 this episode's title, picture, sources and transcript" : "")
+        + (c.playback ? " \u00b7 the player's log" : "");
       err.hidden = true;
       overlay.hidden = false;
       text.focus();
@@ -14209,6 +14215,9 @@
         if(vibeComposerIsOpen()){ heldForVibe = carryOn; return; }
         carryOn();
       },
+      // The browser stopped the audio and would not let it go on (§685):
+      // the controls say paused, so one tap plays rather than two.
+      onInterrupted: function(){ if(isPlaying) setPlayState(false); },
       onError: function(err){
         // No connection, and this one is on the device: play it from here.
         // `network` is set by FamAudio only when the request never reached

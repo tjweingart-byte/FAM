@@ -3150,7 +3150,9 @@ def build() -> pathlib.Path:
     audio_js = (STATIC / "fam-audio.js").read_text(encoding="utf-8")
 
     html, n = re.subn(r'<script src="[^"]*fam-audio\.js"[^>]*></script>',
-                      "<script>\n" + audio_js + "\n</script>", html)
+                      # A function, so the script goes in verbatim: a string
+                      # replacement reads its "\\n" as a newline (§685).
+                      lambda _m: "<script>\n" + audio_js + "\n</script>", html)
     if n != 1:
         raise SystemExit("could not inline fam-audio.js - has the script tag changed?")
 
