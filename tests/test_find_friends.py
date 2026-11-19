@@ -184,3 +184,106 @@ def test_nobody_you_do_not_follow_is_named_a_mutual(client):
     client.post("/api/auth/logout")
     signed_in(client, "ben@b.com", "Ben", "ben")
     assert client.get("/api/person?handle=ian").json()["mutuals"] == {"count": 0, "people": []}
+
+
+# --- §660: where follows come from, Follow all, "just joined", /@handle ---
+
+def test_a_follow_remembers_where_it_was_tapped(graph):
+    graph.follow("me", "a", via="contacts")
+    graph.follow("me", "b", via="signup_suggested")
+    graph.follow("me", "c", via="somewhere made up")
+    graph.follow("me", "d")
+    assert graph.follow_sources() == {"contacts": 1, "signup_suggested": 1, "other": 2}
+
+
+def test_only_a_named_door_is_kept():
+    assert social_mod.follow_via("signup_contacts_all") == "signup_contacts_all"
+    assert social_mod.follow_via("signup_") == ""
+    assert social_mod.follow_via("signup_nonsense") == ""
+    assert social_mod.follow_via(" Contacts ") == "contacts"
+
+
+def test_the_admin_can_ask_where_follows_came_from():
+    import admin_tracker
+    recipe = admin_tracker.match_recipe("Where did follows come from this week?")
+    assert recipe is not None and recipe.key == "follow_sources"
+    sql, _, label = recipe.build("where did follows come from this week?", 0)
+    assert "GROUP BY" in sql and "at >= :now" in sql and "7 days" in label
+
+
+def test_the_app_sends_where_and_the_store_keeps_it(client):
+    signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    assert client.post("/api/friends/follow",
+                       json={"handle": "ana", "via": "profile_link"}).status_code == 200
+    assert appmod.SOCIAL.follow_sources().get("profile_link", 0) >= 1
+
+
+def test_follow_all_is_one_request_and_skips_who_it_cannot(client):
+    for email, name, handle in (("a1@b.com", "A1", "aone"), ("a2@b.com", "A2", "atwo"),
+                                ("a3@b.com", "A3", "athree"), ("a4@b.com", "A4", "afour")):
+        signed_in(client, email, name, handle)
+        client.post("/api/auth/logout")
+    me = signed_in(client, "ben@b.com", "Ben", "ben")
+    r = client.post("/api/friends/follow-all", json={
+        "handles": ["aone", "atwo", "athree", "afour", "nobody", "ben"], "via": "group"})
+    assert r.status_code == 200
+    assert r.json()["followed"] == 4 and r.json()["skipped"] == 2
+    assert appmod.SOCIAL.follow_counts(me)["following"] == 4
+
+
+def test_somebody_new_who_has_you_in_their_contacts_is_announced_once(client):
+    signed_in(client, "ana@b.com", "Ana", "ana", phone="+14155550111")
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]})
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550111"]}]})
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
+    first = client.get("/api/friends/joined").json()["people"]
+    assert [p["handle"] for p in first] == ["ben"], "Ana hears that Ben joined"
+    again = client.get("/api/friends/joined").json()["people"]
+    assert [p["handle"] for p in again] == ["ben"], "kept until the card has been shown"
+    client.post("/api/friends/joined/seen", json={"user_id": first[0]["user_id"]})
+    assert client.get("/api/friends/joined").json()["people"] == [], "and only once"
+
+
+def test_an_old_account_checking_its_contacts_announces_nothing(client):
+    signed_in(client, "ana@b.com", "Ana", "ana", phone="+14155550112")
+    client.post("/api/auth/logout")
+    ben = signed_in(client, "ben@b.com", "Ben", "ben")
+    appmod.ACCOUNTS._conn().execute("UPDATE accounts SET created = 0 WHERE user_id = ?", (ben,))
+    client.post("/api/friends/contacts", json={"contacts": [{"name": "Ana", "tel": ["4155550112"]}]})
+    client.post("/api/auth/logout")
+    client.post("/api/auth/login", json={"email": "ana@b.com", "password": "password12"})
+    assert client.get("/api/friends/joined").json()["people"] == []
+
+
+def test_a_notice_is_never_about_somebody_you_follow_and_goes_with_an_account(graph):
+    graph.add_joined_notice("me", "a")
+    graph.add_joined_notice("me", "b")
+    graph.forget("b")
+    assert graph.joined_notices("me") == ["a"]
+    assert graph.drop_joined_notice("me", "a")
+    assert graph.joined_notices("me") == []
+
+
+def test_a_profile_link_opens_the_app_on_that_profile(client):
+    r = client.get("/@Ana.B", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/?person=ana.b"
+    bad = client.get("/@x", follow_redirects=False)
+    assert bad.status_code == 302 and bad.headers["location"] == "/"
+
+
+def test_group_members_say_whether_you_follow_them(client):
+    for email, name, handle in (("ana@b.com", "Ana", "ana"), ("cy@b.com", "Cy", "cy")):
+        signed_in(client, email, name, handle)
+        client.post("/api/auth/logout")
+    me = signed_in(client, "ben@b.com", "Ben", "ben")
+    ana, cy = appmod._person_by_handle("ana"), appmod._person_by_handle("cy")
+    appmod.SOCIAL.follow(me, ana)
+    gid = appmod.MESSAGES.create_group(me, [ana, cy])["id"]
+    view = appmod._group_view(gid, me)
+    assert {m["handle"]: m["following"] for m in view["members"] if not m["me"]} == {
+        "ana": True, "cy": False}

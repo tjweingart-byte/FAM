@@ -823,6 +823,16 @@ RECIPES: list[Recipe] = [
     Recipe("mixes", "How many mixes are there?",
            (r"\b(mix|mixes|playlist)s?\b",),
            _simple("SELECT COUNT(*) FROM mixes.mixes WHERE 1 = 1", "Mixes", "created_at")),
+    # §660: which way into the graph works - contacts, suggestions, the
+    # sign-up step ("signup_..."), and the rest.
+    Recipe("follow_sources", "Where did follows come from this week?",
+           (r"\bfollows?\b", r"\b(where|from|source|sources|came|via)\b"),
+           lambda q, now: (
+               "SELECT CASE WHEN via = '' THEN 'other' ELSE via END AS came_from, "
+               "COUNT(*) AS follows FROM social.follows WHERE 1 = 1"
+               + _within("at", _window(q)[0]) + " GROUP BY 1 ORDER BY 2 DESC",
+               {}, "Follows by where they were tapped"
+               + (f" {_window(q)[1]}" if _window(q)[0] else ""))),
     Recipe("friends_n", "How many accounts have over 5 friends?",
            (r"\bfriends?\b",), _count_graph("friends")),
     Recipe("followers_n", "How many accounts have at least 10 followers?",

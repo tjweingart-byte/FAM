@@ -3528,6 +3528,11 @@ async def account_unlink(request: Request,
     return {"ok": bool(removed), "removed": removed}
 
 
+#: The most one "Follow all" follows (§660) - a group is smaller, and a
+#: contacts list past this is followed in a second tap.
+FOLLOW_ALL_MAX = 50
+
+
 class FollowRequest(BaseModel):
     """Who to follow. By handle from a search, or by the id a search returned -
     never by a listener id the client made up, which is why both come from
@@ -3535,6 +3540,9 @@ class FollowRequest(BaseModel):
 
     handle: str = Field("", max_length=social_mod.MAX_HANDLE + 1)
     user_id: str = Field("", max_length=64)
+    # Where the Follow was tapped (§660), one of `social.FOLLOW_VIA`;
+    # anything else is kept as "". Never who - only which door.
+    via: str = Field("", max_length=32)
 
 
 class SendMessageRequest(BaseModel):
@@ -4070,7 +4078,64 @@ async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
     people = SOCIAL.people_by_id(matched)
     for person in people:
         person["contact_name"] = req.contacts[matched[person["user_id"]]].name.strip()[:60]
-    return {"people": _discoverable(user, people)}
+    shown = _discoverable(user, people)
+    _tell_contacts_you_joined(user, shown)
+    return {"people": shown}
+
+
+def _tell_contacts_you_joined(user: str, found: list[dict]) -> None:
+    """"Molly just joined FAM" (§660), for the people a new account found
+    in its contacts and does not hear from yet. FAM keeps nobody's address
+    book, so this is the one direction it can know: the newcomer has your
+    number or address. Only for an account under `JOINED_NOTICE_NEW` old,
+    so an old account checking its contacts announces nothing. Whether it
+    is shown is decided again when it is read (`/api/friends/joined`).
+    Never raises: a notice is never worth the contacts answer."""
+    try:
+        created = float((ACCOUNTS.account(user) or {}).get("created") or 0)
+        if not created or time.time() - created > social_mod.JOINED_NOTICE_NEW:
+            return
+        for person in found:
+            uid = person.get("user_id") or ""
+            if uid and not SOCIAL.is_following(uid, user):
+                SOCIAL.add_joined_notice(uid, user)
+    except Exception:  # noqa: BLE001
+        log.exception("could not leave joined notices")
+
+
+@app.get("/api/friends/joined")
+async def friends_joined(request: Request) -> dict:
+    """Who joined FAM and has this listener in their contacts (§660), each
+    once: a notice is deleted when its card goes up
+    (`POST /api/friends/joined/seen`), so an app closed before it could show
+    one shows it next time. Only somebody discovery would show (a handle,
+    not blocked, suspended or waitlisted) and whom this listener does not
+    follow yet; any other is deleted here, never to come back."""
+    _read_limit(request)
+    user = _require_account(request)
+    about = SOCIAL.joined_notices(user)
+    if not about:
+        return {"people": []}
+    people = [p for p in _discoverable(user, SOCIAL.people_by_id(about))
+              if not p.get("following")]
+    shown = {p["user_id"] for p in people}
+    for uid in about:
+        if uid not in shown:
+            SOCIAL.drop_joined_notice(user, uid)
+    return {"people": people}
+
+
+class JoinedSeenRequest(BaseModel):
+    user_id: str = Field(..., max_length=64)
+
+
+@app.post("/api/friends/joined/seen")
+async def friends_joined_seen(req: JoinedSeenRequest, request: Request) -> dict:
+    """The "just joined" card went up (§660): forget the notice. Only this
+    listener's own notice can be dropped - the pair is keyed on them."""
+    _read_limit(request)
+    user = _require_account(request)
+    return {"ok": SOCIAL.drop_joined_notice(user, req.user_id)}
 
 
 @app.post("/api/friends/follow")
@@ -4088,10 +4153,52 @@ async def friends_follow(req: FollowRequest, request: Request) -> dict:
     if not target:
         raise HTTPException(status_code=404, detail="No listener by that handle.")
     try:
-        changed = SOCIAL.follow(user, target)
+        changed = SOCIAL.follow(user, target, via=req.via)
     except social_mod.SocialError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "changed": changed,
+            "counts": SOCIAL.follow_counts(user)}
+
+
+class FollowAllRequest(BaseModel):
+    """Follow several at once (§660): "Follow all" on your contacts, or on
+    the people in a group chat. By handle or by an id the server gave out,
+    exactly as one follow is."""
+
+    handles: list[str] = Field(default_factory=list, max_length=FOLLOW_ALL_MAX)
+    user_ids: list[str] = Field(default_factory=list, max_length=FOLLOW_ALL_MAX)
+    via: str = Field("", max_length=32)
+
+
+@app.post("/api/friends/follow-all")
+async def friends_follow_all(req: FollowAllRequest, request: Request) -> dict:
+    """One request and one pace for the whole list: a "Follow all" sent as
+    a follow per person ran into `_rate_limit` at the fourth. Whoever cannot
+    be followed - unknown, yourself, blocked, waitlisted - is skipped, and
+    the answer says how many were."""
+    _rate_limit(request)
+    user = _require_account(request)
+    _require_can_post(user)
+    targets: list[str] = []
+    for handle in req.handles:
+        uid = _person_by_handle(handle)
+        if uid:
+            targets.append(uid)
+    targets.extend(u for u in req.user_ids if u)
+    followed, skipped, seen = 0, 0, set()
+    for target in targets:
+        if target in seen:
+            continue
+        seen.add(target)
+        if target == user or not _reachable(user, target):
+            skipped += 1
+            continue
+        try:
+            followed += 1 if SOCIAL.follow(user, target, via=req.via) else 0
+        except social_mod.SocialError:
+            skipped += 1
+    skipped += len(req.handles) + len([u for u in req.user_ids if u]) - len(targets)
+    return {"ok": True, "followed": followed, "skipped": skipped,
             "counts": SOCIAL.follow_counts(user)}
 
 
@@ -4204,7 +4311,10 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
                         # Whether this listener and that member follow each
                         # other. Whoever made the group is friends with all
                         # of it; the others may not be (§520).
-                        "friend": uid != me and _mutual(me, uid)})
+                        "friend": uid != me and _mutual(me, uid),
+                        # Whether this listener follows them: what the
+                        # members sheet's Follow all counts (§660).
+                        "following": uid != me and SOCIAL.is_following(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
         _first_name(m) for m in others[:4]) + (" +%d" % (len(others) - 4)
@@ -8987,6 +9097,21 @@ async def mix_card(mix_id: str, request: Request) -> Response:
                              0, owner.get("handle") or "", pill="Daily mix")
     return Response(content=svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/@{handle}")
+async def open_profile_link(handle: str):
+    """A profile's own link, `familiarize.net/@handle` (§660): for meeting
+    somebody in person - texted, or read off a screen. Like a mix link it is
+    the app, opened on that profile (`/?person=`); whether the handle is
+    anybody, and whether the asker may see them, is `/api/person`'s to say,
+    so this answers the same for every handle and tells a guest nothing."""
+    try:
+        clean = social_mod.clean_handle(handle)
+    except social_mod.SocialError:
+        clean = ""
+    return RedirectResponse(url=f"/?person={quote(clean, safe='')}" if clean else "/",
+                            status_code=302)
 
 
 @app.get("/m/{mix_id}")

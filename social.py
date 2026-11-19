@@ -92,6 +92,27 @@ class Echo:
 #: that scrolls sideways, Instagram's, never a directory.
 SUGGESTION_LIMIT = 12
 
+#: How long "X just joined FAM" waits to be seen (§660), and how new an
+#: account must be for its contacts check to raise one.
+JOINED_NOTICE_LIFE = 14 * 86400
+JOINED_NOTICE_NEW = 7 * 86400
+
+# Where a Follow can be tapped (§660). A follow made on sign-up's Find your
+# friends step carries "signup_" before the place on that step, so the step
+# can be counted whole and by its parts. Anything else is stored as "".
+FOLLOW_VIA = frozenset({
+    "contacts", "contacts_all", "suggested", "after_follow", "search",
+    "profile", "their_friends", "friends_page", "listened", "group", "profile_link",
+    "joined", "friends_rail",
+})
+
+
+def follow_via(via: str) -> str:
+    """The closed name of where a follow came from, or "" for unknown."""
+    via = (via or "").strip().lower()
+    base = via[len("signup_"):] if via.startswith("signup_") else via
+    return via if base in FOLLOW_VIA else ""
+
 
 def suggestion_reason(mutuals: int, follows_you: bool) -> str:
     """The one line under a suggested face (§656), worded for its number:
@@ -426,6 +447,15 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS follows_followee"
                          " ON follows(followee, at)")
+            # Where a follow was tapped (§660): one of `FOLLOW_VIA`, "" for
+            # anywhere else and for every follow made before it was asked.
+            # The only record of which way into the graph works, so the
+            # owner can tell contacts from suggestions from the sign-up step.
+            try:
+                conn.execute("ALTER TABLE follows ADD COLUMN"
+                             " via TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # already there
             # Likes and dislikes on an episode (§134, Explore's thumbs). One
             # row per person per episode, keyed like a vibe - `(query,
             # minutes)` - so the three counts on a card are about the same
@@ -568,6 +598,18 @@ class SocialStore:
                    )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS notes_user ON notes(user_id, at)")
+            # "Molly just joined FAM" (§660): somebody new found this
+            # listener among their contacts. Only the pair and when - never
+            # a number, an email or a name from anybody's address book - and
+            # the row is deleted when it is shown, or after a fortnight.
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS joined_notices (
+                       user_id TEXT NOT NULL,
+                       about   TEXT NOT NULL,
+                       at      REAL NOT NULL,
+                       PRIMARY KEY (user_id, about)
+                   )"""
+            )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS announced (
                        user_id  TEXT NOT NULL,
@@ -1495,7 +1537,8 @@ class SocialStore:
 
     # --- the follow graph -------------------------------------------------
 
-    def follow(self, user_id: str, target_id: str, at: float = 0.0) -> bool:
+    def follow(self, user_id: str, target_id: str, at: float = 0.0,
+               via: str = "") -> bool:
         """Follow somebody. Idempotent, and returns whether anything changed.
 
         Refuses to follow yourself - not a moral position, a correctness one:
@@ -1509,10 +1552,45 @@ class SocialStore:
             raise SocialError("You cannot follow yourself.")
         now = at or time.time()
         cur = self._conn().execute(
-            "INSERT INTO follows (follower, followee, at) VALUES (?, ?, ?)"
+            "INSERT INTO follows (follower, followee, at, via) VALUES (?, ?, ?, ?)"
             " ON CONFLICT (follower, followee) DO NOTHING",
-            (user_id, target_id, now))
+            (user_id, target_id, now, follow_via(via)))
         return bool(cur.rowcount)
+
+    def add_joined_notice(self, user_id: str, about: str, at: float = 0.0) -> bool:
+        """Tell `user_id` that `about` joined (§660). Once per pair, ever:
+        a second contacts check by the same newcomer adds nothing."""
+        if not user_id or not about or user_id == about:
+            return False
+        cur = self._conn().execute(
+            "INSERT INTO joined_notices (user_id, about, at) VALUES (?, ?, ?)"
+            " ON CONFLICT (user_id, about) DO NOTHING",
+            (user_id, about, at or time.time()))
+        return bool(cur.rowcount)
+
+    def joined_notices(self, user_id: str, now: float = 0.0) -> list[str]:
+        """Who joined, newest first, for `user_id`; any notice past
+        `JOINED_NOTICE_LIFE` is deleted for everybody on the way."""
+        now = now or time.time()
+        conn = self._conn()
+        conn.execute("DELETE FROM joined_notices WHERE at < ?", (now - JOINED_NOTICE_LIFE,))
+        rows = conn.execute(
+            "SELECT about FROM joined_notices WHERE user_id = ? ORDER BY at DESC",
+            (user_id,)).fetchall()
+        return [r[0] for r in rows]
+
+    def drop_joined_notice(self, user_id: str, about: str) -> bool:
+        """Shown, so gone: never raised again on any device."""
+        cur = self._conn().execute(
+            "DELETE FROM joined_notices WHERE user_id = ? AND about = ?", (user_id, about))
+        return bool(cur.rowcount)
+
+    def follow_sources(self, since: float = 0.0) -> dict:
+        """How many follows came from where (§660), "" as "other"."""
+        rows = self._conn().execute(
+            "SELECT via, COUNT(*) FROM follows WHERE at >= ? GROUP BY via",
+            (since,)).fetchall()
+        return {(via or "other"): n for via, n in rows}
 
     def sever(self, a: str, b: str) -> int:
         """A block (`moderation.py`): no follow either way, and neither is the
@@ -1875,6 +1953,10 @@ class SocialStore:
             removed += cur.rowcount or 0
             cur = self._conn().execute(
                 "DELETE FROM close_friends WHERE owner = ? OR member = ?",
+                (user_id, user_id))
+            removed += cur.rowcount or 0
+            cur = self._conn().execute(
+                "DELETE FROM joined_notices WHERE user_id = ? OR about = ?",
                 (user_id, user_id))
             removed += cur.rowcount or 0
         except Exception:

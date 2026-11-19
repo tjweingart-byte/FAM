@@ -44,9 +44,14 @@ def test_go_deeper_is_yellow_and_in_capitals():
 
 def test_the_friends_rail_offers_find_new_friends():
     body = _fn("renderMyFamFeed")
-    # The same pill as YourFAM's, opening the same page.
-    assert 'class="yf-find" onclick="openFriends()"' in body
-    assert "Find new friends" in body
+    # The way to find friends is a slot the rail always ends in (§660),
+    # painted by `friendsRailFindHTML`: the same pill as YourFAM's, opening
+    # the same page - or, under three follows, a card with Find friends.
+    assert 'id="friendsRailFind"' in body
+    find = _fn("friendsRailFindHTML")
+    assert 'class="yf-find" onclick="openFriends()"' in find
+    assert "Find new friends" in find
+    assert 'onclick="openFriends()">' in find.split("ffc-go", 1)[1]
     # In place of the sentence when they follow nobody ...
     assert 'sec.key === "followers" && !sec.has_circle' in body
     # ... and under the episodes when there are some.

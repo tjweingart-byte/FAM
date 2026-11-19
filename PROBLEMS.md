@@ -39854,3 +39854,68 @@ records that it is not to be, at `rule:find-friends`. What already exists
 is unchanged: Discover cards may say "Follows you" as their reason and
 list those people first (§656). That is a suggestion's reason, not a
 prompt, and stays unless the owner says otherwise.
+
+## 660. Five ways into the graph, from the owner's picks (2026-11-19)
+
+**The owner (11.19), on §656's brainstorm:** "do 1, 2, not 3, 4, not 5, not
+6, 7, 8, 9" - and earlier "dont add the follow back nudge" (§659), "keep the
+follows you cards".
+
+**What changed:**
+- **9, where a follow came from.** `follows.via` (a migration, "" for every
+  older row), one of `social.FOLLOW_VIA` or `signup_` + one on the Find your
+  friends step; anything else is stored as "". `FollowRequest.via`; the
+  client reads the nearest `data-via` around the tapped button
+  (`followViaFrom`), set on Suggested for you (`suggested`), the row under
+  Follow (`after_follow`), contacts (`contacts`, Follow all `contacts_all`),
+  search results, a profile's buttons (`profile`, `profile_link` when the
+  profile came from its link), a profile's friends (`their_friends`), the
+  Friends lists, a group's Follow all, the joined card and the friends
+  rail's card. `/admin` answers "Where did follows come from this week?"
+  (recipe `follow_sources`, grouped, windowed).
+- **1, the friends rail while it is nearly empty.** Under three follows
+  (`FRIENDS_RAIL_GOAL`) the rail ends in a card - "Find your friends",
+  "Follow 3 people and this row fills with what they're hearing", three
+  steps and "1 of 3", up to three Discover people with Follow, and Find
+  friends. A slot (`#friendsRailFind`) in the rail's markup, painted by
+  `paintFriendsRailFind` after every draw and whenever the friends list or
+  suggestions arrive, so the rails' redraw test is unchanged.
+- **2, "Molly just joined FAM".** FAM keeps nobody's address book (§656), so
+  the one direction it can know is the newcomer's. When an account under a
+  week old finds people in its contacts, each of them who does not follow it
+  gets one notice: `joined_notices` holds the pair and the time, never a
+  number, address or name, is deleted when its card goes up (`POST
+  /api/friends/joined/seen`; a card still waiting behind Terms or the
+  activation sheet is tried again every 3s) and after a fortnight regardless, and goes with either account
+  (`SocialStore.forget`). It is shown only if discovery would show the
+  newcomer and the listener does not already follow them, as the follower
+  popup's card with "just joined FAM" and Follow, 2.5s after boot so it never
+  races "started following you". The newcomer learns nothing from it.
+- **8, Follow all in a group.** A group's members sheet offers "Follow all
+  N" (or "Follow Ana") for the members not followed; `members[].following`
+  says which. It, and contacts' Follow all, use the new `POST
+  /api/friends/follow-all` (up to 50, one `_rate_limit`): **§656's contacts
+  Follow all sent a follow per person and the fourth was refused by the
+  pace**, a bug found here.
+- **7, a profile link.** `/@handle` redirects to `/?person=<handle>`; the
+  app opens that profile (`openLinkedPerson`), or holds it for sign-up and
+  shows them first on Find your friends ("Shared their profile with you").
+  "Your profile link" with Share tops the Friends page; the step has "Share
+  your profile link".
+
+**Not built:**
+- **4** (a Follow on the "friends listened" faces): those faces are only
+  ever mutual friends, already followed, so there is never a Follow to
+  offer, and showing anybody else's listening breaks private listening.
+- **The QR code for 7.** No QR library is installed here and installing one
+  was refused in this session; a QR encoder written by hand could not be
+  checked by scanning it (nothing here decodes one). With the owner's yes,
+  `segno` (pure Python) in `requirements.txt` and an SVG endpoint for
+  `/@handle` is the small step left.
+
+**Verified:** `tests/test_find_friends.py` gains ten tests (via kept and
+closed, the admin recipe, the endpoint passing it, Follow all in one request
+with skips, a joined notice raised once, none from an old account, notices
+erased with an account, the profile link's redirect, group members'
+`following`). **Not verified:** a real phone scanning or tapping a `/@`
+link through the App Store app; a universal link in the iOS app (PARITY.md).

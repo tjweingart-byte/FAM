@@ -651,3 +651,4 @@ and `limit` = Lines.
 | 39791 | 25 | 657. Mutuals on every profile, three looks for the owner (2026-11-18) |
 | 39816 | 32 | 658. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18) |
 | 39848 | 10 | 659. No follow-back nudge (2026-11-19) |
+| 39858 | 64 | 660. Five ways into the graph, from the owner's picks (2026-11-19) |
