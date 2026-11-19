@@ -101,6 +101,19 @@
    > only where joining makes a new sound), and a dash used as punctuation is
    > a comma (Chatterbox's `punc_norm` turned "won—again—on" into
    > "won-again-on").
+   > **Current (PROBLEMS.md §663, the owner: "even with names as similar as
+   > the country name 'Iran'"):** famous names no model lists and the CMU
+   > dictionary holds - Iran, Iraq, Qatar, Niger, Kyiv, Xi, Venezuela, Caribbean - are seeded
+   > (`pronunciation.SEED`, source `seed`, under an admin and over Wikipedia
+   > and the models), written to the table once per process so /admin shows
+   > and hears them. An admin's respelling replaces a seed; the seeds are
+   > unheard.
+   > **Current (PROBLEMS.md §664, the owner: "iran sounds weird"):** a
+   > joined syllable's vowel-marking h was breathed ("Ihrahn" heard as
+   > "eef-rahn") or said ("Kehahveh"); `_joined` drops it - doubling the
+   > consonant after "ih"/"eh" ("Irrahn"), writing an unstressed "uh" as "a"
+   > ("Abdulkareem"), keeping a hyphen before a vowel ("Ke-ahveh"). 395 of
+   > the owner's 1,781 entries had it; unheard.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

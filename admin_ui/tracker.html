@@ -2681,7 +2681,9 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   var WIKI_WORDS = { agrees: "Wikipedia agrees", differs: "Wikipedia says", "not on Wikipedia": "not on Wikipedia",
                      ambiguous: "more than one on Wikipedia", failed: "Wikipedia did not answer", found: "Wikipedia says" };
   function sourceWord(src) {
-    return src === "admin" ? "yours" : src === "wikipedia" ? "from Wikipedia" : "from the " + src;
+    // "seed": FAM's built-in list of famous names (§663, pronunciation.SEED).
+    return src === "admin" ? "yours" : src === "wikipedia" ? "from Wikipedia"
+      : src === "seed" ? "built in" : "from the " + src;
   }
   function drawSay() {
     var rows = sayRows.filter(function (x) {

@@ -39959,3 +39959,170 @@ The iOS app did the same (`InterestChipButton` on YourFAM, a person's page
 and the chat header); it is deleted and the three draw `InterestChip`.
 No Swift compiler here - the next Xcode build is its check.
 `tests/test_interest_labels_662.py` pins it.
+
+## 663. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19)
+
+The owner: "We are still having pronunciation issues within the app, even
+with names as similar as the country name 'Iran'".
+
+**Why "Iran" was never respelled.** Every way into the lexicon (§165, §289,
+§325) started from a name somebody flagged as hard: EI's brief and the
+writer's `<<SAY:>>` lines list names *a model* finds hard, Wikipedia is only
+asked about names a model added, and `hard_words.py` lists words the CMU
+dictionary lacks. "Iran" is none of these - no model thinks it hard, and the
+dictionary has it - so it reached Chatterbox as its letters, which read it as
+"eye-ran". The same gap holds for every famous name an English reader says
+from habit rather than from the spelling: Iraq, Qatar, Niger, Kyiv, Beijing,
+Erdogan, Xi.
+
+**What changed.** `pronunciation.SEED` holds 36 such names (Venezuela, Venezuelan and Caribbean at the owner's request) with the common
+American broadcast reading ("Iran = ee-RAHN", handed to the voice as
+"Eerahn"). `Lexicon.reload` writes them to the shared table once per process
+as source `seed`, which ranks under an admin and over Wikipedia and both
+models (`SOURCES`, `voice_bank.learn_pronunciation`); `wiki_pronounce.check`
+never replaces a seed, as it never replaces an admin. Being rows in the table,
+they show on /admin, go out in the review export (§549) and can be heard four
+ways there. An admin's respelling replaces a seed for good; removing a seed
+brings it back at the next boot, so a wrong seed is fixed by setting the
+right one. Matching stays case-sensitive and whole-word: "Iran's" is
+respelled, "chile" (the pepper) and "XI" (the numeral) are not. "Xi" is the
+one seed under three letters, allowed past `clean` by name (`_SHORT_SEED`).
+
+Tests that are about an empty lexicon build it with `Lexicon(bank,
+seed=False)`; `tests/test_pronunciation_seed_663.py` pins the rest.
+
+**Not verified.** Nobody has heard any seed in Chatterbox - this container has
+no GPU. The respellings are hand-chosen, not measured; "Eerahn" may still
+come out wrong, and the place to find out is /admin's "Hear 4 ways" on the
+live voice, then an admin respelling for any that miss. The list is a floor of
+famous names, not a scan: a name the voice gets wrong that is neither listed
+nor flagged by a model is still missed, and the owner's next report of one is
+the signal to add it.
+
+**The list audited from outside (same day).** At the owner's request a
+separate agent, handed the code and the list but not this reasoning, audited
+both. What it found and what was done:
+
+- *An h after a vowel was swallowed when syllables were joined (§576):*
+  "doh-hah" reached the voice as "Dohhah", "muh-HOHMZ" as "Muhhohmz", an
+  admin's "voy-cheh-HOF-skah" as "Voychehhofskah". `_joined` now keeps that
+  hyphen, as it keeps the one before a digraph ("Doh-hah"). This changes how
+  every such entry in the table is voiced, admins' included.
+- *A name in capitals was never respelled:* the lexicon matches by case and
+  runs before `speakable` turns "IRAN" into "Iran". `_compile` now adds the
+  capitals form of every name of four letters or more ("XI" the numeral is
+  still never "Xi").
+- *A seed taken out of `SEED` stayed in the table for good:* `_seed` now
+  removes rows still marked `seed` whose name is gone.
+- *An admin could not replace "Xi"* (`clean`'s three-letter rule); `set`
+  now lets a `_SHORT_SEED` name through.
+- *Added (57):* plurals and adjectives of seeded countries (Qataris, Omani,
+  Bahraini...), Ukraine and Iran war places (Kharkiv, Lviv, Odesa, Hormuz,
+  Fordow, Natanz, Khan Younis), leaders (Putin, Zelensky/Zelenskyy, Macron,
+  Merz, Milei, Guterres, Kim Jong Un, Noem, Leavitt, Thune, Alito), Hamas and
+  Qaeda, East Asian places (Seoul, Taipei, Shenzhen, Xinjiang, Pyongyang), US
+  towns (Des Moines, Tucson, Boise, Spokane), athletes (Jokic, Doncic,
+  Antetokounmpo, Kelce, Mahomes, Mbappe/Mbappé, Djokovic, Gauff, Pulisic,
+  Leclerc, Draisaitl), companies (Huawei, Xiaomi, Hyundai, Porsche,
+  Chipotle, Wegovy) and "Erdoğan" with its accent. Qatari's stress and
+  Khamenei's opening "Kh" were changed.
+- *Not taken:* the audit would drop Venezuela, Caribbean, Uruguay, Chile and
+  Doha as spellings the voice probably already reads right. Venezuela and
+  Caribbean were the owner's own request and stay; the rest stay until
+  heard. Left out as unsure: Pezeshkian, Zaporizhzhia, Swiatek, Shein,
+  Tiingo (its own pronunciation unchecked), Bogota (the New Jersey town).
+- *Open:* the audit thinks "Eerahn" may be heard as "EAR-ahn" and proposes
+  "ir-RAHN" ("Irrahn", as in irritate). Unchanged until the owner hears both
+  on /admin's "Hear 4 ways". Phrase entries cannot yet tell names apart
+  ("Niger Delta = NY-jer DEL-tuh" would also store "Niger" by `_split`), and
+  diacritics are not folded, so each accented spelling is its own entry.
+
+## 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19)
+
+The owner set Iran to `ih-RAHN` on /admin, and the voice check beside it
+said "The voice said it a little differently: eef-rahn ... 67% alike"
+(/i f r a n/). The owner: "iran sounds weird", then, with the whole list
+exported: "expand that search to potentially similar issues, this could be a
+problem throughout the whole pronunciations page."
+
+**Cause.** A respelling marks a bare vowel with an h ("ih", "eh", "uh",
+"ah", "oh"). Since §576 a word's syllables are joined before the voice gets
+them, so "ih-RAHN" arrived as "Ihrahn" - an h before an r, which English
+does not have and Chatterbox breathed, heard as an f. Where the next
+syllable began with a vowel the h was said outright: Keawe `keh-AH-veh`
+arrived as "Kehahveh".
+
+**How wide.** The owner's export (1,781 entries: 733 from briefs, 690 from
+writers, 347 admins', 11 Wikipedia's) run through the joining: **395**
+handed the voice a marked h before a consonant or a vowel inside a word.
+
+**Fix, in `_joined`, so every entry is mended without touching a row:**
+- a short "ih" or "eh" loses its h, and the next consonant doubles where
+  English doubles one after a short vowel (b d f g l m n p r s t):
+  "Irrahn" (irritate), "Terrahn" (terror), "Zellenskee"; before any other
+  consonant only the h goes ("Atikohkan", "Likood");
+- an unstressed "uh" (lower case in the respelling - capitals mark stress)
+  is written "a", as English writes a schwa: "ab-dul-kuh-REEM" ->
+  "Abdulkareem", "uh-DAP-tuh-vist" -> "Adaptavist", "uh-DAH-nee" ->
+  "Adahnee". Doubled, it pulled the stress forward ("Uddahnee"), so it is
+  not doubled; a stressed "MUH" is left alone;
+- a marked vowel before a vowel loses its h and keeps one hyphen, a word
+  break and not §576's chop: "Ke-ahveh", "Ahja-erroh", "Bo-en";
+- "ah" and "oh" before a consonant are left: English writes them so
+  ("Bahrain", "Ohm").
+
+439 entries are voiced differently (165 writers', 156 briefs', 117 admins');
+395 to 14 with a breathed h. The 14 have the h inside one syllable
+("BAT-uhn", "beh-SEHR-ah", "rohd-REE-gehs"), where a rule would guess ("gehs"
+without its h may be "jess"); they are listed for an admin. The seed's Iran
+family now matches the owner's `ih-RAHN` (Iranian `ih-RAY-nee-un`). The
+export itself is not in the repository - it quotes episodes.
+
+**Not verified.** Nobody has heard one of the new forms. The check is on
+/admin: "hear all" (`/api/admin/pronunciations/hear-all`, 150 a run) says
+each entry with the live voice and the recogniser writes down what it heard,
+so Iran should now read close to `ih-RAHN` and not "eef-rahn". Its verdicts
+are hints (§325); the owner's ear decides.
+
+**The 14 respelled by hand (same day, the owner: "respell the 14 yourself
+too").** Each loses its in-syllable h for the English spelling of the same
+sound (`er`, `air`, `un`, `uz`, `ez`), and "rohd-REE-gehs" becomes
+"rod-REE-ghez" so the g stays hard. The 13 that were a model's or
+Wikipedia's are seeds (`SEED`, "Respelled by hand"), so they replace those
+rows on the next boot; Libertad is an admin's row and a seed never replaces
+one, so it is the owner's edit on /admin (`lee-ber-TAHD`). A test now fails
+if any seed hands the voice a breathed h - it caught three of §663's own
+(Kherson, Pyongyang, Guterres), respelled. Unheard, like the rest.
+
+**The branch reviewed before merging (same day).** A separate agent, handed
+the diff and not this reasoning, reviewed §663-§664. Fixed:
+- *A seed that failed at boot was never retried, and ran on the listener's
+  path* (a hundred database round trips inside the first chunk's first
+  `reload`, against `[nothing-before-material]`'s "only work before the tap").
+  `Lexicon.seed` is now public and returns whether every seed was written;
+  `reload` starts it in a thread (`_seed_in_background`), never twice at once,
+  again after `SEED_RETRY_SECONDS` on a failure, and reads the table again
+  when it is done.
+- *Two names with the same capitals took the worse respelling* ("Mcilroy" a
+  brief's, "McIlroy" an admin's: "MCILROY" got the brief's). The better-ranked
+  source wins; capitals are matched only for `admin`, `seed` and `wikipedia`
+  rows (`_CAPS_SOURCES`), not the ~1,400 model guesses ("GREEN CHILE" was a
+  risk); and they live in the matching table only - `entries()` lists real
+  names, so `tools/stress_trial.py` no longer voices "IRAN" beside "Iran".
+- *Stress was read from lower case*, so a title-cased first syllable
+  ("Kuh-REEM") counted as stressed: now only capitals do.
+- *`_KEEP_H` never matched* (a 3-letter slice against "shah"): "shah-EEN" is
+  "Shaheen". *A lone "h" syllable before a vowel* gave a leading hyphen
+  ("h-ah" -> "-ah").
+- *"Xi" passed only the admin's form*: `clean` itself now lets a
+  `_SHORT_SEED` name through, so "Hear 4 ways" and the review upload take it
+  too, with `clean`'s normalising.
+- *"seed" was unexplained*: /admin calls it "built in", and the reviewer's
+  prompt names it.
+- Tests: the admin-beats-seed test set the seed's own reading (vacuous); the
+  breathed-h test could not see a word's first syllable. Both fixed, and
+  retry, the background start, capitals ranking and title case are tested.
+Left as it is: removing a name from `SEED` deletes its row even when the
+seed had replaced a model's, which a model relearns the next time it lists
+the name.
+

@@ -172,7 +172,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   per-character voices. Nobody has heard an episode in it; that listening test
   is the next move (`RUNPOD_PRODUCTION.md`, `verify_voice.py`). Hard names are
   respelled for the voice: EI's brief, the writer's `<<SAY: Name =
-  respelling>>` lines and Wikipedia (§289, over both) feed a lexicon; an
+  respelling>>` lines, Wikipedia (§289, over both) and a seed of famous names (Iran, §663) feed a lexicon; an
   admin fix is never overridden; only the voice's text changes -
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
