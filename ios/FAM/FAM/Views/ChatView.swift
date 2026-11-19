@@ -46,13 +46,18 @@ struct ChatScreen: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var deeper: SharedEpisode?
     @State private var popReady = false
+    /// The reader is at the foot of the chat (`threadAtBottom`).
+    @State private var atBottom = true
+    @State private var viewport: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// FAM's word-by-word autocorrect behind the keyboard (`acInstall` on
     /// `#threadInput`), made once the screen has the app's speller.
     @State private var corrector: LiveCorrector?
     @FocusState private var typing: Bool
 
-    init(api: FAMAPI, open: ChatOpen) {
-        _chat = StateObject(wrappedValue: ChatModel(api: api, who: open))
+    /// The conversation as kept in memory (`SocialModel.chat(for:)`).
+    init(chat: ChatModel) {
+        _chat = StateObject(wrappedValue: chat)
     }
 
     private var who: ChatOpen { chat.who }
@@ -239,8 +244,10 @@ struct ChatScreen: View {
     /// the group's people are not known yet, as the web counts them.
     private var subLine: String {
         guard who.group else { return "View profile" }
+        // The count only once the people are known (§644: a group opened
+        // from its banner read "0 people").
         let n = who.members.count
-        return "\(n) \(n == 1 ? "person" : "people") \u{00B7} See who\u{2019}s here"
+        return (n > 0 ? "\(n) \(n == 1 ? "person" : "people") \u{00B7} " : "") + "See who\u{2019}s here"
     }
 
     private var chipLabels: [String] { person?.interestLabels ?? [] }
@@ -269,16 +276,38 @@ struct ChatScreen: View {
                 VStack(alignment: .leading, spacing: 0) {
                     bodyContent
                     Color.clear.frame(height: 1).id("bottom")
+                        .background(GeometryReader { g in
+                            Color.clear.preference(key: ChatBottomKey.self,
+                                                   value: g.frame(in: .named("chatScroll")).maxY)
+                        })
                 }
                 .padding(.horizontal, 13)
                 .padding(.vertical, 14)
-                .animation(popReady ? .easeOut(duration: 0.26) : nil, value: chat.rows.map(\.id))
-                .animation(.easeOut(duration: 0.2), value: chat.typing)
+                .animation(popReady && !reduceMotion ? Motion.easeOut(Motion.Dur.column) : nil,
+                           value: chat.rows.map(\.id))
+                .animation(reduceMotion ? nil : Motion.easeOut(0.2), value: chat.typing)
+                .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: chat.sendingShown)
+            }
+            .coordinateSpace(name: "chatScroll")
+            .background(GeometryReader { g in
+                Color.clear.preference(key: ChatViewportKey.self, value: g.size.height)
+            })
+            .onPreferenceChange(ChatViewportKey.self) { viewport = $0 }
+            .onPreferenceChange(ChatBottomKey.self) { bottom in
+                // At the bottom: the end of the chat within a few points of
+                // the scroller's foot.
+                atBottom = viewport <= 0 || bottom <= viewport + 40
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: chat.rows.count) { _, _ in
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: chat.rows.count) { old, _ in
+                // A chat follows a new message only when the reader was
+                // already at the bottom; their own send always shows
+                // itself (§644). Anywhere else their place is kept.
+                let mineLast = chat.rows.last?.message.mine == true
+                if atBottom || mineLast || old == 0 {
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
                 if chat.state == .loaded && !popReady {
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 300_000_000)
@@ -287,7 +316,7 @@ struct ChatScreen: View {
                 }
             }
             .onChange(of: chat.typing) { _, on in
-                if on { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+                if on && atBottom { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
             }
             .onChange(of: typing) { _, on in
                 if on {
@@ -319,7 +348,9 @@ struct ChatScreen: View {
         }
         if chat.rows.isEmpty {
             switch chat.state {
-            case .idle, .loading: SocialNote(text: "Loading\u{2026}")
+            case .idle, .loading:
+                // Only past 300 ms (`lateLoader`, §644).
+                if chat.slowLoad { SocialNote(text: "Loading\u{2026}") }
             case .failed: SocialNote(text: "Could not open that conversation.")
             case .loaded: SocialNote(text: "Nothing here yet. Say something, or share an episode with the (+).")
             }
@@ -331,10 +362,27 @@ struct ChatScreen: View {
                              listen: { listen(line.row.message) },
                              goDeeper: { goDeeper(line.row.message) },
                              save: { save(line.row.message) },
-                             report: { reportMessage(line.row.message) })
-                    .transition(.scale(scale: 0.6, anchor: line.row.message.mine == true ? .bottomTrailing : .bottomLeading)
-                        .combined(with: .opacity))
+                             report: { reportMessage(line.row.message) },
+                             retry: { chat.retry(line.row.id) })
+                    // Round three (§643 `chat-bubbles` A): the column
+                    // slides up by the new message's height and the bubble
+                    // rises from behind the box, fully opaque - no pop,
+                    // no fade (220 ms on `--ease-out`).
+                    .transition(reduceMotion ? .identity : .move(edge: .bottom))
             }
+        }
+        if chat.sendingShown {
+            // "Sending…" once a send has waited a second (§644).
+            HStack {
+                Spacer(minLength: 0)
+                Text("Sending\u{2026}")
+                    .font(FAMFont.body(10.5))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+            .padding(.top, -4)
+            .padding(.bottom, 8)
+            .transition(.opacity)
+            .accessibilityAddTraits(.updatesFrequently)
         }
         if chat.typing {
             HStack {
@@ -567,14 +615,15 @@ struct ChatScreen: View {
             actions.append(SheetAction(label: who.avatar.isEmpty ? "Add a group photo" : "Change group photo") {
                 photoMenu()
             })
-            actions.append(SheetAction(label: "Leave group", danger: true) { askLeave() })
-            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
+            // No question (§644): gone at once, with Undo on the line.
+            actions.append(SheetAction(label: "Leave group", danger: true) { leaveGroup() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { deleteChat() })
             actions.append(SheetAction(label: "Report this chat", danger: true) {
                 reporting = ReportTarget(subject: .group(id: who.with))
             })
         } else {
             actions.append(SheetAction(label: "View profile") { openProfile() })
-            actions.append(SheetAction(label: "Delete chat", danger: true) { askDelete() })
+            actions.append(SheetAction(label: "Delete chat", danger: true) { deleteChat() })
             if !who.handle.isEmpty {
                 let name = who.name.isEmpty ? "@" + who.handle : who.name
                 let handle = who.handle
@@ -589,22 +638,11 @@ struct ChatScreen: View {
         sheet = SheetSpec(actions: actions)
     }
 
-    /// The web's action sheets (`blockPerson`, `confirmDeleteChat`,
-    /// `confirmLeaveGroup`): the sentence as the sheet's group line, then
-    /// the one coral row.
+    /// Block keeps its question (`blockPerson`): the sentence as the
+    /// sheet's group line, then the one coral row. Delete chat and Leave
+    /// group no longer ask (§644).
     private func askBlock(name: String, handle: String) {
         sheet = FAMBlock.sheet(name: name, handle: handle, model: model) { blocked() }
-    }
-
-    private func askDelete() {
-        let them = who.group ? "everybody else" : first
-        let header = "Delete this chat? It goes from your messages only \u{2014} " + them + " still has it."
-        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Delete chat", danger: true) { deleteChat() }])
-    }
-
-    private func askLeave() {
-        let header = "Leave " + displayName + "? You won\u{2019}t get its messages any more, and the others are told."
-        sheet = SheetSpec(header: header, actions: [SheetAction(label: "Leave group", danger: true) { leaveGroup() }])
     }
 
     /// After a block (a 1:1 chat's ⋯): "Blocked", the graph and inbox
@@ -618,32 +656,15 @@ struct ChatScreen: View {
         social.back()
     }
 
+    /// Off the list at once, back to it, "Chat deleted · Undo"; the DELETE
+    /// goes when the line does (`goneChat`).
     private func deleteChat() {
-        let with = who.with
-        Task {
-            do {
-                let answer = try await model.api.deleteChat(with: with)
-                social.dropThread(with, unread: answer.unread)
-                social.back()
-                model.nowPlaying.say("Chat deleted")
-            } catch {
-                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not delete that chat"))
-            }
-        }
+        social.goneChat(who.with, group: false)
     }
 
+    /// "You left the group · Undo", the same way.
     private func leaveGroup() {
-        let gid = who.with
-        Task {
-            do {
-                let answer = try await model.api.leaveGroup(gid)
-                social.dropThread(gid, unread: answer.unread)
-                social.back()
-                model.nowPlaying.say("You left the group")
-            } catch {
-                model.nowPlaying.say(SocialModel.sentence(error, else: "Could not leave that group"))
-            }
-        }
+        social.goneChat(who.with, group: true)
     }
 
     private func rename() {
@@ -758,6 +779,9 @@ struct ChatLineView: View {
     let goDeeper: () -> Void
     let save: () -> Void
     let report: () -> Void
+    /// "Not sent · Tap to retry", or the faded bubble itself (§644).
+    var retry: () -> Void = {}
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var m: ChatMessage { line.row.message }
     private var mine: Bool { m.mine == true }
@@ -783,8 +807,36 @@ struct ChatLineView: View {
                     .padding(.leading, 4)
             }
             content
+                // A send that failed stays, faded to .55 over 150 ms; a tap
+                // on it sends it again. No dim while it is only on its way
+                // ("Sending…" says that past a second, §644).
+                .opacity(line.row.failed ? 0.55 : 1)
+                .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: line.row.failed)
+                .overlay {
+                    if line.row.failed {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture(perform: retry)
+                            .accessibilityHidden(true)
+                    }
+                }
+            if line.row.failed {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button(action: retry) {
+                        Text("Not sent \u{00B7} Tap to retry")
+                            .font(FAMFont.body(11, .medium))
+                            .foregroundStyle(FAMColor.coral)
+                            .frame(minHeight: 22)
+                    }
+                    .buttonStyle(.press)
+                    .accessibilityLabel("Not sent: " + line.row.why + ". Tap to retry")
+                }
+                .padding(.top, -6)
+                .padding(.bottom, 10)
+                .transition(.opacity)
+            }
         }
-        .opacity(line.row.pending ? 0.55 : 1)
     }
 
     @ViewBuilder private var content: some View {
@@ -809,21 +861,20 @@ struct ChatLineView: View {
         return who + " " + text
     }
 
-    /// The card, then the words or the big heart on the same side, then
+    /// The card - a like is a 22 pt heart on its corner (§644's C, the
+    /// 30 pt heart row gone) - then a reply's words on the same side, then
     /// the receipt for an episode sent to you that you finished.
     @ViewBuilder private var episode: some View {
-        side { reportable(SharedEpisodeCard(message: m, mine: mine, label: cardLabel, saved: saved,
-                                      listen: listen, goDeeper: goDeeper, save: save)) }
+        let liked = text == FAMAPI.storyLike
+        side {
+            reportable(SharedEpisodeCard(message: m, mine: mine, label: cardLabel, saved: saved,
+                                         listen: listen, goDeeper: goDeeper, save: save))
+                .overlay(alignment: mine ? .topLeading : .topTrailing) {
+                    if liked { LikeMark(mine: mine) }
+                }
+        }
             .padding(.bottom, 10)
-        if text == FAMAPI.storyLike {
-            side {
-                Text(FAMAPI.storyLike)
-                    .font(.system(size: 30))
-                    .padding(.horizontal, 4)
-                    .accessibilityLabel("Liked")
-            }
-            .padding(.bottom, 10)
-        } else if !text.isEmpty {
+        if !liked && !text.isEmpty {
             side { TextBubble(text: text, mine: mine) }
                 .padding(.bottom, 10)
         }
@@ -1022,21 +1073,19 @@ struct SharedEpisodeCard: View {
     }
 }
 
-/// `.msg-typing`: three 6 pt dots in an incoming bubble, rising 3 pt and
-/// brightening in turn every 1.2 s (static at .7 with reduced motion).
+/// `.msg-typing`: three 6 pt dots in an incoming bubble, brightening in
+/// turn every 1.2 s, left to right (§644: an opacity wave, no bob - a
+/// loading indicator, so it keeps going with Reduce Motion, §640).
 struct TypingBubble: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 30)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             HStack(spacing: 4) {
                 ForEach(0..<3, id: \.self) { i in
-                    let k = reduceMotion ? 0.55 : TypingBubble.pulse(t - Double(i) * 0.15)
+                    let k = TypingBubble.pulse(t + 0.3 - Double(i) * 0.15)
                     Circle()
                         .fill(FAMColor.textMuted)
                         .frame(width: 6, height: 6)
-                        .offset(y: -3 * k)
                         .opacity(0.35 + 0.65 * k)
                 }
             }
@@ -1189,4 +1238,43 @@ struct CameraPicker: UIViewControllerRepresentable {
             done(nil)
         }
     }
+}
+
+/// The like on a vibe's card (`.msg-react`): a 22 pt heart on the card's
+/// corner - top right, top left on your own - arriving from .3 out of a
+/// 3 pt blur on `--ease-swap` (300 ms) when first drawn; at rest with
+/// Reduce Motion.
+private struct LikeMark: View {
+    let mine: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    var body: some View {
+        Text(FAMAPI.storyLike)
+            .font(.system(size: 12))
+            .frame(width: 22, height: 22)
+            .background(FAMColor.surface, in: Circle())
+            .overlay(Circle().stroke(FAMColor.border))
+            .scaleEffect(shown || reduceMotion ? 1 : 0.3)
+            .blur(radius: shown || reduceMotion ? 0 : 3)
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(x: mine ? -9 : 9, y: -9)
+            .accessibilityLabel("Liked")
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(reduceMotion ? nil : Motion.easeSwap(Motion.Dur.swap)) { shown = true }
+            }
+    }
+}
+
+/// Where the chat's foot is, in the scroller's own space.
+private struct ChatBottomKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// The scroller's height.
+private struct ChatViewportKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }

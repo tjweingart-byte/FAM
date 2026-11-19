@@ -247,8 +247,8 @@ struct FriendsView: View {
         return social.isFollowing(p.userId)
     }
 
-    /// `.pf-btn`: 34 tall, radius 20, outlined, Geist (the web falls back
-    /// to Arial here, quirk 8). "✓ Following" draws at once on a tap.
+    /// `.pf-btn`: 34 tall, radius 20 - Follow filled copper, Following an
+    /// outline with its tick (`FollowPill`, §645), flipped on the tap.
     private func followButton(_ p: FollowPerson) -> some View {
         let on = isFollowing(p)
         return Button {
@@ -258,17 +258,7 @@ struct FriendsView: View {
                 follow(p)
             }
         } label: {
-            HStack(spacing: 5) {
-                if flipping.contains(p.userId) {
-                    FollowTick()
-                }
-                Text(on ? "Following" : "Follow").font(FAMFont.body(12.5, .medium))
-            }
-            .foregroundStyle(FAMColor.text)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 34)
-            .overlay(Capsule().stroke(FAMColor.borderStrong))
-            .animation(.easeOut(duration: 0.26), value: on)
+            FollowPill(following: on, justFollowed: flipping.contains(p.userId))
         }
         .buttonStyle(.press)
         .accessibilityLabel(on ? "Following \(displayName(p)), tap to unfollow" : "Follow \(displayName(p))")

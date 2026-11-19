@@ -25,6 +25,8 @@ struct MessagesView: View {
             }
             .background(FAMColor.background)
             .toolbar(.hidden, for: .navigationBar)
+            // iOS's own swipe back, with the bar hidden (§682).
+            .background(EdgeSwipeBack().frame(width: 0, height: 0))
             .navigationDestination(for: SocialRoute.self) { route in
                 SocialScreen(route: route)
             }
@@ -94,10 +96,16 @@ struct MessagesView: View {
         } else {
             LazyVStack(spacing: 0) {
                 ForEach(shown) { t in
-                    Button { social.open(.thread(SocialModel.chat(from: t))) } label: {
-                        InboxRow(thread: t)
+                    Button {
+                        // Read on the tap (`markThreadRead`, §644).
+                        social.markRead(t.with)
+                        social.open(.thread(SocialModel.chat(from: t)))
+                    } label: {
+                        InboxRow(thread: t, read: social.readOnTap.contains(t.with))
                     }
                     .buttonStyle(.press)
+                    // A chat deleted or left slides out (`removeRow`).
+                    .transition(.rowRemoval)
                 }
             }
         }
@@ -130,8 +138,10 @@ struct MessagesView: View {
 /// it - led by the share mark for an episode - and the copper dot unread.
 struct InboxRow: View {
     let thread: InboxThread
+    /// Read on the tap, before the server has said so.
+    var read = false
 
-    private var unread: Int { thread.unread ?? 0 }
+    private var unread: Int { read ? 0 : (thread.unread ?? 0) }
 
     var body: some View {
         HStack(spacing: 12) {

@@ -34,6 +34,21 @@ struct GoDeeperSheet: View {
     /// The AI question is up over the sheet (`withAiConsent`): one ask at a time.
     @State private var asking = false
     @FocusState private var typing: Bool
+    /// The line the chip shows (`goDeeperShown`, §643): a new `<<NEXT:>>`
+    /// line is not drawn while a finger is on the chip or for 300 ms after
+    /// it lifts, and what is sent is what was on screen at touch-down
+    /// (`goDeeperHold`) - never a line swapped in under the finger.
+    @State private var shownLine = ""
+    /// A new suggestion writes itself in, left to right (round three,
+    /// §643 `go-deeper-box` B: 320 ms, the title's old wipe).
+    @State private var lineReveal: CGFloat = 1
+    @State private var held = false
+    @State private var holdUntil = Date.distantPast
+    @State private var pressedLine: String?
+
+    /// The chip's line: the one shown, else (before the first frame has
+    /// kept one) the suggestion.
+    private var chipLine: String { shownLine.isEmpty ? suggestion : shownLine }
 
     private static let lengths: [Double] = [1, 1.5, 2, 3, 4, 5]
 
@@ -66,7 +81,7 @@ struct GoDeeperSheet: View {
                 .monoLabel(9.5, tracking: 0.76)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 8)
-            if !suggestion.isEmpty {
+            if !chipLine.isEmpty {
                 chip.padding(.bottom, 10)
             }
             TextField("", text: $typed, prompt: Text("Or type your own follow-up").foregroundColor(FAMColor.textFaint))
@@ -92,6 +107,7 @@ struct GoDeeperSheet: View {
             }
         }
         .onAppear {
+            if shownLine.isEmpty { shownLine = suggestion }
             now.goDeeperOpen = true
             // The episode's own length, rounded to a half and kept to 1-5
             // (`offeredMinutes`).
@@ -99,6 +115,7 @@ struct GoDeeperSheet: View {
             minutes = min(max(m, 1), 5)
         }
         .onDisappear { now.goDeeperOpen = false }
+        .onChange(of: suggestion) { _, _ in adoptSuggestion() }
         .task {
             // A shared episode's own predicted follow-up, from what is kept.
             guard let base else { return }
@@ -107,17 +124,47 @@ struct GoDeeperSheet: View {
         }
     }
 
+    /// A new suggestion is drawn only when no finger is on the chip and
+    /// 300 ms have passed since one lifted (`GO_DEEPER_HOLD_MS`).
+    private func adoptSuggestion() {
+        let next = suggestion
+        guard next != shownLine else { return }
+        let wait = holdUntil.timeIntervalSinceNow
+        if held || wait > 0 {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64((max(wait, 0) + 0.05) * 1_000_000_000))
+                adoptSuggestion()
+            }
+            return
+        }
+        let wipes = !shownLine.isEmpty && !Motion.reduced
+        shownLine = next
+        if wipes {
+            lineReveal = 0
+            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.32)) { lineReveal = 1 }
+        }
+    }
+
     private var chip: some View {
-        Button { go(suggestion, typed: false) } label: {
+        Button {
+            let line = pressedLine ?? chipLine
+            pressedLine = nil
+            go(line, typed: false)
+        } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(thread.isEmpty ? "Follow the thread" : "Pick up the thread")
                     .monoLabel(8, tracking: 0.64)
-                Text(suggestion)
+                Text(chipLine)
                     .font(FAMFont.body(12, .semibold))
                     .foregroundStyle(FAMColor.text)
                     .multilineTextAlignment(.leading)
                     .lineSpacing(12 * 0.35 - 3)
                     .fixedSize(horizontal: false, vertical: true)
+                    .mask(alignment: .leading) {
+                        GeometryReader { geo in
+                            Rectangle().frame(width: geo.size.width * lineReveal)
+                        }
+                    }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
@@ -126,6 +173,18 @@ struct GoDeeperSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.copper))
         }
         .buttonStyle(.press)
+        // What the chip showed at touch-down is what is sent.
+        .simultaneousGesture(DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                if !held {
+                    held = true
+                    pressedLine = chipLine
+                }
+            }
+            .onEnded { _ in
+                held = false
+                holdUntil = Date().addingTimeInterval(0.3)
+            })
     }
 
     private var lengthRow: some View {
@@ -146,19 +205,23 @@ struct GoDeeperSheet: View {
                 .padding(.vertical, 8)
                 .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
                 .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
+                // The lengths just recolour, 150 ms (round three).
+                .animation(Motion.anim(.easeOut(duration: 0.15)), value: on)
         }
         .buttonStyle(.press)
         .accessibilityLabel("\(FAMAPI.minutes(value)) minutes")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    /// Continue with nothing typed sends the line on the chip (§643).
     private func confirm() {
         let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = chipLine
         if words.isEmpty {
-            if suggestion.isEmpty { typing = true; return }
-            go(suggestion, typed: false)
+            if line.isEmpty { typing = true; return }
+            go(line, typed: false)
         } else {
-            go(words, typed: words != suggestion)
+            go(words, typed: words != line)
         }
     }
 
@@ -173,7 +236,7 @@ struct GoDeeperSheet: View {
             shut()
             now.goDeeperOpen = false
             let chosen = minutes
-            let suggested = suggestion
+            let suggested = chipLine
             let send = onGo
             let ensure = now.ensureConsent
             Task { @MainActor in
@@ -193,7 +256,7 @@ struct GoDeeperSheet: View {
             guard allowed else { return }
             shut()
             now.goDeeperOpen = false
-            now.followUp(words, minutes: minutes, typed: typed)
+            now.followUp(words, minutes: minutes, typed: typed, suggested: chipLine)
         }
     }
 }
@@ -765,6 +828,9 @@ struct ShareSheet: View {
     /// The rows' own height, so the card is as tall as they are and
     /// scrolls past 500 pt (one copy of the rows: a picked friend is kept).
     @State private var rowsHeight: CGFloat = 0
+    /// A face picked above: the bottom row is its Share (`share-pick` C).
+    @State private var choice: ShareChoice?
+    @State private var choiceSending = false
     /// What a tile's or a story's ⋯ shares; nil for the episode playing.
     let subject: ShareSubject?
 
@@ -799,8 +865,24 @@ struct ShareSheet: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(max(rowsHeight, 60), 500))
-            ModalButton(label: "Cancel", wide: true) { dismiss() }
-                .padding(.top, 16)
+            // One cell: Cancel, or Cancel | Share with @x, crossing over
+            // 150 ms; nothing above it moves.
+            ZStack {
+                ModalButton(label: "Cancel", wide: true) { dismiss() }
+                    .opacity(choice == nil ? 1 : 0)
+                    .allowsHitTesting(choice == nil)
+                    .accessibilityHidden(choice != nil)
+                HStack(spacing: 8) {
+                    ModalButton(label: "Cancel") { choice = nil }
+                    ModalButton(label: choiceSending ? "Sending\u{2026}" : (choice?.button ?? ""),
+                                primary: true, wide: true, enabled: !choiceSending) { shareChoice() }
+                }
+                .opacity(choice == nil ? 0 : 1)
+                .allowsHitTesting(choice != nil)
+                .accessibilityHidden(choice == nil)
+            }
+            .animation(Motion.anim(Motion.easeOut(0.15)), value: choice)
+            .padding(.top, 16)
         }
         .environmentObject(model.social)
         // The toast over the sheet: a send's refusal in the server's words
@@ -816,7 +898,7 @@ struct ShareSheet: View {
     private var shareRows: some View {
         VStack(alignment: .leading, spacing: 0) {
             SendInsideFAM(send: { to, label in await sendInside(to: to, label: label) },
-                          sent: { dismiss() })
+                          sent: { dismiss() }, choice: $choice)
             Text("Anywhere else").monoLabel(9.5, tracking: 0.76)
                 .padding(.top, 20)
                 .padding(.bottom, 4)
@@ -832,6 +914,20 @@ struct ShareSheet: View {
                     .font(FAMFont.body(12))
                     .foregroundStyle(FAMColor.textMuted)
                     .padding(.vertical, 10)
+            }
+        }
+    }
+
+    /// The bottom row's Share: sent, the sheet goes; refused, it stays.
+    private func shareChoice() {
+        guard let pick = choice, !choiceSending else { return }
+        choiceSending = true
+        Task {
+            let ok = await sendInside(to: pick.to, label: pick.label)
+            choiceSending = false
+            if ok {
+                choice = nil
+                dismiss()
             }
         }
     }
@@ -889,9 +985,9 @@ struct ActivityView: UIViewControllerRepresentable {
 /// first, Go Deeper's own suggestion, starts in 15 s, its copper bar
 /// emptying - the search box (touching it pauses the countdown for good)
 /// and "Back to search" / "Back to DailyFAM". The dim fades in over 200 ms
-/// (`mo-in`) while the card rises over 360 ms (`nextup-in`); it closes as
-/// every modal does, 150 ms with the card dropping 8 pt. Reduce Motion:
-/// the card does not move, the dim fades in over 120 ms, closing is at once.
+/// (`mo-in`) while the card rises 8 pt out of a 2 pt blur over 280 ms
+/// (round three); it closes as every modal does, 150 ms with the card
+/// dropping 8 pt. Reduce Motion: there and gone at once.
 struct NextUpOverlay: View {
     @EnvironmentObject private var now: NowPlayingModel
     @EnvironmentObject private var model: AppModel
@@ -907,14 +1003,16 @@ struct NextUpOverlay: View {
             Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
             card
                 .opacity(still ? 1 : 0)
-                .offset(y: still ? 0 : 12)
-                .scaleEffect(still ? 1 : 0.985)
+                .offset(y: still ? 0 : 8)
+                .blur(radius: still ? 0 : 2)
                 .dropsOnLeave()
         }
         .transition(.famOverlay(reduceMotion: reduceMotion))
         .onAppear {
             guard !reduceMotion else { shown = true; return }
-            withAnimation(.timingCurve(0.22, 0.7, 0.3, 1, duration: 0.36)) { shown = true }
+            // Round three (§640, `nextup` B): one soft 8 pt rise, a 2 pt
+            // blur clearing, 280 ms on `--ease-out`.
+            withAnimation(Motion.easeOut(Motion.Dur.nextUp)) { shown = true }
         }
         .task {
             await model.surveys.offerEpisode(id: model.player.episodeID, title: now.title,

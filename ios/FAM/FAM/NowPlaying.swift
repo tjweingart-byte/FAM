@@ -156,6 +156,12 @@ final class NowPlayingModel: ObservableObject {
     private let player: StreamPlayer
     /// Who to ask to play an episode (the app model, which owns the loading screen).
     var playEpisode: ((Episode) -> Void)?
+    /// A typed Go Deeper opens the loading screen on the press (§643's
+    /// loader-arrives B, §682): the speller's wait runs under step one. The
+    /// app model's `cancelSeq` says whether Cancel came meanwhile.
+    var openLoaderEarly: (() -> Void)?
+    var closeLoaderEarly: (() -> Void)?
+    var cancelMark: (() -> Int)?
     /// "Saved for Later · Open": the shelf (`openSaved`).
     var openSaved: () -> Void = {}
     var signedIn: () -> Bool = { false }
@@ -868,7 +874,9 @@ final class NowPlayingModel: ObservableObject {
 
     /// A follow-up of the episode playing: its title is the context, and a
     /// typed one is the listener's own words.
-    func followUp(_ words: String, minutes: Double, typed: Bool) {
+    /// `suggested`: the line the chip showed, which is FAM's own words -
+    /// not whatever suggestion has landed since (§643).
+    func followUp(_ words: String, minutes: Double, typed: Bool, suggested: String? = nil) {
         guard let base = episode else { return }
         let question = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty else { return }
@@ -877,13 +885,20 @@ final class NowPlayingModel: ObservableObject {
         // search box's is (`acCorrectQuestion`); FAM's own suggestion - the
         // thread, or the line built from the title - is sent as written and
         // is not the listener's words (`own`, consent.py).
-        let own = typed || question != goDeeperSuggestion
+        let own = typed || question != (suggested ?? goDeeperSuggestion)
         guard own, let speller else {
             startFollowUp(question, base: base, context: context, minutes: minutes, own: own)
             return
         }
+        let seq = cancelMark?() ?? 0
+        openLoaderEarly?()
         Task {
             let fixed = await speller.correct(question)
+            // Cancelled on the loader meanwhile: nothing is sent.
+            guard (cancelMark?() ?? 0) == seq else {
+                closeLoaderEarly?()
+                return
+            }
             startFollowUp(fixed.query, base: base, context: context, minutes: minutes, own: true)
         }
     }
@@ -931,12 +946,15 @@ final class NowPlayingModel: ObservableObject {
     // MARK: - Toasts
 
     func say(_ text: String, action: String? = nil, perform: (() -> Void)? = nil) {
+        // A new line replaces the last: a commit it was holding goes now
+        // (`flushSnackCommit(true)`).
+        flushCommit()
         toastAction = perform
         let t = Toast(text: text, action: action)
         toast = t
-        // A plain toast 2.2 s, one with an action (Undo, Open) 3.5 s
-        // (`toast`, `snack`).
-        let wait: UInt64 = action == nil ? 2_200_000_000 : 3_500_000_000
+        // A plain toast 2.2 s, one with an action (Undo, Open) 5 s
+        // (`toast`, `snack`, `SNACK_ACTION_MS`, §640).
+        let wait: UInt64 = action == nil ? 2_200_000_000 : 5_000_000_000
         Task {
             try? await Task.sleep(nanoseconds: wait)
             if toast?.id == t.id { toast = nil }
@@ -946,6 +964,7 @@ final class NowPlayingModel: ObservableObject {
     /// What an action did, with nothing to tap (`snack(msg)` with no
     /// action): the same line for 2.4 s, where a plain toast is 2.2.
     func snack(_ text: String) {
+        flushCommit()
         toastAction = nil
         let t = Toast(text: text, action: nil)
         toast = t
@@ -957,8 +976,98 @@ final class NowPlayingModel: ObservableObject {
 
     func toastTapped() {
         let act = toastAction
+        let wasPending = pendingCommit != nil && toast?.id == pendingCommitLine
         toast = nil
         toastAction = nil
+        if wasPending {
+            // Undo before the line went: the request is never sent. (An
+            // Undo whose commit has gone cannot be tapped: its line went
+            // with it, §646.)
+            pendingCommit = nil
+            pendingCommitLine = nil
+        }
         act?()
+    }
+
+    // MARK: - The Undo line (`snack(msg, {label, run, done})`, §641-§647)
+
+    /// The request an Undo line holds back: sent once, when the line goes
+    /// without its Undo - time up, replaced by another line, the app sent to
+    /// the background, or a sign-out (`action.done`, `flushSnackCommit`).
+    private var pendingCommit: (() async -> Void)?
+    /// The line that holds it.
+    private var pendingCommitLine: UUID?
+
+    /// "Removed · Undo": the change is already made on screen; `undo` puts
+    /// it back; `commit` is the request, sent only when the line goes. A
+    /// refusal is the commit's to put right (it rolls back and says so).
+    func undoLine(_ text: String, action: String = "Undo",
+                  undo: @escaping () -> Void, commit: @escaping () async -> Void) {
+        say(text, action: action, perform: undo)
+        guard let line = toast?.id else { return }
+        pendingCommit = commit
+        pendingCommitLine = line
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(Motion.Dur.undoLine * 1_000_000_000))
+            guard let self, self.pendingCommitLine == line else { return }
+            self.flushCommit()
+        }
+    }
+
+    /// Sends a held commit now and takes its line down (`flushSnackCommit`,
+    /// `endSnackLine`): an Undo after this does nothing. Returns the
+    /// request, so a sign-out can wait for it.
+    @discardableResult
+    func flushCommit() -> Task<Void, Never>? {
+        guard let commit = pendingCommit, let line = pendingCommitLine else { return nil }
+        pendingCommit = nil
+        pendingCommitLine = nil
+        if toast?.id == line {
+            toast = nil
+            toastAction = nil
+        }
+        // A commit sent as the app leaves the screen is given the time iOS
+        // allows a background task, as the web's is `keepalive`.
+        let keep = CommitKeepAlive()
+        keep.begin()
+        return Task { @MainActor in
+            await commit()
+            keep.end()
+        }
+    }
+
+    /// Sign-out (`logOut`): any held commit goes under this account, waited
+    /// for at most 1.5 s (`LOGOUT_COMMIT_WAIT_MS`), and the line is hidden
+    /// whatever it offered.
+    func flushCommitBeforeSignOut() async {
+        let task = flushCommit()
+        toast = nil
+        toastAction = nil
+        guard let task else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await task.value }
+            group.addTask { try? await Task.sleep(nanoseconds: 1_500_000_000) }
+            _ = await group.next()
+            group.cancelAll()
+        }
+    }
+}
+
+/// Keeps the app running while an Undo line's commit goes out as it leaves
+/// the screen (the web's `keepalive`).
+@MainActor
+private final class CommitKeepAlive {
+    private var id: UIBackgroundTaskIdentifier = .invalid
+
+    func begin() {
+        id = UIApplication.shared.beginBackgroundTask(withName: "FAM undo commit") { [weak self] in
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }

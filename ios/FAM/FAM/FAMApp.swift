@@ -123,6 +123,9 @@ struct RootView: View {
             .onChange(of: scenePhase) { _, new in
                 if new == .background {
                     wentAway = true
+                    // An Undo line's held request goes as the app leaves
+                    // the screen (`flushSnackCommit` on `pagehide`).
+                    model.nowPlaying.flushCommit()
                     // The next background refresh of the DailyFAM page
                     // (`FeedRefresh`): only for an account let in.
                     FeedRefresh.schedule()
@@ -204,16 +207,36 @@ struct RootView: View {
 }
 
 /// Voice search's screen while it is open.
+/// It opens as a circle out of the mic just pressed and closes back into
+/// it (round three, §643 `voice-sheet` B); opened by the wake word, out of
+/// the middle of the screen, where the orb is. Reduce Motion: at once.
 struct VoiceSearchLayer: View {
     @ObservedObject var voice: VoiceSearchModel
+    /// Where this opening grew from, for the close.
+    @State private var origin: CGPoint?
 
     var body: some View {
         ZStack {
             if voice.isOpen {
                 VoiceSearchView(voice: voice)
-                    .transition(.opacity)
+                    .transition(.circleOut(from: centre))
             }
         }
+        .onChange(of: voice.isOpen) { _, open in
+            if open { origin = Self.pressed() }
+        }
+    }
+
+    private var centre: CGPoint {
+        let screen = UIScreen.main.bounds
+        let middle = CGPoint(x: screen.midX, y: screen.midY)
+        return (voice.isOpen ? Self.pressed() : origin) ?? middle
+    }
+
+    /// The button pressed a moment ago (the mic), as its middle.
+    private static func pressed() -> CGPoint? {
+        guard let face = PlayerMotion.shared.pressedCircle() else { return nil }
+        return CGPoint(x: face.midX, y: face.midY)
     }
 }
 
@@ -221,11 +244,34 @@ struct VoiceSearchLayer: View {
 struct LoadingLayer: View {
     @EnvironmentObject private var model: AppModel
     @ObservedObject var loading: LoadingModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var leaving: AnyTransition {
+        if loading.handedOff && model.showPlayer {
+            return AnyTransition.opacity.animation(.linear(duration: 0.02).delay(0.34))
+        }
+        if loading.dialHandedOff && model.showPlayer {
+            // Its picture is already flying on in the player: the rest
+            // goes quickly (150 ms).
+            return AnyTransition.opacity.animation(Motion.easeIn(0.15))
+        }
+        if loading.glide != nil || loading.dial != nil {
+            return AnyTransition.opacity.animation(Motion.easeIn(0.15))
+        }
+        return AnyTransition.opacity.animation(Motion.easeIn(0.16))
+    }
 
     var body: some View {
         if loading.visible {
+            // Round three (§643 `loader-arrives` B): in over 200 ms on
+            // `--ease-out`, out over 160 ms on `--ease-in` (the glide and
+            // the dial go in 150 ms). Handing over to the player, it stays
+            // while the player opens through it by the iris (340 ms), then
+            // goes. Reduce Motion: at once.
             LoadingView(loading: loading) { model.cancelLoading() }
-                .transition(.opacity)
+                .transition(reduceMotion ? .identity : .asymmetric(
+                    insertion: AnyTransition.opacity.animation(Motion.easeOut(0.2)),
+                    removal: leaving))
         }
     }
 }
@@ -459,7 +505,14 @@ struct MainTabs: View {
                     MiniPlayer()
                         .padding(.horizontal, 12)
                         .padding(.bottom, 8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        // Round three (§640, `mini-player` B): rises 260 ms on
+                        // `--ease-out`, drops 190 ms on `--ease-in`; at once
+                        // with Reduce Motion.
+                        .transition(reduceMotion ? .identity : .asymmetric(
+                            insertion: AnyTransition.move(edge: .bottom).combined(with: .opacity)
+                                .animation(Motion.easeOut(Motion.Dur.barIn)),
+                            removal: AnyTransition.move(edge: .bottom).combined(with: .opacity)
+                                .animation(Motion.easeIn(Motion.Dur.barOut))))
                 }
                 TabBar(tab: tabSelection, unread: social.unread,
                        mixDot: mixes.showsMixDot(signedIn: model.listener?.authenticated == true),
@@ -481,8 +534,8 @@ struct MainTabs: View {
                 })
             }
         }
-        // The bar rises from behind the tabs (260 ms) and drops (200 ms).
-        .animation(.easeOut(duration: 0.26), value: miniShown)
+        // The bar rises from behind the tabs (260 ms) and drops (190 ms).
+        .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.barIn), value: miniShown)
         .famSheet(isPresented: queueOpen) {
             QueueSheet()
                 .environmentObject(model)
@@ -590,7 +643,7 @@ struct MainTabs: View {
         .overlay {
             ZStack {
                 if let name = model.mixDone {
-                    MixDoneOverlay(name: name) {
+                    MixDoneOverlay(name: name, pictures: model.mixDonePictures) {
                         model.mixDone = nil
                         show(.myfam)
                         model.mixPath = []
@@ -651,7 +704,22 @@ struct MainTabs: View {
                 playerStage.phase = .shown
                 return
             }
-            playerStage.from = PlayerMotion.shared.growFrom()
+            // The search loader handing over opens the player by its iris
+            // (§643 `loader-to-player` C); anything else grows from the
+            // picture pressed, or is pushed in.
+            let chevrons = PlayerMotion.shared.chevrons
+            if model.loading.handedOff && !reduceMotion && chevrons != .zero {
+                playerStage.iris = CGPoint(x: chevrons.midX, y: chevrons.midY)
+                playerStage.from = nil
+            } else if model.loading.dialHandedOff && !reduceMotion,
+                      let dial = PlayerMotion.shared.dial, dial.frame != .zero {
+                // One picture: the dial's own flies on into the player.
+                playerStage.iris = nil
+                playerStage.from = dial
+            } else {
+                playerStage.iris = nil
+                playerStage.from = PlayerMotion.shared.growFrom()
+            }
             playerStage.into = nil
             playerStage.phase = .opening
             withTransaction(still) { playerCover = true }
@@ -751,28 +819,38 @@ struct TabBar: View {
                     // (`Motion.badge`).
                     ZStack {
                         if badge > 0 {
-                            // In: 0 → 1.25 → 1 over 300 ms (the badge's own
-                            // pop); out: 1 → 0 over 160 ms, easing in.
+                            // Round three (§643 `unread-badge` A): in from .7
+                            // as it fades (220 ms on `--ease-out`), out to .7
+                            // (160 ms on `--ease-in`); the number rolls.
                             TabBadge(count: badge, bumps: !reduceMotion)
-                                .transition(.asymmetric(insertion: .identity,
-                                                        removal: .scale(scale: 0.01).combined(with: .opacity)))
+                                .transition(reduceMotion ? .identity : .asymmetric(
+                                    insertion: AnyTransition.scale(scale: 0.7).combined(with: .opacity)
+                                        .animation(Motion.easeOut(0.22)),
+                                    removal: AnyTransition.scale(scale: 0.7).combined(with: .opacity)
+                                        .animation(Motion.easeIn(0.16))))
                         }
                     }
                     .offset(x: 7, y: -4)
-                    .animation(reduceMotion ? nil : .easeIn(duration: 0.16), value: badge > 0)
+                    .animation(reduceMotion ? nil : Motion.easeOut(0.22), value: badge > 0)
                 }
                 .overlay(alignment: .topTrailing) {
                     // `.tab-badge.tab-new`: a plain 9 pt copper dot, no
                     // number, ringed 2 pt in the bar's colour, top -2 right -4.
-                    if dot {
-                        Circle()
-                            .fill(FAMColor.copper)
-                            .frame(width: 9, height: 9)
-                            .padding(2)
-                            .background(FAMColor.background, in: Circle())
-                            .offset(x: 4 + 2, y: -2 - 2)
-                            .accessibilityHidden(true)
+                    // Round three (§642 `morning-dot` A): it pops on as a
+                    // count does and shrinks away when myFAM is opened.
+                    ZStack {
+                        if dot {
+                            Circle()
+                                .fill(FAMColor.copper)
+                                .frame(width: 9, height: 9)
+                                .padding(2)
+                                .background(FAMColor.background, in: Circle())
+                                .transition(.dotPop)
+                                .accessibilityHidden(true)
+                        }
                     }
+                    .offset(x: 4 + 2, y: -2 - 2)
+                    .animation(reduceMotion ? nil : Motion.easeOut(0.24), value: dot)
                 }
                 // The labels stop growing at the largest standard size, as
                 // Apple's own tab bar does - five slots cannot hold
@@ -829,45 +907,24 @@ struct TabBar: View {
 }
 
 /// `.tab-badge`: coral, at least 14 x 14, radius 7, white Geist Mono 8
-/// bold; "9+" above nine; drawn on the icon's top right.
+/// bold; "9+" above nine; drawn on the icon's top right. Round three
+/// (§643 `unread-badge` A): the number rolls up when it grows and down
+/// when it falls (300 ms on `--ease-in-out`); no pop, no bump.
 struct TabBadge: View {
     let count: Int
-    /// The count bumps when it goes up (`Motion.badge`): 1.3 at 40 %, 220 ms.
+    /// Whether the number rolls (off with Reduce Motion).
     var bumps = false
-    @State private var bump = false
-    /// The pop-in's scale (`Motion.badge`: 0, 1.25 at 60 %, 1 at 300 ms).
-    @State private var pop: CGFloat = 1
 
     var body: some View {
         label
-            .scaleEffect(bump ? 1.3 : 1)
-            .scaleEffect(pop)
-            .onAppear { popIn() }
-            .onChange(of: count) { old, new in
-                guard bumps, new > old else { return }
-                withAnimation(.easeOut(duration: 0.09)) { bump = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
-                    withAnimation(.easeOut(duration: 0.13)) { bump = false }
-                }
-            }
-    }
-
-    private func popIn() {
-        guard bumps else { return }
-        var still = Transaction()
-        still.disablesAnimations = true
-        withTransaction(still) { pop = 0.01 }
-        DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.18)) { pop = 1.25 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                withAnimation(.easeOut(duration: 0.12)) { pop = 1 }
-            }
-        }
+            .contentTransition(bumps ? .numericText(value: Double(count)) : .identity)
+            .animation(bumps ? Motion.easeInOut(Motion.Dur.roll) : nil, value: count)
     }
 
     private var label: some View {
         Text(count > 9 ? "9+" : "\(count)")
             .font(FAMFont.mono(8, bold: true))
+            .monospacedDigit()
             .foregroundStyle(Color.white)
             .padding(.horizontal, 3)
             .frame(minWidth: 14, minHeight: 14)

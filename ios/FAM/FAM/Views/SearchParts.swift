@@ -52,6 +52,32 @@ enum SearchIcons {
         return p
     }()
 
+    /// Length's dial and crown, without its hand (the hand turns on its
+    /// own when a length is chosen, round three's `bubble-ack` B).
+    static let lengthDial: Path = {
+        var p = Path()
+        p.addEllipse(in: CGRect(x: 4, y: 5, width: 16, height: 16))
+        p.move(to: CGPoint(x: 10, y: 2)); p.addLine(to: CGPoint(x: 14, y: 2))
+        return p
+    }()
+
+    /// Length's hand: `M12 9v4l2.5 2.5`, turning about (12, 13).
+    static let lengthHand: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 12, y: 9)); p.addLine(to: CGPoint(x: 12, y: 13)); p.addLine(to: CGPoint(x: 14.5, y: 15.5))
+        return p
+    }()
+
+    /// Voice's five bars one by one, so each can hop.
+    static let voiceBars: [Path] = {
+        let bars: [(CGFloat, CGFloat, CGFloat)] = [(4, 10, 14), (8, 7, 17), (12, 4, 20), (16, 8, 16), (20, 11, 13)]
+        return bars.map { b in
+            var p = Path()
+            p.move(to: CGPoint(x: b.0, y: b.1)); p.addLine(to: CGPoint(x: b.0, y: b.2))
+            return p
+        }
+    }()
+
     /// Voice: `M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2`.
     static let voice: Path = {
         var p = Path()
@@ -193,7 +219,34 @@ struct AttachChip: View {
         .frame(minHeight: 28)
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(failed ? FAMColor.coral : FAMColor.borderStrong))
+        // Being read: a 2 pt copper strip runs along its foot, 1.2 s a pass
+        // (§643's attach-chip C) - a progress indicator, so it keeps going
+        // with Reduce Motion.
+        .overlay(alignment: .bottom) {
+            if slot.pending { ReadingLine() }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9))
         .opacity(slot.pending ? 0.6 : 1)
+    }
+}
+
+/// `.attach-chip.working::after`: a copper strip the chip's width, from
+/// off its left edge to off its right, linear, over and over.
+private struct ReadingLine: View {
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let phase = t.truncatingRemainder(dividingBy: 1.2) / 1.2
+                Rectangle()
+                    .fill(FAMColor.copper)
+                    .frame(width: geo.size.width, height: 2)
+                    .offset(x: CGFloat(-1 + 2 * phase) * geo.size.width)
+            }
+        }
+        .frame(height: 2)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

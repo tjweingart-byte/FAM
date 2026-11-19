@@ -21,8 +21,8 @@ def swift(rel: str) -> str:
 
 
 def test_the_build_is_ten_or_later_and_the_same_everywhere_it_is_written():
-    # Build 11 (§681) is build 10 renumbered: App Store Connect already
-    # held a 10. The project and the registry must name the same build.
+    # Build 11 (§683): App Store Connect already held a 10, uploaded from
+    # the round-three catch-up (§681-§682). The project and the registry must name the same build.
     project = (IOS / "project.yml").read_text()
     build = re.search(r'CURRENT_PROJECT_VERSION: "(\d+)"', project)
     assert build and int(build.group(1)) >= 10

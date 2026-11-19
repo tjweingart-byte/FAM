@@ -200,12 +200,13 @@ def test_the_iphone_has_the_row_first_in_settings():
     settings = (SWIFT / "Views" / "SettingsView.swift").read_text()
     body = settings.split("var body: some View {", 1)[1]
     assert body.index("privateModeRow") < body.index("youGroup")
-    assert 'SetRow(label: "Private mode"' in settings
+    # A real switch since §645 (`SetSwitchRow`), flipped on the tap.
+    assert 'SetSwitchRow(label: "Private mode"' in settings
     assert 'savePreference(["private_mode": on])' in settings
     # The web's note, word for word.
     web = _fn("renderSettings").split('settingsSwitch("Private mode"', 1)[1]
     note = web.split('<div class="set-note">', 1)[1].split("</div>", 1)[0]
-    swift_note = settings.split('SetRow(label: "Private mode"', 1)[1].split(
+    swift_note = settings.split('SetSwitchRow(label: "Private mode"', 1)[1].split(
         'SetNote(text: "', 1)[1].split('")', 1)[0]
     # The same words; only the escapes differ (`\u2019` / `\u{2019}`).
     assert note == swift_note.replace("\\u{", "\\u").replace("}", "")

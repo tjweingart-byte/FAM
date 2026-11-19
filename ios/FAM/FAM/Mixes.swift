@@ -67,6 +67,8 @@ final class MixesModel: ObservableObject {
 
     /// Signed out: nothing of the last account stays (its face included).
     func reset() {
+        followShown = [:]
+        topicPending = [:]
         mixes = []
         state = .loading
         // The push state and the recommendations are the last account's
@@ -180,21 +182,36 @@ final class MixesModel: ObservableObject {
     }
 
     func follows(_ id: String) -> Bool {
-        categories?.mine.contains { $0.id == id } ?? false
+        // A tap not yet answered reads as it asked (§642).
+        if let shown = followShown[id] { return shown }
+        return categories?.mine.contains { $0.id == id } ?? false
     }
 
-    /// Follow or unfollow one node: the whole list sent, then read back.
+    /// Follow or unfollow tapped and not yet read back, by node.
+    @Published private(set) var followShown: [String: Bool] = [:]
+
+    /// Follow or unfollow one node (§642's category-follow): Following on
+    /// the tap, the whole list sent, put back if refused; the list is read
+    /// back afterwards without anyone waiting for it.
     func toggleFollow(_ id: String) async -> Bool {
         guard let page = categories else { return false }
         var ids = page.mine.map(\.id)
-        let adding = !ids.contains(id)
-        if adding { ids.append(id) } else { ids.removeAll { $0 == id } }
+        for (other, on) in followShown where other != id {
+            if on { if !ids.contains(other) { ids.append(other) } } else { ids.removeAll { $0 == other } }
+        }
+        let adding = !follows(id)
+        if adding { if !ids.contains(id) { ids.append(id) } } else { ids.removeAll { $0 == id } }
+        followShown[id] = adding
         do {
             try await api.followCategories(ids)
-            await loadCategories()
             say(adding ? "Added to your categories" : "Removed from your categories", nil, nil)
+            Task { @MainActor in
+                await self.loadCategories()
+                if self.followShown[id] == adding { self.followShown[id] = nil }
+            }
             return true
         } catch {
+            if followShown[id] == adding { followShown[id] = nil }
             say(Self.sentence(error, else: "Could not save that"), nil, nil)
             return false
         }
@@ -240,6 +257,25 @@ final class MixesModel: ObservableObject {
 
     func drop(_ id: String) {
         mixes.removeAll { $0.id == id }
+    }
+
+    /// A topic added or taken out on the tap and not yet answered, by
+    /// "mix|topic" (lower-cased): the rows read it first (§642).
+    @Published private(set) var topicPending: [String: Bool] = [:]
+
+    func topicShown(mix: String, topic: String) -> Bool? {
+        topicPending[mix + "|" + topic.lowercased()]
+    }
+
+    /// Add or remove one topic, shown on the tap; the last tap's answer
+    /// settles it, and a refusal puts it back (`update` says why).
+    @discardableResult
+    func setTopic(mix: String, topic: String, add: Bool) async -> Mix? {
+        let key = mix + "|" + topic.lowercased()
+        topicPending[key] = add
+        let saved = await update(mix, [add ? "add" : "remove": [topic]])
+        if topicPending[key] == add { topicPending[key] = nil }
+        return saved
     }
 
     /// Any write to a mix: the answer kept, the server's sentence said on a no.

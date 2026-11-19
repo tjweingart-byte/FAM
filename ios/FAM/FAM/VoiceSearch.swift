@@ -474,16 +474,24 @@ final class VoiceSearchModel: ObservableObject {
         }
     }
 
-    /// `stopVoiceCountdown(asButton)`: a full, still button that waits, or
-    /// an empty one.
+    /// `stopVoiceCountdown(asButton)` (§643's search-now B): a button that
+    /// waits - its fill drained from where it had got back to the pale
+    /// button over 260 ms, since stopping must not look like sending - or
+    /// an empty one at once. Reduce Motion: empty on one frame.
     func stopCount(asButton: Bool) {
+        let wasCounting = counting
         countToken += 1
         countTask?.cancel()
         countTask = nil
         counting = false
+        if asButton && wasCounting && !Motion.reduced {
+            // Retargeted from the sweep's current place (`Motion.drain`).
+            withAnimation(Motion.easeInOut(Motion.Dur.drain)) { fill = 0 }
+            return
+        }
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) { fill = asButton ? 1 : 0 }
+        withTransaction(still) { fill = 0 }
     }
 
     /// The X beside Search now: "not by itself", not "not at all".
@@ -538,6 +546,12 @@ struct VoiceSearchView: View {
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var entered = false
+    /// The rings out from the orb, one per word heard.
+    @State private var ripples: [Int] = []
+    @State private var rippleSeq = 0
+    @State private var lastRipple = Date.distantPast
+    /// Reduce Motion's stand-in: words came in the last 0.6 s.
+    @State private var hearing = false
 
     var body: some View {
         GeometryReader { geo in
@@ -571,13 +585,13 @@ struct VoiceSearchView: View {
             .padding(.bottom, 22)
         }
         .background(FAMColor.background.ignoresSafeArea())
-        .offset(y: entered ? 0 : 14)
-        .opacity(entered ? 1 : 0)
+        // The screen itself grows out of the mic (`VoiceSearchLayer`); the
+        // orb's ring settles from .9 a beat after (40 ms).
         .onAppear {
             if reduceMotion {
                 entered = true
             } else {
-                withAnimation(.easeOut(duration: 0.22)) { entered = true }
+                withAnimation(Motion.easeOut(0.3).delay(0.04)) { entered = true }
             }
         }
         .onChange(of: voice.editing) { _, now in
@@ -680,18 +694,19 @@ struct VoiceSearchView: View {
 
     private var stage: some View {
         ZStack {
-            TimelineView(.animation(paused: !voice.listening)) { context in
-                VoiceWaves(level: voice.level(at: context.date),
-                           listening: voice.listening,
-                           time: context.date.timeIntervalSinceReferenceDate,
-                           still: reduceMotion)
+            // A ripple per word heard (round three, §643 `voice-waves` B):
+            // each result - at most one every 150 ms - sends one copper ring
+            // out from the orb, 1 → 1.35 as it fades from .8, 420 ms on
+            // `--ease-out`; between words nothing moves. Reduce Motion: no
+            // rings, the orb's ring is copper while words come.
+            ForEach(ripples, id: \.self) { _ in
+                VoiceRipple()
             }
-            .frame(width: 250, height: 250)
             .allowsHitTesting(false)
             Button { voice.toggle() } label: {
                 ZStack {
                     Circle().fill(FAMColor.surface)
-                    Circle().stroke(voice.listening ? FAMColor.copper : FAMColor.text, lineWidth: 2)
+                    Circle().stroke(voice.listening || hearing ? FAMColor.copper : FAMColor.text, lineWidth: 2)
                     Glyph(path: FAMLetters.a, box: CGRect(x: 3.55, y: 4.55, width: 16.9, height: 16.9))
                         .stroke(FAMColor.copper, style: StrokeStyle(lineWidth: 40 * 2.9 / 16.9,
                                                                    lineCap: .round, lineJoin: .round))
@@ -699,11 +714,30 @@ struct VoiceSearchView: View {
                 }
                 .frame(width: 104, height: 104)
                 .contentShape(Circle())
+                .scaleEffect(entered ? 1 : 0.9)
             }
             .buttonStyle(.press)
             .accessibilityLabel(voice.markLabel)
         }
         .frame(width: 250, height: 250)
+        .onChange(of: voice.heardAt) { _, at in
+            guard at != .distantPast else { return }
+            if reduceMotion {
+                hearing = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    if Date().timeIntervalSince(voice.heardAt) >= 0.55 { hearing = false }
+                }
+                return
+            }
+            guard at.timeIntervalSince(lastRipple) >= 0.15 else { return }
+            lastRipple = at
+            rippleSeq += 1
+            let id = rippleSeq
+            ripples.append(id)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                ripples.removeAll { $0 == id }
+            }
+        }
     }
 
     // MARK: Search now
@@ -758,6 +792,25 @@ struct SearchNowFill: View {
     }
 }
 
+/// One ripple out from the orb: it grows to 1.35 as it fades from .8.
+struct VoiceRipple: View {
+    @State private var out = false
+
+    var body: some View {
+        Circle()
+            .stroke(FAMColor.copper, lineWidth: 2)
+            .frame(width: 104, height: 104)
+            .scaleEffect(out ? 1.35 : 1)
+            .opacity(out ? 0 : 0.8)
+            .onAppear {
+                withAnimation(Motion.easeOut(0.42)) { out = true }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Round two's rings, no longer drawn (round three's ripples took their
+/// place, §682); kept for reference.
 /// The rings (viewBox 250): three arcs a side and two lines under the
 /// orb, copper at width 3, unseen while nothing is heard; while words come
 /// they show at .35 + level × .65 and swell 1.1 s in and out, the outer

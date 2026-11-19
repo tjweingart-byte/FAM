@@ -391,7 +391,9 @@ def test_a_mix_plays_as_the_web_plays_it():
     assert "item.prompt.isEmpty && !item.dailyPrompt.isEmpty" in mixes
     views = "\n".join(p.read_text() for p in (SWIFT / "Views").glob("Mix*.swift"))
     assert '["topic_ids": items.map(\\.entry)]' in views
-    assert '[adding ? "add" : "remove": [topicID]]' in views
+    # Add / remove are operations, shown on the tap (§642, `setTopic`).
+    assert '[add ? "add" : "remove": [topic]]' in mixes
+    assert "mixes.setTopic(mix: id, topic: topicID, add: adding)" in views
     assert '["remove": [item.id]]' in model
     # The server's mix fields the app reads are the ones it writes.
     server = "\n".join(p.read_text() for p in ROOT.glob("*.py"))
@@ -892,7 +894,8 @@ def test_motion_matches_the_web_where_audit_4_found_it_did_not_584():
     assert ".buttonStyle(.plain)" not in _swift("Views", "FrontDoor.swift")
     assert ".transition(.identity)" in _swift("Views", "VibePosts.swift")
     motion = _swift("Motion.swift")
-    assert ".timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2).delay(0.18)" in motion
+    # Round three (§682): the fold keeps its 180 ms wait, on `--ease-in-out`.
+    assert "Motion.easeInOut(Motion.Dur.reflow).delay(Motion.Dur.rowOut)" in motion
     assert motion.count("if UIAccessibility.isReduceMotionEnabled") >= 2
     parts = _swift("Views", "SocialParts.swift")
     assert ".transition(comesAndGoes)" in parts and "if reduceMotion { return fade }" in parts
@@ -1042,3 +1045,122 @@ def test_the_tour_flag_decodes_from_the_servers_answer_594(monkeypatch):
     wrote = c.post("/api/v1/preferences", headers=auth, json={"tour_done": True}).json()
     assert wrote["tour_done"] is True
     assert c.get("/api/v1/preferences", headers=auth).json()["tour_done"] is True
+
+
+def test_the_iphone_catches_up_part_one_651():
+    """§681: round three's shared motion foundations, the deferred-commit
+    Undo line and the optimistic edits, read from the Swift source."""
+    motion = (SWIFT / "Motion.swift").read_text()
+    # The web's named tokens, one copy (`--ease-out` .32,.72,0,1 ...).
+    assert ".timingCurve(0.32, 0.72, 0, 1, duration: duration)" in motion
+    assert ".timingCurve(0.55, 0, 1, 0.45, duration: duration)" in motion
+    assert ".timingCurve(0.77, 0, 0.175, 1, duration: duration)" in motion
+    assert ".spring(duration: 0.5, bounce: 0.15)" in motion
+    assert ".spring(duration: 0.35, bounce: 0)" in motion
+    assert "static let undoLine = 5.0" in motion
+    assert "struct IconSwap<" in motion
+    # Reduced motion is all off: no 120 ms crossfade is left anywhere.
+    for path in SWIFT.rglob("*.swift"):
+        text = path.read_text()
+        assert "reduceMotion ? .easeInOut(duration: 0.12)" not in text, path.name
+        assert "reduced ? 0.12" not in text, path.name
+
+    now = (SWIFT / "NowPlaying.swift").read_text()
+    assert "func undoLine(" in now and "func flushCommit()" in now
+    assert "5_000_000_000" in now  # an action line stays five seconds
+    app = (SWIFT / "FAMApp.swift").read_text()
+    assert "model.nowPlaying.flushCommit()" in app  # the app leaving sends it
+    model = (SWIFT / "AppModel.swift").read_text()
+    assert "await nowPlaying.flushCommitBeforeSignOut()" in model
+    # Not interested and Pick up's X send their request only when the line goes.
+    ni = model.split("func notInterested(", 1)[1].split("\n    }\n", 1)[0]
+    assert "undoLine(" in ni and ni.index("undoLine(") < ni.index('"not_interested"')
+    pick = model.split("func dismissPickUp(", 1)[1].split("\n    }\n", 1)[0]
+    assert "undoLine(" in pick and "loadPickUp" not in pick
+    # A tile's save lights on the tap; a read in flight never undoes it.
+    save = model.split("func toggleSave(_ tile: Tile)", 1)[1].split("\n    }\n", 1)[0]
+    assert save.index("savedTiles.insert(key)") < save.index("try await api.saveTile")
+    assert "tileSaveSeq" in model and "tileSavePending" in model
+
+    social = (SWIFT / "Social.swift").read_text()
+    assert "func goneChat(" in social and "threadsGone" in social
+    assert '"Liked your vibe"' in social and '"Replied to your vibe: "' in social
+    assert "failed = true" in social and "sendingShown" in social
+    assert "chatMemory" in social and "func markRead(" in social
+    assert 'say("Following")' not in social and 'say("Unfollowed")' not in social
+    chat = (SWIFT / "Views" / "ChatView.swift").read_text()
+    assert "Not sent \\u{00B7} Tap to retry" in chat
+    assert "askDelete" not in chat and "askLeave" not in chat
+    assert ".opacity(line.row.pending ? 0.55 : 1)" not in chat
+
+    you = (SWIFT / "Views" / "YouParts.swift").read_text()
+    assert "struct SetSwitchRow" in you and ".accessibilityAddTraits(.isToggle)" in you
+    settings = (SWIFT / "Views" / "SettingsView.swift").read_text()
+    for label in ("Dark mode", "Keep the voice's pitch", "Private mode", "Private search",
+                  "Show my name on episodes I searched", "Big stories"):
+        assert f'SetSwitchRow(label: "{label}"' in settings, label
+    shelves = (SWIFT / "Views" / "Shelves.swift").read_text()
+    assert 'undoLine("Removed"' in shelves and 'undoLine("Vibe taken back"' in shelves
+
+    search = (SWIFT / "Views" / "SearchView.swift").read_text()
+    assert "model.loading.openEarly()" in search and "takeRestore" in search
+    assert "restoreAskedSearch()" in model
+    sheets = (SWIFT / "Views" / "PlayerSheets.swift").read_text()
+    assert "pressedLine ?? chipLine" in sheets
+
+
+def test_the_iphone_catches_up_part_two_652():
+    """§682: round three's motion on every page, read from the Swift source
+    (none of it compiled here: the Mac build is the first compile)."""
+    motion = (SWIFT / "Motion.swift").read_text()
+    views = SWIFT / "Views"
+    parts = (views / "PlayerParts.swift").read_text()
+    player = (views / "PlayerView.swift").read_text()
+    # Play / pause and the side buttons cross on the shared icon swap; the
+    # ring and the sparks are gone; the title rolls up.
+    glyph = parts[parts.index("struct PlayPauseGlyph"):][:1500]
+    assert "IconSwap(key: playing)" in glyph
+    assert "sparkOpacity" not in parts and "ringOpacity" not in parts
+    assert "Motion.easeOut(Motion.Dur.title)" in parts
+    assert "IconSwap(key: on)" in player
+    # Pictures land colour first: no blur-up left on a card or the player.
+    assert ".blur(radius: sharp ? 0 : 8)" not in player
+    assert ".blur(radius: sharp ? 0 : 8)" not in (views / "Shared.swift").read_text()
+    # The queue's arc: 360 ms, a 15 % bulge, the count rolling, no bump.
+    flight = (views / "QueueFlight.swift").read_text()
+    assert "Motion.easeInOut(Motion.Dur.flight)" in flight and "0.3 * d" in flight
+    assert "queueBump" not in player and ".numericText(value: Double(count))" in player
+    # The loader: rows rise, ticks draw with a thread, the heartbeat ring
+    # keeps pulsing under Reduce Motion, the iris into the player.
+    loading = (views / "LoadingView.swift").read_text()
+    assert ".trim(from: 0, to: done ? 1 : 0)" in loading
+    assert "struct RowRise" in loading and "static func beat(" in loading
+    assert "if reduced {" in loading and "0.35 + 0.65 * eased" in loading
+    assert "handedOff" in loading and "case none, grow, shrink, iris" in motion
+    # The five steps' timing is untouched.
+    assert "static let stepMin: TimeInterval = 2.0" in loading
+    assert "static let firstStepMin: TimeInterval = 0.5" in loading
+    # Rails arrive out of a blur, six tiles at most; Refresh deals.
+    assert "blur: 2, duration: Motion.Dur.arrive" in motion
+    daily = (views / "DailyView.swift").read_text()
+    assert "RollingText(" in daily and ".transition(.foldAway)" in daily
+    assert "dx: round > 1 ? 24 : 0" in daily
+    # Voice search grows from the mic, a ripple per word.
+    voice = (SWIFT / "VoiceSearch.swift").read_text()
+    assert "VoiceRipple()" in voice and "VoiceWaves(level:" not in voice
+    assert ".transition(.circleOut(from: centre))" in (SWIFT / "FAMApp.swift").read_text()
+    # Sheets slide from the bottom edge; modals grow from .97.
+    assert "Motion.Dur.sheetIn" in motion and "0.97" in motion
+    # The sliding underlines, the deck's deal, the drag's tilt.
+    assert "SlidingRule(" in (views / "CategoryViews.swift").read_text()
+    assert "SlidingRule(" in (views / "YouView.swift").read_text()
+    assert "fanned" in (views / "MixDeck.swift").read_text()
+    assert "dragTilt" in (views / "MixView.swift").read_text()
+    # A friend's story turns under the finger.
+    stories = (views / "Stories.swift").read_text()
+    assert "func followTurn(" in stories and "func endTurn(" in stories
+    # Page sheets and the edge swipe back.
+    assert "func pageSheetCover<" in motion and "struct EdgeSwipeBack" in motion
+    settings = (views / "SettingsView.swift").read_text()
+    assert ".pageSheetCover(isPresented: $editing)" in settings
+    assert "you.checkingPhoto = true" in settings
