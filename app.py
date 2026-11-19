@@ -9126,8 +9126,29 @@ async def my_profile_qr(request: Request):
     handle = SOCIAL.person(user).get("handle") or ""
     if not handle:
         raise HTTPException(status_code=404, detail="Choose a handle first, in Edit profile.")
-    import segno
+    return _profile_qr(handle)
+
+
+@app.get("/api/person/qr", include_in_schema=False)
+async def person_profile_qr(request: Request,
+                            handle: str = Query(..., max_length=social_mod.MAX_HANDLE + 1)):
+    """Somebody else's profile link as a QR code (§663), from their profile
+    page: to pass a friend on in person. Only for somebody this listener may
+    open (`_reachable`: not blocked either way, not suspended, not on the
+    waitlist unless already in their graph) - otherwise the same 404 as a
+    handle nobody has, so it tells nobody who exists."""
+    _read_limit(request)
+    user = _require_account(request)
+    target = _person_by_handle(handle)
+    if not target or target == user or not _reachable(user, target):
+        raise HTTPException(status_code=404, detail="No listener by that handle.")
+    return _profile_qr(SOCIAL.person(target).get("handle") or "")
+
+
+def _profile_qr(handle: str) -> Response:
+    """`APP_HOME_URL/@handle` as an SVG QR code (§661)."""
     import io
+    import segno
     out = io.BytesIO()
     segno.make(f"{settings.app_home_url}/@{handle}", error="m", micro=False).save(
         out, kind="svg", scale=8, border=2, dark="#1a1714", light=None,

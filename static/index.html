@@ -6042,9 +6042,9 @@
                onerror="this.hidden=true; toast('Could not draw your QR code')"></div>
           <div class="nf-name" id="qrHandle"></div>
           <div class="qr-url" id="qrUrl"></div>
-          <p class="qr-note">Point a phone camera at this to open your profile and follow you.</p>
+          <p class="qr-note" id="qrNote">Point a phone camera at this to open your profile and follow you.</p>
           <div class="modal-btns stack">
-            <button class="modal-btn primary" onclick="shareProfileLink()">Share your link</button>
+            <button class="modal-btn primary" id="qrShare" onclick="shareQRLink()">Share your link</button>
           </div>
         </div>
       </div>
@@ -24229,13 +24229,15 @@
             ? 'unfollowPerson(\'' + person.user_id + '\')'
             : 'followPerson(\'' + person.user_id + '\')')
         + '">' + Motion.followLabel(following) + '</button>'
+        + personQRButton(person)
         + '</div>';
     } else if(person.handle && AUTH.authenticated){
       // Opened from a friend's friends (§285): not in your graph yet, so
       // there is no id here - Follow goes by the handle.
       html += '<div class="yf-acts yf-acts-centre" data-part="acts" data-via="profile">'
         + '<button class="yf-btn follow-btn" data-act="follow" aria-pressed="false" onclick="followHandle(\''
-        + escapeHtml(person.handle) + '\')">' + Motion.followLabel(false) + '</button></div>';
+        + escapeHtml(person.handle) + '\')">' + Motion.followLabel(false) + '</button>'
+        + personQRButton(person) + '</div>';
     } else {
       html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
@@ -24714,15 +24716,51 @@
   // Your QR code (§661): the profile link for somebody in the same room -
   // they point their camera at it and land on your profile. Drawn by the
   // server (`/api/me/qr`), dark on the card's own light.
+  // Somebody else's (§663): from their profile, to pass a friend on in
+  // person - the same card, their code, their link.
+  var qrFor = null;   // { handle, name, mine }
   function openProfileQR(){
-    var url = myProfileLink();
-    if(!url){ toast("Choose a handle first, in Edit profile"); return; }
+    if(!(profileNow && profileNow.handle)){ toast("Choose a handle first, in Edit profile"); return; }
+    showQRCard({ handle: profileNow.handle, mine: true });
+  }
+  // Their QR code's square, after Follow on their page (§663).
+  function personQRButton(person){
+    return person && person.handle && AUTH.authenticated
+      ? '<button class="yf-btn yf-sq" data-act="qr" onclick="openPersonQR()" aria-label="Show their QR code">'
+        + yfIcon("qr", 16) + '</button>' : '';
+  }
+  function openPersonQR(){
+    var p = viewingProfile;
+    if(!p || !p.handle) return;
+    showQRCard({ handle: p.handle, name: p.name || "", mine: false });
+  }
+  function qrLink(q){ return ((AUTH && AUTH.home) || FAM_HOME) + "/@" + q.handle; }
+  function showQRCard(q){
+    qrFor = q;
     var img = document.getElementById("qrImg");
     img.removeAttribute("hidden");
-    img.src = "/api/me/qr?h=" + encodeURIComponent(profileNow.handle);
-    document.getElementById("qrHandle").textContent = "@" + profileNow.handle;
-    document.getElementById("qrUrl").textContent = url.replace(/^https?:\/\//, "");
+    img.src = q.mine ? "/api/me/qr?h=" + encodeURIComponent(q.handle)
+                     : "/api/person/qr?handle=" + encodeURIComponent(q.handle);
+    document.getElementById("qrHandle").textContent = "@" + q.handle;
+    document.getElementById("qrUrl").textContent = qrLink(q).replace(/^https?:\/\//, "");
+    document.getElementById("qrNote").textContent = q.mine
+      ? "Point a phone camera at this to open your profile and follow you."
+      : "Point a phone camera at this to open " + (firstName(q) || "their") + "\u2019s profile.";
+    document.getElementById("qrShare").textContent = q.mine ? "Share your link" : "Share their link";
     document.getElementById("qrOverlay").classList.add("active");
+  }
+  function shareQRLink(){
+    if(!qrFor || qrFor.mine){ shareProfileLink(); return; }
+    var url = qrLink(qrFor);
+    if(navigator.share){
+      navigator.share({ title: "FAM", text: "Follow @" + qrFor.handle + " on FAM", url: url }).catch(function(){});
+      return;
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(function(){ toast("Link copied"); }).catch(function(){ toast(url); });
+      return;
+    }
+    toast(url);
   }
   function closeProfileQR(){
     document.getElementById("qrOverlay").classList.remove("active");

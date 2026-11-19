@@ -654,3 +654,4 @@ and `limit` = Lines.
 | 39858 | 65 | 660. Five ways into the graph, from the owner's picks (2026-11-19) |
 | 39923 | 22 | 661. The profile link's QR code (2026-11-19) |
 | 39945 | 14 | 662. The QR button on YourFAM (2026-11-19) |
+| 39959 | 20 | 663. A friend's QR code, on their profile (2026-11-19) |

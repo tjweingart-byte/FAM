@@ -39955,3 +39955,23 @@ draws the same icon from `yfIcon` rather than its own copy.
 not overflow, and the tap opens the card with the code loaded; a test pins
 the button to `renderProfile`. **Not verified:** the row under the largest
 phone text sizes (`large-text`).
+
+## 663. A friend's QR code, on their profile (2026-11-19)
+
+**The owner (11.19):** "put it on a friend's profile too".
+
+**What changed:** a QR square after Follow (and Message) on anybody's
+profile (`personQRButton`, `data-act="qr"`; §645's in-place patch of that
+row leaves it where it is). It opens the same card (`showQRCard`) with their
+code, their `/@handle`, "Point a phone camera at this to open Ian's
+profile." and Share their link. The code comes from `GET /api/person/qr
+?handle=`, which draws only for somebody this listener may open
+(`_reachable`: not blocked either way, suspended or on the waitlist outside
+their graph) and answers anything else - and your own handle, which is
+`/api/me/qr` - with the 404 an unknown handle gets, so it tells nobody who
+exists. Both endpoints share `_profile_qr`.
+
+**Verified:** a test (their code byte-for-byte, unknown and own 404,
+signed out 401); on a real server at 360 px the square sits after Follow,
+stays after following, and opens the card with the code loaded. **Not
+verified:** a phone scanning it (as §661).

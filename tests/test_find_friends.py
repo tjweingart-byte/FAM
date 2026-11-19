@@ -316,3 +316,21 @@ def test_your_own_page_has_the_qr_button():
                               "static", "index.html")).read()
     body = index.split("  function renderProfile(p, o){", 1)[1].split("\n  function ", 1)[0]
     assert 'onclick="openProfileQR()"' in body and 'yfIcon("qr"' in body
+
+
+def test_a_friends_qr_code_is_their_link_and_only_for_somebody_you_may_open(client):
+    import io
+    import segno
+    signed_in(client, "ana@b.com", "Ana", "ana")
+    client.post("/api/auth/logout")
+    signed_in(client, "ben@b.com", "Ben", "ben")
+    r = client.get("/api/person/qr?handle=ana")
+    want = io.BytesIO()
+    segno.make(f"{appmod.settings.app_home_url}/@ana", error="m", micro=False).save(
+        want, kind="svg", scale=8, border=2, dark="#1a1714", light=None,
+        xmldecl=False, svgns=True, title="FAM @ana")
+    assert r.status_code == 200 and r.content == want.getvalue()
+    assert client.get("/api/person/qr?handle=nobodyhere").status_code == 404
+    assert client.get("/api/person/qr?handle=ben").status_code == 404, "your own is /api/me/qr"
+    client.post("/api/auth/logout")
+    assert client.get("/api/person/qr?handle=ana").status_code == 401
