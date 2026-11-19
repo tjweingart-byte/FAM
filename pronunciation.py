@@ -380,6 +380,21 @@ nine zeero zero
 """.split())
 
 
+def _letters_only(say: str) -> bool:
+    syllables = [p.lower() for w in say.split() for p in w.split("-") if p]
+    return bool(syllables) and all(p in _LETTER_NAMES for p in syllables)
+
+
+def _said(name: str, say: str, capitals: bool) -> str:
+    """What replaces `name` in the voice's text. A name in capitals whose
+    respelling is only its letters' names is left as it is, for
+    `spoken_text` to spell ("A S M L"): handed over as "Ay Ess Em El" the
+    owner heard ASML as "ah-ee-yes-mel" (§679)."""
+    if capitals and _letters_only(say):
+        return name
+    return voiced(say, spaced=capitals)
+
+
 def voiced(say: str, spaced: bool = False) -> str:
     """A respelling as the voice is handed it.
 
@@ -621,8 +636,8 @@ class Lexicon:
                 pattern, entries = self._pattern, self._lookup
             if pattern is None:
                 return text
-            return pattern.sub(lambda m: voiced(entries[m.group(1)][0],
-                                                spaced=m.group(1) in self._letters), text)
+            return pattern.sub(lambda m: _said(m.group(1), entries[m.group(1)][0],
+                                               m.group(1) in self._letters), text)
         except Exception:  # noqa: BLE001 - the voice still gets the words
             log.exception("pronunciation lexicon failed to apply")
             return text

@@ -246,7 +246,7 @@ def test_an_initialism_is_said_letter_by_letter(tmp_path):
     bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
     bank.learn_pronunciation("QXSC", "kyoo-ex-ess-SEE", "writer")
     lex = pronunciation.Lexicon(bank, seed=False)
-    assert lex.apply("QXSC rose") == "Kyoo Ex Ess See rose"   # joined: "Kyooexesssee"
+    assert lex.apply("QXSC rose") == "QXSC rose"   # letters: left to spoken_text (§679)
 
 
 def test_a_row_stored_the_wrong_way_round_is_never_used(tmp_path):
@@ -296,3 +296,14 @@ def test_letters_are_spaced_but_a_word_in_capitals_is_not():
 
 def test_a_real_h_after_a_real_h_is_one_h():
     assert pronunciation.voiced("shah-HED") == "Shahed"      # was "Shahhed"
+
+
+def test_an_initialism_spelled_as_letters_is_left_to_spoken_text(tmp_path):
+    """§679: "Ay Ess Em El" was heard "ah-ee-yes-mel"; spoken_text's own
+    "A S M L" is how ESPN has always been said."""
+    from spoken_text import speakable
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("ASML", "ay-ess-em-EL", "admin")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("ASML rose") == "ASML rose"
+    assert speakable(lex.apply("ASML rose")) == "A S M L rose"

@@ -40632,3 +40632,42 @@ The skill's table took Kamala's new form - its test failed on the old one,
 which is what it is for - and its open questions are now what is left
 unheard. Not verified: none of the new forms has been heard.
 
+## 679. The owner's ear, second round: letters left to spoken_text, ordinary words left alone, the check heard alone (2026-11-19)
+
+The owner played §678's suggested names on /admin after deploy. Heard right:
+Capito, Eugenie, Etihad, Premanand Maharaj, Doué, Libertad; Tehran "pretty
+good"; Raúl Torrez right "but too long of a pause". Heard wrong: Kamala "still
+a little off" (Kahmala, recogniser "kah-mah-lu"); Emery "way off", with a
+"dast" (Emaree, "dahs-tee-muhr-ray"); Gemini "terrible" (Jeminye,
+"jeh-meh-nee-eye"); Guterres "shouldn't have the sh"; Nurmagomedov "a little
+off" (Nurmahgohmeddov); Duet "off" (Doowet, "dah-u"); Fuad "way off"
+(Foowahd, "sohf-wah"); Ka'imi "should sound more like kie"; NVIDIA "em
+instead of en", stress on the last i (Envideeya); ASML "way off" (Ay Ess Em
+El, "ah-ee-yes-mel").
+
+What the round says:
+- **The /admin check plays the word alone** (`voice_check.what_is_sent`:
+  the word, no sentence), and a lone word is where this voice garbles most -
+  the "dahs-tee" before Emery is the voice inventing a start. An episode
+  always has a sentence round a name. Judged again in one ("Hear 4 ways",
+  `pronounce_review.CARRIER`) before a rule changes on a single bad word.
+- **An initialism needs no entry.** `spoken_text` already spells capitals
+  ("A S M L", §567). `_said` now leaves a capitals name whose respelling is
+  only its letters' names to it; ASML, MSCI, HSBC are "A S M L" again. A
+  capitals word it knows is said as a word: with no entry NVIDIA is
+  "Envidia". The writer's "Nvidia" joined `PLAIN`.
+- **An ordinary word respelled is worse than the word** (Gemini, Duet,
+  Emery: all three were on the audit's list of the owner's rows to remove).
+- **A hyphen is a pause** (Raúl), and **"w" after "oo" before a vowel
+  failed twice** (Duet, Fuad) while "Dooway" (Doué) worked. Two vowels
+  meeting is the open question; no rule changed on two words heard alone.
+- Guterres, Ka'imi and Kamala are the respellings themselves, not a rule:
+  they are the owner's rows. Five edits went to the owner as a file for
+  /admin's review upload (Guterres `goo-TAIR-ess`, Nurmagomedov
+  `nur-mah-goh-MED-ov`, Ka'imi `KYE ee-mee`, Fuad `FWAHD`, Kamala
+  `KAH-muh-lah`), with removing Gemini, Duet, Emery, NVIDIA and ASML.
+
+The skill now holds the whole heard table, its lessons and the warning about
+the lone-word check. Not verified: the five edits and the letters change are
+unheard.
+
