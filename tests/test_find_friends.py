@@ -287,3 +287,24 @@ def test_group_members_say_whether_you_follow_them(client):
     view = appmod._group_view(gid, me)
     assert {m["handle"]: m["following"] for m in view["members"] if not m["me"]} == {
         "ana": True, "cy": False}
+
+
+# --- §661: the profile link as a QR code ----------------------------------
+
+def test_your_qr_code_is_your_profile_link(client):
+    import io
+    import segno
+    signed_in(client, "ana@b.com", "Ana", "ana")
+    r = client.get("/api/me/qr.svg")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
+    want = io.BytesIO()
+    segno.make(f"{appmod.settings.app_home_url}/@ana", error="m", micro=False).save(
+        want, kind="svg", scale=8, border=2, dark="#1a1714", light=None,
+        xmldecl=False, svgns=True, title="FAM @ana")
+    assert r.content == want.getvalue(), "the code is not the /@ana link"
+
+
+def test_a_qr_code_needs_an_account_and_a_handle(client):
+    assert client.get("/api/me/qr.svg").status_code == 401
+    client.post("/api/auth/signup", json={"email": "nohandle@b.com", "password": "password12"})
+    assert client.get("/api/me/qr.svg").status_code == 404

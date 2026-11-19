@@ -9114,6 +9114,28 @@ async def open_profile_link(handle: str):
                             status_code=302)
 
 
+@app.get("/api/me/qr.svg", include_in_schema=False)
+async def my_profile_qr(request: Request):
+    """This listener's profile link, `APP_HOME_URL/@handle`, as a QR code
+    (§661): for meeting somebody in person, scanned by any phone's camera.
+    An SVG of dark modules on nothing, so the card it sits on is its light
+    background; error correction M, which survives a cracked or dim screen.
+    Only your own: there is no handle parameter."""
+    _read_limit(request)
+    user = _require_account(request)
+    handle = SOCIAL.person(user).get("handle") or ""
+    if not handle:
+        raise HTTPException(status_code=404, detail="Choose a handle first, in Edit profile.")
+    import segno
+    import io
+    out = io.BytesIO()
+    segno.make(f"{settings.app_home_url}/@{handle}", error="m", micro=False).save(
+        out, kind="svg", scale=8, border=2, dark="#1a1714", light=None,
+        xmldecl=False, svgns=True, title=f"FAM @{handle}")
+    return Response(content=out.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "private, max-age=300"})
+
+
 @app.get("/m/{mix_id}")
 async def open_shared_mix(mix_id: str):
     """Where a shared mix link lands: the app, opened on that mix, with the

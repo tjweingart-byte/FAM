@@ -1010,6 +1010,15 @@
   .ff-link-url{ font-family:'Geist Mono', monospace; font-size:11px; color:var(--text-muted);
     margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ff-share{ display:block; margin:14px auto 0; }
+  .ff-qr-btn{ display:inline-flex; align-items:center; gap:5px; }
+  /* The QR card (§661): always light behind the code, in both themes, so a
+     camera reads it - a dark code on a dark card is no code. */
+  .qr-card{ text-align:center; }
+  .qr-frame{ width:236px; height:236px; margin:6px auto 12px; padding:8px; border-radius:18px;
+    background:#fff; display:flex; align-items:center; justify-content:center; }
+  .qr-frame img{ width:220px; height:220px; display:block; }
+  .qr-url{ font-family:'Geist Mono', monospace; font-size:11px; color:var(--text-muted); margin-top:3px; }
+  .qr-note{ font-size:12.5px; line-height:1.45; color:var(--text-muted); margin:10px 8px 4px; }
   .ff-rail em{ font-style:normal; margin-left:6px; color:var(--text-muted); }
   .yf-btn.yf-sq{ flex:none; width:34px; padding:0; }
   #friendsFind:empty{ display:none; }
@@ -6023,6 +6032,23 @@
            whose only exit is the backdrop is a popup nothing says is
            dismissable - the same reasoning that put an X on the download
            question before that feature was removed. -->
+      <!-- Your QR code (§661): the /@handle link to scan in person. -->
+      <div class="modal-overlay" id="qrOverlay" onclick="if(event.target===this) closeProfileQR()">
+        <div class="modal-card qr-card">
+          <button class="modal-x" onclick="closeProfileQR()" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <div class="qr-frame"><img id="qrImg" alt="Your QR code" width="220" height="220" hidden
+               onerror="this.hidden=true; toast('Could not draw your QR code')"></div>
+          <div class="nf-name" id="qrHandle"></div>
+          <div class="qr-url" id="qrUrl"></div>
+          <p class="qr-note">Point a phone camera at this to open your profile and follow you.</p>
+          <div class="modal-btns stack">
+            <button class="modal-btn primary" onclick="shareProfileLink()">Share your link</button>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="followerOverlay"
            onclick="if(event.target===this) closeFollowerPopup()">
         <div class="modal-card">
@@ -24675,7 +24701,27 @@
     if(!AUTH.authenticated || !url) return "";
     return '<div class="ff-link"><div class="ff-link-words"><div class="ff-link-h">Your profile link</div>'
       + '<div class="ff-link-url">' + escapeHtml(url.replace(/^https?:\/\//, "")) + '</div></div>'
+      + '<button class="pf-btn ff-qr-btn" onclick="openProfileQR()" aria-label="Show your QR code">'
+      + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">'
+      + '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'
+      + '<path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg>QR</button>'
       + '<button class="pf-btn" onclick="shareProfileLink()">Share</button></div>';
+  }
+  // Your QR code (§661): the profile link for somebody in the same room -
+  // they point their camera at it and land on your profile. Drawn by the
+  // server (`/api/me/qr.svg`), dark on the card's own light.
+  function openProfileQR(){
+    var url = myProfileLink();
+    if(!url){ toast("Choose a handle first, in Edit profile"); return; }
+    var img = document.getElementById("qrImg");
+    img.removeAttribute("hidden");
+    img.src = "/api/me/qr.svg?h=" + encodeURIComponent(profileNow.handle);
+    document.getElementById("qrHandle").textContent = "@" + profileNow.handle;
+    document.getElementById("qrUrl").textContent = url.replace(/^https?:\/\//, "");
+    document.getElementById("qrOverlay").classList.add("active");
+  }
+  function closeProfileQR(){
+    document.getElementById("qrOverlay").classList.remove("active");
   }
   function shareProfileLink(){
     var url = myProfileLink();

@@ -39919,3 +39919,25 @@ with skips, a joined notice raised once, none from an old account, notices
 erased with an account, the profile link's redirect, group members'
 `following`). **Not verified:** a real phone scanning or tapping a `/@`
 link through the App Store app; a universal link in the iOS app (PARITY.md).
+
+## 661. The profile link's QR code (2026-11-19)
+
+**The owner (11.19):** "add segno and build the QR code" - the step §660
+left waiting.
+
+**What changed:** `segno==1.6.6` (pure Python, no dependencies) in
+`requirements.txt`. `GET /api/me/qr.svg` draws this listener's own
+`APP_HOME_URL/@handle` (§660) as an SVG - no handle parameter, so nobody
+else's code can be asked for; 401 without an account, 404 without a handle;
+dark modules (#1a1714) on nothing, scale 8, quiet zone 2, error correction
+M. "Your profile link" on the Friends page gains a QR button that opens a
+card (`#qrOverlay`): the code on a white frame in either theme (a camera
+cannot read a dark code on a dark card), the handle, the link, "Point a phone
+camera at this to open your profile and follow you", and Share your link.
+
+**Verified:** two tests - the endpoint's SVG is byte-for-byte segno's code
+for the expected `/@ana` URL, and the account and handle gates; the card
+photographed on a real server with the image loaded. **Not verified:** a
+phone actually scanning it. Nothing here decodes a QR code (Chromium on
+Linux has no `BarcodeDetector`), so the code's content rests on segno and on
+the URL test; one scan with a phone camera settles it.
