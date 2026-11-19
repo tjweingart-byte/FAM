@@ -39939,3 +39939,23 @@ Tests for each are in `test_billing_656.py`, `test_apple_iap_657.py` and
 3. **The card after each episode waited on a round trip** to
    `/api/entitlements` on the iPhone (§660). Kept a minute
    (`FAMAPI.asksCapped`), as the web keeps it.
+
+## 662. Interest pills on a profile open nothing (2026-11-19)
+
+The owner, with screenshots of YourFAM and the "INTEREST - Concerts" screen
+a pill opened: "When you click on one of the interests groups in someone's
+profile, they shouldn't go into anything. There is no reason for that."
+
+The Topic screen behind each pill (§95's "a Topic screen behind every
+interest chip") was a door to a grid that said little about the person -
+the Concerts screen held William and Kate and Trump's Asia trip. So the pill
+is now a label: `<span class="yf-chip label">` with `cursor:default`, no
+onclick, on your own page (`openInterestAt` deleted), a friend's page
+(`openPersonInterest` deleted) and the chat header (`openThreadInterest`
+deleted); `interestChipsHTML` lost its `opener` argument. The empty state
+("Add interests in Edit profile") stays a button - it has an editor behind it.
+`openTopic` and its screen stay for the other places that open it.
+The iOS app did the same (`InterestChipButton` on YourFAM, a person's page
+and the chat header); it is deleted and the three draw `InterestChip`.
+No Swift compiler here - the next Xcode build is its check.
+`tests/test_interest_labels_662.py` pins it.

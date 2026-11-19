@@ -653,3 +653,4 @@ and `limit` = Lines.
 | 39865 | 37 | 659. The billing branch reviewed: ten fixes (2026-11-18) |
 | 39902 | 23 | 660. The billing branch reviewed again: three more (2026-11-18) |
 | 39925 | 18 | 661. A third look at the billing branch: three more (2026-11-18) |
+| 39943 | 20 | 662. Interest pills on a profile open nothing (2026-11-19) |

@@ -191,7 +191,7 @@ struct ChatScreen: View {
             if !who.group && !chipLabels.isEmpty {
                 FlowRow(spacing: 7) {
                     ForEach(person?.topics ?? [], id: \.self) { topic in
-                        InterestChipButton(topic: topic) { social.open(.topic($0)) }
+                        InterestChip(label: topic.label)  // a label, never a door (§662)
                     }
                     if inCommon > 0 {
                         InterestChip(label: "\(inCommon) in common", common: true)

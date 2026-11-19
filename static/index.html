@@ -3562,6 +3562,7 @@
     align-items:center; font-family:inherit; font-size:11px; color:var(--text);
     background:none; border:1px solid var(--border-strong); cursor:pointer;
     white-space:nowrap; }
+  .yf-chip.label{ cursor:default; }
   .yf-chip.common{ border-color:var(--copper); color:var(--copper); cursor:default; }
   .yf-chip.muted{ color:var(--text-muted); font-style:italic; }
   /* Interests on a profile: a label, then one line of pills that scrolls
@@ -21755,13 +21756,13 @@
     // Interests as one line under the two buttons (9.30 #4, reversing the
     // 9.29 packet's "none on your own page"): a label and a row of pills that
     // scrolls sideways, so five interests cost one line rather than a
-    // wrapping block. Each opens that interest's Topic screen; they are
-    // changed in Edit profile. A friend's page draws the same row.
+    // wrapping block. A pill is a label, not a door (§662): tapping one
+    // opens nothing. They are changed in Edit profile. A friend's page draws the same row.
     yfInterests = (p.interests_shown || []).slice(0, p.interests_max || 5);
     html += interestLineHTML(yfInterests.length
       ? yfInterests.map(function(row, i){
-          return '<button class="yf-chip" data-pill="' + escapeHtml(String(row.label).toLowerCase())
-            + '" onclick="openInterestAt(' + i + ')">' + escapeHtml(row.label) + '</button>';
+          return '<span class="yf-chip label" data-pill="' + escapeHtml(String(row.label).toLowerCase())
+            + '">' + escapeHtml(row.label) + '</span>';
         }).join("")
       : '<button class="yf-chip muted" data-pill="" onclick="editIdentity()">Add interests in Edit profile</button>',
       "interests");
@@ -22179,13 +22180,9 @@
     return { circle: kept.circle.map(bare), me: bare(kept.me) };
   }
 
-  //: The interests the hub's pills were drawn from, so a tap can open the
-  //: Topic screen for the right one without putting free text in an onclick.
+  //: The interests the hub's pills were drawn from. A pill is a label and
+  //: opens nothing (§662).
   var yfInterests = [];
-  function openInterestAt(i){
-    var row = yfInterests[i];
-    if(row) openTopic(row.id, row.label);
-  }
   // "Interests" and one sideways-scrolling line of pills: your page and a
   // friend's draw it the same way (9.30 #4).
   function interestLineHTML(pills, part){
@@ -24107,14 +24104,14 @@
       html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
 
-    // Their interests, as chips that open the Topic screen - only to a
+    // Their interests, as labels that open nothing (§662) - only to a
     // follower (§638): to anybody else the server sends none and `locked`.
     // Their line is kept from the first frame, three empty pills in it,
     // and closes (under the buttons) when there are none to show you.
     personLocked = !!pub.locked;
     personInterests = interestRows(pub);
     var pills = "";
-    if(!personLocked) pills = published ? interestChipsHTML(personInterests, "openPersonInterest") : "";
+    if(!personLocked) pills = published ? interestChipsHTML(personInterests) : "";
     html += '<div class="yf-int-room' + (published && !pills ? ' closed' : '') + '" data-part="interests"><div>'
       + interestLineHTML(published ? (pills || '<span></span>')
           : '<span class="yf-chip reserve" aria-hidden="true"></span><span class="yf-chip reserve" aria-hidden="true"></span>'
@@ -24315,11 +24312,6 @@
   function togglePersonMore(which){
     personShowAll[which] = !personShowAll[which];
     if(viewingProfile) renderFriendProfile(viewingProfile, personPublished);
-  }
-
-  function openPersonInterest(i){
-    var row = personInterests[i];
-    if(row) openTopic(row.id, row.label);
   }
 
   function openPersonMenu(){
@@ -25769,17 +25761,12 @@
         threadInterests = interestRows(d);
         if(!threadInterests.length){ close(); return; }
         var el = document.getElementById("threadChips");
-        el.innerHTML = interestChipsHTML(threadInterests, "openThreadInterest");
+        el.innerHTML = interestChipsHTML(threadInterests);
         Array.prototype.forEach.call(el.children, function(chip, i){
           if(i < 8) Motion.fadeUp(chip, Motion.DUR.colour, 0, 1, i * Motion.DUR.stagger);
         });
       })
       .catch(close);
-  }
-
-  function openThreadInterest(i){
-    var row = threadInterests[i];
-    if(row) openTopic(row.id, row.label);
   }
 
   // Their chips, plus "N in common" against this listener's own - a count of
@@ -25789,16 +25776,17 @@
     var labels = (published && published.interest_labels) || [];
     return labels.map(function(label, i){ return { id: ids[i] || label, label: label }; });
   }
-  function interestChipsHTML(rows, opener){
+  // Each chip is a label, never a door (§662): there is nothing behind an
+  // interest on somebody's page worth a screen.
+  function interestChipsHTML(rows){
     if(!rows.length) return "";
     var mine = {};
     ((profileNow && profileNow.interests_shown) || []).forEach(function(r){
       mine[String(r.label).toLowerCase()] = true;
     });
     var common = rows.filter(function(r){ return mine[String(r.label).toLowerCase()]; }).length;
-    return rows.map(function(row, i){
-        return '<button class="yf-chip" onclick="' + opener + '(' + i + ')">'
-          + escapeHtml(row.label) + '</button>';
+    return rows.map(function(row){
+        return '<span class="yf-chip label">' + escapeHtml(row.label) + '</span>';
       }).join("")
       + (common ? '<span class="yf-chip common">' + common + ' in common</span>' : '');
   }
