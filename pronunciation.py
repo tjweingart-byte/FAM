@@ -317,8 +317,12 @@ def _joined(word: str) -> str:
                               and out[-2:-1] in "aeiou"
                               and not out.endswith(tuple(_KEEP_H))) else ""
         if part[:1] == "h":
-            if marked:
+            if marked == "uh" and not stressed:
+                out = out[:-2] + "a" + part     # "muh-HAH" -> "mahah" (§678)
+            elif marked:
                 out = out[:-1] + part           # "doh" + "hah" -> "dohah"
+            elif out[-1:] == "h":
+                out += part[1:]                 # "shah" + "hed" -> "shahed"
             elif out[-1:] in "aeiou" or not (out[-1:] + "h") in _DIGRAPHS:
                 out += part
             else:
@@ -340,8 +344,11 @@ def _joined(word: str) -> str:
                 else:
                     out = out[:-1] + part
             elif marked == "uh":
-                # Just before the stress, or opening the word ("about").
-                if (raw[i].isupper() or out == "uh") and part[:1] not in "wyh":
+                # An unstressed "uh" is the schwa, which English writes "a"
+                # ("about", "Kamala"). Joined as "uh" the voice read it "oo":
+                # the owner heard "KAH-muh-luh" ("Kahmuhluh") as
+                # "kah-moo-lu" (§678). Not before w or y ("aw", "ay").
+                if part[:1] not in "wyh":
                     out = out[:-2] + "a" + part
                 else:
                     out += part
@@ -355,7 +362,22 @@ def _joined(word: str) -> str:
             out = _glide(out, part)
         else:
             out += part
+    # A word's last syllable, an unstressed "uh", is "a" too: "luh" was heard
+    # "lu" (§678). A one-syllable word ("duh") is left alone.
+    if len(raw) > 1 and raw[-1].islower() and out.endswith("uh") \
+            and out[-3:-2] not in ("", "a", "e", "i", "o", "u"):
+        out = out[:-2] + "a"
     return re.sub(r"([a-z])\1\1+", r"\1\1", out)
+
+
+#: The names of the letters (and of digits), as a respelling writes them: a
+#: name in capitals respelled only in these is an initialism (§678).
+_LETTER_NAMES = frozenset("""
+ay a bee see dee ee eff ef jee aych aitch eye i jay kay el ell em en oh o pee
+kyoo cue ar arr ess es tee yoo you vee dubbuhlyoo dubbulyoo ex eks why zee zed
+wun won too to tree three for fore five fyv six sevven seven ate eight ayt nyn
+nine zeero zero
+""".split())
 
 
 def voiced(say: str, spaced: bool = False) -> str:
@@ -370,10 +392,12 @@ def voiced(say: str, spaced: bool = False) -> str:
     owner heard every respelled name as choppy - so a word is handed over
     whole ("Sahgahpohlooteleh"), as the words it learned from are written.
     """
-    if spaced:
+    syllables = [p.lower() for w in say.split() for p in w.split("-") if p]
+    if spaced and syllables and all(p in _LETTER_NAMES for p in syllables):
         # An initialism ("MSCI" = em-ess-see-EYE) is letters, said one by
-        # one: joined it was "Emessseeeye" (§677). Each syllable a word.
-        words = [p.lower() for w in say.split() for p in w.split("-") if p]
+        # one: joined it was "Emessseeeye" (§677). Each syllable a word - but
+        # only letters' names: "NVIDIA" = en-VID-ee-uh is a word (§678).
+        words = syllables
     else:
         words = [_joined(w) for w in say.split()]
     return " ".join(w[:1].upper() + w[1:] for w in words if w)

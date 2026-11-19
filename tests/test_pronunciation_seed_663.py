@@ -63,7 +63,7 @@ def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
 
 def test_an_h_after_a_vowel_keeps_its_hyphen():
     assert pronunciation.voiced("doh-hah") == "Dohah"
-    assert pronunciation.voiced("muh-HOHMZ") == "Muhohmz"
+    assert pronunciation.voiced("muh-HOHMZ") == "Mahohmz"
     assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootelleh"
     assert pronunciation.voiced("mat-hew") == "Mat-hew"
 
@@ -91,7 +91,7 @@ def test_an_admin_can_replace_xi(tmp_path):
 
 def test_accented_spellings_and_hyphenated_names_match(tmp_path):
     _, lex = _lex(tmp_path)
-    assert lex.apply("Erdoğan met al-Qaeda's") == "Airdohwahn met al-Kyduh's"
+    assert lex.apply("Erdoğan met al-Qaeda's") == "Airdohwahn met al-Kyda's"
 
 
 def test_a_short_vowel_before_a_consonant_doubles_it_and_loses_its_h():
@@ -101,7 +101,7 @@ def test_a_short_vowel_before_a_consonant_doubles_it_and_loses_its_h():
     assert v("ih-RAHN") == "Irrahn"
     assert v("teh-RAHN") == "Terahn"     # unstressed: no doubling (§677)
     assert v("zeh-LEN-skee") == "Zelenskee"
-    assert v("muh-HOHMZ") == "Muhohmz"          # an h after a vowel keeps its hyphen
+    assert v("muh-HOHMZ") == "Mahohmz"          # an h after a vowel keeps its hyphen
     assert v("at-ih-KOH-kan") == "Atikohkan"      # k is not doubled, the h still goes
     assert v("ih-SHAH") == "Ishah"                # nor a digraph
 
@@ -110,7 +110,7 @@ def test_an_unstressed_uh_is_written_a_as_english_writes_it():
     v = pronunciation.voiced
     assert v("ab-dul-kuh-REEM") == "Abdulkareem"
     assert v("uh-DAH-nee") == "Adahnee"           # not "Uddahnee", stress pulled forward
-    assert v("uh-DAP-tuh-vist") == "Adaptuhvist"   # after the stress: as written (§677)
+    assert v("uh-DAP-tuh-vist") == "Adaptavist"   # every unstressed uh is a (§678)
     assert v("MUH-ham-mad") == "Muhammad"         # the mark goes, the h stays (§677)
 
 
@@ -274,3 +274,25 @@ def test_the_audit_data_loads_and_every_respelling_is_clean():
     for name, say in pronunciation._AUDITED.items():
         assert pronunciation.clean(name, say), name
         assert name not in pronunciation.PLAIN, name
+
+
+# The owner's ear (§678).
+
+def test_every_unstressed_uh_is_written_a():
+    """"KAH-muh-luh" handed over as "Kahmuhluh" was heard "kah-moo-lu"."""
+    v = pronunciation.voiced
+    assert v("KAH-muh-luh") == "Kahmala"
+    assert v("GAH-zuh") == "Gahza"
+    assert v("PRAY-muh-nund muh-hah-RAHJ") == "Praymanund Mahahrahj"
+    assert v("kuh-WY") == "Kuhwy"                  # not "aw"
+    assert v("duh") == "Duh"                       # one syllable: left
+
+
+def test_letters_are_spaced_but_a_word_in_capitals_is_not():
+    v = pronunciation.voiced
+    assert v("ay-ess-em-EL", spaced=True) == "Ay Ess Em El"
+    assert v("en-VID-ee-uh", spaced=True) == "Envideeya"     # NVIDIA is a word
+
+
+def test_a_real_h_after_a_real_h_is_one_h():
+    assert pronunciation.voiced("shah-HED") == "Shahed"      # was "Shahhed"

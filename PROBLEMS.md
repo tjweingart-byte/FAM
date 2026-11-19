@@ -40605,3 +40605,30 @@ through `voiced`, so it cannot describe a voice the code no longer produces.
 sound; "hear all" on /admin after deploy is the check, and the three open
 questions in the skill are what to listen for.
 
+## 678. The owner's ear: Iran right, Kamala "kah-moo-lu" - every unstressed "uh" is "a" (2026-11-19)
+
+The owner listened after §677 deployed: "Ih-RAHN sounds right. Kamala sounds
+like kah-moo(like a cow)-luh, it should be kah-muh-lah. Does not sound
+breathy though." The recogniser had said the opposite of both: "eef-rahn"
+for Iran, "said as meant, 83%" for Kamala. The ear wins (§325: the
+recogniser's verdict is a hint).
+
+So §677's open question 1 is answered, not as asked: an "uh" after the
+stress is not breathed but read as the "u" of "mu" - "moo". Every unstressed
+"uh" is now written "a", as English writes that vowel, including a word's
+last syllable: "KAH-muh-luh" -> "Kahmala", "GAH-zuh" -> "Gahza",
+"uh-DAP-tuh-vist" -> "Adaptavist", "muh-hah-RAHJ" -> "Mahahrahj". Not before
+w or y ("Kuhwy", not "aw"), and a one-syllable word is left. Question 2 is
+answered too: "Irrahn" is right.
+
+The names picked for the owner to check turned up two more:
+- *"NVIDIA" (`en-VID-ee-uh`) was spaced as letters*, "En Vid Ee Uh" - §677
+  spaced every name in capitals. Now only a respelling made wholly of
+  letters' names (`_LETTER_NAMES`) is spaced: NVIDIA is "Envideeya", ASML
+  still "Ay Ess Em El".
+- *"shah-HED" was "Shahhed"*: a real h before an h syllable is one h.
+
+The skill's table took Kamala's new form - its test failed on the old one,
+which is what it is for - and its open questions are now what is left
+unheard. Not verified: none of the new forms has been heard.
+
