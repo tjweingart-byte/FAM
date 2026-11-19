@@ -133,6 +133,33 @@ SEED = {
 #: the seed, an admin's fix, "Hear 4 ways" and the review upload alike.
 _SHORT_SEED = frozenset({"Xi"})
 
+
+def _audited() -> tuple[dict, frozenset]:
+    """The audit of the owner's whole list (§677), kept as data beside the
+    pronouncing dictionary: respellings a reviewer read and corrected, and
+    names the voice reads right as written."""
+    import json
+    import os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "pronounce_data", "audited.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return dict(data.get("respell") or {}), frozenset(data.get("plain") or ())
+    except (OSError, ValueError):
+        log.exception("pronunciation: %s could not be read", path)
+        return {}, frozenset()
+
+
+_AUDITED, PLAIN = _audited()
+#: `PLAIN`: well-known names and ordinary words a model respelled for no gain
+#: ("Detroit" was "Ditroyt", "Vietnam" "Veeetnahm"). No model's, seed's or
+#: Wikipedia's respelling is used for them - only an admin's - and a model's
+#: line for one is not learned. The audit corrected the rest into the seed.
+SEED.update(_AUDITED)
+for _name in PLAIN:
+    SEED.pop(_name, None)
+
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
 RELOAD_SECONDS = 60.0
@@ -165,13 +192,23 @@ will may june april august mark grace bill rich hope rose may jack art
 """.split())
 
 
+#: A "name" that is itself a respelling ("pah-EE-tah"): rows where a model put
+#: the two the wrong way round, so the respelling replaced the real name and
+#: the real name was never respelled (§677).
+_LOOKS_RESPELLED = re.compile(r"^[a-z]+(?:-[A-Za-z]+)*-[A-Z]{2,}(?:-[A-Za-z]+)*$|^[A-Z]{2,}-[a-z]+(?:-[A-Za-z]+)*$")
+
+
+def looks_respelled(name: str) -> bool:
+    return any(_LOOKS_RESPELLED.match(w) for w in (name or "").split())
+
+
 def clean(name: str, say: str) -> Optional[tuple[str, str]]:
     """(name, respelling) when both look like what they claim to be, else None."""
     name = re.sub(r"\s+", " ", (name or "").strip().strip("\"'“”"))
     say = re.sub(r"\s+", " ", (say or "").strip().strip("\"'“”.,;"))
     if not name or not say or not (_NAME.match(name) or _CODE.match(name)) or not _SAY.match(say):
         return None
-    if not any(c.isupper() for c in name):
+    if not any(c.isupper() for c in name) or looks_respelled(name):
         return None
     if name.lower() in _COMMON or (len(name.replace(" ", "")) < 3
                                    and name not in _SHORT_SEED):
@@ -196,7 +233,48 @@ _SHORT_VOWELS = frozenset(("ih", "eh"))
 _CAPS_SOURCES = frozenset(("admin", "seed", "wikipedia"))
 #: Endings whose h is a real sound, not a vowel's mark ("shah", "pooh").
 _KEEP_H = frozenset(("shah",))
-_DOUBLES = frozenset("bdfglmnprst")
+_DOUBLES = frozenset("bdfglmnprstz")
+
+
+#: A short vowel's marking h *inside* one syllable, before a consonant of
+#: that syllable ("behr", "tuhn", "sihr"). The voice says that h: the owner
+#: heard Libertad's "lee-behr-TAHD" as "luh-bay-her-tahd" (§676). "ah" and
+#: "oh" are left: "-rahn" and "-tahd" were heard right.
+_INSIDE = re.compile(r"(ih|eh|uh)(?=[b-df-gj-np-tv-z])")
+#: Before an r, the vowel as English spells that sound: "ehr" is "air"
+#: (Bushehr, Becerra), "ihr" is "ir" (sir), "uhr" is "er" (Azerbaijan).
+_BEFORE_R = {"eh": "ai", "ih": "i", "uh": "e"}
+
+
+def _inside(syllable: str) -> str:
+    """One syllable with a short vowel's inner h taken out (§676): "behr"
+    -> "bair", "sihr" -> "sir", "tuhn" -> "tun", "lehs" -> "less"."""
+    def fix(m: re.Match) -> str:
+        vowel, rest = m.group(1), syllable[m.end():]
+        if rest[:1] == "r":
+            return _BEFORE_R[vowel]
+        out = vowel[0]
+        # A hard g stays hard before e or i ("gehs" -> "ghes", not "jes").
+        if vowel[0] in "ei" and syllable[m.start() - 1:m.start()] == "g":
+            out = "h" + out
+        # A word's last "s" after a short vowel is doubled, or "les" is "lay".
+        if rest == "s":
+            out += "s"
+        return out
+    return _INSIDE.sub(fix, syllable)
+
+
+def _glide(base: str, part: str) -> str:
+    """Two vowels meeting where syllables join, kept two syllables the way
+    English writes it (§677): a y after e or i ("Veeyetnahm", not
+    "Veeetnahm"), a w after o or u ("Sheezoowohkah"); after an a, a hyphen,
+    which English has no glide for ("Ahja-erroh")."""
+    last = base[-1:]
+    if last in "ei":
+        return base + "y" + part
+    if last in "ou":
+        return base + "w" + part
+    return base + "-" + part
 
 
 def _joined(word: str) -> str:
@@ -205,48 +283,82 @@ def _joined(word: str) -> str:
 
     `word` keeps its capitals, which mark the stressed syllable; what comes
     back is lower case. A syllable's closing h only marks its vowel ("ih",
-    "eh", "uh", "ah", "oh"), and joined it is a sound the voice breathes:
-    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§664). So
-    where a marked vowel meets the next syllable inside a word:
+    "eh", "uh", "ah", "oh"), and joined it is a sound the voice says:
+    "ih-RAHN" handed over as "Ihrahn" was heard as "eef-rahn" (§664). The
+    full audit of the owner's list (§677) settled where a syllable meets the
+    next one:
 
-    * a short "ih" or "eh" loses its h, and the consonant after it doubles
-      where English doubles one to keep a vowel short ("Irrahn", as in
-      irritate; "Terrahn"; "Zellenskee"), else just loses its h;
-    * an unstressed "uh" - the schwa - is written "a", as English writes it
-      ("ab-dul-kuh-REEM" -> "Abdulkareem", "uh-DAH-nee" -> "Adahnee"):
-      doubled, it drew the stress ("Uddahnee");
-    * any marked vowel before another vowel loses its h and keeps a hyphen,
-      or the h is said ("ah-jah-EH-roh" was "Ahjahehroh").
+    * a stressed short "ih", "eh" or "uh" loses its h and the consonant
+      after it doubles, as English keeps a stressed vowel short ("BREH-mee"
+      -> "Bremmee", "NUH-kulz" -> "Nuckulz"); so does a word's first "ih",
+      which bare would be "eye" ("ih-RAHN" -> "Irrahn"). Doubled anywhere
+      else it pulled the stress onto itself ("dih-TROYT" was "Dittroyt",
+      "zeh-LEN-skee" "Zellenskee"), so an unstressed one only loses its h
+      ("Detroyt", "Zelenskee", "Miliband");
+    * an unstressed "uh" just before the stressed syllable, or opening the
+      word, is written "a", as English writes that schwa
+      ("ab-dul-kuh-REEM" -> "Abdulkareem", "uh-bih-SHAYK" -> "Abishayk");
+      after the stress an "a" made a new stressed vowel ("Kahmaluh"), so
+      there it is left as it was written;
+    * a marked vowel before a syllable that starts with h loses its mark,
+      not the h ("doh-HAH" -> "Dohah", "moh-HAH-med" -> "Mohahmed"): a
+      hyphen there chopped the word ("Netunyah-hoo");
+    * two vowels meeting get a glide, not a hyphen (`_glide`);
+    * three of one letter in a row become two ("Grosssee" -> "Grossee").
     """
     raw = [p for p in word.split("-") if p]
-    parts = [p.lower() for p in raw]
+    parts = [_inside(p.lower()) for p in raw]
     if not parts:
         return ""
     out = parts[0]
     for i, part in enumerate(parts[1:], 1):
-        meet = out[-1:] + part[:1]
-        # An h after a vowel or an h is swallowed when joined ("doh-hah" ->
-        # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§663).
-        if meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh"):
-            out += "-" + part
-            continue
+        stressed = raw[i - 1].isupper()
         marked = out[-2:] if (out[-1:] == "h" and out[-2:-1]
                               and out[-2:-1] in "aeiou"
                               and not out.endswith(tuple(_KEEP_H))) else ""
+        if part[:1] == "h":
+            if marked:
+                out = out[:-1] + part           # "doh" + "hah" -> "dohah"
+            elif out[-1:] in "aeiou" or not (out[-1:] + "h") in _DIGRAPHS:
+                out += part
+            else:
+                out += "-" + part               # "mat-hew": not a th
+            continue
+        if (out[-1:] + part[:1]) in _DIGRAPHS:
+            out += "-" + part
+            continue
         if marked and part[:1] in "aeiou":
-            out = out[:-1] + "-" + part
-        elif marked in _SHORT_VOWELS and part[:2] not in _DIGRAPHS:
-            out = out[:-1] + (part[:1] if part[:1] in _DOUBLES else "") + part
-        elif marked == "uh" and not raw[i - 1].isupper() and part[:2] not in _DIGRAPHS:
-            out = out[:-2] + "a" + part
-        elif marked in _SHORT_VOWELS or marked == "uh":
-            out = out[:-1] + part           # before a digraph: the h only
+            out = _glide(out[:-1], part)
+        elif marked in ("ih", "eh", "uh") and part[:2] not in _DIGRAPHS:
+            first_ih = i == 1 and out == "ih"     # the word starts "ih"
+            if stressed or first_ih:
+                single = part[1:2] in "aeiouy" and part[1:2] != ""
+                if part[:1] == "k" and single:
+                    out = out[:-1] + "c" + part
+                elif part[:1] in _DOUBLES and single:
+                    out = out[:-1] + part[:1] + part
+                else:
+                    out = out[:-1] + part
+            elif marked == "uh":
+                # Just before the stress, or opening the word ("about").
+                if (raw[i].isupper() or out == "uh") and part[:1] not in "wyh":
+                    out = out[:-2] + "a" + part
+                else:
+                    out += part
+            else:
+                out = out[:-1] + part
+        elif marked in ("ih", "eh"):
+            out = out[:-1] + part               # before a digraph: the h only
+        elif marked:
+            out += part                         # "ah", "oh": heard right
+        elif out[-1:] in "aeiou" and part[:1] in "aeiou":
+            out = _glide(out, part)
         else:
             out += part
-    return out
+    return re.sub(r"([a-z])\1\1+", r"\1\1", out)
 
 
-def voiced(say: str) -> str:
+def voiced(say: str, spaced: bool = False) -> str:
     """A respelling as the voice is handed it.
 
     Lower case, a capital only on each word's first letter, and each word's
@@ -258,7 +370,12 @@ def voiced(say: str) -> str:
     owner heard every respelled name as choppy - so a word is handed over
     whole ("Sahgahpohlooteleh"), as the words it learned from are written.
     """
-    words = [_joined(w) for w in say.split()]
+    if spaced:
+        # An initialism ("MSCI" = em-ess-see-EYE) is letters, said one by
+        # one: joined it was "Emessseeeye" (§677). Each syllable a word.
+        words = [p.lower() for w in say.split() for p in w.split("-") if p]
+    else:
+        words = [_joined(w) for w in say.split()]
     return " ".join(w[:1].upper() + w[1:] for w in words if w)
 
 
@@ -286,7 +403,7 @@ def _cleaned(pairs: Iterable) -> list[tuple[str, str]]:
         except (KeyError, TypeError, ValueError):
             continue
         pair = clean(str(name), str(say))
-        if pair:
+        if pair and pair[0] not in PLAIN:
             out.append(pair)
     return out
 
@@ -326,6 +443,7 @@ class Lexicon:
         self._pattern: Optional[re.Pattern] = None
         #: `_entries` plus each name's capitals (`_compile`): what `apply` matches.
         self._lookup: dict[str, tuple[str, str]] = {}
+        self._letters: frozenset = frozenset()
         self._loaded = 0.0
         #: name -> (say, source, expires): respellings from personal episodes,
         #: in this process only and never in the table. See `hold`.
@@ -375,6 +493,9 @@ class Lexicon:
                     caps[upper] = value
         lookup.update(caps)
         self._lookup = lookup
+        #: Names that are capitals in their own right (not a name's capitals
+        #: variant): "MSCI", "HSBC" - handed over a syllable a word (§677).
+        self._letters = frozenset(n for n in entries if n.isupper() and " " not in n)
         names = sorted(lookup, key=len, reverse=True)
         self._pattern = (re.compile(
             # A hyphen is a boundary, so "Keawe" is found in "Jaron-Keawe";
@@ -452,6 +573,10 @@ class Lexicon:
         with self._lock:
             self._stored = {}
             for row in rows:
+                if looks_respelled(row["name"]):
+                    continue        # stored the wrong way round (§677)
+                if row["name"] in PLAIN and row.get("source") != "admin":
+                    continue        # read right as written (§677)
                 for n, s in _split(row["name"], row["say"]):
                     self._stored[n] = (s, row["source"])
             self._compile()
@@ -472,7 +597,8 @@ class Lexicon:
                 pattern, entries = self._pattern, self._lookup
             if pattern is None:
                 return text
-            return pattern.sub(lambda m: voiced(entries[m.group(1)][0]), text)
+            return pattern.sub(lambda m: voiced(entries[m.group(1)][0],
+                                                spaced=m.group(1) in self._letters), text)
         except Exception:  # noqa: BLE001 - the voice still gets the words
             log.exception("pronunciation lexicon failed to apply")
             return text

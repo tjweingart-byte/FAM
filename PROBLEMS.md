@@ -40516,3 +40516,92 @@ nothing posted is stored.
 Tests: `tests/test_build10_find_friends_ios.py`. **Not verified here:** no
 Xcode in this container - the Swift compiles in `ios.yml`; the Contacts
 prompt, the QR scanning and the layout at large text want a phone.
+
+## 676. An h inside a syllable: Libertad heard as "luh-bay-her-tahd" (2026-11-19)
+
+The owner played Libertad on /admin (`lee-behr-TAHD`, their own row) and the
+voice said "luh-bay-her-tahd" ("This actually sounds way off ... Could this
+explain some of the continued mispronunciations"). It does: a short vowel's
+marking h *inside* one syllable, before that syllable's consonant ("behr"),
+is said - "be-her" - the same breathed h as §664's Iran, inside a syllable
+rather than between two. §664 left these 14 entries of the owner's export to
+hand respelling (13 seeded); every model will keep writing more.
+
+`_inside` now mends each syllable before joining: "eh", "ih", "uh" before a
+consonant of the same syllable lose the h - before an r as English spells the
+sound ("behr" -> "bair", "sihr" -> "sir", "uhr" -> "er"), otherwise the bare
+vowel ("tuhn" -> "tun"), a g before e or i kept hard ("gehs" -> "ghess"), and
+a final "s" after the vowel doubled ("lehs" -> "less", not French "les").
+"ah" and "oh" are left: both clips heard "-rahn" and "-tahd" right, and 249
+entries use them. Libertad now reaches the voice as "Leebairtahd" without
+the owner's edit; the export has 0 entries with a breathed h left (395 at
+§664's start). Unheard, like the rest: /admin's "hear all" is the check.
+
+## 677. The whole pronunciation list audited, the joining rules redone, and a rulebook (2026-11-19)
+
+The owner: "Read through the whole list and check for problems like this.
+Especially the new changes. Run a full audit", then: "I want to create a
+rulebook that is stored so a new branch can be informed on how chatterbox
+pronounces different things and can write and edit new pronunciations
+correctly" - "make it a skill, and open the PR when done".
+
+**The audit.** The owner's export (1,781 entries) plus the seed, 1,842 rows,
+517 of them voiced differently since §664, split four ways and read row by
+row by four separate agents, each given the code and the heard evidence
+("Ihrahn" -> "eef-rahn", "Leebehrtahd" -> "luh-bay-her-tahd", "-rahn" and
+"-tahd" right) and judging only the text the voice is handed. 407 findings
+(42 high, 202 medium, 163 low). All four found, independently, that §664's
+own doubling was wrong.
+
+**The rules, redone (`_joined`, `_glide`):**
+- *Doubling only on a stressed syllable* (and a word opening "ih", Iran):
+  unstressed, the doubled consonant took the stress - "dih-TROYT" was
+  "Dittroyt", "zeh-LEN-skee" "Zellenskee", "MIL-ih-band" "Millibband",
+  "JEM-ih-nye" "Jeminnye". Never before a cluster ("Jibbrawltar"); a k
+  doubles as ck ("Nuckulz").
+- *An unstressed "uh"* is "a" just before the stress or opening the word
+  ("Abdulkareem", "Abishayk"); after the stress it is left as written - "a"
+  there made a new stressed vowel ("Kahmaluh"). Open question for the ear.
+- *Before a syllable starting with h* the vowel's mark goes, not the h, and
+  no hyphen: "Dohah", "Mohahmed", "Netunyahoo", "Muhammad" (§663's hyphen
+  chopped them: "Netunyah-hoo").
+- *Vowels meeting* get a glide - y after e/i, w after o/u ("Veeyetnahm" for
+  "Veeetnahm", "Sheezoowohkah", "Bowen"); after an a, a hyphen.
+- *Never three of one letter* ("Grosssee").
+- *A name in capitals of its own* ("HSBC") is handed over a syllable a word,
+  "Aych Ess Bee See", not "Aitchessbeesee".
+- *A row stored the wrong way round* ("troo-HEE-yoh" = Trujillo; three more)
+  is refused by `clean` and skipped by `reload` (`looks_respelled`).
+
+**The data (`pronounce_data/audited.json`).** `respell`: 126 corrected
+respellings of model and seed rows, merged into `SEED` (Ghislaine, Thomas
+Tuchel, Antetokounmpo's spellings, Shizuoka, initialisms spaced, Guayaquil,
+Callao and Trujillo the right way round...). `plain`: 193 names the voice
+reads right as written - Detroit, Vietnam, LeBron, Peru, Selena Gomez,
+Costa (which fired on every Contra Costa) - `pronunciation.PLAIN`: no
+model's, seed's or Wikipedia's respelling is used for them and a model's
+line for one is not learned; an admin's still is. Seeds dropped on the
+auditors' advice (Chipotle, Doha, Taipei, Mahomes...); Iran, Iraq and their
+forms, Venezuela and Caribbean kept (the owner's).
+
+**The owner's own rows.** 40 corrections and 25 removals the auditors
+proposed for admin rows are not applied - an admin's respelling is never
+replaced by code. They went to the owner as a file for /admin's review
+upload and a list to remove.
+
+After all of it, re-run over the export: 1,646 entries still respelled; none
+hands the voice a short vowel's h before a consonant except an "uh" after
+the stress (left, above); no triple letters; no three-vowel runs; 18 hyphens,
+each a digraph or an a meeting a vowel.
+
+**The rulebook** is a project skill, `.claude/skills/pronunciation/SKILL.md`:
+what the voice is given and in what order, the format, every joining rule
+with an example, when to leave a name plain, initialisms, sources and
+precedence, the /admin tools, the open questions for the ear, and a checklist.
+`tests/test_skill_pronunciation_677.py` runs every example in its table
+through `voiced`, so it cannot describe a voice the code no longer produces.
+
+**Not verified.** Nothing here was heard. The auditors judged spelling, not
+sound; "hear all" on /admin after deploy is the check, and the three open
+questions in the skill are what to listen for.
+
