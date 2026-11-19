@@ -39975,3 +39975,26 @@ exists. Both endpoints share `_profile_qr`.
 signed out 401); on a real server at 360 px the square sits after Follow,
 stays after following, and opens the card with the code loaded. **Not
 verified:** a phone scanning it (as §661).
+
+## 664. Square corners behind every card on a phone (2026-11-19)
+
+**The owner (11.19), on §663's QR card:** "The corners look weird" - the
+screenshot showed the page's light background at all four corners, outside
+the dimming.
+
+**Cause:** `.modal-overlay`, `.sheet-overlay` and `.fam-loading` are
+rounded 34px to sit inside the phone drawn on a desktop screen. At phone
+width (`max-width:520px`) that drawing is turned off and the screen is
+square, but the overlays kept their radius, so every card, sheet and the
+loading screen let the page show through at the corners. Older than this
+packet; the QR card only made it obvious.
+
+**What changed:** inside the phone-width block, `body .modal-overlay, body
+.sheet-overlay, body .fam-loading{ border-radius:0; }` - `body` because
+the rounded rule comes later in the file and won at equal specificity (the
+first try measured 34px still). Also: a friend's QR card named them by
+handle ("iansol's profile") when the page was opened by handle; it now
+takes the name `/api/person` returned, as the page does.
+
+**Verified:** computed radius 0px at 390 px and 34px on the 800 px desktop
+frame; photographed; "Ian's profile" read off the card.

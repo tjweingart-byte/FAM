@@ -655,3 +655,4 @@ and `limit` = Lines.
 | 39923 | 22 | 661. The profile link's QR code (2026-11-19) |
 | 39945 | 14 | 662. The QR button on YourFAM (2026-11-19) |
 | 39959 | 20 | 663. A friend's QR code, on their profile (2026-11-19) |
+| 39979 | 23 | 664. Square corners behind every card on a phone (2026-11-19) |

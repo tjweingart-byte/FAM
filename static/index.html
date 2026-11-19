@@ -274,6 +274,10 @@
     .phone::before{ display:none; }
     .frame{ border-radius:0; }
     .statusbar > *{ display:none; }
+    /* The dimming behind a card is rounded to fit the drawn phone's
+       bezel; on a real one the screen is square, and the rounded corners
+       let the page show through at all four (§664). */
+    body .modal-overlay, body .sheet-overlay, body .fam-loading{ border-radius:0; }
   }
   .splash{
     position:absolute; top:var(--sb-h); left:0; right:0; bottom:0; z-index:500;
@@ -24732,7 +24736,10 @@
   function openPersonQR(){
     var p = viewingProfile;
     if(!p || !p.handle) return;
-    showQRCard({ handle: p.handle, name: p.name || "", mine: false });
+    // The name the page shows: a profile opened by handle has it only in
+    // what `/api/person` returned.
+    var name = (personPublished && personPublished.name) || p.name || "";
+    showQRCard({ handle: p.handle, name: name, mine: false });
   }
   function qrLink(q){ return ((AUTH && AUTH.home) || FAM_HOME) + "/@" + q.handle; }
   function showQRCard(q){
