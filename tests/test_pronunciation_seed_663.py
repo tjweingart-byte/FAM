@@ -307,3 +307,15 @@ def test_an_initialism_spelled_as_letters_is_left_to_spoken_text(tmp_path):
     lex = pronunciation.Lexicon(bank, seed=False)
     assert lex.apply("ASML rose") == "ASML rose"
     assert speakable(lex.apply("ASML rose")) == "A S M L rose"
+
+
+def test_nvidia_has_one_reading_in_every_spelling(tmp_path):
+    """§680, the owner: NVIDIA "is the main reason we started the
+    pronunciations list it was super inconsistent ... we want structure".
+    Every spelling a script uses reaches the voice the same way."""
+    from spoken_text import speakable
+    _, lex = _lex(tmp_path)
+    said = {speakable(lex.apply(w + " rose")) for w in ("NVIDIA", "Nvidia", "nVidia")}
+    assert said == {"Envidia rose"}   # heard "perfect" by the owner
+    assert speakable(lex.apply("Nvidia's chips")) == "Envidia's chips"
+    assert "Nvidia" not in pronunciation.PLAIN

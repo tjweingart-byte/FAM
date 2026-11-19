@@ -115,6 +115,13 @@ SEED = {
     "Leclerc": "luh-KLAIR", "Draisaitl": "DRY-sy-tul",
     # Companies and products in markets stories
     "Huawei": "WAH-way", "Xiaomi": "SHOW-mee", "Hyundai": "HUN-day",
+    # NVIDIA - the name the list was started for (the owner: "it was super
+    # inconsistent ... we want structure on that one", §680). One reading
+    # for every spelling: "Nvidia" here, "NVIDIA" by its capitals (a seed is
+    # matched in capitals), "nVidia" below. "Envidia" is the reading the
+    # owner heard as "perfect"; "Envideeya" (`en-VID-ee-uh`) was heard
+    # "em-vu-dee-ah", stressed on the last i (§680).
+    "Nvidia": "en-VID-ia", "nVidia": "en-VID-ia",
     "Porsche": "POR-shuh", "Chipotle": "chih-POHT-lay", "Wegovy": "wee-GOH-vee",
     # Respelled by hand (§664): a model's entry kept a vowel-marking h inside
     # one syllable ("beh-SEHR-ah", "rohd-REE-gehs"), which no joining rule
