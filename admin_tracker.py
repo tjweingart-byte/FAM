@@ -823,7 +823,7 @@ RECIPES: list[Recipe] = [
     Recipe("mixes", "How many mixes are there?",
            (r"\b(mix|mixes|playlist)s?\b",),
            _simple("SELECT COUNT(*) FROM mixes.mixes WHERE 1 = 1", "Mixes", "created_at")),
-    # §660: which way into the graph works - contacts, suggestions, the
+    # §669: which way into the graph works - contacts, suggestions, the
     # sign-up step ("signup_..."), and the rest.
     Recipe("follow_sources", "Where did follows come from this week?",
            (r"\bfollows?\b", r"\b(where|from|source|sources|came|via)\b"),

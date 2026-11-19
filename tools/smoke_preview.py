@@ -168,7 +168,7 @@ def main() -> int:
             page.evaluate("saveIdentity()")
 
             # Find your friends comes between who you are and what you like
-            # (§656): skippable, and never a dead end.
+            # (§665): skippable, and never a dead end.
             page.wait_for_selector("#screen-findfriends.active", timeout=10000)
             assert page.query_selector("#screen-findfriends .entry-skip, "
                                        "#screen-findfriends [onclick*='afterFindFriends']"), \

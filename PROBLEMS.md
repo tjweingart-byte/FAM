@@ -39738,7 +39738,7 @@ sections are §654 and §655 and every reference it added was renumbered;
 `tests/test_ahead_batched_654.py`.
 
 
-## 656. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18)
+## 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18)
 
 **The owner's ask (11.18, with a screenshot of Instagram's profile):** make
 adding friends easier and have the app direct people to it - a "your
@@ -39788,7 +39788,7 @@ YourFAM's Discover people, the Friends page, and the row after Follow.
 (not built); whether the step raises follows - there is no event for it.
 
 
-## 657. Mutuals on every profile, three looks for the owner (2026-11-18)
+## 666. Mutuals on every profile, three looks for the owner (2026-11-18)
 
 **The owner's ask (11.18, a message thread with the Instagram screenshot):**
 "when you view someone's profile, whether you follow them or not, it still
@@ -39813,7 +39813,7 @@ following; nobody unfollowed named); the three looks photographed on a
 real server. **Owed:** the owner's pick, then the other two looks deleted.
 
 
-## 658. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18)
+## 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18)
 
 **The owner's ask (11.18):** "These 2 are good. When people are following
 each other and view each others accounts, it should also show the mutuals.
@@ -39829,9 +39829,9 @@ marks, titled with the person's name rather than "listened" - and
 `mutualsWords` writes "Followed by **Brady**, **Ian**, and 45 others" (two
 names: "A and B"; one: "A"). It is the `mutuals` part, placed straight after
 the Follow / Message row and left-aligned, so it shows on a friend's page as
-on anybody's; Suggested for you (§656) now opens under it.
+on anybody's; Suggested for you (§665) now opens under it.
 
-**A bug the full check found (§656):** `./dev.sh check` passed its 7,983
+**A bug the full check found (§665):** `./dev.sh check` passed its 7,983
 tests and failed four browser smoke checks. Two were the smoke's own
 expectation (interests straight after identity); it now waits for
 `#screen-findfriends`, asserts there is a way past it, and goes on. Two were
@@ -39845,20 +39845,20 @@ other with five mutuals: four faces, "Followed by Eli, Dana, and 3 others",
 under Follow on the left. **Not verified:** the full check is re-run below
 in the commit that carries this.
 
-## 659. No follow-back nudge (2026-11-19)
+## 668. No follow-back nudge (2026-11-19)
 
-**The owner (11.19), on §656's brainstorm:** "dont add the follow back
+**The owner (11.19), on §665's brainstorm:** "dont add the follow back
 nudge". The idea (item 3) was a prompt to follow somebody back after they
 opened an episode you sent, or followed you. It was never built; this
 records that it is not to be, at `rule:find-friends`. What already exists
 is unchanged: Discover cards may say "Follows you" as their reason and
-list those people first (§656). That is a suggestion's reason, not a
+list those people first (§665). That is a suggestion's reason, not a
 prompt, and stays unless the owner says otherwise.
 
-## 660. Five ways into the graph, from the owner's picks (2026-11-19)
+## 669. Five ways into the graph, from the owner's picks (2026-11-19)
 
-**The owner (11.19), on §656's brainstorm:** "do 1, 2, not 3, 4, not 5, not
-6, 7, 8, 9" - and earlier "dont add the follow back nudge" (§659), "keep the
+**The owner (11.19), on §665's brainstorm:** "do 1, 2, not 3, 4, not 5, not
+6, 7, 8, 9" - and earlier "dont add the follow back nudge" (§668), "keep the
 follows you cards".
 
 **What changed:**
@@ -39880,7 +39880,7 @@ follows you cards".
   friends. A slot (`#friendsRailFind`) in the rail's markup, painted by
   `paintFriendsRailFind` after every draw and whenever the friends list or
   suggestions arrive, so the rails' redraw test is unchanged.
-- **2, "Molly just joined FAM".** FAM keeps nobody's address book (§656), so
+- **2, "Molly just joined FAM".** FAM keeps nobody's address book (§665), so
   the one direction it can know is the newcomer's. When an account under a
   week old finds people in its contacts, each of them who does not follow it
   gets one notice: `joined_notices` holds the pair and the time, never a
@@ -39894,7 +39894,7 @@ follows you cards".
 - **8, Follow all in a group.** A group's members sheet offers "Follow all
   N" (or "Follow Ana") for the members not followed; `members[].following`
   says which. It, and contacts' Follow all, use the new `POST
-  /api/friends/follow-all` (up to 50, one `_rate_limit`): **§656's contacts
+  /api/friends/follow-all` (up to 50, one `_rate_limit`): **§665's contacts
   Follow all sent a follow per person and the fourth was refused by the
   pace**, a bug found here.
 - **7, a profile link.** `/@handle` redirects to `/?person=<handle>`; the
@@ -39920,14 +39920,14 @@ erased with an account, the profile link's redirect, group members'
 `following`). **Not verified:** a real phone scanning or tapping a `/@`
 link through the App Store app; a universal link in the iOS app (PARITY.md).
 
-## 661. The profile link's QR code (2026-11-19)
+## 670. The profile link's QR code (2026-11-19)
 
-**The owner (11.19):** "add segno and build the QR code" - the step §660
+**The owner (11.19):** "add segno and build the QR code" - the step §669
 left waiting.
 
 **What changed:** `segno==1.6.6` (pure Python, no dependencies) in
 `requirements.txt`. `GET /api/me/qr` draws this listener's own
-`APP_HOME_URL/@handle` (§660) as an SVG - no handle parameter, so nobody
+`APP_HOME_URL/@handle` (§669) as an SVG - no handle parameter, so nobody
 else's code can be asked for; 401 without an account, 404 without a handle;
 dark modules (#1a1714) on nothing, scale 8, quiet zone 2, error correction
 M. "Your profile link" on the Friends page gains a QR button that opens a
@@ -39942,13 +39942,13 @@ phone actually scanning it. Nothing here decodes a QR code (Chromium on
 Linux has no `BarcodeDetector`), so the code's content rests on segno and on
 the URL test; one scan with a phone camera settles it.
 
-## 662. The QR button on YourFAM (2026-11-19)
+## 671. The QR button on YourFAM (2026-11-19)
 
 **The owner (11.19):** "put the QR button on YourFAM too".
 
 **What changed:** a square QR button (`yfIcon("qr")`) after the add-person
 square beside Edit profile and Saved for Later, for an account with a
-handle; it opens §661's card (`openProfileQR`). The Friends page's QR button
+handle; it opens §670's card (`openProfileQR`). The Friends page's QR button
 draws the same icon from `yfIcon` rather than its own copy.
 
 **Verified:** on a real server at 360 and 390 px wide the row of four does
@@ -39956,7 +39956,7 @@ not overflow, and the tap opens the card with the code loaded; a test pins
 the button to `renderProfile`. **Not verified:** the row under the largest
 phone text sizes (`large-text`).
 
-## 663. A friend's QR code, on their profile (2026-11-19)
+## 672. A friend's QR code, on their profile (2026-11-19)
 
 **The owner (11.19):** "put it on a friend's profile too".
 
@@ -39974,11 +39974,11 @@ exists. Both endpoints share `_profile_qr`.
 **Verified:** a test (their code byte-for-byte, unknown and own 404,
 signed out 401); on a real server at 360 px the square sits after Follow,
 stays after following, and opens the card with the code loaded. **Not
-verified:** a phone scanning it (as §661).
+verified:** a phone scanning it (as §670).
 
-## 664. Square corners behind every card on a phone (2026-11-19)
+## 673. Square corners behind every card on a phone (2026-11-19)
 
-**The owner (11.19), on §663's QR card:** "The corners look weird" - the
+**The owner (11.19), on §672's QR card:** "The corners look weird" - the
 screenshot showed the page's light background at all four corners, outside
 the dimming.
 

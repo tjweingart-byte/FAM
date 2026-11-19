@@ -50,7 +50,7 @@ def _function(name: str) -> str:
 def test_find_new_friends_is_a_pill_with_a_plus():
     # YourFAM's copy went with the §341 hero (its friends number opens the
     # same page); myFAM's friends rail keeps the pill.
-    # Painted into the rail's slot since §660 (`friendsRailFindHTML`).
+    # Painted into the rail's slot since §669 (`friendsRailFindHTML`).
     assert 'id="friendsRailFind"' in _function("renderMyFamFeed")
     body = _function("friendsRailFindHTML")
     assert re.search(r'class="yf-find" onclick="openFriends\(\)">\'\s*\+ yfIcon\("plus"', body)

@@ -44,7 +44,7 @@ def test_go_deeper_is_yellow_and_in_capitals():
 
 def test_the_friends_rail_offers_find_new_friends():
     body = _fn("renderMyFamFeed")
-    # The way to find friends is a slot the rail always ends in (§660),
+    # The way to find friends is a slot the rail always ends in (§669),
     # painted by `friendsRailFindHTML`: the same pill as YourFAM's, opening
     # the same page - or, under three follows, a card with Find friends.
     assert 'id="friendsRailFind"' in body

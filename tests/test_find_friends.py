@@ -1,4 +1,4 @@
-"""Finding friends (§656): your contacts on FAM, and "Suggested for you"."""
+"""Finding friends (§665): your contacts on FAM, and "Suggested for you"."""
 from __future__ import annotations
 
 import os
@@ -154,7 +154,7 @@ def test_the_row_under_follow_is_only_for_somebody_you_follow(client):
     assert after["people"][0]["following"] is False
 
 
-# --- mutuals on a profile (§657) ------------------------------------------
+# --- mutuals on a profile (§666) ------------------------------------------
 
 def test_a_profile_says_who_you_follow_follows_them_whether_or_not_you_do(client):
     signed_in(client, "ian@b.com", "Ian", "ian")
@@ -186,7 +186,7 @@ def test_nobody_you_do_not_follow_is_named_a_mutual(client):
     assert client.get("/api/person?handle=ian").json()["mutuals"] == {"count": 0, "people": []}
 
 
-# --- §660: where follows come from, Follow all, "just joined", /@handle ---
+# --- §669: where follows come from, Follow all, "just joined", /@handle ---
 
 def test_a_follow_remembers_where_it_was_tapped(graph):
     graph.follow("me", "a", via="contacts")
@@ -289,7 +289,7 @@ def test_group_members_say_whether_you_follow_them(client):
         "ana": True, "cy": False}
 
 
-# --- §661: the profile link as a QR code ----------------------------------
+# --- §670: the profile link as a QR code ----------------------------------
 
 def test_your_qr_code_is_your_profile_link(client):
     import io
@@ -311,7 +311,7 @@ def test_a_qr_code_needs_an_account_and_a_handle(client):
 
 
 def test_your_own_page_has_the_qr_button():
-    """§662: beside the add-person square on YourFAM, opening §661's card."""
+    """§671: beside the add-person square on YourFAM, opening §670's card."""
     index = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                               "static", "index.html")).read()
     body = index.split("  function renderProfile(p, o){", 1)[1].split("\n  function ", 1)[0]

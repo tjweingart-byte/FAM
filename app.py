@@ -3528,7 +3528,7 @@ async def account_unlink(request: Request,
     return {"ok": bool(removed), "removed": removed}
 
 
-#: The most one "Follow all" follows (§660) - a group is smaller, and a
+#: The most one "Follow all" follows (§669) - a group is smaller, and a
 #: contacts list past this is followed in a second tap.
 FOLLOW_ALL_MAX = 50
 
@@ -3540,7 +3540,7 @@ class FollowRequest(BaseModel):
 
     handle: str = Field("", max_length=social_mod.MAX_HANDLE + 1)
     user_id: str = Field("", max_length=64)
-    # Where the Follow was tapped (§660), one of `social.FOLLOW_VIA`;
+    # Where the Follow was tapped (§669), one of `social.FOLLOW_VIA`;
     # anything else is kept as "". Never who - only which door.
     via: str = Field("", max_length=32)
 
@@ -3909,12 +3909,12 @@ async def person_profile(request: Request,
     }
 
 
-#: How many mutuals `/api/person` names (§657); `count` is all of them.
+#: How many mutuals `/api/person` names (§666); `count` is all of them.
 MUTUALS_SHOWN = 30
 
 
 def _person_mutuals(me: str, target: str) -> dict:
-    """"Followed by Cooper, Molly and 4 others" (§657, the owner's ask):
+    """"Followed by Cooper, Molly and 4 others" (§666, the owner's ask):
     the people **this listener follows** who follow `target`, on every
     profile they open, whether or not they follow `target` themselves.
 
@@ -3990,7 +3990,7 @@ async def people_search(request: Request,
 
 
 def _discoverable(user: str, people: list[dict]) -> list[dict]:
-    """`people` as discovery may show them to `user` (§656): nobody blocked
+    """`people` as discovery may show them to `user` (§665): nobody blocked
     either way or suspended, nobody still on the waitlist - the same
     boundary `/api/people` keeps - each with whether `user` follows them."""
     people = _without_apart(user, people)
@@ -4010,7 +4010,7 @@ def _discoverable(user: str, people: list[dict]) -> list[dict]:
 async def friends_suggested(request: Request,
                             handle: str = Query("", max_length=social_mod.MAX_HANDLE + 1),
                             user_id: str = Query("", max_length=64)) -> dict:
-    """"Suggested for you" (§656).
+    """"Suggested for you" (§665).
 
     With `handle` (or a `user_id` from this listener's own graph): the
     people that person follows, for the row that opens under Follow on
@@ -4036,7 +4036,7 @@ async def friends_suggested(request: Request,
             "around": bool(around)}
 
 
-#: The most address-book entries one `/api/friends/contacts` reads (§656).
+#: The most address-book entries one `/api/friends/contacts` reads (§665).
 CONTACTS_MAX = 2000
 
 
@@ -4052,7 +4052,7 @@ class ContactsRequest(BaseModel):
 
 @app.post("/api/friends/contacts")
 async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
-    """"Your contacts on FAM" (§656): which of the contacts the listener
+    """"Your contacts on FAM" (§665): which of the contacts the listener
     picked have an account, to follow from sign-up's Find your friends step
     and the Friends page.
 
@@ -4084,7 +4084,7 @@ async def friends_contacts(req: ContactsRequest, request: Request) -> dict:
 
 
 def _tell_contacts_you_joined(user: str, found: list[dict]) -> None:
-    """"Molly just joined FAM" (§660), for the people a new account found
+    """"Molly just joined FAM" (§669), for the people a new account found
     in its contacts and does not hear from yet. FAM keeps nobody's address
     book, so this is the one direction it can know: the newcomer has your
     number or address. Only for an account under `JOINED_NOTICE_NEW` old,
@@ -4105,7 +4105,7 @@ def _tell_contacts_you_joined(user: str, found: list[dict]) -> None:
 
 @app.get("/api/friends/joined")
 async def friends_joined(request: Request) -> dict:
-    """Who joined FAM and has this listener in their contacts (§660), each
+    """Who joined FAM and has this listener in their contacts (§669), each
     once: a notice is deleted when its card goes up
     (`POST /api/friends/joined/seen`), so an app closed before it could show
     one shows it next time. Only somebody discovery would show (a handle,
@@ -4131,7 +4131,7 @@ class JoinedSeenRequest(BaseModel):
 
 @app.post("/api/friends/joined/seen")
 async def friends_joined_seen(req: JoinedSeenRequest, request: Request) -> dict:
-    """The "just joined" card went up (§660): forget the notice. Only this
+    """The "just joined" card went up (§669): forget the notice. Only this
     listener's own notice can be dropped - the pair is keyed on them."""
     _read_limit(request)
     user = _require_account(request)
@@ -4161,7 +4161,7 @@ async def friends_follow(req: FollowRequest, request: Request) -> dict:
 
 
 class FollowAllRequest(BaseModel):
-    """Follow several at once (§660): "Follow all" on your contacts, or on
+    """Follow several at once (§669): "Follow all" on your contacts, or on
     the people in a group chat. By handle or by an id the server gave out,
     exactly as one follow is."""
 
@@ -4313,7 +4313,7 @@ def _group_view(gid: str, me: str, known: Optional[dict] = None) -> dict:
                         # of it; the others may not be (§520).
                         "friend": uid != me and _mutual(me, uid),
                         # Whether this listener follows them: what the
-                        # members sheet's Follow all counts (§660).
+                        # members sheet's Follow all counts (§669).
                         "following": uid != me and SOCIAL.is_following(me, uid)})
     others = [m for m in members if not m["me"]]
     name = group.get("name") or ", ".join(
@@ -9101,7 +9101,7 @@ async def mix_card(mix_id: str, request: Request) -> Response:
 
 @app.get("/@{handle}")
 async def open_profile_link(handle: str):
-    """A profile's own link, `familiarize.net/@handle` (§660): for meeting
+    """A profile's own link, `familiarize.net/@handle` (§669): for meeting
     somebody in person - texted, or read off a screen. Like a mix link it is
     the app, opened on that profile (`/?person=`); whether the handle is
     anybody, and whether the asker may see them, is `/api/person`'s to say,
@@ -9117,7 +9117,7 @@ async def open_profile_link(handle: str):
 @app.get("/api/me/qr", include_in_schema=False)
 async def my_profile_qr(request: Request):
     """This listener's profile link, `APP_HOME_URL/@handle`, as a QR code
-    (§661): for meeting somebody in person, scanned by any phone's camera.
+    (§670): for meeting somebody in person, scanned by any phone's camera.
     An SVG of dark modules on nothing, so the card it sits on is its light
     background; error correction M, which survives a cracked or dim screen.
     Only your own: there is no handle parameter."""
@@ -9132,7 +9132,7 @@ async def my_profile_qr(request: Request):
 @app.get("/api/person/qr", include_in_schema=False)
 async def person_profile_qr(request: Request,
                             handle: str = Query(..., max_length=social_mod.MAX_HANDLE + 1)):
-    """Somebody else's profile link as a QR code (§663), from their profile
+    """Somebody else's profile link as a QR code (§672), from their profile
     page: to pass a friend on in person. Only for somebody this listener may
     open (`_reachable`: not blocked either way, not suspended, not on the
     waitlist unless already in their graph) - otherwise the same 404 as a
@@ -9146,7 +9146,7 @@ async def person_profile_qr(request: Request,
 
 
 def _profile_qr(handle: str) -> Response:
-    """`APP_HOME_URL/@handle` as an SVG QR code (§661)."""
+    """`APP_HOME_URL/@handle` as an SVG QR code (§670)."""
     import io
     import segno
     out = io.BytesIO()

@@ -278,7 +278,7 @@ def test_the_friends_page_invites_new_users():
     assert "Invite new users" in screen
     # Both "Find new friends" pills open this page.
     assert "openFriends()" in _fn("renderProfile")
-    # myFAM's is painted into the rail's slot (§660).
+    # myFAM's is painted into the rail's slot (§669).
     assert 'id="friendsRailFind"' in _fn("renderMyFamFeed")
     assert "openFriends()" in _fn("friendsRailFindHTML")
 

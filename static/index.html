@@ -276,7 +276,7 @@
     .statusbar > *{ display:none; }
     /* The dimming behind a card is rounded to fit the drawn phone's
        bezel; on a real one the screen is square, and the rounded corners
-       let the page show through at all four (§664). */
+       let the page show through at all four (§673). */
     body .modal-overlay, body .sheet-overlay, body .fam-loading{ border-radius:0; }
   }
   .splash{
@@ -963,7 +963,7 @@
   .fr-note{ font-size:11px; line-height:1.5; color:var(--text-faint);
     padding:0 2px 6px; }
 
-  /* Mutuals on a profile (§657, §658): a dailyFAM tile's faces, four of
+  /* Mutuals on a profile (§666, §667): a dailyFAM tile's faces, four of
      them, and who - on the left, right under Follow. */
   .mu-line{ display:flex; align-items:center; gap:8px; margin:12px 0 0; padding:2px 0;
     background:none; border:0; font:inherit; font-size:12.5px; color:var(--text-muted);
@@ -972,7 +972,7 @@
   .mu-words{ line-height:1.35; min-width:0; }
   .mu-line .friend-face{ width:24px; height:24px; font-size:9px; }
   .mu-line .src-marks .src-mark{ border-color:var(--bg); }
-  /* Finding friends (§656): "Suggested for you" cards, Instagram's - a
+  /* Finding friends (§665): "Suggested for you" cards, Instagram's - a
      face, a name, why, Follow, and an X - in a row that scrolls sideways. */
   .sg-wrap{ display:grid; grid-template-rows:0fr; opacity:0; }
   .sg-wrap > *{ min-height:0; overflow:hidden; }
@@ -1006,7 +1006,7 @@
   .ff-invite{ margin-top:22px; }
   .ff-again{ display:block; margin:6px auto 0; }
   .fr-from{ font-size:11px; color:var(--text-muted); margin-top:3px; }
-  /* Your profile link (§660), at the top of the Friends page. */
+  /* Your profile link (§669), at the top of the Friends page. */
   .ff-link{ display:flex; align-items:center; gap:12px; padding:12px 14px; margin:4px 0 6px;
     border-radius:14px; border:1px solid var(--border); background:var(--surface, rgba(255,255,255,.05)); }
   .ff-link-words{ flex:1; min-width:0; }
@@ -1015,7 +1015,7 @@
     margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .ff-share{ display:block; margin:14px auto 0; }
   .ff-qr-btn{ display:inline-flex; align-items:center; gap:5px; }
-  /* The QR card (§661): always light behind the code, in both themes, so a
+  /* The QR card (§670): always light behind the code, in both themes, so a
      camera reads it - a dark code on a dark card is no code. */
   .qr-card{ text-align:center; }
   .qr-frame{ width:236px; height:236px; margin:6px auto 12px; padding:8px; border-radius:18px;
@@ -3655,7 +3655,7 @@
   /* The same pill under myFAM's friends rail (10.1 #2). */
   .feed-find{ display:flex; margin:10px 0 0; }
   .feed-find:empty{ display:none; }
-  /* The friends rail while it is nearly empty (§660): a card with who to
+  /* The friends rail while it is nearly empty (§669): a card with who to
      follow and how far there is to go - three steps, filled as you go. */
   .ffc{ flex:1; min-width:0; padding:14px 14px 12px; border-radius:16px;
     background:var(--surface, rgba(255,255,255,.05)); border:1px solid var(--border); }
@@ -4943,7 +4943,7 @@
       </section>
 
 
-      <!-- ============ FIND YOUR FRIENDS (§656) ============
+      <!-- ============ FIND YOUR FRIENDS (§665) ============
            Sign-up's third step, after the name and handle (so the people
            found can find you back) and before the interests. Your contacts
            on FAM where the phone can hand them over (the contact picker;
@@ -5092,7 +5092,7 @@
           <button class="yf-find invite-users" onclick="inviteFriends()">Invite new users
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         </div>
-        <!-- Your contacts on FAM and Discover people (§656), above the two
+        <!-- Your contacts on FAM and Discover people (§665), above the two
              tabs: the Friends page is where friends are found, so it opens
              on the people worth finding. Hidden while a search is typed. -->
         <div class="scroll" id="friendsScroll">
@@ -6036,7 +6036,7 @@
            whose only exit is the backdrop is a popup nothing says is
            dismissable - the same reasoning that put an X on the download
            question before that feature was removed. -->
-      <!-- Your QR code (§661): the /@handle link to scan in person. -->
+      <!-- Your QR code (§670): the /@handle link to scan in person. -->
       <div class="modal-overlay" id="qrOverlay" onclick="if(event.target===this) closeProfileQR()">
         <div class="modal-card qr-card">
           <button class="modal-x" onclick="closeProfileQR()" aria-label="Close">
@@ -8208,7 +8208,7 @@
       });
     }
 
-    // Sign-up's steps (signup-steps: B): four bars at the top (§656 added
+    // Sign-up's steps (signup-steps: B): four bars at the top (§665 added
     // Find your friends as the third), each
     // filling from its left edge when its step is reached and staying full,
     // and "Step 2 of 3" under them, its number rolling on Continue.
@@ -9653,7 +9653,7 @@
   }
 
   // Which of sign-up's four steps a screen is, or 0: the sign-up form, the
-  // name and picture, finding friends (§656), then the interests. The same screens opened later
+  // name and picture, finding friends (§665), then the interests. The same screens opened later
   // from Settings are editors, not steps.
   function firstRunStep(id){
     if(id === "auth") return authMode === "signup" ? 1 : 0;
@@ -19580,7 +19580,7 @@
       // The friends rail always ends in the way to find some: the same pill
       // YourFAM's used to, under the episodes when there are
       // any, and in place of the sentence when they follow nobody (10.1 #2).
-      // While they follow fewer than three it is a card instead (§660):
+      // While they follow fewer than three it is a card instead (§669):
       // who to follow, and how far there is to go. Filled in place by
       // `paintFriendsRailFind`, so the friends list arriving after the page
       // (or a follow) changes it without redrawing the rails.
@@ -21782,12 +21782,12 @@
       + (p.name ? "Edit profile" : "Set up profile") + '</button>'
       + '<button class="yf-btn cream" onclick="openSavedAll()">'
       + yfIcon("bookmark", 14) + 'Saved for Later</button>'
-      // Find friends (§656): the Friends page was behind the friends count
+      // Find friends (§665): the Friends page was behind the friends count
       // alone, which nobody reads as a button. Instagram's add-person
       // square, beside the two.
       + (AUTH.authenticated ? '<button class="yf-btn yf-sq" onclick="openFriends()" aria-label="Find friends">'
           + yfIcon("addPerson", 16) + '</button>' : '')
-      // Your QR code (§662, the owner's ask): the same card as the Friends
+      // Your QR code (§671, the owner's ask): the same card as the Friends
       // page's, one tap from your own page - where you are when somebody
       // in the room says "add me".
       + (AUTH.authenticated && p.handle ? '<button class="yf-btn yf-sq" onclick="openProfileQR()" aria-label="Show your QR code">'
@@ -21808,7 +21808,7 @@
       : '<button class="yf-chip muted" data-pill="" onclick="editIdentity()">Add interests in Edit profile</button>',
       "interests");
 
-    // Discover people (§656): "Suggested for you" cards, as Instagram's
+    // Discover people (§665): "Suggested for you" cards, as Instagram's
     // profile has them. Always a part, empty when there is nobody, so the
     // page's parts line up whether or not anybody is suggested.
     html += AUTH.authenticated ? hubDiscoverHTML() : "";
@@ -22150,7 +22150,7 @@
             + '</span><span class="yf-friend-name">' + escapeHtml(firstName(person))
             + '</span></button>';
         }).join("")
-      // Find friends (§656): the Friends page, from the row of faces.
+      // Find friends (§665): the Friends page, from the row of faces.
       + '<button class="yf-friend invite" onclick="openFriends()" aria-label="Find friends">'
       + '<span class="yf-ring">' + yfIcon("addPerson", 19) + '</span>'
       + '<span class="yf-friend-name">Find</span></button>'
@@ -23758,7 +23758,7 @@
     document.getElementById("followerOverlay").classList.add("active");
   }
 
-  // "Molly just joined FAM" (§660): somebody new found you in their
+  // "Molly just joined FAM" (§669): somebody new found you in their
   // contacts. The follower popup's card with its own words and a plain
   // Follow; the server forgets the notice when the card goes up.
   var followerJoined = false;
@@ -23855,7 +23855,7 @@
       // Friends from the waitlist show on both sides before they are let in
       // (WAITLIST.md §4); this says why they cannot be messaged yet.
       + (person.waitlisted ? '<div class="fr-wait">Still on the waitlist</div>' : '')
-      // Where they came from (§656): "In your contacts as Mom".
+      // Where they came from (§665): "In your contacts as Mom".
       + (note ? '<div class="fr-from">' + escapeHtml(note) + '</div>' : '')
       + '</div>'
       + (action
@@ -23999,7 +23999,7 @@
     }, 260);
   }
 
-  // Where a Follow was tapped (§660): the nearest `data-via` around the
+  // Where a Follow was tapped (§669): the nearest `data-via` around the
   // button the tap landed on, "signup_" before it on sign-up's Find your
   // friends step. Read on the tap, before anything redraws the button.
   function followViaFrom(){
@@ -24032,7 +24032,7 @@
       loadFriends().then(function(){ refreshPersonIfOpen(); });
       refreshHub();
       // Followed from their own page: the people they follow slide open
-      // under the button (§656). Followed from a card in that row, the row
+      // under the button (§665). Followed from a card in that row, the row
       // stays as it is.
       if(viewingProfile && viewingProfile.user_id === userId && viewingProfile.handle
          && document.getElementById("screen-person").classList.contains("active")){
@@ -24246,10 +24246,10 @@
       html += '<div class="yf-acts yf-acts-centre" data-part="acts"></div>';
     }
 
-    // Mutuals (§657, the owner's look, §658): right under Follow, on the
+    // Mutuals (§666, the owner's look, §667): right under Follow, on the
     // left, whether or not you follow each other. Always a part.
     html += '<div data-part="mutuals">' + mutualsLineHTML(pub.mutuals) + '</div>';
-    // Suggested for you (§656): after Follow, the people they follow slide
+    // Suggested for you (§665): after Follow, the people they follow slide
     // open under the buttons. Always a part, empty until then.
     html += personSuggestHTML(person);
 
@@ -24461,7 +24461,7 @@
     });
   }
 
-  // ---------------- Finding friends (§656) ----------------
+  // ---------------- Finding friends (§665) ----------------
   //
   // Four doors to the same few things: your contacts on FAM, "Suggested
   // for you" cards, a search by name or @handle, and an invite. Sign-up's
@@ -24552,7 +24552,7 @@
   }
 
   // After Follow on somebody's profile: the people they follow, in a row
-  // that slides open under the buttons - Instagram's (§656).
+  // that slides open under the buttons - Instagram's (§665).
   function loadPersonSuggestions(handle){
     if(!handle) return;
     fetch("/api/friends/suggested?handle=" + encodeURIComponent(handle))
@@ -24639,7 +24639,7 @@
     var via = followViaFrom().replace(/contacts$/, "") + "contacts_all";
     followMany((contactMatches || []).filter(function(p){ return !iFollowId(p); }), via);
   }
-  // "Follow all" (§660): one request for the lot, because a follow each ran
+  // "Follow all" (§669): one request for the lot, because a follow each ran
   // into the server's pace at the fourth. People with an id say Following
   // on the tap; the graph is read again when the server answers.
   function followMany(people, via){
@@ -24698,7 +24698,7 @@
     if(viewingProfile) part("personBody", "suggest", personSuggestHTML(viewingProfile));
   }
 
-  // --- a profile's own link, familiarize.net/@handle (§660) ---
+  // --- a profile's own link, familiarize.net/@handle (§669) ---
   //
   // For meeting somebody in person: shared or read off a screen, it opens
   // the app on your profile. Before they have an account it waits for
@@ -24717,17 +24717,17 @@
       + yfIcon("qr", 15) + 'QR</button>'
       + '<button class="pf-btn" onclick="shareProfileLink()">Share</button></div>';
   }
-  // Your QR code (§661): the profile link for somebody in the same room -
+  // Your QR code (§670): the profile link for somebody in the same room -
   // they point their camera at it and land on your profile. Drawn by the
   // server (`/api/me/qr`), dark on the card's own light.
-  // Somebody else's (§663): from their profile, to pass a friend on in
+  // Somebody else's (§672): from their profile, to pass a friend on in
   // person - the same card, their code, their link.
   var qrFor = null;   // { handle, name, mine }
   function openProfileQR(){
     if(!(profileNow && profileNow.handle)){ toast("Choose a handle first, in Edit profile"); return; }
     showQRCard({ handle: profileNow.handle, mine: true });
   }
-  // Their QR code's square, after Follow on their page (§663).
+  // Their QR code's square, after Follow on their page (§672).
   function personQRButton(person){
     return person && person.handle && AUTH.authenticated
       ? '<button class="yf-btn yf-sq" data-act="qr" onclick="openPersonQR()" aria-label="Show their QR code">'
@@ -24840,7 +24840,7 @@
       .catch(function(){});
   }
 
-  // --- the friends rail, while it is nearly empty (§660) ---
+  // --- the friends rail, while it is nearly empty (§669) ---
   var FRIENDS_RAIL_GOAL = 3;
   function friendsRailFindHTML(){
     var pill = '<button class="yf-find" onclick="openFriends()">'
@@ -24911,11 +24911,11 @@
     }, 260);
   }
 
-  // ---------------- Mutuals on a profile (§657, §658) ----------------
+  // ---------------- Mutuals on a profile (§666, §667) ----------------
   //
   // Who you follow that follows them, on every profile, whether or not you
   // follow them or they you (`/api/person` `mutuals`). The owner's look
-  // (§658): up to four overlapped faces drawn exactly as a dailyFAM tile's
+  // (§667): up to four overlapped faces drawn exactly as a dailyFAM tile's
   // "friends listened" faces, then "Followed by Brady, Ian, and 45 others",
   // on the left right under Follow. A tap opens the whole list.
   var MUTUAL_FACES = 4;
@@ -26502,7 +26502,7 @@
     var memberTotal = (g.members || []).length;
     var items = [{ group: escapeHtml(g.name) + " · " + memberTotal
                    + (memberTotal === 1 ? " person" : " people") }];
-    // Follow everybody here you do not follow yet (§660), in one tap.
+    // Follow everybody here you do not follow yet (§669), in one tap.
     var unfollowed = groupMemberRows.filter(function(m){ return m.handle && !m.following; });
     if(unfollowed.length){
       items.push({ label: unfollowed.length === 1
@@ -29589,7 +29589,7 @@
       // A handle is for other people to find somebody by, which is worth
       // nothing without an account to find - so this step belongs after
       // signing up and nowhere else.
-      // Skipping who they are skips who they know with it (§656).
+      // Skipping who they are skips who they know with it (§665).
       if(!ask || !AUTH.authenticated){ afterFindFriends(); return; }
       // Already set up, so there is nothing to ask - somebody who filled in
       // who they are and where and stopped before the interests. An account
@@ -29629,7 +29629,7 @@
   }
 
   function afterIdentity(){
-    // Find your friends comes next (§656), while the account is new and a
+    // Find your friends comes next (§665), while the account is new and a
     // follow is one tap: the step a social app is joined for, early, and
     // before the interests so that the people found are what fills
     // dailyFAM's friends rail on the first open. Without an account there
@@ -31214,7 +31214,7 @@
     // There is no push, so the honest moment to say "___ started following
     // you" is the next time this listener's own app asks.
     checkNewFollowers();
-    // And "___ just joined FAM" (§660), after it, so the two never race for
+    // And "___ just joined FAM" (§669), after it, so the two never race for
     // the same card.
     setTimeout(checkJoined, 2500);
     startNotificationPolling();

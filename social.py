@@ -88,16 +88,16 @@ class Echo:
         }
 
 
-#: How many "Suggested for you" cards one answer carries (§656): a row
+#: How many "Suggested for you" cards one answer carries (§665): a row
 #: that scrolls sideways, Instagram's, never a directory.
 SUGGESTION_LIMIT = 12
 
-#: How long "X just joined FAM" waits to be seen (§660), and how new an
+#: How long "X just joined FAM" waits to be seen (§669), and how new an
 #: account must be for its contacts check to raise one.
 JOINED_NOTICE_LIFE = 14 * 86400
 JOINED_NOTICE_NEW = 7 * 86400
 
-# Where a Follow can be tapped (§660). A follow made on sign-up's Find your
+# Where a Follow can be tapped (§669). A follow made on sign-up's Find your
 # friends step carries "signup_" before the place on that step, so the step
 # can be counted whole and by its parts. Anything else is stored as "".
 FOLLOW_VIA = frozenset({
@@ -115,7 +115,7 @@ def follow_via(via: str) -> str:
 
 
 def suggestion_reason(mutuals: int, follows_you: bool) -> str:
-    """The one line under a suggested face (§656), worded for its number:
+    """The one line under a suggested face (§665), worded for its number:
     "Follows you", "1 mutual", "4 mutuals", else "Suggested for you"."""
     if follows_you:
         return "Follows you"
@@ -447,7 +447,7 @@ class SocialStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS follows_followee"
                          " ON follows(followee, at)")
-            # Where a follow was tapped (§660): one of `FOLLOW_VIA`, "" for
+            # Where a follow was tapped (§669): one of `FOLLOW_VIA`, "" for
             # anywhere else and for every follow made before it was asked.
             # The only record of which way into the graph works, so the
             # owner can tell contacts from suggestions from the sign-up step.
@@ -598,7 +598,7 @@ class SocialStore:
                    )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS notes_user ON notes(user_id, at)")
-            # "Molly just joined FAM" (§660): somebody new found this
+            # "Molly just joined FAM" (§669): somebody new found this
             # listener among their contacts. Only the pair and when - never
             # a number, an email or a name from anybody's address book - and
             # the row is deleted when it is shown, or after a fortnight.
@@ -1558,7 +1558,7 @@ class SocialStore:
         return bool(cur.rowcount)
 
     def add_joined_notice(self, user_id: str, about: str, at: float = 0.0) -> bool:
-        """Tell `user_id` that `about` joined (§660). Once per pair, ever:
+        """Tell `user_id` that `about` joined (§669). Once per pair, ever:
         a second contacts check by the same newcomer adds nothing."""
         if not user_id or not about or user_id == about:
             return False
@@ -1586,7 +1586,7 @@ class SocialStore:
         return bool(cur.rowcount)
 
     def follow_sources(self, since: float = 0.0) -> dict:
-        """How many follows came from where (§660), "" as "other"."""
+        """How many follows came from where (§669), "" as "other"."""
         rows = self._conn().execute(
             "SELECT via, COUNT(*) FROM follows WHERE at >= ? GROUP BY via",
             (since,)).fetchall()
@@ -1836,7 +1836,7 @@ class SocialStore:
 
     def suggestions(self, user_id: str, around: str = "",
                     limit: int = SUGGESTION_LIMIT) -> list[dict]:
-        """People this listener may want to follow (§656), best first.
+        """People this listener may want to follow (§665), best first.
 
         With `around` - somebody they have just followed - it is the people
         **that person follows**: the row Instagram slides open under Follow.

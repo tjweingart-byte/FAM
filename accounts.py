@@ -887,7 +887,7 @@ class AccountStore:
     def match_contacts(self, phones, emails, home_code: str = "+1") -> dict:
         """Which accounts a listener's address book reaches: {user_id: index}.
 
-        "Your contacts on FAM" (§656). `phones` and `emails` are what the
+        "Your contacts on FAM" (§665). `phones` and `emails` are what the
         phone's contact picker returned, each paired with the index of the
         contact it came from, so the screen can say "In your contacts as
         Mom" without the server keeping a name. **Nothing posted is stored or
