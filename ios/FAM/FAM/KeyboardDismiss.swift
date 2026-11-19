@@ -76,10 +76,13 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     @objc private func tapped(_ tap: UITapGestureRecognizer) {
         guard keyboardTop != nil, tap.state == .ended else { return }
         let at = Date()
-        weak var view = tap.view
+        let view = tap.view
         // A beat later, after the tapped control's own action has run: if
-        // it put the caret in a field, that was the point of the tap.
-        Task { @MainActor [weak self] in
+        // it put the caret in a field, that was the point of the tap. The
+        // window is held weakly by the capture list (a `weak var` never
+        // changed drew Xcode's "consider let" warning; `weak let` needs
+        // Swift 6.2, newer than CI's Xcode 16.4).
+        Task { @MainActor [weak self, weak view] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard let self, self.lastBegan < at else { return }
             view?.endEditing(true)

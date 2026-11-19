@@ -40940,3 +40940,20 @@ catch-up's three social rows and keeps §675's Finding friends row.
 changed no route.
 
 **Not verified here:** the Swift compiles in `ios.yml`.
+
+## 684. Xcode's one warning: KeyboardDismiss's `weak var` (2026-11-19)
+
+**The owner (11.19)**, after an accidental Product > Analyze of build 11:
+"Weak variable 'view' was never mutated; consider changing to 'let'
+constant" in `KeyboardDismiss.swift` (§648's keyboard dismissal), asked to
+be fixed for the next build.
+
+**Fixed** by holding the window weakly in the delayed task's capture list
+(`[weak self, weak view]`) instead of a `weak var` that never changes. Not
+Xcode's suggestion, `weak let`: that is Swift 6.2, and CI's `ios.yml`
+builds with Xcode 16.4 (Swift 6.1), where it does not compile. Same
+behaviour: the keyboard is put away only if the window still exists and no
+field took the caret in the 120 ms after the tap.
+
+The build number is unchanged (11 went to TestFlight); the next upload
+raises it.
