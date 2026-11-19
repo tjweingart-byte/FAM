@@ -39752,4 +39752,7 @@ onclick, on your own page (`openInterestAt` deleted), a friend's page
 deleted); `interestChipsHTML` lost its `opener` argument. The empty state
 ("Add interests in Edit profile") stays a button - it has an editor behind it.
 `openTopic` and its screen stay for the other places that open it.
+The iOS app did the same (`InterestChipButton` on YourFAM, a person's page
+and the chat header); it is deleted and the three draw `InterestChip`.
+No Swift compiler here - the next Xcode build is its check.
 `tests/test_interest_labels_656.py` pins it.

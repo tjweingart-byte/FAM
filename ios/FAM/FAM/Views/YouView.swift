@@ -340,8 +340,8 @@ struct YouView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(shown, id: \.id) { i in
-                            InterestChipButton(topic: TopicOpen(id: i.id, label: i.label ?? i.id),
-                                               height: 26, size: 11) { model.youPath.append(.topic($0)) }
+                            // A label, never a door (§656).
+                            InterestChip(label: i.label ?? i.id, height: 26, size: 11)
                         }
                     }
                     .padding(.vertical, 1)

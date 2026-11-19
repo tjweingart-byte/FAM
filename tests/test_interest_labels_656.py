@@ -15,3 +15,9 @@ def test_chips_are_spans_without_onclick():
     hub = INDEX.split("yfInterests = (p.interests_shown", 1)[1].split('"interests");', 1)[0]
     pill = hub.split("Add interests in Edit profile", 1)[0]
     assert '<span class="yf-chip label"' in pill and "openTopic" not in pill
+
+
+def test_ios_pills_open_nothing():
+    ios = Path(__file__).resolve().parent.parent / "ios" / "FAM" / "FAM"
+    for f in ios.rglob("*.swift"):
+        assert "InterestChipButton" not in f.read_text(), f
