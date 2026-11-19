@@ -98,6 +98,14 @@ it wrong - Iran was respelled because the owner heard it.
 
 ## 5. Initialisms, codes and capitals
 
+**A name the product leans on gets one structured entry, never "plain".**
+NVIDIA is why the list exists: scripts write NVIDIA, Nvidia and nVidia, and
+each went down a different path. A seed for the mixed-case form is matched
+in capitals too, so one respelling (`en VID-ya`, "En Vidya", §680) covers
+every spelling; a test pins that all of them reach the voice alike. An
+admin row for one spelling beats the seed for that spelling only - keep it
+the same or remove it.
+
 - **An initialism needs no entry.** `spoken_text` spells a capitals word
   as letters ("ASML" -> "A S M L", §567) and says one it knows as a word
   ("NVIDIA" -> "Envidia"). An entry respelled only in letters' names is

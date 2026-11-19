@@ -40671,3 +40671,25 @@ The skill now holds the whole heard table, its lessons and the warning about
 the lone-word check. Not verified: the five edits and the letters change are
 unheard.
 
+## 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19)
+
+§679 put the writer's "Nvidia" on `PLAIN` and suggested the owner remove
+their "NVIDIA" row. The owner: "NVIDIA being removed? NVIDIA is the main
+reason we started the pronunciations list it was super inconsistent.
+rethink this we want structure on that one".
+
+They were right, and §679 made it worse: "NVIDIA" (the owner's row,
+`en-VID-ee-uh`) reached the voice as "Envideeya", heard "em-vu-dee-ah" with
+the stress on the last i, while "Nvidia" fell through to `spoken_text`'s
+"Envidia" (§569) - two readings of one company in one episode.
+
+Now `SEED` holds "Nvidia" and "nVidia" as `en VID-ya` -> **"En Vidya"**, and a
+seed is matched in capitals, so NVIDIA, Nvidia, nVidia, "NVIDIA's" and
+"Nvidia-backed" all reach the voice as "En Vidya". The space keeps the n from
+being drawn into the v ("em"); "Vidya" puts the stress on VID. "Nvidia" is off
+`PLAIN`. The owner's own "NVIDIA" row still wins for that spelling: set it to
+`en VID-ya` (or remove it) on /admin. A test pins one reading for every
+spelling, and the skill says a name the product leans on gets one structured
+entry, never "plain". Unheard: "En Vidya" is reasoned, not heard - the
+owner's ear is the check.
+
