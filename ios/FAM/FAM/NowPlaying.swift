@@ -24,6 +24,9 @@ struct Episode: Equatable {
     var episodeID: String = ""
     /// A myFAM playlist's own episode: the playlist's key while it plays it
     /// (`fromMix`, `mixPlay.key` on the web).
+    /// The myFAM mix this episode is played from (§656), sent as `mix` so a
+    /// free listener's half of it is counted. Empty off a mix.
+    var mixID: String = ""
     var mixKey: String = ""
     /// A Go Deeper off a playlist's episode, or off a follow-up already on
     /// that detour (§519, `mixDetour`): the playlist waits behind it and
@@ -819,6 +822,13 @@ final class NowPlayingModel: ObservableObject {
             tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
         }
         guard mine == run, tiles.count >= 2 else { return }
+        // The countdown never spends the week's one Go Deeper on its own
+        // (§656 review): where Go Deeper is counted, its suggestion moves to
+        // second and the countdown starts an episode that is free.
+        if tiles[0].deeper, await api.asksCapped() {
+            tiles.swapAt(0, 1)
+        }
+        guard mine == run else { return }
         nextUp = tiles
         nextUpLeft = Self.nextUpSeconds
         nextUpPaused = false

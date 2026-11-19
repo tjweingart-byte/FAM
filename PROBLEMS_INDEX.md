@@ -646,13 +646,22 @@ and `limit` = Lines.
 | 39534 | 68 | 652. The owner's 11.18 notes: the first sentence still twice, swipe the player down, Instagram's link again (2026-11-18) |
 | 39602 | 36 | 653. Report a problem on the player, with the phone player's log (2026-11-18) |
 | 39638 | 58 | 654. Claude per episode, by day; the writer written ahead batched, at medium (2026-11-18) |
-| 39696 | 45 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
-| 39741 | 50 | 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18) |
-| 39791 | 25 | 666. Mutuals on every profile, three looks for the owner (2026-11-18) |
-| 39816 | 32 | 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18) |
-| 39848 | 10 | 668. No follow-back nudge (2026-11-19) |
-| 39858 | 65 | 669. Five ways into the graph, from the owner's picks (2026-11-19) |
-| 39923 | 22 | 670. The profile link's QR code (2026-11-19) |
-| 39945 | 14 | 671. The QR button on YourFAM (2026-11-19) |
-| 39959 | 20 | 672. A friend's QR code, on their profile (2026-11-19) |
-| 39979 | 23 | 673. Square corners behind every card on a phone (2026-11-19) |
+| 39696 | 44 | 655. The branch double-checked: §654 reviewed (2026-11-18) |
+| 39740 | 50 | 656. Paying for FAM: Stripe on the web, and the free tier the owner set (2026-11-18) |
+| 39790 | 51 | 657. Apple in-app purchase for the iPhone app (2026-11-18) |
+| 39841 | 24 | 658. Students verify with a .edu email (2026-11-18) |
+| 39865 | 37 | 659. The billing branch reviewed: ten fixes (2026-11-18) |
+| 39902 | 23 | 660. The billing branch reviewed again: three more (2026-11-18) |
+| 39925 | 18 | 661. A third look at the billing branch: three more (2026-11-18) |
+| 39943 | 20 | 662. Interest pills on a profile open nothing (2026-11-19) |
+| 39963 | 77 | 663. Well-known names the voice says wrong: a hand-chosen seed under an admin (2026-11-19) |
+| 40040 | 89 | 664. The h the voice breathed: "Iran sounds weird", and 395 entries like it (2026-11-19) |
+| 40129 | 50 | 665. Finding friends: a sign-up step, your contacts on FAM, Suggested for you (2026-11-18) |
+| 40179 | 25 | 666. Mutuals on every profile, three looks for the owner (2026-11-18) |
+| 40204 | 32 | 667. Mutuals: the owner's look; the sign-up smoke walks Find your friends (2026-11-18) |
+| 40236 | 10 | 668. No follow-back nudge (2026-11-19) |
+| 40246 | 65 | 669. Five ways into the graph, from the owner's picks (2026-11-19) |
+| 40311 | 22 | 670. The profile link's QR code (2026-11-19) |
+| 40333 | 14 | 671. The QR button on YourFAM (2026-11-19) |
+| 40347 | 20 | 672. A friend's QR code, on their profile (2026-11-19) |
+| 40367 | 23 | 673. Square corners behind every card on a phone (2026-11-19) |

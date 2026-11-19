@@ -101,6 +101,19 @@
    > only where joining makes a new sound), and a dash used as punctuation is
    > a comma (Chatterbox's `punc_norm` turned "won—again—on" into
    > "won-again-on").
+   > **Current (PROBLEMS.md §663, the owner: "even with names as similar as
+   > the country name 'Iran'"):** famous names no model lists and the CMU
+   > dictionary holds - Iran, Iraq, Qatar, Niger, Kyiv, Xi, Venezuela, Caribbean - are seeded
+   > (`pronunciation.SEED`, source `seed`, under an admin and over Wikipedia
+   > and the models), written to the table once per process so /admin shows
+   > and hears them. An admin's respelling replaces a seed; the seeds are
+   > unheard.
+   > **Current (PROBLEMS.md §664, the owner: "iran sounds weird"):** a
+   > joined syllable's vowel-marking h was breathed ("Ihrahn" heard as
+   > "eef-rahn") or said ("Kehahveh"); `_joined` drops it - doubling the
+   > consonant after "ih"/"eh" ("Irrahn"), writing an unstressed "uh" as "a"
+   > ("Abdulkareem"), keeping a hyphen before a vowel ("Ke-ahveh"). 395 of
+   > the owner's 1,781 entries had it; unheard.
 <!-- rule:op-voice-bank -->
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
@@ -910,6 +923,7 @@ the door. `private` tells the page to say the account is private.
    against their own allowances. Mixes are private by default and appear on the
    profile once made public.
 <!-- rule:op-profile-hub -->
+> **Current (PROBLEMS.md §662, the owner's 11.19 note, reversing "a Topic screen behind every interest chip"):** an interest pill on a profile - your own, a friend's, a chat's header - is a label, not a door: tapping it opens nothing (`<span class="yf-chip label">`, no onclick). The Topic screen stays for the places that still open it.
 > **Current (PROBLEMS.md §345):** a friend's page (`screen-person`) takes the same layout - hero over the gold wash with how you stand under the handle, three numbers (friends scrolls to their friends list only when you may see it), Message and Follow centred, the interests line, and Vibes / Mixes tabs over the same grid of picture tiles (`showPersonShelf`; `/api/person` gives each vibe and mix a `thumb`); a mix tile carries the (+). Their friends list and the "only what they chose to share" note stay below.
 > **Current (PROBLEMS.md §341, the owner's pick from the ten-layout deck):** your own YourFAM page is a hero - your picture large and centred over a gold wash, name, then place · handle - then three numbers (friends, vibes, mixes; friends opens the Friends page, the other two turn the grid), Edit profile and Saved for Later, the interests line, and **Vibes / Mixes** tabs over a three-across grid of picture tiles (`showProfileShelf`; each vibe and mix carries the player's picture as `thumb` from `/api/profile`, a mix's own cover first). The Messages card, the "Your shelf" count tiles, the "View Your FAM" pill and YourFAM's "Find new friends" pill are gone: Messages is a tab, and the friends number opens the Friends page, which carries Invite new users. myFAM's friends rail keeps its Find new friends pill.
 > **Current (PROBLEMS.md §214):** the identity step runs for an account let in off the waitlist too, and is skipped only when name, handle and a place are all set (`identitySetUp`).

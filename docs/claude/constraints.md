@@ -1455,6 +1455,10 @@
   > be (quiet, inside both budgets, prefetch on) (§655).
 <!-- rule:account-gates-kept -->
 - **An account gates what is kept, never what is heard.** *(PROBLEMS.md §70.)*
+  > **Current (§656, the owner 11.18):** a *plan* now gates some of what
+  > is heard once quotas are on - the second half of a myFAM mix and a
+  > second search or Go Deeper in a week. An account still gates nothing
+  > more than it did.
   > **Current:** while `WAITLIST=1` the whole app is closed to anybody whose
   > account is not `active` - guests included - at the owner's direction
   > (§183, rule `waitlist-gate` below). Everything in this rule holds again
@@ -1554,6 +1558,14 @@
   which cannot reach `status`, `referred_by`, place or admin. Launch is
   `WAITLIST=0`.
 <!-- rule:free-month -->
+  > **Current (PROBLEMS.md §656, the owner 11.18: "every user's free trial
+  > should start when the app is released, not just the beta version"):**
+  > **every account** has the month - earned or not - from the admin-set
+  > launch day (`free_month_starts`), or from the day the account was made
+  > if that is later (`accounts._with_free_month`, `free_month_window`).
+  > Nothing starts before the launch day is set, so the beta never spends
+  > it. Five friends no longer change what anyone gets; the counter and
+  > the stamp stay.
 - **Five friends earn a free month** (PROBLEMS.md §577, the owner 13/11):
   friends count as invites do (`referred_by`); the fifth stamps
   `free_month_earned_at` once, never cleared; the month is "plus" from the
@@ -1616,6 +1628,10 @@
   > is always waitlisted": not with a right code.
 <!-- rule:tiers-off -->
 - **The tier system is built, and switched off.** *(PROBLEMS.md §81.)*
+  > **Current (§656):** there is a checkout now (rule `web-billing`), so an
+  > enforced free tier has a door. Production stays `ENFORCE_QUOTAS=0`
+  > until the owner turns it on at launch; every §656 gate (an ask a week,
+  > no own mixes, half a mix) is off with it.
   > **Current (§519, the 11.9 packet):** switched **off again in production**
   > at the owner's direction - "until I change it, I want everyone to have
   > unlimited access." `render.yaml` sets `ENFORCE_QUOTAS=0` on `fam`
@@ -1643,6 +1659,86 @@
   Note the counters do not run while it is off, so `/api/entitlements` reads
   0 used - the numbers for setting real limits come from `usage_report.py`,
   which is where CLAUDE.md always said they should come from.
+<!-- rule:web-billing -->
+  > **Current (PROBLEMS.md §658, the owner 11.18: "make students verify
+  > with a .edu email"):** Student is sold only to an account with a
+  > verified `.edu` address (`billing.is_edu`: the domain's last label is
+  > `edu`, so `.edu.au` is not). `POST /api/billing/student` emails a
+  > six-digit code (15 minutes, five tries, five codes an hour; 503 when
+  > mail is down); `/confirm` verifies it for a year; one address verifies
+  > one account at a time. Stripe checkout refuses Student without it (403,
+  > `X-FAM-Student: verify`); the iPhone app asks before Apple's sheet, and
+  > a Student purchase Apple reports without it is kept (Apple charged) and
+  > logged. `/api/plans` carries `student`.
+  > **Current (PROBLEMS.md §657, the owner 11.18: "add apple in-app
+  > purchase for the iphone app too"):** the iPhone app sells the same
+  > three plans through **StoreKit 2** (`ios/FAM/FAM/Store.swift`), so an
+  > iPhone listener never leaves the app to pay; the web keeps Stripe.
+  > `apple_iap.py` trusts a transaction only when its JWS chains to the
+  > pinned Apple Root CA - G3 (`DEFAULT_ROOT_SHA256`, by fingerprint; the
+  > leaf and intermediate must carry Apple's marker OIDs) and its
+  > `appAccountToken` is the one the server issued this account
+  > (`account_token`, a UUID5 of the id; `GET /api/billing/apple`). The app
+  > sends every transaction to `POST /api/billing/apple` and finishes it
+  > only once the server has it; App Store Server Notifications v2
+  > (`/api/billing/apple/notifications`, open past the waitlist) carry
+  > renewals, refunds (`revocationDate` -> cancelled) and grace periods
+  > (`past_due` to the grace end). Both stores write one row
+  > (`subscriptions.source` "stripe" | "apple"); an Apple subscription is
+  > managed with Apple (`AppStore.showManageSubscriptions`), the sheet has
+  > Restore purchases and the auto-renew terms (App Review 3.1.1, 3.1.2).
+  > The iPhone app shows no Stripe link.
+- **FAM is paid for on the web, never through the App Store** (PROBLEMS.md
+  §656, the owner 11.18: "Ideally we have all payments be redirected to a
+  website to avoid the 30% fee", answering "Stripe only"). `billing.py`:
+  Stripe Checkout (`POST /api/billing/checkout`), Stripe's portal for
+  changes and cancelling (`/api/billing/portal`), and the signed webhook
+  (`/api/billing/webhook`, open past the waitlist, `verify_signature` with
+  a five-minute tolerance, each event id applied once) - **the only thing
+  that sets a paid plan**; the browser coming back proves nothing.
+  - **Plans:** Student, Single and the FAM plan are all tier `plus`, which
+    is unlimited (the owner: "All unlimited"); they differ in price and
+    who may buy. **Prices live in Stripe** (`STRIPE_PRICE_*` are Price ids),
+    read by `billing.prices()` and cached an hour; never written here.
+  - **The FAM plan is four people** (the owner: "Up to 4, by invite"): the
+    payer makes a one-use code (`/api/billing/fam/invite`), others join
+    with it; a seat lasts as long as the payer's plan. Members are named to
+    the payer by reference, never by id.
+  - **Free after the month:** one `ask` (search or Go Deeper,
+    `entitlements.resource_for`) a week; DailyFAM's tiles (code: myFAM) and
+    every other episode uncapped; no mix of one's own (create, edit, copy:
+    `_require_feature`, 403 + `X-FAM-Upgrade`); **half of any mix a day**
+    (`billing.mix_allowance`: half its episodes rounded down, at least one,
+    distinct episodes, the client sends `mix`). The owner: "Half the mix's
+    episodes".
+  - `past_due` keeps the plan while Stripe retries; a lapsed period or a
+    deleted subscription ends it. Deleting an account does not cancel a
+    card - the portal does.
+  - **Staging can never sell**: `STRIPE_SECRET_KEY` and the webhook secret
+    are `spend_guard.PAID_CREDENTIALS`. Without a key `/api/plans` says
+    `checkout: false` and nothing is for sale.
+  - **iOS (APP_STORE.md 3.1.1):** linking out is allowed on the US
+    storefront only, and the commission Apple may charge on linked sales
+    was still before the court in 11.2026; the native app must not show
+    plans or link out anywhere else. Apple in-app purchase, if ever added,
+    is another way into the same `BillingStore.record`, not a rewrite.
+  - **The client's words never make a play free** (§659, the branch
+    review): `app._spend_surface` counts a play as a browse episode only
+    when the server can see it is one - an episode of the named mix (or of
+    one of the listener's own mixes, for a client that sends no `mix`), a
+    bank topic's own question, or, off the search bar, an episode already
+    written (no model call). Anything else is an ask. `/api/script` is an
+    ask too. What a crafted client can still do is replay already-written
+    mix episodes past half way without naming the mix - no model call.
+  - **One row, two stores, kept honest** (§659): an event is marked seen
+    only after it is applied; each write is dated (`event_at`: Stripe's
+    `created`, Apple's `signedDate`) and an older one is skipped; an ended
+    subscription from one store never overwrites the other store's live
+    one; Apple's grace period comes from the renewal info whatever the
+    notification, and a restore cannot end it. `/api/plans` reads Stripe's
+    prices off the event loop, and a failed read is remembered five minutes.
+  - Only *adding* to a mix is paid (`_adds_topics`): renaming, sharing,
+    reordering and removing stay free.
 <!-- rule:refusal-wording -->
 - **A refusal names what the listener was doing, not what the ledger calls
   it.** A resource is an accounting word: somebody told they are out of
@@ -1658,6 +1754,12 @@
   - a limit with no way past it is a dead end on a phone.
 <!-- rule:tier-spend -->
 - **A tier is what you may spend, never what you may reach.** *(ACCOUNTS.md.)*
+  > **Current (§656, the owner 11.18, reversing this in two places on
+  > purpose):** free listeners may not **make** myFAM mixes
+  > (`FEATURES["mixes"]` at `plus`; `tests/test_entitlements.py`
+  > `TAKEN_FROM_FREE` names it), and hear only **half of any mix** a day.
+  > The free tier's ceiling is now an `ask` (a search or a Go Deeper), one a
+  > week; its other episodes are uncapped.
   Three tiers - `free`, `plus`, `unlimited` - and the free one is a **daily
   ceiling on episodes**, not a smaller product: `entitlements.FEATURES` gates
   capabilities and today every tier has every one of them. The mechanism ships
