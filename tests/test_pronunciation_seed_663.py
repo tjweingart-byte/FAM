@@ -9,8 +9,11 @@ import voice_bank
 
 
 def _lex(tmp_path):
+    """A lexicon whose seed is written now, as the background thread would."""
     bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
-    return bank, pronunciation.Lexicon(bank)
+    lex = pronunciation.Lexicon(bank)
+    assert lex.seed()
+    return bank, lex
 
 
 def test_iran_is_respelled_without_any_model_listing_it(tmp_path):
@@ -35,9 +38,11 @@ def test_seed_is_shown_as_its_own_source(tmp_path):
 
 def test_an_admin_respelling_beats_the_seed_and_survives_a_reseed(tmp_path):
     bank, lex = _lex(tmp_path)
-    lex.set("Iran", "ih-RAHN")
+    lex.set("Iran", "ee-RAHN")                   # not the seed's own reading
     again = pronunciation.Lexicon(bank)          # the next boot
-    assert again.apply("Iran") == "Irrahn"
+    assert again.seed()
+    assert again.apply("Iran") == "Eerahn"
+    assert {r["name"]: r["source"] for r in bank.pronunciations()}["Iran"] == "admin"
 
 
 def test_a_model_guess_does_not_replace_the_seed(tmp_path):
@@ -70,10 +75,10 @@ def test_a_name_in_capitals_is_respelled_but_not_a_numeral(tmp_path):
 
 
 def test_a_dropped_seed_leaves_the_table_but_an_admins_row_stays(tmp_path):
-    bank, lex = _lex(tmp_path)
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
     bank.learn_pronunciation("Oldname", "OLD-naym", "seed")
     bank.learn_pronunciation("Kept", "KEPT-ed", "admin")
-    lex.entries()
+    assert pronunciation.Lexicon(bank).seed()
     names = {r["name"] for r in bank.pronunciations()}
     assert "Oldname" not in names and "Kept" in names
 
@@ -121,4 +126,84 @@ def test_no_seed_hands_the_voice_a_breathed_h():
     import re
     for name, say in pronunciation.SEED.items():
         v = pronunciation.voiced(say).lower()
-        assert not re.search(r"(?<=[a-z])(?:ih|eh|uh)(?=[b-df-gj-np-tv-z])|[aeiou]h(?=[aeiou])", v), (name, v)
+        assert not re.search(r"(?:ih|eh|uh)(?=[b-df-gj-np-tv-z])|[aeiou]h(?=[aeiou])", v), (name, v)
+
+
+
+# The branch review (§664).
+
+class _Flaky:
+    """A bank that refuses every write until it is told to recover."""
+    def __init__(self, bank):
+        self.bank, self.down = bank, True
+    def learn_pronunciation(self, *a):
+        if self.down:
+            raise RuntimeError("database away")
+        return self.bank.learn_pronunciation(*a)
+    def __getattr__(self, name):
+        return getattr(self.bank, name)
+
+
+def test_a_seed_that_fails_is_tried_again(tmp_path, monkeypatch):
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    flaky = _Flaky(bank)
+    lex = pronunciation.Lexicon(flaky)
+    assert not lex.seed()
+    flaky.down = False
+    assert lex.seed()
+    assert lex.apply("Iran") == "Irrahn"
+
+
+def test_the_first_reload_never_waits_for_the_seed(tmp_path, monkeypatch):
+    """Seeding runs in a thread: the listener's first chunk does not wait."""
+    started = []
+    monkeypatch.setattr(pronunciation.threading, "Thread",
+                        lambda target, **kw: type("T", (), {"start": lambda self: started.append(target)})())
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    lex = pronunciation.Lexicon(bank)
+    assert lex.apply("Iran") == "Iran"           # not yet seeded, and not waited for
+    assert len(started) == 1
+    lex.reload(force=True)
+    assert len(started) == 1                     # never twice at once
+    started[0]()                                 # the thread runs
+    assert lex.apply("Iran") == "Irrahn"
+
+
+def test_capitals_take_the_better_ranked_respelling(tmp_path):
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("Mcilroy", "BAD-guess", "brief")
+    bank.learn_pronunciation("McIlroy", "mak-IL-roy", "admin")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("RORY MCILROY") == "RORY Makilroy"
+
+
+def test_a_models_guess_is_not_matched_in_capitals(tmp_path):
+    bank = voice_bank.VoiceBank(str(tmp_path / "voices.db"))
+    bank.learn_pronunciation("Keawe", "keh-AH-veh", "writer")
+    lex = pronunciation.Lexicon(bank, seed=False)
+    assert lex.apply("KEAWE") == "KEAWE"
+
+
+def test_entries_lists_real_names_not_their_capitals(tmp_path):
+    _, lex = _lex(tmp_path)
+    names = lex.entries()
+    assert "Iran" in names and "IRAN" not in names
+    assert lex.apply("IRAN") == "Irrahn"
+
+
+def test_stress_is_read_from_capitals_only():
+    v = pronunciation.voiced
+    assert v("Kuh-REEM") == v("kuh-REEM") == "Kareem"
+    assert v("Uh-DAH-nee") == "Adahnee"
+
+
+def test_a_real_h_and_a_lone_h_are_left_alone():
+    v = pronunciation.voiced
+    assert v("shah-EEN") == "Shaheen"
+    assert not v("h-ah").startswith("-")
+
+
+def test_xi_goes_through_every_admin_path():
+    assert pronunciation.clean("Xi", "shee.") == ("Xi", "shee")
+    assert pronunciation.clean("Xi", "xi") is None          # respelled as itself
+    assert pronunciation.clean("Ok", "oh-KAY") is None      # only the seed's short names

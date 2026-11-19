@@ -40093,3 +40093,36 @@ rows on the next boot; Libertad is an admin's row and a seed never replaces
 one, so it is the owner's edit on /admin (`lee-ber-TAHD`). A test now fails
 if any seed hands the voice a breathed h - it caught three of §663's own
 (Kherson, Pyongyang, Guterres), respelled. Unheard, like the rest.
+
+**The branch reviewed before merging (same day).** A separate agent, handed
+the diff and not this reasoning, reviewed §663-§664. Fixed:
+- *A seed that failed at boot was never retried, and ran on the listener's
+  path* (a hundred database round trips inside the first chunk's first
+  `reload`, against `[nothing-before-material]`'s "only work before the tap").
+  `Lexicon.seed` is now public and returns whether every seed was written;
+  `reload` starts it in a thread (`_seed_in_background`), never twice at once,
+  again after `SEED_RETRY_SECONDS` on a failure, and reads the table again
+  when it is done.
+- *Two names with the same capitals took the worse respelling* ("Mcilroy" a
+  brief's, "McIlroy" an admin's: "MCILROY" got the brief's). The better-ranked
+  source wins; capitals are matched only for `admin`, `seed` and `wikipedia`
+  rows (`_CAPS_SOURCES`), not the ~1,400 model guesses ("GREEN CHILE" was a
+  risk); and they live in the matching table only - `entries()` lists real
+  names, so `tools/stress_trial.py` no longer voices "IRAN" beside "Iran".
+- *Stress was read from lower case*, so a title-cased first syllable
+  ("Kuh-REEM") counted as stressed: now only capitals do.
+- *`_KEEP_H` never matched* (a 3-letter slice against "shah"): "shah-EEN" is
+  "Shaheen". *A lone "h" syllable before a vowel* gave a leading hyphen
+  ("h-ah" -> "-ah").
+- *"Xi" passed only the admin's form*: `clean` itself now lets a
+  `_SHORT_SEED` name through, so "Hear 4 ways" and the review upload take it
+  too, with `clean`'s normalising.
+- *"seed" was unexplained*: /admin calls it "built in", and the reviewer's
+  prompt names it.
+- Tests: the admin-beats-seed test set the seed's own reading (vacuous); the
+  breathed-h test could not see a word's first syllable. Both fixed, and
+  retry, the background start, capitals ranking and title case are tested.
+Left as it is: removing a name from `SEED` deletes its row even when the
+seed had replaced a model's, which a model relearns the next time it lists
+the name.
+

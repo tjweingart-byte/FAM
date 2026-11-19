@@ -129,12 +129,16 @@ SEED = {
 }
 
 #: Seed names under three letters, allowed past `clean`'s length rule because
-#: they were chosen by hand ("Xi" is said in every story about China).
+#: they were chosen by hand ("Xi" is said in every story about China) - for
+#: the seed, an admin's fix, "Hear 4 ways" and the review upload alike.
 _SHORT_SEED = frozenset({"Xi"})
 
 #: How often a process re-reads the table, so a fix made on /admin (served
 #: by one worker) reaches every other worker without a restart.
 RELOAD_SECONDS = 60.0
+
+#: How long after a failed seed (`Lexicon.seed`) it is tried again.
+SEED_RETRY_SECONDS = 300.0
 
 #: How long a personal episode's respellings are held in memory (§165).
 #: Long enough for the longest episode to finish speaking, and never written
@@ -169,7 +173,8 @@ def clean(name: str, say: str) -> Optional[tuple[str, str]]:
         return None
     if not any(c.isupper() for c in name):
         return None
-    if name.lower() in _COMMON or len(name.replace(" ", "")) < 3:
+    if name.lower() in _COMMON or (len(name.replace(" ", "")) < 3
+                                   and name not in _SHORT_SEED):
         return None
     if say.replace("-", "").replace(" ", "").lower() == \
             re.sub(r"[^a-z]", "", name.lower()):
@@ -187,6 +192,8 @@ _DIGRAPHS = frozenset("th sh ch ph gh wh zh kh ng".split())
 #: A respelling's short vowels, written with an h ("ih", "eh", "uh"), and
 #: the consonants English doubles after one to keep it short (§664).
 _SHORT_VOWELS = frozenset(("ih", "eh"))
+#: Sources whose names are also matched in capitals (§663).
+_CAPS_SOURCES = frozenset(("admin", "seed", "wikipedia"))
 #: Endings whose h is a real sound, not a vowel's mark ("shah", "pooh").
 _KEEP_H = frozenset(("shah",))
 _DOUBLES = frozenset("bdfglmnprst")
@@ -223,13 +230,14 @@ def _joined(word: str) -> str:
         if meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh"):
             out += "-" + part
             continue
-        marked = out[-2:] if (out[-1:] == "h" and out[-2:-1] in "aeiou"
-                              and out[-3:] not in _KEEP_H) else ""
+        marked = out[-2:] if (out[-1:] == "h" and out[-2:-1]
+                              and out[-2:-1] in "aeiou"
+                              and not out.endswith(tuple(_KEEP_H))) else ""
         if marked and part[:1] in "aeiou":
             out = out[:-1] + "-" + part
         elif marked in _SHORT_VOWELS and part[:2] not in _DIGRAPHS:
             out = out[:-1] + (part[:1] if part[:1] in _DOUBLES else "") + part
-        elif marked == "uh" and raw[i - 1].islower() and part[:2] not in _DIGRAPHS:
+        elif marked == "uh" and not raw[i - 1].isupper() and part[:2] not in _DIGRAPHS:
             out = out[:-2] + "a" + part
         elif marked in _SHORT_VOWELS or marked == "uh":
             out = out[:-1] + part           # before a digraph: the h only
@@ -316,6 +324,8 @@ class Lexicon:
         self._entries: dict[str, tuple[str, str]] = {}
         self._stored: dict[str, tuple[str, str]] = {}
         self._pattern: Optional[re.Pattern] = None
+        #: `_entries` plus each name's capitals (`_compile`): what `apply` matches.
+        self._lookup: dict[str, tuple[str, str]] = {}
         self._loaded = 0.0
         #: name -> (say, source, expires): respellings from personal episodes,
         #: in this process only and never in the table. See `hold`.
@@ -323,6 +333,10 @@ class Lexicon:
         #: False: the table is never seeded (`SEED`) - for tests about an
         #: empty lexicon.
         self._seeded = not seed
+        #: When seeding last started, so a failed seed is retried after
+        #: `SEED_RETRY_SECONDS` and never twice at once.
+        self._seed_tried = 0.0
+        self._seeding = False
 
     def _bank(self):
         if self._store is not None:
@@ -341,53 +355,90 @@ class Lexicon:
 
     def _compile(self) -> None:
         entries = self._merged()
+        self._entries = entries
         # A name in capitals ("IRAN", "HAMAS" in a headline) is matched too
         # (§663): `speakable` turns it into "Iran" only after the lexicon
         # has looked, and matching is by case. From four letters, so "XI"
-        # the numeral is never "Xi".
-        for name, value in list(entries.items()):
+        # the numeral is never "Xi"; only for respellings a person or a
+        # reference chose (`_CAPS_SOURCES`), not ~1,400 model guesses; where
+        # two names share capitals the better-ranked respelling wins; and
+        # only in the matching table - `entries()` lists real names.
+        rank = {src: i for i, src in enumerate(SOURCES)}
+        lookup = dict(entries)
+        caps: dict[str, tuple[str, str]] = {}
+        for name, value in entries.items():
             upper = name.upper()
-            if len(name.replace(" ", "")) >= 4 and upper != name:
-                entries.setdefault(upper, value)
-        self._entries = entries
-        names = sorted(self._entries, key=len, reverse=True)
+            if (value[1] in _CAPS_SOURCES and len(name.replace(" ", "")) >= 4
+                    and upper != name and upper not in entries):
+                held = caps.get(upper)
+                if held is None or rank.get(value[1], 99) < rank.get(held[1], 99):
+                    caps[upper] = value
+        lookup.update(caps)
+        self._lookup = lookup
+        names = sorted(lookup, key=len, reverse=True)
         self._pattern = (re.compile(
             # A hyphen is a boundary, so "Keawe" is found in "Jaron-Keawe";
             # a letter or an apostrophe before it is not ("O'Keawe").
             r"(?<![A-Za-zÀ-ÿĀ-ſ'’])(" + "|".join(re.escape(n) for n in names)
             + r")(?![A-Za-zÀ-ÿĀ-ſ])") if names else None)
 
-    def _seed(self) -> None:
-        """Write `SEED` to the table, once per process (§663). A seed never
-        replaces an admin's respelling (`learn_pronunciation` ranks it), and a
-        changed seed replaces the old one at the next boot."""
-        self._seeded = True
-        bank = self._bank()
-        added = 0
-        for name, say in SEED.items():
-            try:
-                if bank.learn_pronunciation(name, say, "seed"):
-                    added += 1
-            except Exception:  # noqa: BLE001 - a seed is never worth an outage
-                log.exception("pronunciation seed for %r could not be kept", name)
-                return
-        # A name taken out of `SEED` is taken out of the table too; one an
-        # admin has since set is an admin's row and is left alone.
+    def seed(self) -> bool:
+        """Write `SEED` to the table (§663). A seed never replaces an admin's
+        respelling (`learn_pronunciation` ranks it), a changed seed replaces
+        the old one, and a name taken out of `SEED` is taken out of the
+        table. True once every seed is written; on a failure, False, and the
+        next `reload` tries again after `SEED_RETRY_SECONDS`. Never raises.
+        """
         try:
+            bank = self._bank()
+            added = failed = 0
+            for name, say in SEED.items():
+                try:
+                    if bank.learn_pronunciation(name, say, "seed"):
+                        added += 1
+                except Exception:  # noqa: BLE001 - a seed is never worth an outage
+                    failed += 1
+                    log.exception("pronunciation seed for %r could not be kept", name)
+            # One an admin has since set is an admin's row and is left alone.
             for row in bank.pronunciations():
                 if row.get("source") == "seed" and row["name"] not in SEED:
                     bank.forget_pronunciation(row["name"])
         except Exception:  # noqa: BLE001
-            log.exception("pronunciation: dropped seeds could not be removed")
+            log.exception("pronunciation: the seed could not be written")
+            return False
         if added:
             log.info("pronunciation: %d seeded name(s) written", added)
+        if failed:
+            return False
+        self._seeded = True
+        return True
+
+    def _seed_in_background(self) -> None:
+        """Seed off the listener's path (§663): the first `reload` is usually
+        inside an episode's first chunk, and a hundred database round trips
+        in front of it is the wait the spec forbids. When it is done the
+        table is read again, so the seeds are matched from then on."""
+        with self._lock:
+            now = time.time()
+            if self._seeded or self._seeding or now - self._seed_tried < SEED_RETRY_SECONDS:
+                return
+            self._seeding, self._seed_tried = True, now
+
+        def run() -> None:
+            try:
+                if self.seed():
+                    self.reload(force=True)
+            finally:
+                self._seeding = False
+
+        threading.Thread(target=run, name="pronunciation-seed", daemon=True).start()
 
     def reload(self, force: bool = False) -> None:
         now = time.time()
         if not force and now - self._loaded < RELOAD_SECONDS:
             return
         if not self._seeded:
-            self._seed()
+            self._seed_in_background()
         try:
             rows = self._bank().pronunciations()
         except Exception:  # noqa: BLE001 - a lexicon outage is not a voice outage
@@ -418,7 +469,7 @@ class Lexicon:
         try:
             self.reload()
             with self._lock:
-                pattern, entries = self._pattern, self._entries
+                pattern, entries = self._pattern, self._lookup
             if pattern is None:
                 return text
             return pattern.sub(lambda m: voiced(entries[m.group(1)][0]), text)
@@ -477,11 +528,6 @@ class Lexicon:
     def set(self, name: str, say: str) -> tuple[str, str]:
         """An admin's respelling. Raises ValueError with a readable reason."""
         pair = clean(name, say)
-        if not pair and name.strip() in _SHORT_SEED:
-            # "Xi" is under `clean`'s three letters but is seeded, so an
-            # admin must be able to replace it (§663).
-            say = re.sub(r"\s+", " ", (say or "").strip())
-            pair = (name.strip(), say) if _SAY.match(say) else None
         if not pair:
             raise ValueError(
                 "A name needs a capital letter and no digits, and a "
