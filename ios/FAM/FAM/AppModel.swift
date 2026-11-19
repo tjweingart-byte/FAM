@@ -72,6 +72,9 @@ final class AppModel: ObservableObject {
     /// A mix playing as a playlist (§134), and the "finished" overlay.
     @Published private(set) var mixPlay: MixPlaylist?
     @Published var mixDone: String?
+    /// The finished mix's played episodes' pictures, for its cards filing
+    /// in (round three, §642 `mix-finished` B).
+    var mixDonePictures: [URL?] = []
     /// The myFAM tab's stack, and a request to show a tab.
     @Published var mixPath: [MixRoute] = []
     @Published var tabRequest: Tab?
@@ -81,6 +84,16 @@ final class AppModel: ObservableObject {
     /// Words for searchFAM's box, from Search DailyFAM's "Search FAM for
     /// it" (`searchFromMyFam`): put in the box, not sent.
     @Published var searchPrefill: String?
+    /// The question and attachments a search sent (`searchAsked`, §643):
+    /// Cancel - on the loading screen or "Which one do you mean?" - puts
+    /// them back in the bar. Cleared once a word is heard, by any other
+    /// episode, and by a failure not asked again.
+    private(set) var searchAsked: AskedSearch?
+    /// What Cancel hands back to searchFAM's bar (it takes it, then clears it).
+    @Published var searchRestore: AskedSearch?
+    /// Every cancel from the loading screen, so a send held by the speller
+    /// under an early loader is dropped (`genCancelSeq`).
+    private(set) var cancelSeq = 0
     /// The search page's Length (`selectedLengthMinutes`): the bubble and
     /// the player's Length menu are one choice, back to 1.5 on every return
     /// to the app (SearchView keeps the two in step).
@@ -96,6 +109,17 @@ final class AppModel: ObservableObject {
     /// Tiles marked "Not interested" since the page was drawn, so an open
     /// View more drops them too.
     @Published private(set) var notInterestedIDs: Set<String> = []
+    /// Pick up cards whose X is still under its Undo, by lower-cased
+    /// question (`goDeeperDismissing`), and Pick up as last read.
+    private var pickUpDismissing: Set<String> = []
+    private var pickUpLastRead: PickUpPage?
+    /// The last Pick up and faces row drawn, as the server sent them.
+    private var lastPickUpData: Data?
+    private var lastCircleData: Data?
+    /// A tile's save in flight (`tileSavePending`) and every tap's start
+    /// and settle (`tileSaveSeq`), so a shelf read never undoes a tap.
+    private var tileSavePending: [String: Bool] = [:]
+    private var tileSaveSeq = 0
     /// Rails whose last card "Not interested" took: their heading and View
     /// more end stay until the page is drawn again (the web removes cards only).
     @Published private(set) var emptiedRails: Set<String> = []
@@ -358,6 +382,8 @@ final class AppModel: ObservableObject {
         loading.onRelease = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                // A word is heard: Cancel no longer puts the question back.
+                self.searchAsked = nil
                 self.player.release()
                 // A shared episode or a front-door sample plays on its own
                 // screen: no full player is asked for behind it, to open
@@ -417,6 +443,15 @@ final class AppModel: ObservableObject {
         }
         pathMonitor.start(queue: .main)
         nowPlaying.playEpisode = { [weak self] ep in self?.play(ep) }
+        nowPlaying.openLoaderEarly = { [weak self] in
+            guard let self else { return }
+            // Over the player, as the send would: the player goes down for
+            // the loading screen (`go` below does the same).
+            self.showPlayer = false
+            self.loading.openEarly()
+        }
+        nowPlaying.closeLoaderEarly = { [weak self] in self?.loading.closeEarly() }
+        nowPlaying.cancelMark = { [weak self] in self?.cancelSeq ?? 0 }
         nowPlaying.onEnded = { [weak self] ep in self?.mixItemEnded(ep) ?? false }
         nowPlaying.detourFor = { [weak self] base in self?.detour(for: base) ?? "" }
         mixes.say = { [weak self] text, action, perform in
@@ -433,6 +468,9 @@ final class AppModel: ObservableObject {
         // An episode ending under the VIBE! editor holds what comes next (§550).
         nowPlaying.vibeEditorOpen = { [weak self] in self?.storyEditing ?? false }
         social.say = { [weak self] text in self?.nowPlaying.say(text) }
+        social.undoLine = { [weak self] text, undo, commit in
+            self?.nowPlaying.undoLine(text, undo: undo, commit: commit)
+        }
         surveys.say = { [weak self] text in self?.nowPlaying.say(text) }
         you.say = { [weak self] text, action, perform in
             self?.nowPlaying.say(text, action: action, perform: perform)
@@ -891,6 +929,9 @@ final class AppModel: ObservableObject {
         let began = Date()
         splash = true
         player.stop()
+        // An Undo line's held request goes first, under this account, and
+        // the line is hidden (`logOut`, §647: at most 1.5 s).
+        await nowPlaying.flushCommitBeforeSignOut()
         await api.signOut()
         forgetEverything()
         let left = 0.5 - Date().timeIntervalSince(began)
@@ -900,6 +941,9 @@ final class AppModel: ObservableObject {
 
     func deleteAccount() async throws {
         player.stop()
+        // An Undo line's held request goes first, as at sign-out, and the
+        // line with it.
+        await nowPlaying.flushCommitBeforeSignOut()
         try await api.deleteAccount()
         forgetEverything()
         nowPlaying.say("Account deleted")
@@ -952,6 +996,12 @@ final class AppModel: ObservableObject {
         circle = nil
         friendFaces = []
         savedTiles = []
+        tileSavePending = [:]
+        tileSaveSeq += 1
+        pickUpDismissing = []
+        pickUpLastRead = nil
+        lastPickUpData = nil
+        lastCircleData = nil
         notInterestedIDs = []
         emptiedRails = []
         tasteSource = "taste"
@@ -1027,6 +1077,13 @@ final class AppModel: ObservableObject {
             let page = try FAMAPI.decodeRails(data)
             rails = page.sections
             emptiedRails = []
+            // A tile turned down under its Undo stays off a read that lands
+            // inside the five seconds (`notInterestedPending`).
+            for i in rails.indices where !notInterestedIDs.isEmpty {
+                let had = !rails[i].topics.isEmpty
+                rails[i].topics.removeAll { notInterestedIDs.contains($0.id) }
+                if had && rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+            }
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
             railsProblem = ""
@@ -1068,6 +1125,7 @@ final class AppModel: ObservableObject {
     /// launch while the fresh one is asked - only into an empty page.
     private func showRememberedFeed() {
         guard rails.isEmpty, let last = shelf.rememberedFeed() else { return }
+        showRememberedRows()
         rails = last.sections
         tasteSource = last.tasteSource ?? "taste"
         friendFaces = last.friendFaces ?? []
@@ -1149,7 +1207,13 @@ final class AppModel: ObservableObject {
     }
 
     func loadCircle() async {
-        if let found = try? await api.circle() { circle = found }
+        guard let data = try? await api.circleData() else { return }
+        // An identical answer draws nothing (`rememberLateRow`, §641).
+        if data == lastCircleData && circle != nil { return }
+        guard let found = try? FAMAPI.decoder.decode(CirclePage.self, from: data) else { return }
+        circle = found
+        lastCircleData = data
+        shelf.rememberRow(data, as: Self.circleFile)
     }
 
     /// While the waitlist runs an invite is this member's referral link;
@@ -1168,15 +1232,51 @@ final class AppModel: ObservableObject {
         return "Come listen with me on FAM" + who + ". " + url
     }
 
-    /// A failed read leaves what was drawn (`loadGoDeeper`).
+    /// A failed read leaves what was drawn (`loadGoDeeper`); a card whose
+    /// X is still under its Undo stays off.
     func loadPickUp() async {
-        if let page = try? await api.pickUp() { pickUp = page }
+        guard let data = try? await api.pickUpData(),
+              let page = try? FAMAPI.decoder.decode(PickUpPage.self, from: data) else { return }
+        pickUpLastRead = page
+        shelf.rememberRow(data, as: Self.pickUpFile)
+        // An identical answer draws nothing (`rememberLateRow`, §641).
+        if data == lastPickUpData && pickUp != nil && pickUpDismissing.isEmpty { return }
+        lastPickUpData = data
+        pickUp = Self.withoutDismissed(page, pickUpDismissing)
+    }
+
+    /// Pick up and the faces row as this phone last drew them, painted on
+    /// the first frame (`paintRememberedLateRows`, §641); the shelf is this
+    /// account's and goes at sign-out.
+    private static let pickUpFile = "last-pickup.json"
+    private static let circleFile = "last-circle.json"
+
+    private func showRememberedRows() {
+        if circle == nil, let data = shelf.rememberedRow(Self.circleFile),
+           let found = try? FAMAPI.decoder.decode(CirclePage.self, from: data) {
+            circle = found
+            lastCircleData = data
+        }
+        if pickUp == nil, let data = shelf.rememberedRow(Self.pickUpFile),
+           let page = try? FAMAPI.decoder.decode(PickUpPage.self, from: data) {
+            pickUp = page
+            lastPickUpData = data
+        }
     }
 
     private func loadSavedTiles() async {
         // Offline the bookmarks are not drawn and not asked for (`loadTileSaves`).
         if isOffline { return }
-        if let keys = try? await api.savedKeys() { savedTiles = keys }
+        // A read that started before a tap began or settled is dropped, and
+        // a tap still in flight wins over any read (§647: `tileSaveSeq`,
+        // `tileSavePending`).
+        let seq = tileSaveSeq
+        guard let keys = try? await api.savedKeys(), seq == tileSaveSeq else { return }
+        var now = keys
+        for (key, on) in tileSavePending {
+            if on { now.insert(key) } else { now.remove(key) }
+        }
+        savedTiles = now
     }
 
     /// "Made for you,\nMonday evening" - or "Start here" with no history yet.
@@ -1215,33 +1315,47 @@ final class AppModel: ObservableObject {
         savedTiles.contains("\(tile.query)|\(FAMAPI.minutes(FAMAPI.browseMinutes))")
     }
 
-    /// The card's bookmark (`saveTile`).
+    /// The card's bookmark (`saveTile`, §641's tile-save B): it lights on
+    /// the tap and says so at once; a refusal puts it back and says why.
     func toggleSave(_ tile: Tile) {
         let key = "\(tile.query)|\(FAMAPI.minutes(FAMAPI.browseMinutes))"
-        // The bookmark changes once the server has answered, as the web's
-        // `saveTile` paints it - never lit for a save that did not happen.
-        if savedTiles.contains(key) {
-            Task {
-                do {
-                    try await api.unsaveTile(query: tile.query)
-                    savedTiles.remove(key)
-                    nowPlaying.snack("Removed from Saved for Later")
-                } catch {
-                    nowPlaying.say("Could not take that off")
-                }
-            }
+        let on = !savedTiles.contains(key)
+        if on { savedTiles.insert(key) } else { savedTiles.remove(key) }
+        tileSaveSeq += 1
+        tileSavePending[key] = on
+        if on {
+            nowPlaying.say("Saved for Later", action: "Open") { [weak self] in self?.openSaved() }
         } else {
-            Task {
-                do {
+            nowPlaying.snack("Removed from Saved for Later")
+        }
+        Task {
+            do {
+                if on {
                     try await api.saveTile(query: tile.query, title: tile.title, source: "myfam")
-                    savedTiles.insert(key)
-                    nowPlaying.say("Saved for Later", action: "Open") { self.openSaved() }
-                    await api.event("save", topicID: tile.id, text: tile.query)
-                } catch {
-                    nowPlaying.say("Could not save that")
+                } else {
+                    try await api.unsaveTile(query: tile.query)
+                }
+                settleTileSave(key, asked: on, saved: on)
+                if on { await api.event("save", topicID: tile.id, text: tile.query) }
+            } catch {
+                // Put back only if this was the last tap on it.
+                if settleTileSave(key, asked: on, saved: !on) {
+                    nowPlaying.say(on ? "Could not save that" : "Could not take that off")
                 }
             }
         }
+    }
+
+    /// A tile's save answered: drawn as the server has it, unless a later
+    /// tap on the same tile asked otherwise (its own answer settles it).
+    /// True when this answer was the one drawn.
+    @discardableResult
+    private func settleTileSave(_ key: String, asked: Bool, saved: Bool) -> Bool {
+        tileSaveSeq += 1
+        guard tileSavePending[key] == asked else { return false }
+        tileSavePending[key] = nil
+        if saved { savedTiles.insert(key) } else { savedTiles.remove(key) }
+        return true
     }
 
     /// An episode a message carries, by its own length: is it saved?
@@ -1282,17 +1396,40 @@ final class AppModel: ObservableObject {
         play(ep)
     }
 
-    /// "Not interested" from a card's ⋯ (§499): the tile leaves every rail.
+    /// "Not interested" from a card's ⋯ (§499, §641's remove-tile B): the
+    /// tile leaves every rail and any open View more at once; "Got it —
+    /// you’ll see less like this" with Undo for 5 s, and `not_interested`
+    /// is recorded only when the line goes (`tileNotInterested`). Undo puts
+    /// the tile back where it was.
     func notInterested(_ tile: Tile) {
-        Task { await api.event("not_interested", topicID: tile.id,
-                               text: tile.query.isEmpty ? tile.title : tile.query) }
-        for i in rails.indices {
-            let had = !rails[i].topics.isEmpty
-            rails[i].topics.removeAll { $0.id == tile.id }
-            if had && rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+        var places: [(key: String, index: Int)] = []
+        // The tile folds away and the others close in (round three's
+        // `remove-tile` B); Undo brings it back on the same curve.
+        withAnimation(Animation.tileGap) {
+            for i in rails.indices {
+                guard let at = rails[i].topics.firstIndex(where: { $0.id == tile.id }) else { continue }
+                places.append((key: rails[i].key, index: at))
+                rails[i].topics.removeAll { $0.id == tile.id }
+                if rails[i].topics.isEmpty { emptiedRails.insert(rails[i].key) }
+            }
+            notInterestedIDs.insert(tile.id)
         }
-        notInterestedIDs.insert(tile.id)
-        nowPlaying.snack("Got it — you’ll see less like this")
+        let text = tile.query.isEmpty ? tile.title : tile.query
+        nowPlaying.undoLine("Got it — you’ll see less like this", undo: { [weak self] in
+            guard let self else { return }
+            withAnimation(Animation.tileGap) {
+                self.notInterestedIDs.remove(tile.id)
+                for place in places {
+                    guard let r = self.rails.firstIndex(where: { $0.key == place.key }),
+                          !self.rails[r].topics.contains(where: { $0.id == tile.id }) else { continue }
+                    self.rails[r].topics.insert(tile, at: min(place.index, self.rails[r].topics.count))
+                    self.emptiedRails.remove(place.key)
+                }
+            }
+        }, commit: { [weak self] in
+            guard let self else { return }
+            await self.api.event("not_interested", topicID: tile.id, text: text)
+        })
     }
 
     func addToQueue(_ tile: Tile) {
@@ -1320,18 +1457,39 @@ final class AppModel: ObservableObject {
                      title: card.title, surface: "myfam"))
     }
 
-    /// The X on a Pick up card: gone for good, on every device.
+    /// The X on a Pick up card (§641's remove-tile B): the card is off at
+    /// once, "Removed from Pick up" with Undo for 5 s, and the dismissal -
+    /// gone for good, on every device - is sent only when the line goes
+    /// (`dismissGoDeeper`). Pick up is not asked for again afterwards.
     func dismissPickUp(query: String) {
         // Compared as the web does, without case (`dismissGoDeeper`).
         let q = query.lowercased()
-        if var page = pickUp {
-            page = PickUpPage(threads: page.threads.filter { $0.thread.lowercased() != q },
-                              resume: page.resume.filter { $0.query.lowercased() != q })
-            pickUp = page
+        let before = pickUp
+        pickUpDismissing.insert(q)
+        // The card folds away and the others close in (round three).
+        if let page = pickUp {
+            withAnimation(Animation.tileGap) { pickUp = Self.withoutDismissed(page, pickUpDismissing) }
         }
-        Task {
-            if await api.dismissPickUp(query: query) { await loadPickUp() }
-        }
+        nowPlaying.undoLine("Removed from Pick up", undo: { [weak self] in
+            guard let self else { return }
+            self.pickUpDismissing.remove(q)
+            // Back as it was, unless Pick up was read again meanwhile.
+            if let kept = self.pickUpLastRead ?? before {
+                self.pickUp = Self.withoutDismissed(kept, self.pickUpDismissing)
+            }
+        }, commit: { [weak self] in
+            guard let self else { return }
+            _ = await self.api.dismissPickUp(query: query)
+            self.pickUpDismissing.remove(q)
+        })
+    }
+
+    /// Pick up without the cards whose X is still under its Undo
+    /// (`goDeeperDismissing`).
+    private static func withoutDismissed(_ page: PickUpPage, _ gone: Set<String>) -> PickUpPage {
+        guard !gone.isEmpty else { return page }
+        return PickUpPage(threads: page.threads.filter { !gone.contains($0.thread.lowercased()) },
+                          resume: page.resume.filter { !gone.contains($0.query.lowercased()) })
     }
 
     /// Search DailyFAM: an episode somebody else made, replayed.
@@ -1447,7 +1605,8 @@ final class AppModel: ObservableObject {
         return LoadingModel.Dial(heading: heading, picture: api.picture(tile.thumb), title: title,
                                  faces: faces,
                                  friendsLine: faces.isEmpty ? ""
-                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count))
+                                     : Self.friendsListenedLine(faces, count: friends?.count ?? faces.count),
+                                 ready: tile.cached)
     }
 
     /// "Maya listened", "Maya and Jordan listened", "Maya, Jordan and 4
@@ -1498,13 +1657,21 @@ final class AppModel: ObservableObject {
     /// where what it does is said (11.16 notes: no note under the bubbles).
     func setPrivateSearch(_ on: Bool) {
         privateSearch = on
+        privateSearchSeq += 1
+        let mine = privateSearchSeq
         nowPlaying.say(on ? "Private search on \u{00B7} kept out of history and feeds" : "Private search off")
         Task {
             if !(await you.savePreference(["private_search": on])) {
+                // Refused: the lock and the Settings row flip back, unless
+                // a later tap has moved them since (§645, §647).
+                if mine == privateSearchSeq { privateSearch = !on }
                 nowPlaying.say("Could not save that")
             }
         }
     }
+
+    /// Every tap on private search, so only the last one's refusal moves it.
+    private var privateSearchSeq = 0
 
     /// The voice searches are spoken in (`voiceItem`): a pick on the search
     /// page is for the next search (`voice_picked`, §447); one in Settings is
@@ -1558,9 +1725,13 @@ final class AppModel: ObservableObject {
     /// attachment, the fixed summarise question, titled with its name.
     /// Returns whether it was sent, so the box and the chips clear.
     @discardableResult
-    func sendSearch(query: String, title: String, minutes: Double) async -> Bool {
-        guard await consent.ensure() else { return false }
+    func sendSearch(query: String, title: String, minutes: Double, typed asked: String = "") async -> Bool {
+        guard await consent.ensure() else {
+            loading.closeEarly()
+            return false
+        }
         if attachments.pending {
+            loading.closeEarly()
             nowPlaying.say("Still reading that attachment")
             return false
         }
@@ -1591,10 +1762,20 @@ final class AppModel: ObservableObject {
         // make - unless it is private.
         let asked = question
         if !privateSearch { Task { await api.event("search", text: asked) } }
-        // The attachment belonged to that question.
+        // Kept for a Cancel to put back, then the attachment goes with the
+        // question it belonged to.
+        searchAsked = AskedSearch(text: asked.isEmpty ? query : asked, slots: attachments.items,
+                                  query: question)
         attachments.clear()
         play(ep)
         return true
+    }
+
+    /// Cancel's way back to the bar (`restoreAskedSearch`).
+    private func restoreAskedSearch() {
+        guard let asked = searchAsked else { return }
+        searchAsked = nil
+        searchRestore = asked
     }
 
     /// A trending search is a search (`runTrendSearch`): the same question
@@ -1666,10 +1847,13 @@ final class AppModel: ObservableObject {
 
     /// Cancel from the loading screen's X: the episode is not wanted.
     func cancelLoading() {
+        cancelSeq += 1
         loading.stop()
         pending = nil
         player.stop()
         nowPlaying.say("Cancelled")
+        // The question and its attachments back in the bar (§643).
+        restoreAskedSearch()
     }
 
     /// The mini player's X: stop it (`transport`).
@@ -1700,6 +1884,8 @@ final class AppModel: ObservableObject {
         // Something started on its own: whatever an ended episode held for
         // the vibe editor is not "next" any more (§550, `generate`).
         nowPlaying.heldForVibe = nil
+        // Any other episode: a Cancel has nothing of the search to put back.
+        if let asked = searchAsked, !ep.key.query.hasPrefix(asked.query) { searchAsked = nil }
         // A playlist's own episode, and a Go Deeper detour off it, keep the
         // playlist; anything else started on the player ends it - a search,
         // a tile, What's next, a shared episode, the Queue, a category (§519).
@@ -1861,6 +2047,8 @@ final class AppModel: ObservableObject {
     private func generationFailed() {
         loading.stop()
         pending = nil
+        // Not asked again: nothing for a later Cancel to put back.
+        searchAsked = nil
         // With the player on screen, back first (`onGenerationFailed`).
         showPlayer = false
         let words = player.failureWords
@@ -1874,13 +2062,25 @@ final class AppModel: ObservableObject {
     func answerReading(_ choice: String?) {
         guard let ask = readingAsk else { return }
         readingAsk = nil
-        guard let choice, !choice.isEmpty else { return }
+        guard let choice, !choice.isEmpty else {
+            // Cancel puts the question back in the bar (§643).
+            restoreAskedSearch()
+            return
+        }
         var ep = ask.episode
         let asked = ep.key.query
         if !asked.hasSuffix("(" + choice + ")") { ep.key.query = asked + " (" + choice + ")" }
         ep.key.reading = choice
         play(ep)
     }
+}
+
+/// A search as it was sent: the words in the bar, its attachments, and the
+/// question the episode was asked as.
+struct AskedSearch: Equatable {
+    let text: String
+    let slots: [AttachSlot]
+    let query: String
 }
 
 /// "Which one do you mean?": the question asked and the server's readings.
@@ -2109,6 +2309,13 @@ extension AppModel {
     /// player stops and says the mix is done (`finishMix`).
     private func finishMix() -> Bool {
         let name = mixPlay?.name ?? "myFAM"
+        if let list = mixPlay {
+            mixDonePictures = list.order.enumerated()
+                .filter { list.played.contains($0.offset) }
+                .map { api.picture(list.items[$0.element].picture) }
+        } else {
+            mixDonePictures = []
+        }
         mixPlay = nil
         if !nowPlaying.queue.isEmpty { return false }
         stopEpisode()

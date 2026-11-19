@@ -250,6 +250,101 @@ struct SetRow: View {
     }
 }
 
+/// A Settings on/off row (§645's settings-switches A, `settingsSwitch`): no
+/// chevron and no value - a real switch, its knob sliding 200 ms. It flips
+/// on the tap and the saved state is drawn after: a refusal flips it back
+/// (§647). Tapped twice, the last tap wins. `asks`: the row moves only on
+/// the answer (Send my questions to AI asks first).
+struct SetSwitchRow: View {
+    let label: String
+    /// What is saved.
+    let isOn: Bool
+    let asks: Bool
+    /// The change; true when it was kept.
+    let change: (Bool) async -> Bool
+    /// The tap's state, until the saved one says the same.
+    @State private var shown: Bool?
+    @State private var seq = 0
+
+    init(label: String, isOn: Bool, asks: Bool = false, change: @escaping (Bool) async -> Bool) {
+        self.label = label
+        self.isOn = isOn
+        self.asks = asks
+        self.change = change
+    }
+
+    var body: some View {
+        let on = shown ?? isOn
+        Button(action: flip) {
+            HStack(spacing: 10) {
+                Text(label)
+                    .font(FAMFont.body(13, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                FAMSwitch(on: on)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(minHeight: 45)
+            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.bottom, 8)
+        }
+        .buttonStyle(.press)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
+        .onChange(of: isOn) { _, now in
+            if shown == now { shown = nil }
+        }
+    }
+
+    private func flip() {
+        let next = !(shown ?? isOn)
+        seq += 1
+        let mine = seq
+        if !asks { shown = next }
+        Task {
+            let kept = await change(next)
+            guard mine == seq else { return }
+            if !kept {
+                // Refused: back to what is saved, moving.
+                shown = nil
+                return
+            }
+            // Kept: the saved state takes over when it says so - or after a
+            // moment, whatever it says.
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if mine == seq { shown = nil }
+        }
+    }
+}
+
+/// The switch itself (`.mix-switch`'s look): 44 x 26, copper when on, the
+/// knob sliding 200 ms in-out; at once with Reduce Motion.
+struct FAMSwitch: View {
+    let on: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack(alignment: on ? .trailing : .leading) {
+            Capsule()
+                .fill(on ? FAMColor.copper : FAMColor.borderStrong)
+            Circle()
+                .fill(Color.white)
+                .frame(width: 20, height: 20)
+                .padding(3)
+                .shadow(color: Color.black.opacity(0.18), radius: 1.5, x: 0, y: 1)
+        }
+        .frame(width: 44, height: 26)
+        .animation(reduceMotion ? nil : Motion.easeInOut(Motion.Dur.switchKnob), value: on)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Geist 11 / 16.5 faint, padding 2 2 4, straight under its row.
 struct SetNote: View {
     let text: String
@@ -379,30 +474,55 @@ struct StepMarks: View {
     /// The unfilled marks (`--border-strong` on the page): light's measured
     /// grey, or dark's border over the dark page.
     private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
-    /// The bar this step fills grows in from 0.3 over 260 ms (`Motion.steps`).
+    /// The bar this step fills grows in from 0 over 260 ms on
+    /// `--ease-in-out` (round three, §640 `signup-steps` B).
     @State private var grown = false
+    /// The number "Step n of 4" shows: the one before, rolled up to this
+    /// one as the step arrives (300 ms on `--ease-in-out`).
+    @State private var shownStep: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    init(step: Int) {
+        self.step = step
+        _shownStep = State(initialValue: (step > 1 && !Motion.reduced) ? step - 1 : step)
+    }
+
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(1...Self.count, id: \.self) { i in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Self.track)
-                    if i <= step {
-                        Capsule()
-                            .fill(FAMColor.copper)
-                            .scaleEffect(x: (i == step && !grown) ? 0.3 : 1, y: 1, anchor: .leading)
+        VStack(spacing: 6) {
+            HStack(spacing: 5) {
+                ForEach(1...Self.count, id: \.self) { i in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Self.track)
+                        if i <= step {
+                            Capsule()
+                                .fill(FAMColor.copper)
+                                .scaleEffect(x: (i == step && !grown) ? 0.001 : 1, y: 1, anchor: .leading)
+                        }
                     }
+                    .frame(width: 18, height: 3)
                 }
-                .frame(width: 18, height: 3)
             }
+            HStack(spacing: 0) {
+                Text("Step ")
+                Text("\(shownStep)")
+                    .monospacedDigit()
+                    .contentTransition(reduceMotion ? .identity : .numericText(value: Double(shownStep)))
+                Text(" of \(Self.count)")
+            }
+            .font(FAMFont.mono(9.5))
+            .foregroundStyle(FAMColor.textMuted)
         }
         .onAppear {
             if reduceMotion {
                 grown = true
+                shownStep = step
             } else {
-                withAnimation(.easeOut(duration: 0.26)) { grown = true }
+                withAnimation(Motion.easeInOut(0.26)) { grown = true }
+                withAnimation(Motion.easeInOut(Motion.Dur.roll)) { shownStep = step }
             }
+        }
+        .onChange(of: step) { _, now in
+            withAnimation(Motion.anim(Motion.easeInOut(Motion.Dur.roll), reduce: reduceMotion)) { shownStep = now }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)

@@ -139,6 +139,12 @@ struct CategoryPanel: View {
     @State private var page: CategoryEpisodes?
     @State private var failed = false
     @State private var following = false
+    /// The node `page` is for; while another loads, the last page stays,
+    /// inert (`aria-busy`, `inert`, §642/§646).
+    @State private var pageNode = ""
+    /// The first page has waited 300 ms: "Loading…" may show.
+    @State private var slow = false
+    private var busy: Bool { page != nil && pageNode != node }
     @Environment(\.dynamicTypeSize) private var typeSize
 
     static let tones: [String: Color] = [
@@ -186,25 +192,42 @@ struct CategoryPanel: View {
                     .buttonStyle(.press)
                 }
                 .frame(maxWidth: .infinity)
-            } else {
+            } else if slow {
                 note("Loading today’s episodes…")
             }
         }
         .padding(.horizontal, 18)
+        // Play all, Follow and the rows do nothing while the next loads.
+        .allowsHitTesting(!busy)
         .task(id: node) { await load() }
     }
 
     private func load() async {
         failed = false
+        if page == nil {
+            // The line only after 300 ms (`lateLoader`).
+            slow = false
+            let asked = node
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if page == nil && node == asked { slow = true }
+            }
+        }
         do {
             let answer = try await model.api.categoryEpisodes(node)
+            if Task.isCancelled { return }
             page = answer
+            pageNode = node
             // The level below comes from the category's own answer only,
             // so narrowing to one of its subs keeps the row
             // (`if(node === catPage.root)`).
             if root.isEmpty || node == root { subs = answer.subcategories }
         } catch {
+            // A load overtaken by the next node's says nothing.
+            if Task.isCancelled { return }
             failed = true
+            page = nil
+            pageNode = ""
         }
     }
 
@@ -307,6 +330,7 @@ struct CategoryPanel: View {
             guard mixes.categories?.saved == true else { return }
             guard !following else { return }
             following = true
+            // Following on the tap (§642); refused, it flips back.
             Task { _ = await mixes.toggleFollow(node); following = false }
         } label: {
             Text(on ? "Following" : "Follow")
@@ -479,9 +503,14 @@ struct PlayfamTabs: View {
             button(.categories, "Categories")
         }
         // The hairline under both; the copper rule of the one on is drawn
-        // over it (`margin-bottom:-1px`).
+        // over it (`margin-bottom:-1px`) - one rule that slides between
+        // them (round three, §642 `playfam-tabs` B: 240 ms on
+        // `--ease-in-out`).
         .background(alignment: .bottom) {
             Rectangle().fill(FAMColor.border).frame(height: 1)
+        }
+        .overlay(alignment: .bottom) {
+            SlidingRule(count: 2, index: tab == .mixes ? 0 : 1, height: 2.5, duration: 0.24)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 12)
@@ -495,15 +524,11 @@ struct PlayfamTabs: View {
             Text(label)
                 .font(FAMFont.body(15, .semibold))
                 .foregroundStyle(on ? FAMColor.text : FAMColor.textMuted)
+                .animation(Motion.anim(.easeInOut(duration: 0.15)), value: on)
                 .lineLimit(1)
                 .padding(.top, 8)
                 .padding(.bottom, 9 + 2.5)
                 .frame(maxWidth: .infinity, minHeight: 42)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(on ? FAMColor.copper : Color.clear)
-                        .frame(height: 2.5)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)

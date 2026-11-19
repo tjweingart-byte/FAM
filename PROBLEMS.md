@@ -40703,3 +40703,240 @@ removed, ASML "sounds good" (§679's letters), and "all look solid" - except
 Fuad (`foo-AHD`, the owner's row, "Foowahd"), "so far off it's not funny":
 `FWAHD` ("Fwahd") is the suggestion, to be heard in a sentence.
 
+## 681. The iPhone app catches up, part one (2026-11-17)
+
+Three readers audited the iPhone app against the web after §640-§647
+(95 gaps: rails and mixes, search and the player, social and yourFAM, each
+with the web's lines, the Swift's and a build spec). This is phase A:
+round three's motion foundations, which phase B builds on, and every gap
+that changes what the app *does* - the broken, the missing and the
+differing. Motion-only gaps are phase B. Nothing in `rule:motion` changed:
+the iPhone now follows its round-three text where phase A reaches.
+
+**Foundations (`Motion.swift`).** `enum Motion` holds the web's `:root`
+tokens as one copy - `easeOut` (.32,.72,0,1), `easeIn`, `easeInOut`,
+`easeSwap`, `springSoft` (.5 s, bounce .15), `springIcon` (.35 s, none),
+`Motion.Dur` with the `--dur-*` the app uses - and `Motion.anim`, which is
+no animation under Reduce Motion. The shared icon swap is `IconSwap` /
+`.iconSwap` (.3 and a 3 pt blur, both icons at once on the icon spring).
+**Reduced motion is all off**: the 120 ms crossfades on tabs, pushed
+screens, sheets and modals, the player and the tour are gone (instant);
+loading indicators keep going (the chat's typing dots became an opacity
+wave, no bob, left to right). Tabs: the old page is gone on the first
+frame and the new one nudges 12 pt in over 160 ms; the tab icon's pop is a
+no-op. Screens push 340 ms and go back 260 ms on `--ease-out`.
+
+**The Undo line (`NowPlayingModel.undoLine`).** A line with an action
+stays 5 s. An Undo line holds its request until the line goes - time up,
+replaced by another line, the app to the background (`scenePhase`, under a
+background task, the web's `keepalive`), or sign-out and account deletion
+(waited for at most 1.5 s, the line hidden). Undo before then sends
+nothing; a refusal is the commit's to roll back and say. Used by Not
+interested (the card back where it was; a feed read inside the five
+seconds leaves it off), Pick up's X (now a 44 pt zone; no reload after),
+Delete chat and Leave group (no question; off the list and out of memory
+at once, back to the list; `threadsGone` keeps re-reads from bringing it
+back), Saved for Later's X and My Vibes' take-back (`savedPendingRemove`,
+`vibePendingRemove`).
+
+**Optimistic, with rollback.** Ten Settings rows are real switches
+(`SetSwitchRow`, `FAMSwitch`): flipped on the tap, the saved state drawn
+after, a refusal flipping back - Private mode included (§647's bug cannot
+happen: the row shows the tap only until the saved value agrees or the
+answer refuses). "Send my questions to AI" asks first and moves on the
+answer. Private search's refusal now flips the lock back too, unless a
+later tap moved it. A mix's Public / Private (last tap wins), Add topics'
++ / ✓ (`MixesModel.setTopic`), Recommended (+), Follow on a category
+(`followShown`; the list read back afterwards, not waited for), a tile's
+save (`tileSaveSeq`, `tileSavePending`, as §647), Follow / Following
+everywhere (`SocialModel.followShown`, one `FollowPill`: copper Follow,
+outlined Following with its tick; no "Following" / "Unfollowed" lines),
+and the follower popup's Follow back (closes on the tap).
+
+**Search and the player.** Cancel - on the loading screen or "Which one
+do you mean?" - puts the question and its attachments back in the bar
+(`searchAsked`, cleared by a heard word, any other episode or a failure).
+The loading screen opens on the press (`LoadingModel.openEarly`) once the
+AI question is answered and no file is reading; the speller runs under
+step one; a cancel meanwhile drops the send (`cancelSeq`); the five
+steps' timing is untouched (`search-no-cover`) and the first step's
+0.5 s counts from the request. Go Deeper sends what the chip showed at
+touch-down and holds a new line while a finger is on it and 300 ms
+after. The mic and go share one slot; the bar's edge is copper on focus.
+Search now drains instead of snapping full; a chip being read has its
+moving copper line; a caption warms from the dimmed colour.
+
+**Messages.** No dim while sending; "Sending…" past a second; a refused
+send stays, faded, "Not sent · Tap to retry" (said too when off screen);
+a vibe's like is a heart on the card's corner; banners say "Liked your
+vibe · …" / "Replied to your vibe: …"; a group's count only once known;
+the inbox is read at the notifications' first call and whenever the count
+moves; chats are kept in memory (`SocialModel.chat(for:)`) and reopen at
+once; read on the tap; a new message moves the chat only if the reader
+was at the bottom; a chat opened from a banner inside a chat replaces it.
+
+**Also:** Pick up and the faces row are kept on the phone as last drawn
+(`rememberRow`, raw `pickUpData` / `circleData`) and an identical answer
+draws nothing; View more opens on the rail's own tiles and arrives only
+new cards (six, 30 ms apart, Trending's groups too); the story viewer
+pulls down to close (1:1, .85 at 300 pt, past 80 pt or a 0.1 pt/ms flick,
+else a 400 ms spring home) and its chrome hides 150 / returns 200 ms; a
+failed reply puts its words back; a category's last panel stays, inert,
+while the next loads; Create new mix keeps its room; the identity
+screen's new photo develops with "Checking photo…" until the check
+answers.
+
+**Where a gap needed a judgement.** The Public / Private lock swaps SF
+Symbols' two locks on the icon spring rather than lifting a drawn
+shackle. Recommended (+) takes the suggestion off at once and puts it back
+on a refusal, but the mix's own list gains the row when the server
+answers (no stand-in item: `MixItem` is the server's). A Settings switch
+whose model updates late (Hey FAM's microphone question) holds the tap's
+state until the model agrees or three seconds pass. The chat's "at the
+bottom" is measured from the bottom marker's frame in the scroller
+(within 40 pt).
+
+**Skipped, with reasons.** Voice search and a typed Go Deeper still wait
+on the speller before the loader: both close their own sheet first, and
+moving the open under them is phase B's voice-sheet work. The hub's hero
+still waits for the photo check when the picture is changed from Settings
+(the identity screen has it). The pending stand-in "Still adding that"
+for a topic played before its save answers is not built (no stand-in
+item, above).
+
+**PARITY.md.** The committed conflict markers are resolved (both the
+Private mode row and Main's ACCOUNT SETTINGS row kept); every row the
+audit found wrong is corrected for what was built; motion rows are
+Partial pending phase B; a "Motion, round three" row lists what is built
+and what phase B owes.
+
+Tests: `tests/test_ios_app_contract.py` (the new
+`test_the_iphone_catches_up_part_one_651`; the mix test reads the
+operations from `setTopic`), `tests/test_private_mode_638.py` reads
+`SetSwitchRow`. **Not verified here:** none of it has been compiled - no
+Swift toolchain on this machine; the Mac build (`.github/workflows/ios.yml`)
+is the first compile - nor run on a phone.
+
+## 682. The iPhone app catches up, part two: round-three motion (2026-11-17)
+
+Phase B of §681: the audit's motion gaps (58 across rails and mixes,
+search and the player, social and yourFAM), built on §681's `Motion`
+tokens, `Motion.anim` and `IconSwap`. Nothing in `rule:motion` changed;
+the iPhone now follows its round-three text on every page. The terms are
+the web's: nothing waits on a movement (state is live and tappable from
+the first frame, audio starts on the tap), every movement is 450 ms or
+less (the loading loops and the unwritten tile's 2.4 s develop excepted,
+as on the web), transforms and opacity only, Reduce Motion stills all of
+it but the loading indicators, and the five steps' timing is untouched
+(`GEN_STEP_*` in `LoadingModel` is not edited; a replay's five ticks are
+painted at once by `LoadingModel.instant`).
+
+**Shared pieces (`Motion.swift`).** `ArriveOnce` takes a rise, a sideways
+start, a blur and a duration; `arriving(_:index:rail:book:)` reckons the
+rails' order as the web's `arriveRails` does on a phone (headings 90 ms
+ahead, tiles 30 ms apart, six at most). `RollingText` (digits roll, the
+line warms to copper and back), `.foldAway` and `Animation.tileGap`,
+`SlidingRule` (one underline between equal tabs), `.tabSwap(forward:)`
+(the 18 pt nudge), `.dotPop`, `RoundHole` / `CircleReveal` /
+`.circleOut(from:)` (voice search out of the mic), `GrowsFromPress` (the
+story editor out of the (+) or face), `pageSheetCover` (a screen cover
+that rises from the bottom over a page receding to .97), the left-edge
+swipe on every screen cover and `EdgeSwipeBack` (iOS's own swipe back in
+the tabs' stacks, whose bars are hidden). The player's entrance gained the
+iris (`PlayerStage.iris`, a hole growing out of the loader's chevrons,
+which `PlayerMotion.chevrons` reports) and grows out of the DailyFAM
+wait's own picture when that wait hands over (`PlayerMotion.dial`,
+`LoadingModel.dialHandedOff`); its FLIP is 360 ms in-out both ways.
+Sheets slide all the way up from the bottom edge and modals grow from .97.
+
+**Page by page** - PARITY.md's "Motion, round three" row lists each with
+its numbers: the player (icon swaps, the quiet save word, the title's
+roll, colour-first pictures, the mini player's settle, the queue's arc and
+rolling count, What's next's blur rise); search (the loader's rows, drawn
+ticks and thread, the heartbeat ring - an opacity pulse under Reduce
+Motion, kept as a loading indicator - the iris, trending's arrival, the
+A to Z keeping its rows dimmed, Length and Voice acknowledging, the lock's
+swap, voice search out of the mic with a ripple per word, Which one's
+swap, Go Deeper's wipe); DailyFAM (rails out of a blur, Refresh's deal,
+live lines rolling, tiles folding away, the fast develop for a ready
+tile with its faces at rest); myFAM (the glide's hand-off with a moving
+pill, the sliding underline and nudge, the deck's deal, the drag's lift,
+tilt, dim and spring, Create's fade, the async (+), the finished mix's
+cards, the morning dot, the knob's shackle); messages and yourFAM (the
+bottom line, the rolling unread count, chats gliding to the top, the
+column's rise, the share sheet's bottom row, the reply's words rising,
+the story turning under the finger, the shelf underline, the hub's first
+draw, a friend's page reserving its rows, interest chips of one width,
+page sheets, the edge swipe, the story editor growing, sign-up's rolling
+step, the tour's one clock).
+
+**§681's leftovers.** A typed Go Deeper now opens the loader on the press
+(`NowPlayingModel.openLoaderEarly`, the player going down for it as the
+send would; a Cancel meanwhile drops the send by `cancelSeq`, as search's
+does). Voice search's send already reached `SearchView.go`, which opens
+the loader on the press (§681); its sheet now closes into the mic under
+the loader. A photo changed in Settings shows at once on yourFAM and the
+Settings row with "Checking photo…" until the check answers
+(`YouModel.pendingAvatar`, `checkingPhoto`). The Public / Private lock is a
+drawn lock riding the knob whose shackle lifts and turns open, or drops
+shut, once the knob has landed (`KnobLock`), no longer SF Symbols' two.
+
+**Where a gap needed a judgement.** The rails' "in view" test is reckoned
+rather than measured: the first two rails' first three tiles and the
+first three headings, which is what a phone shows at the top. The
+share sheet confirms in its own bottom row through a `ShareChoice`
+binding (the player's share card); a mix's share keeps its own bar. The
+interest chip's flood grows from the chip's middle, not the tap point (a
+`Button` does not say where it was touched). The story editor grows out
+of the press but leaves by iOS's own slide. The edge swipe on a screen
+cover is a 14 pt strip along the edge, so nothing pressable is under it;
+inside a social cover the swipe closes the cover, not one screen of its
+stack.
+
+**Skipped, with reasons** (PARITY.md lists them): the FAM mark gliding
+into the loader's wordmark (two layers; a cross-layer
+`matchedGeometryEffect` was not risked without a compiler); the tile's
+picture growing into the loader on the way in; the deck's reshuffle; dots
+becoming the message; New message's faces gathering into a stack;
+Friends regrouping by a glide; the folder flight; a posted story
+shrinking into your ring; Create's name flying to the hero; the reorder
+handle's 44 pt zone; the move gate on rail arrivals; a swipe sending the
+bottom line away.
+
+Tests: `tests/test_ios_app_contract.py` (the new
+`test_the_iphone_catches_up_part_two_652`; §584's motion test reads the
+fold's round-three curve). **Not verified here:** none of it has been
+compiled - no Swift toolchain on this machine; the Mac build
+(`.github/workflows/ios.yml`) is the first compile - nor run on a phone.
+
+## 683. iOS build 11: the iPhone's round-three catch-up and Find your friends, together (2026-11-19)
+
+**Asked.** The owner, with App Store Connect's TestFlight list open (build 10
+already testing, 25 installs): "It should be version 11 no?", then "A lot
+of app code has changed since build 10" and "all of these branches too were
+after build 10".
+
+**What App Store Connect's build 10 was.** Not §675's. It was uploaded from
+`claude/cool-ptolemy-wpk5ec` (§681-§682: the iPhone's round-three motion
+catch-up), whose last ten commits were made after #317 merged and **never
+reached Main**. So Main's `CURRENT_PROJECT_VERSION` still read 9 when §675
+raised it to 10, §675's "build 10" lacked the catch-up, and an upload of it
+would have been refused as a second 10.
+
+**What build 11 is.** Main (#318-#331: ambassadors, swipe the player down,
+Report a problem, Claude per episode, the voice worker, payments, interest
+pills, finding friends on the server, §675's Find your friends on the
+iPhone, and the pronunciation audit §676-§680, which is server-only) with
+the catch-up branch merged in. Its two log sections were §651-§652 on that
+branch, numbers Main had already given to other work; they are §681-§682
+here, and every reference that branch added (Swift comments, PARITY.md,
+tests) moved with them. Conflicts resolved: `follow(...)` takes both
+`via` (§669) and the catch-up's `followShown`; `StepMarks` keeps the
+catch-up's "Step n of N" roll with four steps; YourFAM's arrival order gains
+Discover people between the interests and the shelf; PARITY.md takes the
+catch-up's three social rows and keeps §675's Finding friends row.
+
+`CURRENT_PROJECT_VERSION` 11; the registry's build is 11. The catch-up
+changed no route.
+
+**Not verified here:** the Swift compiles in `ios.yml`.

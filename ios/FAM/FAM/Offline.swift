@@ -187,6 +187,21 @@ final class OfflineShelf {
         }
     }
 
+    /// Another late part of the page, kept as last drawn (Pick up, the
+    /// faces row: `rememberLateRow`, §641) - cleared with everything else.
+    func rememberRow(_ data: Data, as name: String) {
+        let url = folder.appendingPathComponent(name)
+        let dir = folder
+        io.async {
+            Self.ensure(dir)
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    func rememberedRow(_ name: String) -> Data? {
+        try? Data(contentsOf: folder.appendingPathComponent(name))
+    }
+
     func rememberedFeed() -> RailsPage? {
         let url = folder.appendingPathComponent("last-feed.json")
         guard let data = try? Data(contentsOf: url) else { return nil }

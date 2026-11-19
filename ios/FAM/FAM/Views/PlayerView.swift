@@ -30,13 +30,14 @@ struct PlayerView: View {
     /// Your story, opened from "Vibed to your story · View".
     @State private var myStory: StoryReel?
     @State private var popup: PlayerPopup?
-    @State private var badgePop: CGFloat = 1
+    /// The count the Queue's badge shows while a flight is on its way: the
+    /// count before it, rolled up as it lands (round three, `queue` A).
+    @State private var heldCount: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The queue's flight (`Motion.toQueue`): from the picture to the Queue.
     @State private var flying: QueueFlight?
     @State private var pictureFrame: CGRect = .zero
     @State private var queueFrame: CGRect = .zero
-    @State private var queueBump: CGFloat = 1
     /// "N friends listened", from the faces on the picture (§543).
     @State private var friendsOpen = false
     /// How the player comes and goes (`PlayerEntrance`): where its picture
@@ -122,13 +123,12 @@ struct PlayerView: View {
             openSheet(.queue)
         }
         .onChange(of: now.queue.count) { old, new in
-            // The badge pops when something is queued (0 → 1.25 → 1, 260 ms),
-            // as the flight lands (450 ms later) when there is one.
-            guard new > old else { return }
-            badgePop = 0
-            let wait = reduceMotion ? 0 : 0.45
-            DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { badgePop = 1 }
+            // The count rolls up as the flight lands (360 ms later) when
+            // there is one; at once with Reduce Motion.
+            guard new > old, !reduceMotion else { heldCount = nil; return }
+            heldCount = old
+            DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.flight) {
+                withAnimation(Motion.easeInOut(Motion.Dur.roll)) { heldCount = nil }
             }
         }
         .onChange(of: now.queueFlight) { _, flight in
@@ -139,18 +139,14 @@ struct PlayerView: View {
 
     static let space = "playerRoot"
 
-    /// The copy of the picture flying to the Queue button; the button
-    /// bumps as it lands.
+    /// The copy of the picture flying to the Queue button; its count rolls
+    /// as it lands.
     @ViewBuilder private var flightLayer: some View {
         if let flight = flying {
             let start = CGPoint(x: pictureFrame.midX, y: pictureFrame.midY)
             let end = CGPoint(x: queueFrame.midX, y: queueFrame.midY)
             QueueGhost(picture: flight.picture ?? now.picture, from: start, to: end) {
                 flying = nil
-                withAnimation(.easeOut(duration: 0.1)) { queueBump = 1.3 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.easeOut(duration: 0.16)) { queueBump = 1 }
-                }
             }
             .id(flight.id)
         }
@@ -528,7 +524,6 @@ struct PlayerView: View {
                 .background(FAMColor.surface, in: Circle())
                 .overlay(Circle().stroke(FAMColor.borderStrong))
                 .background(FrameReporter(space: Self.space) { queueFrame = $0 })
-                .scaleEffect(queueBump)
                 .overlay(alignment: .topTrailing) { queueBadge }
                 .overlay(alignment: .top) {
                     // The caption hangs 34 pt below the circle's top.
@@ -543,14 +538,16 @@ struct PlayerView: View {
     }
 
     @ViewBuilder private var queueBadge: some View {
-        if !now.queue.isEmpty {
-            Text("\(now.queue.count)")
+        let count = heldCount ?? now.queue.count
+        if count > 0 {
+            Text("\(count)")
                 .font(FAMFont.mono(9, bold: true))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(count)))
                 .foregroundStyle(FAMColor.ink)
                 .padding(.horizontal, 4)
                 .frame(minWidth: 15, minHeight: 15)
                 .background(FAMColor.copper, in: Capsule())
-                .scaleEffect(badgePop)
                 .offset(x: 8, y: -6)
         }
     }
@@ -769,15 +766,16 @@ struct PlayerFriendsPill: View {
 }
 
 /// The picture, faded into the page: white at the top edge, clear from 12%
-/// to 60%, white at the bottom (`.player-bg::after`). It blurs up as it
-/// loads: held at 0, blur 8, scale 1.06 and brought sharp over 320 ms
-/// (`Motion.picture`).
+/// to 60%, white at the bottom (`.player-bg::after`). Colour first (round
+/// three, §640 `pictures` B): the ground is there at once and the picture
+/// fades in over it, 240 ms on `--ease-out`; one already loaded just shows.
 struct PlayerPicture: View {
     let url: URL?
 
     var body: some View {
         ZStack {
             FAMColor.background
+            if url != nil { FAMColor.surface2 }
             if let url {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
@@ -800,18 +798,17 @@ struct PlayerPicture: View {
     }
 }
 
-/// The picture's arrival: blurred, a little large and clear, then sharp.
+/// The picture's arrival: a plain fade over the ground (no blur-up).
 private struct BlurUp: View {
     let image: Image
-    @State private var sharp = UIAccessibility.isReduceMotionEnabled
+    @State private var sharp = Motion.reduced
 
     var body: some View {
         image.resizable().scaledToFill()
             .opacity(sharp ? 1 : 0)
-            .blur(radius: sharp ? 0 : 8)
-            .scaleEffect(sharp ? 1 : 1.06)
             .onAppear {
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { sharp = true }
+                guard !sharp else { return }
+                withAnimation(Motion.easeOut(Motion.Dur.picture)) { sharp = true }
             }
     }
 }
@@ -834,8 +831,12 @@ struct SideButton: View {
 
     var body: some View {
         Button(action: action) {
-            WebIcon(path: icon, size: 16, line: 2)
-                .foregroundStyle(on ? FAMColor.ink : Self.light)
+            // Turning on or off crosses the icon on the icon spring
+            // (round three's quiet swap, `burst` A).
+            IconSwap(key: on) {
+                WebIcon(path: icon, size: 16, line: 2)
+                    .foregroundStyle(on ? FAMColor.ink : Self.light)
+            }
                 .frame(width: 40, height: 40)
                 .background(on ? tint : Self.glass, in: Circle())
                 .background(.ultraThinMaterial, in: Circle())
@@ -1047,9 +1048,9 @@ struct MiniPlayer: View {
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Something was queued: the picture bumps, as the web's queue target
-    /// does when the queued episode lands on it (`Motion.toQueue`).
-    @State private var bump = false
+    /// The picture and play land a beat after the bar rises and settle on
+    /// the soft spring (round three, §640 `mini-player` B).
+    @State private var settled = Motion.reduced
     /// The copy flying here from the middle of the page while the player
     /// is down (`toQueue` with no tile frame to start from).
     @State private var flying: QueueFlight?
@@ -1071,6 +1072,11 @@ struct MiniPlayer: View {
             .onChange(of: now.queueFlight) { _, flight in
                 guard let flight, !reduceMotion, !model.showPlayer, thumbFrame != .zero else { return }
                 flying = flight
+            }
+            .onAppear {
+                guard !settled else { return }
+                if reduceMotion { settled = true; return }
+                withAnimation(Motion.springSoft.delay(Motion.Dur.settleDelay)) { settled = true }
             }
     }
 
@@ -1094,18 +1100,9 @@ struct MiniPlayer: View {
         HStack(spacing: 11) {
             thumb
                 .background(FrameReporter(space: Self.space) { thumbFrame = $0 })
-                .scaleEffect(bump ? 1.3 : 1)
-                .onChange(of: now.queue.count) { old, new in
-                    guard new > old, !reduceMotion else { return }
-                    // As the flight lands, when there is one (450 ms).
-                    let wait = model.showPlayer ? 0 : 0.45
-                    DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
-                        withAnimation(.easeOut(duration: 0.1)) { bump = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeOut(duration: 0.16)) { bump = false }
-                        }
-                    }
-                }
+                // Round three (`queue` A): no target bump; the Queue's count
+                // rolls instead.
+                .offset(y: settled ? 0 : 8)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     if now.explicit && now.episode != nil { PlayerExplicitBadge(size: 15) }
@@ -1123,6 +1120,7 @@ struct MiniPlayer: View {
                     .background(FAMColor.copper, in: Circle())
             }
             .buttonStyle(.press)
+            .offset(y: settled ? 0 : 8)
             .accessibilityLabel(player.playing ? "Pause" : "Play")
             Button { model.stopEpisode() } label: {
                 WebIcon(path: Icons.close, size: 16, line: 2.6)
@@ -1225,7 +1223,9 @@ private struct ToastDot: View {
             .scaleEffect(grown ? 1 : 0)
             .onAppear {
                 guard !grown else { return }
-                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.26).delay(0.06)) { grown = true }
+                // Round three (§640 `bottom-line` B): it lands a beat after
+                // the line, on the soft spring.
+                withAnimation(Motion.springSoft.delay(Motion.Dur.settleDelay)) { grown = true }
             }
     }
 }
@@ -1239,17 +1239,23 @@ private struct ToastDot: View {
 /// right of the words. Where it sits is unchanged (`placeAboveBars`).
 struct ToastView: View {
     @EnvironmentObject private var now: NowPlayingModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             if let toast = now.toast {
                 card(toast)
                     .id(toast.id)
-                    // In: up 8 pt from 0.98 (`translateY(8px) scale(0.98)`).
-                    .transition(.opacity.combined(with: .offset(y: 8)).combined(with: .scale(scale: 0.98)))
+                    // Round three (§640 `bottom-line` B): in, rising 16 pt
+                    // as it fades (240 ms on `--ease-out`); out, a 170 ms
+                    // fade on `--ease-in`. Reduce Motion: at once.
+                    .transition(reduceMotion ? .identity : .asymmetric(
+                        insertion: AnyTransition.opacity.combined(with: .offset(y: 16))
+                            .animation(Motion.easeOut(Motion.Dur.toastIn)),
+                        removal: AnyTransition.opacity.animation(Motion.easeIn(Motion.Dur.toastOut))))
             }
         }
-        .animation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22), value: now.toast)
+        .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.toastIn), value: now.toast)
     }
 
     private func card(_ toast: NowPlayingModel.Toast) -> some View {

@@ -191,7 +191,16 @@ struct NewMixView: View {
         do {
             let mix = try await model.api.createMix(name: trimmed, cover: cover)
             mixes.keep(mix)
-            path = [.mix(mix.id)]
+            // Not pushed: the new mix's page fades in over the form (round
+            // three, §642 `create-mix` B; `MixView.justMade`).
+            if Motion.reduced {
+                path = [.mix(mix.id)]
+            } else {
+                MixView.justMade = mix.id
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { path = [.mix(mix.id)] }
+            }
         } catch {
             model.nowPlaying.say(MixesModel.sentence(error, else: "Could not save that mix"))
         }
@@ -244,8 +253,11 @@ struct AddTopicsView: View {
         .task { await mixes.loadForPage() }
     }
 
+    /// In the mix as the last tap left it (§642: + and ✓ change on the
+    /// tap), else as the server has it.
     private func inMix(_ topicID: String) -> Bool {
-        mix?.items.contains { $0.id.lowercased() == topicID.lowercased() } ?? false
+        if let shown = mixes.topicShown(mix: id, topic: topicID) { return shown }
+        return mix?.items.contains { $0.id.lowercased() == topicID.lowercased() } ?? false
     }
 
     @ViewBuilder
@@ -303,10 +315,12 @@ struct AddTopicsView: View {
         }
     }
 
+    /// Flipped on the tap; refused, flipped back with the server's words
+    /// (`addTopicToMix`, §642).
     private func toggle(_ topicID: String, label: String) async {
         guard let mix else { return }
         let adding = !inMix(topicID)
-        if await mixes.update(id, [adding ? "add" : "remove": [topicID]]) != nil {
+        if await mixes.setTopic(mix: id, topic: topicID, add: adding) != nil {
             model.nowPlaying.say(adding ? "Added \(label) to \(mix.name)" : "Removed \(label) from \(mix.name)")
         }
     }

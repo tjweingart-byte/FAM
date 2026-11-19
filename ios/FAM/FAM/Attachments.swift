@@ -62,6 +62,9 @@ final class AttachModel: ObservableObject {
 
     func clear() { items = [] }
 
+    /// Cancel puts a search's chips back (`restoreAskedSearch`, §643).
+    func restore(_ slots: [AttachSlot]) { items = slots }
+
     /// × on a chip: gone at once, the server told (fire and forget).
     func remove(_ slot: AttachSlot) {
         items.removeAll { $0.id == slot.id }

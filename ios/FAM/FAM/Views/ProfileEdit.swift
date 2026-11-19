@@ -332,6 +332,14 @@ struct IdentityView: View {
     @State private var country = ""
     @State private var handleNote = IdentityView.handleHelp
     @State private var handleBad = false
+    /// A new photo shown at once on this device while the image check runs
+    /// (§645's changes-land B): "" for one taken off, nil for none.
+    @State private var pendingAvatar: String?
+    /// The picture is developing (blur 8 -> 0, 1.06 -> 1, 320 ms).
+    @State private var developing = false
+    /// "Checking photo…" until `/api/me` answers.
+    @State private var checkingPhoto = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var options: [InterestOption] = []
     @State private var picked: [String] = []
     @State private var typed: [String] = []
@@ -416,10 +424,15 @@ struct IdentityView: View {
     /// `.id-pic-row`: the 78 pt picture with the copper camera badge, and
     /// "TAP TO CHANGE" / "ADD A PHOTO". A tap is `pickAvatar`.
     private var pictureRow: some View {
-        let avatar = you.avatar
+        let avatar = pendingAvatar ?? you.avatar
+        let soft = developing && !reduceMotion
         return Button { flow.start(hasPicture: !avatar.isEmpty) } label: {
             HStack(spacing: 14) {
                 Face(name: name, handle: handle, avatar: avatar, size: 78, initialsSize: 26)
+                    .blur(radius: soft ? 8 : 0)
+                    .scaleEffect(soft ? 1.06 : 1)
+                    .opacity(soft ? 0.4 : 1)
+                    .clipShape(Circle())
                     .overlay(alignment: .bottomTrailing) {
                         WebIcon(path: YouIcons.camera, size: 12)
                             .foregroundStyle(FAMColor.ink)
@@ -428,7 +441,7 @@ struct IdentityView: View {
                             .padding(2)
                             .background(FAMColor.background, in: Circle())
                     }
-                Text(avatar.isEmpty ? "Add a photo" : "Tap to change")
+                Text(checkingPhoto ? "Checking photo\u{2026}" : (avatar.isEmpty ? "Add a photo" : "Tap to change"))
                     .monoLabel(9, color: FAMColor.textFaint, tracking: 0.72)
                 Spacer(minLength: 0)
             }
@@ -548,20 +561,49 @@ struct IdentityView: View {
 
     /// `.yf-int`: copper with a tick when chosen; with five chosen the rest
     /// are dim and do nothing.
+    /// One width whatever its state (round three, §645 `interest-picker`
+    /// B): a 14 pt slot holds a faint + while it is off and the tick, drawn
+    /// in (200 ms after 80 ms), while it is on; the weight never changes.
+    /// Choosing floods it copper from its middle (250 ms on `--ease-out`);
+    /// unchoosing drains it (180 ms on `--ease-in`). Reduce Motion: a plain
+    /// colour change.
     private func interestChip(_ row: InterestOption, full: Bool) -> some View {
         let on = picked.contains(row.id)
         let dim = !on && full
+        let still = Motion.reduced
         return Button { toggle(row) } label: {
             HStack(spacing: 5) {
-                if on { WebIcon(path: YouIcons.check, size: 13) }
+                ZStack {
+                    WebIcon(path: Icons.plus, size: 13)
+                        .opacity(on ? 0 : 0.6)
+                    Glyph(path: YouIcons.check, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+                        .trim(from: 0, to: on ? 1 : 0)
+                        .stroke(style: StrokeStyle(lineWidth: 2 * 13 / 24, lineCap: .round, lineJoin: .round))
+                        .frame(width: 13, height: 13)
+                        .animation(still ? nil : (on ? Motion.easeOut(0.2).delay(0.08) : Motion.easeIn(0.12)),
+                                   value: on)
+                }
+                .frame(width: 14, height: 14)
                 Text(row.label)
-                    .font(FAMFont.body(12, on ? .bold : .regular))
+                    .font(FAMFont.body(12, .medium))
                     .lineLimit(1)
             }
             .foregroundStyle(on ? FAMColor.ink : (dim ? Color(hex: 0x77718A) : FAMColor.textMuted))
+            .animation(still ? nil : .easeInOut(duration: 0.15), value: on)
             .padding(.horizontal, 12)
             .frame(minHeight: 30)
-            .background(on ? FAMColor.copper : Color.clear, in: Capsule())
+            .background {
+                GeometryReader { geo in
+                    let d = (geo.size.width * geo.size.width + geo.size.height * geo.size.height).squareRoot()
+                    Circle()
+                        .fill(FAMColor.copper)
+                        .frame(width: d, height: d)
+                        .scaleEffect(on ? 1 : 0.001)
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        .animation(still ? nil : (on ? Motion.easeOut(0.25) : Motion.easeIn(0.18)), value: on)
+                }
+                .clipShape(Capsule())
+            }
             .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.borderStrong))
             .opacity(dim ? 0.6 : 1)
         }
@@ -853,12 +895,39 @@ struct IdentityView: View {
             handleBad = true
             return
         }
+        // Shown at once, developing, with "Checking photo…" under it until
+        // the image check answers (§645).
+        pendingAvatar = url
+        checkingPhoto = true
+        develop()
         Task {
             if let refusal = await you.saveAvatar(url, name: n, handle: h) {
+                // Refused: the old one develops back and the line says why.
+                pendingAvatar = nil
+                checkingPhoto = false
+                develop()
                 model.nowPlaying.say(refusal)
             } else {
+                // Saved: the server's copy takes over without developing
+                // again.
+                checkingPhoto = false
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { pendingAvatar = nil }
                 model.nowPlaying.say("Picture saved")
             }
+        }
+    }
+
+    /// The picture develops like a print: soft, a little large, faint, then
+    /// sharp (320 ms `--ease-out`). Nothing moves with Reduce Motion.
+    private func develop() {
+        guard !reduceMotion else { return }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { developing = true }
+        DispatchQueue.main.async {
+            withAnimation(Motion.easeOut(Motion.Dur.photoDevelop)) { developing = false }
         }
     }
 }

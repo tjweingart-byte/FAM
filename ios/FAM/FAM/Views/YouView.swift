@@ -30,12 +30,14 @@ struct YouView: View {
         NavigationStack(path: $model.youPath) {
             hub
                 .toolbar(.hidden, for: .navigationBar)
+                // iOS's own swipe back, with the bar hidden (§682).
+                .background(EdgeSwipeBack().frame(width: 0, height: 0))
                 .navigationDestination(for: YouRoute.self) { route in
                     YouScreen(route: route)
                         .toolbar(.hidden, for: .navigationBar)
                 }
         }
-        .screenCover(isPresented: $editing) {
+        .pageSheetCover(isPresented: $editing) {
             IdentityView(mode: .edit).famObjects(model)
         }
         .famSheet(item: $held) { v in holdSheet(v) }
@@ -47,9 +49,12 @@ struct YouView: View {
                 .tourCover()
         }
         .fullScreenCover(item: $composing) { subject in
-            StoryEditor(subject: subject, openMine: { showMine() })
-                .environmentObject(model)
-                .tourCover()
+            GrowsFromPress {
+                StoryEditor(subject: subject, openMine: { showMine() })
+                    .environmentObject(model)
+            }
+            .presentationBackground(.clear)
+            .tourCover()
         }
         .task(id: model.listener?.userId) {
             await you.loadProfile()
@@ -63,6 +68,13 @@ struct YouView: View {
     }
 
     // MARK: - The page
+
+    /// The hub's sections already drawn this session.
+    private static let built = ArrivalBook()
+
+    private static func arrive(_ n: Int) -> ArriveOnce {
+        ArriveOnce(key: "hub:\(n)", delay: Double(n) * 0.08, book: built, blur: 2, duration: 0.3)
+    }
 
     private var hub: some View {
         ScrollViewReader { proxy in
@@ -91,14 +103,18 @@ struct YouView: View {
 
     @ViewBuilder private func content(_ proxy: ScrollViewProxy) -> some View {
         if let p = you.profile {
-            hero(p)
-            stats(p, proxy: proxy)
-            buttons(p)
-            interests(p)
+            // The first draw of a session builds top down (round three,
+            // §645 `hub-arrival` A): photo, numbers, buttons, interests,
+            // the shelf - 8 pt up out of a 2 pt blur, 300 ms on
+            // `--ease-out`, 80 ms apart. Later opens move nothing.
+            hero(p).modifier(Self.arrive(0))
+            stats(p, proxy: proxy).modifier(Self.arrive(1))
+            buttons(p).modifier(Self.arrive(2))
+            interests(p).modifier(Self.arrive(3))
             // Discover people with See all (§665, `hubDiscoverHTML`).
-            DiscoverPeopleSection()
-            tabs.id("shelf")
-            grid(p)
+            DiscoverPeopleSection().modifier(Self.arrive(4))
+            tabs.id("shelf").modifier(Self.arrive(5))
+            grid(p).modifier(Self.arrive(6))
         } else if you.profileState == .failed {
             // The web clears the header and offers nothing (Q2): here the
             // gear stays and the page can be asked again.
@@ -136,6 +152,13 @@ struct YouView: View {
     private func hero(_ p: MyProfile) -> some View {
         VStack(spacing: 0) {
             photo(p)
+                .opacity(you.checkingPhoto ? 0.6 : 1)
+                .animation(Motion.anim(.easeOut(duration: 0.15)), value: you.checkingPhoto)
+            if you.checkingPhoto {
+                Text("Checking photo\u{2026}")
+                    .monoLabel(9, color: FAMColor.textFaint, tracking: 0.72)
+                    .padding(.top, 6)
+            }
             // Both wrap, centred, rather than being cut (`large-text`).
             Text(nameLine(p))
                 .font(FAMFont.heading(24, .semibold))
@@ -177,7 +200,9 @@ struct YouView: View {
         let mine = p.stories ?? []
         let name = p.name ?? ""
         let handle = p.handle ?? ""
-        let avatar = p.avatar ?? ""
+        // A photo changed in Settings shows at once, faint while it is
+        // checked (§682).
+        let avatar = you.pendingAvatar ?? p.avatar ?? ""
         let account = model.listener?.authenticated == true
         return ZStack(alignment: .bottomTrailing) {
             if mine.isEmpty && !account {
@@ -218,7 +243,7 @@ struct YouView: View {
 
     private func compose() {
         guard model.listener?.authenticated == true else { return }
-        composing = .note()
+        GrowsFromPressOrigin.present { composing = .note() }
     }
 
     /// The snack's View after posting: your story, read again.
@@ -385,6 +410,9 @@ struct YouView: View {
             tabButton("Mixes", 1)
         }
         .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        // One underline that slides to the tab (round three, §645
+        // `shelf-switch` A: 250 ms on `--ease-in-out`).
+        .overlay(alignment: .bottom) { SlidingRule(count: 2, index: you.shelfTab, duration: 0.25) }
         .padding(.top, 20)
     }
 
@@ -395,9 +423,6 @@ struct YouView: View {
                 .monoLabel(10.5, color: on ? FAMColor.text : FAMColor.textFaint, tracking: 1.89)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 34)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(on ? FAMColor.copper : Color.clear).frame(height: 2)
-                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press)
@@ -408,11 +433,15 @@ struct YouView: View {
         [GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3), GridItem(.flexible(), spacing: 3)]
     }
 
+    /// The grid nudges out the way the tab moved and the other slides in
+    /// (110 ms out, 200 ms in after 90 ms).
     @ViewBuilder private func grid(_ p: MyProfile) -> some View {
         if you.shelfTab == 0 {
-            vibesGrid(p)
+            VStack(spacing: 0) { vibesGrid(p) }
+                .transition(.tabSwap(forward: you.shelfTab == 1))
         } else {
-            mixesGrid(p)
+            VStack(spacing: 0) { mixesGrid(p) }
+                .transition(.tabSwap(forward: you.shelfTab == 1))
         }
     }
 
