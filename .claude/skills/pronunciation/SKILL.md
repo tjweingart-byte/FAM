@@ -101,8 +101,8 @@ it wrong - Iran was respelled because the owner heard it.
 **A name the product leans on gets one structured entry, never "plain".**
 NVIDIA is why the list exists: scripts write NVIDIA, Nvidia and nVidia, and
 each went down a different path. A seed for the mixed-case form is matched
-in capitals too, so one respelling (`en VID-ya`, "En Vidya", §680) covers
-every spelling; a test pins that all of them reach the voice alike. An
+in capitals too, so one respelling (`en-VID-ia`, "Envidia" - heard
+"perfect"; "Envideeya" was not, §680) covers every spelling; a test pins that all of them reach the voice alike. An
 admin row for one spelling beats the seed for that spelling only - keep it
 the same or remove it.
 

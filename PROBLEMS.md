@@ -40683,13 +40683,23 @@ They were right, and §679 made it worse: "NVIDIA" (the owner's row,
 the stress on the last i, while "Nvidia" fell through to `spoken_text`'s
 "Envidia" (§569) - two readings of one company in one episode.
 
-Now `SEED` holds "Nvidia" and "nVidia" as `en VID-ya` -> **"En Vidya"**, and a
-seed is matched in capitals, so NVIDIA, Nvidia, nVidia, "NVIDIA's" and
-"Nvidia-backed" all reach the voice as "En Vidya". The space keeps the n from
-being drawn into the v ("em"); "Vidya" puts the stress on VID. "Nvidia" is off
-`PLAIN`. The owner's own "NVIDIA" row still wins for that spelling: set it to
-`en VID-ya` (or remove it) on /admin. A test pins one reading for every
-spelling, and the skill says a name the product leans on gets one structured
-entry, never "plain". Unheard: "En Vidya" is reasoned, not heard - the
-owner's ear is the check.
+Then the owner heard both rows side by side: "the second sounds perfect and
+the first sounds bad, how are they different". The second - the writer's
+"Nvidia" row, sent through `PLAIN` to `spoken_text` - was "Envidia"; the
+first, their own row, "Envideeya". The difference is the end: "-dia" reads
+like any English "-ia" word, "-deeya" spells a stressed "dee-ya".
+
+So `SEED` holds "Nvidia" and "nVidia" as `en-VID-ia` -> **"Envidia"**, the
+reading heard as perfect (a first try in this branch, "En Vidya", was reasoned
+and never heard, and was replaced before merging). A seed is matched in
+capitals, so NVIDIA, Nvidia, nVidia, "NVIDIA's" and "Nvidia-backed" all
+reach the voice as "Envidia". "Nvidia" is off `PLAIN`. The owner's own
+"NVIDIA" row still wins for that spelling: set it to `en-VID-ia` (or remove
+it) on /admin. A test pins one reading for every spelling, and the skill says
+a name the product leans on gets one structured entry, never "plain".
+
+The same round: Gemini fixed by hand and Duet fixed by the owner, Emery
+removed, ASML "sounds good" (§679's letters), and "all look solid" - except
+Fuad (`foo-AHD`, the owner's row, "Foowahd"), "so far off it's not funny":
+`FWAHD` ("Fwahd") is the suggestion, to be heard in a sentence.
 

@@ -316,6 +316,6 @@ def test_nvidia_has_one_reading_in_every_spelling(tmp_path):
     from spoken_text import speakable
     _, lex = _lex(tmp_path)
     said = {speakable(lex.apply(w + " rose")) for w in ("NVIDIA", "Nvidia", "nVidia")}
-    assert said == {"En Vidya rose"}
-    assert speakable(lex.apply("Nvidia's chips")) == "En Vidya's chips"
+    assert said == {"Envidia rose"}   # heard "perfect" by the owner
+    assert speakable(lex.apply("Nvidia's chips")) == "Envidia's chips"
     assert "Nvidia" not in pronunciation.PLAIN
