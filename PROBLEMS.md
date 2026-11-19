@@ -41023,3 +41023,10 @@ was saved, shared or vibed, so it plays out and says so. A reconnect onto
 an episode re-voiced from its script (no kept audio) may be a fraction of a
 second off at the join (§132's 0.161 s over three minutes); kept audio is
 exact.
+
+**The full check, first run:** 8,122 passed; both preview smokes failed
+100 checks with "FamAudio is not defined". Both builders inlined
+`fam-audio.js` with `re.subn` and a string replacement, which reads the
+log's `"\n"` as a newline - an unterminated string literal. The first
+backslash the player ever held. Now the replacement is a function, so the
+script goes in verbatim.
