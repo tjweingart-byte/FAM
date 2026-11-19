@@ -39775,3 +39775,41 @@ live voice, then an admin respelling for any that miss. The list is a floor of
 famous names, not a scan: a name the voice gets wrong that is neither listed
 nor flagged by a model is still missed, and the owner's next report of one is
 the signal to add it.
+
+**The list audited from outside (same day).** At the owner's request a
+separate agent, handed the code and the list but not this reasoning, audited
+both. What it found and what was done:
+
+- *An h after a vowel was swallowed when syllables were joined (§576):*
+  "doh-hah" reached the voice as "Dohhah", "muh-HOHMZ" as "Muhhohmz", an
+  admin's "voy-cheh-HOF-skah" as "Voychehhofskah". `_joined` now keeps that
+  hyphen, as it keeps the one before a digraph ("Doh-hah"). This changes how
+  every such entry in the table is voiced, admins' included.
+- *A name in capitals was never respelled:* the lexicon matches by case and
+  runs before `speakable` turns "IRAN" into "Iran". `_compile` now adds the
+  capitals form of every name of four letters or more ("XI" the numeral is
+  still never "Xi").
+- *A seed taken out of `SEED` stayed in the table for good:* `_seed` now
+  removes rows still marked `seed` whose name is gone.
+- *An admin could not replace "Xi"* (`clean`'s three-letter rule); `set`
+  now lets a `_SHORT_SEED` name through.
+- *Added (57):* plurals and adjectives of seeded countries (Qataris, Omani,
+  Bahraini...), Ukraine and Iran war places (Kharkiv, Lviv, Odesa, Hormuz,
+  Fordow, Natanz, Khan Younis), leaders (Putin, Zelensky/Zelenskyy, Macron,
+  Merz, Milei, Guterres, Kim Jong Un, Noem, Leavitt, Thune, Alito), Hamas and
+  Qaeda, East Asian places (Seoul, Taipei, Shenzhen, Xinjiang, Pyongyang), US
+  towns (Des Moines, Tucson, Boise, Spokane), athletes (Jokic, Doncic,
+  Antetokounmpo, Kelce, Mahomes, Mbappe/Mbappé, Djokovic, Gauff, Pulisic,
+  Leclerc, Draisaitl), companies (Huawei, Xiaomi, Hyundai, Porsche,
+  Chipotle, Wegovy) and "Erdoğan" with its accent. Qatari's stress and
+  Khamenei's opening "Kh" were changed.
+- *Not taken:* the audit would drop Venezuela, Caribbean, Uruguay, Chile and
+  Doha as spellings the voice probably already reads right. Venezuela and
+  Caribbean were the owner's own request and stay; the rest stay until
+  heard. Left out as unsure: Pezeshkian, Zaporizhzhia, Swiatek, Shein,
+  Tiingo (its own pronunciation unchecked), Bogota (the New Jersey town).
+- *Open:* the audit thinks "Eerahn" may be heard as "EAR-ahn" and proposes
+  "ir-RAHN" ("Irrahn", as in irritate). Unchanged until the owner hears both
+  on /admin's "Hear 4 ways". Phrase entries cannot yet tell names apart
+  ("Niger Delta = NY-jer DEL-tuh" would also store "Niger" by `_split`), and
+  diacritics are not folded, so each accented spelling is its own entry.

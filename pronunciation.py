@@ -82,19 +82,40 @@ SEED = {
     # Countries and their people
     "Iran": "ee-RAHN", "Iranian": "ee-RAH-nee-un", "Iranians": "ee-RAH-nee-unz",
     "Iraq": "ee-RAHK", "Iraqi": "ee-RAH-kee", "Iraqis": "ee-RAH-keez",
-    "Qatar": "KAH-tar", "Qatari": "kuh-TAR-ee", "Oman": "oh-MAHN",
-    "Bahrain": "bah-RAYN", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
+    "Qatar": "KAH-tar", "Qatari": "KAH-tuh-ree", "Qataris": "KAH-tuh-reez",
+    "Oman": "oh-MAHN", "Omani": "oh-MAH-nee", "Omanis": "oh-MAH-neez",
+    "Bahrain": "bah-RAYN", "Bahraini": "bah-RAY-nee", "Bahrainis": "bah-RAY-neez", "Niger": "nee-ZHAIR", "Chile": "CHEE-lay",
     "Uruguay": "YOOR-uh-gway", "Venezuela": "veh-neh-ZWAY-luh",
     "Venezuelan": "veh-neh-ZWAY-lun", "Caribbean": "kair-ih-BEE-un", "Myanmar": "MYAHN-mar", "Lesotho": "leh-SOO-too",
     # Cities and places in the news
     "Tehran": "teh-RAHN", "Kyiv": "KEE-yiv", "Beijing": "bay-JING",
     "Doha": "DOH-hah", "Riyadh": "ree-YAHD", "Kabul": "KAH-bool",
     "Gaza": "GAH-zuh", "Rafah": "RAH-fah", "Tbilisi": "tuh-bih-LEE-see",
-    "Qom": "kohm",
+    "Qom": "kohm", "Hormuz": "hor-MOOZ", "Fordow": "for-DOH", "Natanz": "nah-TAHNZ",
+    "Khan Younis": "KAHN yoo-NEES", "Kharkiv": "KAR-kiv", "Donetsk": "duh-NETSK",
+    "Donbas": "don-BAHS", "Lviv": "luh-VEEV", "Kherson": "kehr-SAWN",
+    "Odesa": "oh-DESS-uh", "Seoul": "SOHL", "Pyongyang": "pyuhng-YAHNG",
+    "Xinjiang": "shin-JYAHNG", "Shenzhen": "shen-JEN", "Taipei": "ty-PAY",
+    "Des Moines": "deh MOYN", "Tucson": "TOO-sahn", "Boise": "BOY-see",
+    "Spokane": "spoh-KAN",
     # Names and groups in the news
     "Xi": "shee", "Xi Jinping": "shee jin-PING", "Erdogan": "AIR-doh-wahn",
-    "Khamenei": "khah-meh-NAY-ee", "Houthi": "HOO-thee", "Houthis": "HOO-theez",
+    "Erdoğan": "AIR-doh-wahn", "Khamenei": "kah-meh-NAY-ee", "Houthi": "HOO-thee", "Houthis": "HOO-theez",
     "Hezbollah": "hez-boh-LAH", "Modi": "MOH-dee",
+    "Putin": "POO-tin", "Hamas": "hah-MAHS", "Qaeda": "KY-duh",
+    "Zelensky": "zeh-LEN-skee", "Zelenskyy": "zeh-LEN-skee",
+    "Kim Jong Un": "KIM jong OON", "Macron": "mah-KROHN", "Merz": "MAIRTS",
+    "Milei": "mee-LAY", "Guterres": "goo-TEHR-esh", "Noem": "NOHM",
+    "Leavitt": "LEV-it", "Thune": "THOON", "Alito": "uh-LEE-toh",
+    # Sports (§656's audit): names an English reading gets wrong
+    "Jokic": "YOH-kitch", "Doncic": "DON-chitch",
+    "Antetokounmpo": "an-teh-toh-KOON-poh", "Kelce": "KEL-see",
+    "Mahomes": "muh-HOHMZ", "Mbappe": "em-bah-PAY", "Mbappé": "em-bah-PAY",
+    "Djokovic": "JOH-kuh-vitch", "Gauff": "GAWF", "Pulisic": "POO-lih-sik",
+    "Leclerc": "luh-KLAIR", "Draisaitl": "DRY-sy-tul",
+    # Companies and products in markets stories
+    "Huawei": "WAH-way", "Xiaomi": "SHOW-mee", "Hyundai": "HUN-day",
+    "Porsche": "POR-shuh", "Chipotle": "chih-POHT-lay", "Wegovy": "wee-GOH-vee",
 }
 
 #: Seed names under three letters, allowed past `clean`'s length rule because
@@ -161,7 +182,11 @@ def _joined(word: str) -> str:
     parts = [p for p in word.split("-") if p]
     out = parts[0] if parts else ""
     for part in parts[1:]:
-        out += ("-" if (out[-1:] + part[:1]) in _DIGRAPHS else "") + part
+        meet = out[-1:] + part[:1]
+        # An h after a vowel or an h is swallowed when joined ("doh-hah" ->
+        # "Dohhah", "muh-HOHMZ" -> "Muhhohmz"): its hyphen stays (§656).
+        keep = meet in _DIGRAPHS or (part[:1] == "h" and out[-1:] in "aeiouh")
+        out += ("-" if keep else "") + part
     return out
 
 
@@ -267,7 +292,16 @@ class Lexicon:
         return merged
 
     def _compile(self) -> None:
-        self._entries = self._merged()
+        entries = self._merged()
+        # A name in capitals ("IRAN", "HAMAS" in a headline) is matched too
+        # (§656): `speakable` turns it into "Iran" only after the lexicon
+        # has looked, and matching is by case. From four letters, so "XI"
+        # the numeral is never "Xi".
+        for name, value in list(entries.items()):
+            upper = name.upper()
+            if len(name.replace(" ", "")) >= 4 and upper != name:
+                entries.setdefault(upper, value)
+        self._entries = entries
         names = sorted(self._entries, key=len, reverse=True)
         self._pattern = (re.compile(
             # A hyphen is a boundary, so "Keawe" is found in "Jaron-Keawe";
@@ -289,6 +323,14 @@ class Lexicon:
             except Exception:  # noqa: BLE001 - a seed is never worth an outage
                 log.exception("pronunciation seed for %r could not be kept", name)
                 return
+        # A name taken out of `SEED` is taken out of the table too; one an
+        # admin has since set is an admin's row and is left alone.
+        try:
+            for row in bank.pronunciations():
+                if row.get("source") == "seed" and row["name"] not in SEED:
+                    bank.forget_pronunciation(row["name"])
+        except Exception:  # noqa: BLE001
+            log.exception("pronunciation: dropped seeds could not be removed")
         if added:
             log.info("pronunciation: %d seeded name(s) written", added)
 
@@ -387,6 +429,11 @@ class Lexicon:
     def set(self, name: str, say: str) -> tuple[str, str]:
         """An admin's respelling. Raises ValueError with a readable reason."""
         pair = clean(name, say)
+        if not pair and name.strip() in _SHORT_SEED:
+            # "Xi" is under `clean`'s three letters but is seeded, so an
+            # admin must be able to replace it (§656).
+            say = re.sub(r"\s+", " ", (say or "").strip())
+            pair = (name.strip(), say) if _SAY.match(say) else None
         if not pair:
             raise ValueError(
                 "A name needs a capital letter and no digits, and a "

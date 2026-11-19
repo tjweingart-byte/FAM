@@ -52,3 +52,38 @@ def test_case_matters_so_lowercase_words_are_untouched(tmp_path):
     _, lex = _lex(tmp_path)
     assert lex.apply("a red chile and the river") == "a red chile and the river"
     assert lex.apply("Super Bowl XI") == "Super Bowl XI"
+
+
+# The outside audit of the list (§656).
+
+def test_an_h_after_a_vowel_keeps_its_hyphen():
+    assert pronunciation.voiced("doh-hah") == "Doh-hah"
+    assert pronunciation.voiced("muh-HOHMZ") == "Muh-hohmz"
+    assert pronunciation.voiced("sah-gah-poh-loo-TEH-leh") == "Sahgahpohlootehleh"
+    assert pronunciation.voiced("mat-hew") == "Mat-hew"
+
+
+def test_a_name_in_capitals_is_respelled_but_not_a_numeral(tmp_path):
+    _, lex = _lex(tmp_path)
+    assert lex.apply("IRAN AND HAMAS") == "Eerahn AND Hahmahs"
+    assert lex.apply("Super Bowl XI") == "Super Bowl XI"
+
+
+def test_a_dropped_seed_leaves_the_table_but_an_admins_row_stays(tmp_path):
+    bank, lex = _lex(tmp_path)
+    bank.learn_pronunciation("Oldname", "OLD-naym", "seed")
+    bank.learn_pronunciation("Kept", "KEPT-ed", "admin")
+    lex.entries()
+    names = {r["name"] for r in bank.pronunciations()}
+    assert "Oldname" not in names and "Kept" in names
+
+
+def test_an_admin_can_replace_xi(tmp_path):
+    bank, lex = _lex(tmp_path)
+    assert lex.set("Xi", "SHEE") == ("Xi", "SHEE")
+    assert {r["name"]: r["source"] for r in bank.pronunciations()}["Xi"] == "admin"
+
+
+def test_accented_spellings_and_hyphenated_names_match(tmp_path):
+    _, lex = _lex(tmp_path)
+    assert lex.apply("Erdoğan met al-Qaeda's") == "Airdohwahn met al-Kyduh's"

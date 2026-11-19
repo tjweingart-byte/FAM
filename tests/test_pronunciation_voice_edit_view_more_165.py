@@ -255,7 +255,7 @@ def test_a_personal_episodes_names_are_said_right_and_never_kept(lexicon):
     script_generator._take_pronunciations(
         "<<SAY: Wojciechowska = voy-cheh-HOF-skah>> Hello.", None,
         script_generator._names_are_shared(personal))
-    assert lexicon.apply("Wojciechowska wrote") == "Voychehhofskah wrote"
+    assert lexicon.apply("Wojciechowska wrote") == "Voycheh-hofskah wrote"   # the h kept (§656)
     assert voice_bank.bank().pronunciations() == []
     # And never offered to another episode's writer as "on file".
     assert pronunciation.known_in("Wojciechowska") == []
