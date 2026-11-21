@@ -41051,3 +41051,39 @@ parameter, nothing removed; `[heard-not-tapped]`/`[limit-episodes]` - no
 second play row, and the allowance already counts by episode key. Tests:
 four in `tests/test_reconnect_685.py`; both preview smokes and
 `smoke_reconnect.py` pass after the change.
+
+## 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21)
+
+**Reported by the owner:** an episode left alone kept playing for as long as
+nobody stopped it, which could be accidentally very expensive; Go Deeper
+should not play an episode after one is completed unless the listener taps.
+
+**Why it chained.** When an episode ended on the player, the What's next
+grid (`[post-episode-grid]`, §70/§178) started its lead tile after fifteen
+seconds. Since §178 the lead is always Go Deeper's suggestion, played as a
+follow-up - a new episode, researched, written and voiced. That episode
+ended on the same grid, whose countdown started the next follow-up, and so
+on: a phone put down after one episode spent a Go Deeper's worth of model,
+search and GPU every few minutes, for nobody, without end.
+
+**Now.** Nothing on the grid starts by itself, on the web
+(`static/index.html`: `showNextUp` draws the tiles and stops; the timer,
+`NEXT_UP_SECONDS`, the bar, `pauseNextUp`/`stopNextUpTimer` are gone) and
+on the iPhone (`NowPlayingModel.offerNextUp` publishes the tiles and
+nothing else; the countdown task, `nextUpLeft`/`nextUpPaused` and the
+timer bar are gone). The card says "Tap one to keep listening". The lead is
+still Go Deeper's suggestion and plays as its follow-up - on a tap. The
+§656 swap that moved a counted Go Deeper off the countdown tile existed only
+because the countdown could spend it, so it went too.
+
+What still continues on its own, deliberately: a queue the listener built
+(§190) and a DailyFAM mix playing through (§134) - both finite and both
+chosen; neither writes a Go Deeper.
+
+Held against the rules: `[post-episode-grid]` amended (Current note);
+`[next-is-prediction]` unchanged - opening Go Deeper still never stops the
+episode, and one ending under it still starts nothing; `[old-clients]` - a
+client-only change, no API field touched; `[player-no-autogen]` is now true
+of the grid as well. Tests: `tests/test_packet_930.py` pins that
+`showNextUp` sets no timer and the page has no countdown; the preview smoke
+asserts no timer bar and no "starts in".

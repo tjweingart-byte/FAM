@@ -93,7 +93,6 @@ final class NowPlayingModel: ObservableObject {
     static let finishedShare = 0.85          // FINISHED_SHARE
     static let resumeEvery: TimeInterval = 15 // RESUME_EVERY_MS
     static let skipAfter: Double = 5          // a skip counts after 5 s
-    static let nextUpSeconds = 15
     /// Where §519 remembered captions on this device ("1" on, "0" off).
     /// Nothing is kept any more (11.16 notes); the old value is removed.
     private static let oldCaptionsKey = "fam.captions"
@@ -119,8 +118,6 @@ final class NowPlayingModel: ObservableObject {
     @Published private(set) var captionsDone = false
     @Published private(set) var queue: [QueueEntry] = []
     @Published private(set) var nextUp: [NextUpTile] = []
-    @Published private(set) var nextUpLeft = NowPlayingModel.nextUpSeconds
-    @Published private(set) var nextUpPaused = false
     @Published private(set) var toast: Toast?
     /// The friends who listened to the episode playing (§543), drawn top
     /// left of the picture; nil draws nothing (`playerFriends`).
@@ -800,7 +797,10 @@ final class NowPlayingModel: ObservableObject {
 
     // MARK: - What's next (`maybeOfferNextUp`)
 
-    private var nextUpTask: Task<Void, Never>?
+    // **Nothing on the card starts by itself** (PROBLEMS.md §686, at the
+    // owner's direction): the lead used to start a Go Deeper after 15 s,
+    // which ended on this same card, so a player left alone chained new
+    // episodes for as long as it was left. Every tile waits for a tap.
 
     private func offerNextUp(_ mine: Int) async {
         guard let ep = episode else { return }
@@ -828,34 +828,10 @@ final class NowPlayingModel: ObservableObject {
             tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
         }
         guard mine == run, tiles.count >= 2 else { return }
-        // The countdown never spends the week's one Go Deeper on its own
-        // (§656 review): where Go Deeper is counted, its suggestion moves to
-        // second and the countdown starts an episode that is free.
-        if tiles[0].deeper, await api.asksCapped() {
-            tiles.swapAt(0, 1)
-        }
-        guard mine == run else { return }
         nextUp = tiles
-        nextUpLeft = Self.nextUpSeconds
-        nextUpPaused = false
-        nextUpTask = Task {
-            while !Task.isCancelled && nextUpLeft > 0 {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                if Task.isCancelled || nextUpPaused { return }
-                nextUpLeft -= 1
-            }
-            if !Task.isCancelled && !nextUpPaused { playNextUp(0) }
-        }
-    }
-
-    func pauseNextUp() {
-        nextUpPaused = true
-        nextUpTask?.cancel()
     }
 
     func stopNextUp() {
-        nextUpTask?.cancel()
-        nextUpTask = nil
         nextUp = []
     }
 

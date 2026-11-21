@@ -86,7 +86,6 @@ STILLS = [
 TIDY = """
 document.querySelectorAll('.modal-overlay.active')
   .forEach(function(o){ o.classList.remove('active'); });
-if(window.stopNextUpTimer) stopNextUpTimer();
 document.querySelectorAll('body > div').forEach(function(d){
   if(d.style.position === 'fixed' && /Preview build/.test(d.textContent)) d.remove();
 });

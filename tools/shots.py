@@ -116,7 +116,6 @@ def capture(out_dir: pathlib.Path) -> int:
                     await page.evaluate(
                         "document.querySelectorAll('.modal-overlay.active')"
                         ".forEach(function(o){ o.classList.remove('active'); });"
-                        "if(window.stopNextUpTimer) stopNextUpTimer();"
                     )
                     await page.evaluate(script)
                 except Exception as exc:  # a surface that will not open is itself news

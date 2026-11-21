@@ -205,9 +205,7 @@ def test_deleting_an_account_anonymises_its_answers():
 
 # --- the interface ----------------------------------------------------------
 
-def test_the_episode_check_rides_on_whats_next_and_pauses_its_countdown():
-    pulse = INDEX.split('id="surveyPulse"', 1)[1].split(">", 1)[0]
-    assert "pauseNextUp()" in pulse
+def test_the_episode_check_rides_on_whats_next():
     show = INDEX.split("function showNextUp(", 1)[1].split("\n  }\n", 1)[0]
     assert "offerEpisodeSurvey(" in show
 

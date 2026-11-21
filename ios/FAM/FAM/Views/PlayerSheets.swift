@@ -982,9 +982,8 @@ struct ActivityView: UIViewControllerRepresentable {
 // MARK: - What's next
 
 /// After an episode (`post-episode-grid`): "What’s next", four tiles - the
-/// first, Go Deeper's own suggestion, starts in 15 s, its copper bar
-/// emptying - the search box (touching it pauses the countdown for good)
-/// and "Back to search" / "Back to DailyFAM". The dim fades in over 200 ms
+/// first Go Deeper's own suggestion, none of them starting by itself
+/// (§686) - the search box and "Back to search" / "Back to DailyFAM". The dim fades in over 200 ms
 /// (`mo-in`) while the card rises 8 pt out of a 2 pt blur over 280 ms
 /// (round three); it closes as every modal does, 150 ms with the card
 /// dropping 8 pt. Reduce Motion: there and gone at once.
@@ -1021,11 +1020,6 @@ struct NextUpOverlay: View {
         .onDisappear { model.surveys.clearPulse() }
     }
 
-    private var subline: String {
-        if now.nextUpPaused { return "Paused - pick one or search" }
-        return now.nextUpLeft > 0 ? "First one starts in \(now.nextUpLeft)" : "Starting\u{2026}"
-    }
-
     /// With the episode check open, or the keyboard up for the search box,
     /// the card can outgrow a small phone: it scrolls then, and only then.
     private var card: some View {
@@ -1043,12 +1037,11 @@ struct NextUpOverlay: View {
                 .font(FAMFont.heading(16, .semibold))
                 .foregroundStyle(FAMColor.text)
                 .padding(.bottom, 3)
-            Text(subline)
+            Text("Tap one to keep listening")
                 .monoLabel(9, color: FAMColor.textFaint, tracking: 0.63)
                 .padding(.bottom, 14)
-            // The episode check (`#surveyPulse`): only when the server offers
-            // it; touching it pauses the countdown, as the search box does.
-            SurveyPulse(surveys: model.surveys, onTouch: { now.pauseNextUp() })
+            // The episode check (`#surveyPulse`): only when the server offers it.
+            SurveyPulse(surveys: model.surveys, onTouch: {})
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible())], spacing: 9) {
                 ForEach(Array(now.nextUp.enumerated()), id: \.element.id) { index, tile in
                     tileView(tile, index: index)
@@ -1089,26 +1082,10 @@ struct NextUpOverlay: View {
             .padding(.top, 12)
             .padding(.bottom, 13)
             .background(FAMColor.background)
-            .overlay(alignment: .topLeading) {
-                if index == 0 && !now.nextUpPaused { timerBar }
-            }
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(lead ? FAMColor.copper : FAMColor.border))
         }
         .buttonStyle(.press)
-    }
-
-    /// The countdown, drawn rather than described: a 3 pt bar that empties
-    /// from the right over 15 s (`#nextUpTimer`).
-    private var timerBar: some View {
-        GeometryReader { geo in
-            Rectangle()
-                .fill(FAMColor.copper)
-                .frame(width: geo.size.width * Double(now.nextUpLeft) / Double(NowPlayingModel.nextUpSeconds),
-                       height: 3)
-                .animation(.linear(duration: 1), value: now.nextUpLeft)
-        }
-        .frame(height: 3)
     }
 
     private var searchBox: some View {
@@ -1119,8 +1096,6 @@ struct NextUpOverlay: View {
                 .focused($typing)
                 .submitLabel(.search)
                 .onSubmit(search)
-                .onChange(of: typing) { _, on in if on { now.pauseNextUp() } }
-                .onChange(of: words) { _, _ in now.pauseNextUp() }
                 .padding(.vertical, 11)
             Button(action: search) {
                 WebIcon(path: Icons.search, size: 15, line: 2.2)
@@ -1138,7 +1113,6 @@ struct NextUpOverlay: View {
 
     private func search() {
         let text = words.trimmingCharacters(in: .whitespacesAndNewlines)
-        now.pauseNextUp()
         guard !text.isEmpty else { typing = true; return }
         now.stopNextUp()
         now.followUp(text, minutes: now.episode?.key.minutes ?? FAMAPI.browseMinutes, typed: true)

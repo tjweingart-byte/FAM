@@ -62,12 +62,16 @@ def test_the_lead_tile_is_what_go_deeper_would_offer():
     assert "startFollowUp(r.query, baseKey, minutes, true, shown)" in go
 
 
-def test_the_search_box_sits_above_back_and_stops_the_countdown():
+def test_the_search_box_sits_above_back_and_nothing_starts_itself():
     card = INDEX.split('id="nextUpOverlay"', 1)[1].split('id="sheetOverlay"', 1)[0]
     assert card.index('id="nextUpSearch"') < card.index('id="nextUpBack"')
-    assert 'onfocus="pauseNextUp()"' in card
-    pause = _fn("pauseNextUp")
-    assert "stopNextUpTimer()" in pause
+    # §686: no countdown - every tile waits for a tap, so a player left
+    # alone never chains new episodes.
+    show = _fn("showNextUp")
+    assert "playNextUp" not in show.replace("onclick=\"playNextUp(", "")
+    assert "setInterval" not in show and "setTimeout" not in show
+    assert "NEXT_UP_SECONDS" not in INDEX and "nextUpTimer" not in INDEX
+    assert "starts in" not in card.lower()
     # A typed search is a follow-up on what just played.
     # Corrected at send like every search box (§247).
     body = _fn("submitNextUpSearch")
