@@ -133,10 +133,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   gestures at it. Every Go Deeper shows a suggestion - that
   line, else one built from the title - a box, and a 1-5 minute length;
   opening it never stops the episode, and one ending under it starts nothing. [next-is-prediction]
-- After an episode: four recommendations, first auto-starts in **15s**; the lead
-  is Go Deeper's own suggestion, played as its follow-up, then album next,
-  then `topics.rank_next_up` over both inventories; a search box above Back
-  stops the countdown; not on Explore / Explore New. [post-episode-grid]
+- After an episode: four recommendations, **none starts itself** - a tap
+  only (§686); the lead is Go Deeper's own suggestion, played as its follow-up,
+  then album next, then `topics.rank_next_up` over both inventories; a search
+  box above Back; not on Explore / Explore New. [post-episode-grid]
 - **One episode, one category**: Nando's stored node, else the
   writer's `<<CATEGORY:>>`, via `app._episode_category` for tile, picture,
   ranking and tags; events name the heard episode; a written live story ranks under it;

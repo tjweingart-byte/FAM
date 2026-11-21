@@ -677,3 +677,4 @@ and `limit` = Lines.
 | 40912 | 32 | 683. iOS build 11: the iPhone's round-three catch-up and Find your friends, together (2026-11-19) |
 | 40944 | 17 | 684. Xcode's one warning: KeyboardDismiss's `weak var` (2026-11-19) |
 | 40961 | 94 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |
+| 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
