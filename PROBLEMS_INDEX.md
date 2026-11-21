@@ -678,3 +678,4 @@ and `limit` = Lines.
 | 40944 | 17 | 684. Xcode's one warning: KeyboardDismiss's `weak var` (2026-11-19) |
 | 40961 | 94 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |
 | 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
+| 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |

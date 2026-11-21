@@ -41087,3 +41087,17 @@ client-only change, no API field touched; `[player-no-autogen]` is now true
 of the grid as well. Tests: `tests/test_packet_930.py` pins that
 `showNextUp` sets no timer and the page has no countdown; the preview smoke
 asserts no timer bar and no "starts in".
+
+## 687. The Go Deeper popup gets an X (2026-11-21)
+
+**Reported by the owner:** the Go Deeper popup was a little confusing to
+click out of. Its ways out were Cancel, at the bottom beside Continue, and
+a tap on the dim around it, which nothing on screen says.
+
+**Now.** An X sits top right of the card, the app's own `.modal-x` (28 px,
+12 from the edge, muted, `aria-label="Close"`) as every other popup draws
+it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
+`GoDeeperSheet` draws the same X over the form, top trailing, and calls
+`shut()` - the player's modal close or the sheet's dismiss. Cancel and the
+backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
+Tests: `tests/test_go_deeper_x_687.py`.
