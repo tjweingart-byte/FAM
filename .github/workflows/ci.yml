@@ -94,6 +94,9 @@ jobs:
           # The activation step (§414): shown when owed, held through
           # sign-up, under 13 asked then deleted, Settings' rows and switch.
           python tools/smoke_activation.py
+          # A stream that breaks part-way (§685): asked again by the
+          # episode's id, or what arrived played out before saying so.
+          python tools/smoke_reconnect.py
 
       - name: Keep the preview build
         uses: actions/upload-artifact@v4

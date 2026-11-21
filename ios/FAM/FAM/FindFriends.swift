@@ -229,8 +229,9 @@ final class FindFriendsModel: ObservableObject {
 
 // MARK: - Pieces
 
-/// The Follow / Following pill of these rows and cards: copper to follow,
-/// outlined once following, the tick drawing in on the tap.
+/// The Follow / Following pill of these rows and cards: `FollowPill`, the
+/// one look round three gave every Follow (§645), the tick drawing in on
+/// the tap; a card's is narrower and fills its width.
 struct FindFollowButton: View {
     let on: Bool
     let ticking: Bool
@@ -240,17 +241,9 @@ struct FindFollowButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                if ticking { FollowTick() }
-                Text(on ? "Following" : "Follow").font(FAMFont.body(12, on ? .medium : .bold))
-            }
-            .foregroundStyle(on ? FAMColor.text : FAMColor.ink)
-            .padding(.horizontal, compact ? 12 : 16)
-            .frame(minHeight: compact ? 30 : 34)
-            .frame(maxWidth: compact ? .infinity : nil)
-            .background(on ? Color.clear : FAMColor.copper, in: Capsule())
-            .overlay(Capsule().stroke(on ? FAMColor.borderStrong : Color.clear))
-            .animation(.easeOut(duration: 0.26), value: on)
+            FollowPill(following: on, justFollowed: ticking, size: 12,
+                       height: compact ? 30 : 34, padding: compact ? 12 : 16)
+                .frame(maxWidth: compact ? .infinity : nil)
         }
         .buttonStyle(.press)
         .accessibilityLabel(on ? "Following \(name), tap to unfollow" : "Follow \(name)")

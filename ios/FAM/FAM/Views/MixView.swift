@@ -29,6 +29,8 @@ struct MixView: View {
     @State private var seen: Set<String> = []
     @State private var dragging: Int?
     @State private var dragY: CGFloat = 0
+    /// The carried row's tilt, from its speed (degrees).
+    @State private var dragTilt: Double = 0
     @State private var rowPitch: CGFloat = 62
     /// A reorder shown at once, until the server's answer replaces it (or
     /// a refusal puts the old order back).
@@ -45,6 +47,18 @@ struct MixView: View {
     /// One removal at a time: a second X waits for the first's answer, so
     /// its list is never built from a mix the server has already changed.
     @State private var removing = false
+    /// Public / Private as tapped, until the server's answer for the last
+    /// tap (`toggleMixVisibility`).
+    @State private var shownPublic: Bool?
+    @State private var visibilitySeq = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The mix Create has just made (round three, §642 `create-mix` B):
+    /// its page fades in over the form rather than being pushed, and
+    /// "Add topics to mix" rises as the next step.
+    static var justMade: String?
+    @State private var fresh: Bool = MixView.justMade != nil
+    @State private var stepIn: Bool = MixView.justMade == nil
 
     private var mix: Mix? { mixes.mix(id) }
 
@@ -96,6 +110,8 @@ struct MixView: View {
             }
         }
         .background(FAMColor.background)
+        .opacity(fresh ? 0 : 1)
+        .onAppear { arrive() }
         .toolbar(.hidden, for: .navigationBar)
         .task(id: id) {
             await model.api.noteMixOpen(id, played: false)
@@ -271,6 +287,21 @@ struct MixView: View {
         }
     }
 
+    /// Just made: in over 240 ms on `--ease-out`, then the next step
+    /// rises 8 pt (240 ms, at 420 ms). Reduce Motion: there at once.
+    private func arrive() {
+        let made = MixView.justMade == id
+        MixView.justMade = nil
+        guard fresh || !stepIn else { return }
+        if !made || reduceMotion {
+            fresh = false
+            stepIn = true
+            return
+        }
+        withAnimation(Motion.easeOut(0.24)) { fresh = false }
+        withAnimation(Motion.easeOut(0.24).delay(0.42)) { stepIn = true }
+    }
+
     private var addTopicsPill: some View {
         Button { path.append(.add(id)) } label: {
             HStack(spacing: 7) {
@@ -286,6 +317,8 @@ struct MixView: View {
         .buttonStyle(.press)
         .frame(maxWidth: .infinity)
         .padding(.bottom, 16)
+        .offset(y: stepIn ? 0 : 8)
+        .opacity(stepIn ? 1 : 0)
     }
 
     // MARK: - Edit topics (11.16 notes)
@@ -398,10 +431,27 @@ struct MixView: View {
         let items = shownItems(mix)
         return VStack(spacing: 9) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                let lifted = dragging == index
+                // Round three (§642 `drag-reorder` B): the carried row
+                // lifts to 1.02 and tilts with its speed (at most 2°), the
+                // rest dim to .6 (200 ms) and slide by a row as it passes
+                // (200 ms on `--ease-in-out`); dropped, it springs into its
+                // slot flat (260 ms, no bounce). Reduce Motion: no lift,
+                // tilt or dim.
                 topicRow(mix, item, index)
+                    .animation(Motion.anim(.easeOut(duration: 0.15))) { row in
+                        row.scaleEffect(lifted && !Motion.reduced ? 1.02 : 1)
+                    }
+                    .animation(Motion.anim(.spring(duration: 0.2, bounce: 0))) { row in
+                        row.rotationEffect(.degrees(lifted ? dragTilt : 0))
+                    }
                     .offset(y: offset(for: index))
-                    .zIndex(dragging == index ? 2 : 0)
-                    .animation(dragging == index ? nil : .easeOut(duration: 0.14), value: dragY)
+                    .animation(lifted ? nil : (dragging == nil ? Self.settle : Motion.easeInOut(0.2)),
+                               value: offset(for: index))
+                    .animation(Motion.anim(Motion.easeInOut(0.2))) { row in
+                        row.opacity(dragging != nil && !lifted && !Motion.reduced ? 0.6 : 1)
+                    }
+                    .zIndex(lifted ? 2 : 0)
             }
         }
     }
@@ -415,6 +465,26 @@ struct MixView: View {
         if from < to && index > from && index <= to { return -rowPitch }
         if from > to && index < from && index >= to { return rowPitch }
         return 0
+    }
+
+    /// The dropped row's spring into its slot (no bounce).
+    private static let settle = Animation.spring(duration: 0.26, bounce: 0)
+
+    /// Past either end of the list the row follows less and less: a 64 pt
+    /// pull at most (the web's rubber band).
+    private func banded(_ y: CGFloat, from: Int) -> CGFloat {
+        let count = mix?.items.count ?? 0
+        let top = -CGFloat(from) * rowPitch
+        let bottom = CGFloat(max(count - 1 - from, 0)) * rowPitch
+        if y < top {
+            let b = top - y
+            return top - 64 * b / (b + 150)
+        }
+        if y > bottom {
+            let b = y - bottom
+            return bottom + 64 * b / (b + 150)
+        }
+        return y
     }
 
     private func target(_ from: Int) -> Int {
@@ -476,7 +546,11 @@ struct MixView: View {
                 .gesture(DragGesture(minimumDistance: 2, coordinateSpace: .global)
                     .onChanged { g in
                         if dragging == nil { dragging = index }
-                        dragY = g.translation.height
+                        dragY = banded(g.translation.height, from: dragging ?? index)
+                        // ±0.5 pt/ms turns it 2° (`mapRange`), a spring
+                        // smoothing it.
+                        let v = Double(g.velocity.height) / 500
+                        dragTilt = Motion.reduced ? 0 : max(-1, min(1, v)) * 2
                     }
                     .onEnded { _ in drop(mix) })
                 .accessibilityLabel("Drag to reorder")
@@ -543,14 +617,20 @@ struct MixView: View {
     private func drop(_ mix: Mix) {
         guard let from = dragging else { return }
         let to = target(from)
-        dragging = nil
-        dragY = 0
-        guard to != from else { return }
         var items = shownItems(mix)
-        guard from < items.count, to < items.count else { return }
-        let moved = items.remove(at: from)
-        items.insert(moved, at: to)
-        localOrder = items.map(\.id)
+        let moves = to != from && from < items.count && to < items.count
+        if moves {
+            let moved = items.remove(at: from)
+            items.insert(moved, at: to)
+        }
+        // Into its slot on one spring: the order and the offsets together.
+        withAnimation(Motion.anim(Self.settle)) {
+            dragging = nil
+            dragY = 0
+            dragTilt = 0
+            if moves { localOrder = items.map(\.id) }
+        }
+        guard moves else { return }
         reorderRun += 1
         let mine = reorderRun
         Task {
@@ -596,14 +676,25 @@ struct MixView: View {
                 ForEach(rows) { s in
                     SubjectRow(subject: s, sub: mixes.subjectSub(s), added: false,
                                label: "Add \(s.label) to this mix") {
+                        // In the mix on the tap (§642's rec-joins): the
+                        // suggestion leaves at once and is put back if the
+                        // server refuses.
+                        let before = shown
+                        withAnimation(Motion.anim(Motion.easeInOut(0.25))) {
+                            shown.removeAll { $0 == s.id }
+                        }
                         Task {
-                            if await mixes.update(id, ["add": ["f:" + s.id]]) != nil {
+                            if await mixes.setTopic(mix: id, topic: "f:" + s.id, add: true) != nil {
                                 model.nowPlaying.say("Added \(s.label) to \(mix.name)")
                                 // Topped back up to five (`recommendedHTML`).
                                 refill()
+                            } else {
+                                withAnimation(Motion.anim(Motion.easeInOut(0.25))) { shown = before }
                             }
                         }
                     }
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .opacity.combined(with: .offset(y: -12))))
                 }
             }
             .padding(.top, 13)
@@ -724,31 +815,44 @@ struct MixView: View {
         mixes.reminderNote
     }
 
+    /// Public / Private (§642's visibility-switch): flipped on the tap - the
+    /// knob slides 220 ms in-out, the lock swaps, the words change in place
+    /// - and slid back to what the server has if it refuses. Tapped twice,
+    /// only the last tap's answer paints (§646).
     private func visibilityRow(_ mix: Mix) -> some View {
-        Button {
+        let on = shownPublic ?? mix.public
+        return Button {
+            let next = !(shownPublic ?? mix.public)
+            shownPublic = next
+            visibilitySeq += 1
+            let mine = visibilitySeq
             Task {
-                if await mixes.update(id, ["public": !mix.public]) != nil {
-                    model.nowPlaying.say(mix.public ? "Private again" : "On your profile now")
+                let saved = await mixes.update(id, ["public": next])
+                guard mine == visibilitySeq else { return }
+                shownPublic = nil
+                if saved != nil {
+                    model.nowPlaying.say(next ? "On your profile now" : "Private again")
                 }
             }
         } label: {
             HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(mix.public ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
-                    Text(mix.public ? "Public will be displayed on your profile" : "Only you can see this mix")
-                        .font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
+                ZStack(alignment: .leading) {
+                    words(isPublic: true).opacity(on ? 1 : 0)
+                    words(isPublic: false).opacity(on ? 0 : 1)
                 }
+                .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.colour), value: on)
                 Spacer()
-                ZStack(alignment: mix.public ? .trailing : .leading) {
-                    Capsule().fill(mix.public ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
-                    Circle().fill(mix.public ? FAMColor.ink : FAMColor.textMuted)
+                ZStack(alignment: on ? .trailing : .leading) {
+                    Capsule().fill(on ? FAMColor.copper : FAMColor.borderStrong).frame(width: 44, height: 24)
+                    Circle().fill(on ? FAMColor.ink : FAMColor.textMuted)
                         .frame(width: 18, height: 18)
-                        .overlay(Image(systemName: mix.public ? "lock.open" : "lock")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(mix.public ? FAMColor.copper : FAMColor.surface))
+                        // One lock rides the knob; its shackle opens or
+                        // clicks shut just after the knob lands (round
+                        // three, §642 `visibility-switch` B).
+                        .overlay(KnobLock(open: on, color: on ? FAMColor.copper : FAMColor.surface))
                         .padding(3)
                 }
-                .animation(.easeOut(duration: 0.16), value: mix.public)
+                .animation(reduceMotion ? nil : Motion.easeInOut(Motion.Dur.knob), value: on)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 13)
@@ -757,9 +861,19 @@ struct MixView: View {
         }
         .buttonStyle(.press)
         .padding(.top, 10)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Public")
-        .accessibilityValue(mix.public ? "On" : "Off")
-        .accessibilityAddTraits(.isButton)
+        .accessibilityValue(on ? "On" : "Off")
+        .accessibilityAddTraits(.isToggle)
+    }
+
+    /// The row's words for one state, both laid out so the row never moves.
+    private func words(isPublic: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(isPublic ? "Public" : "Private").font(FAMFont.body(12.5)).foregroundStyle(FAMColor.text)
+            Text(isPublic ? "Public will be displayed on your profile" : "Only you can see this mix")
+                .font(FAMFont.body(10)).foregroundStyle(FAMColor.textMuted)
+        }
     }
 
     // MARK: - The ⋯ menu
@@ -1307,12 +1421,17 @@ struct SubjectRow: View {
             }
             Spacer(minLength: 4)
             Button(action: action) {
-                Text(added ? "✓" : "+")
-                    .font(.system(size: 15))
-                    .foregroundStyle(added ? FAMColor.ink : FAMColor.text)
+                // + and ✓ share one cell and cross on the icon swap; the
+                // fill and edge turn over 150 ms (§642's topic-toggle).
+                IconSwap(key: added) {
+                    Text(added ? "✓" : "+")
+                        .font(.system(size: 15))
+                        .foregroundStyle(added ? FAMColor.ink : FAMColor.text)
+                }
                     .frame(width: 30, height: 30)
                     .background(added ? FAMColor.copper : Color.clear, in: Circle())
                     .overlay(Circle().stroke(added ? FAMColor.copper : FAMColor.borderStrong))
+                    .animation(Motion.anim(Motion.easeOut(Motion.Dur.colour)), value: added)
             }
             .buttonStyle(.press)
             .accessibilityLabel(label)
@@ -1351,3 +1470,43 @@ struct PlayTriangle: Shape {
     }
 }
 
+
+/// The Public / Private knob's lock: its shackle lifts 3 pt and turns 20°
+/// open (180 ms on `--ease-out`, once the knob's 220 ms move has landed)
+/// and drops back shut. Reduce Motion: at once.
+private struct KnobLock: View {
+    let open: Bool
+    let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            KnobShackle()
+                .stroke(color, style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                .frame(width: 5, height: 5)
+                .rotationEffect(.degrees(open ? -20 : 0), anchor: .bottomTrailing)
+                .offset(y: open ? -5.5 : -2.5)
+            RoundedRectangle(cornerRadius: 1.2)
+                .fill(color)
+                .frame(width: 8, height: 6)
+                .offset(y: 2)
+        }
+        .frame(width: 10, height: 12)
+        .animation(reduceMotion ? nil : Motion.easeOut(Motion.Dur.shackle).delay(Motion.Dur.knob), value: open)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The shackle: two legs and the arc over them.
+private struct KnobShackle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let r = rect.width / 2
+        p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addArc(center: CGPoint(x: rect.midX, y: rect.minY + r), radius: r,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return p
+    }
+}

@@ -1715,10 +1715,9 @@ def main() -> int:
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
 
-        def whats_next_offers_four_and_counts_down():
-            """The popup, driven the way an ended episode drives it. The
-            countdown tile is checked for existence, not waited out - five
-            seconds of real time in a smoke test buys nothing."""
+        def whats_next_offers_four_and_waits_for_a_tap():
+            """The popup, driven the way an ended episode drives it. Nothing
+            on it starts by itself (§686)."""
             page.evaluate("openMyFamTab()")
             page.wait_for_timeout(400)
             page.evaluate("showScreen('player')")
@@ -1730,29 +1729,23 @@ def main() -> int:
                                    timeout=10000)
             tiles = page.eval_on_selector_all(".nextup-tile", "e => e.length")
             assert tiles == 4, f"expected a 2x2 grid, saw {tiles} tiles"
-            assert page.query_selector(".nextup-tile.lead .nextup-timer"), \
-                "the first tile has no countdown"
-            assert "starts in" in page.text_content("#nextUpSub").lower()
-            # The countdown tile is what Go Deeper would offer, and says so.
+            # Nothing starts by itself (§686): no countdown anywhere.
+            assert not page.query_selector(".nextup-timer"), \
+                "the grid still draws a countdown"
+            assert "starts in" not in page.text_content("#nextUpSub").lower()
+            # The lead tile is what Go Deeper would offer, and says so.
             lead = page.text_content(".nextup-tile.lead .nextup-tile-sub").strip()
             assert lead.lower() == "go deeper", \
-                f"the countdown tile does not say why it is first: {lead!r}"
+                f"the lead tile does not say why it is first: {lead!r}"
             lead_title = page.text_content(".nextup-tile.lead .nextup-tile-title")
             assert "Fed do next" in lead_title, \
                 f"the lead is not Go Deeper's suggestion: {lead_title!r}"
-            # Touching the search box stops the countdown, so nothing starts
-            # under somebody's typing; the box sits above Back to myFAM.
-            page.click("#nextUpSearchInput")
-            page.wait_for_timeout(1300)
-            assert page.evaluate("nextUpTimer === null"), \
-                "the countdown kept running while the search box had focus"
-            assert "paused" in page.text_content("#nextUpSub").lower()
+            # The search box sits above Back to myFAM.
             assert page.evaluate(
                 "document.getElementById('nextUpSearch').compareDocumentPosition("
                 "document.getElementById('nextUpBack')) & Node.DOCUMENT_POSITION_FOLLOWING"), \
                 "the search box is not above Back to myFAM"
             page.evaluate("episodeThread = ''")
-            # Tapping anything else cancels the countdown rather than racing it.
             page.evaluate("closeNextUp()")
             page.wait_for_timeout(300)
             assert not page.query_selector("#nextUpOverlay.active")
@@ -5399,7 +5392,7 @@ def main() -> int:
         check("Messages is its own screen, and the hub keeps its shape",
               your_fam_is_messages_and_only_messages)
         check("What's next offers four with a countdown",
-              whats_next_offers_four_and_counts_down)
+              whats_next_offers_four_and_waits_for_a_tap)
         check("The bar can be dragged to seek", the_bar_can_be_dragged_to_seek)
         check("The account gate reads as a choice", the_account_gate_reads_as_a_choice)
         check("The profile tab is a door until there is an account",

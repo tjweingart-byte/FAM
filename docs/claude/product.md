@@ -650,6 +650,7 @@ earn the next tap on their own, which is what the predicted follow-up and the
 prefetch plan are for.
 
 <!-- rule:post-episode-grid -->
+> **Current (PROBLEMS.md §686, at the owner's direction):** nothing on the grid starts by itself - no countdown, no timer bar, on the web and the iPhone. The auto-started lead was a Go Deeper follow-up, written and voiced for nobody if the phone was down, and it ended on the same grid, so an unattended player chained new episodes indefinitely. Every tile, the lead included, waits for a tap; the §656 swap (the counted Go Deeper moved off the countdown tile) went with the countdown. The 15-second history below stays as history.
 > **Current (PROBLEMS.md §190):** an episode on the full player that ends with something in the listener's queue plays the first of it at once instead of the grid; a myFAM playlist still plays through first.
 > **Current (PROBLEMS.md §178):** the lead tile - the one the countdown is on - is always Go Deeper's own suggestion (the `<<NEXT:>>` line, else the title-built follow-up) and plays as a Go Deeper follow-up at the episode's length; the album's next episode, when there is one, is second; the ranking fills the rest. A search box sits above "Back to myFAM": touching it stops the countdown for that card, and what is typed plays as a follow-up on the episode that ended.
 

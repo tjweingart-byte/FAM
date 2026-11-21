@@ -7,11 +7,23 @@ import UIKit
 /// or Cancel unselects, and "Share with @handle" sends - one tap, one
 /// message. What is sent is the caller's (`send`): an episode with the id
 /// of the one heard (§288 - the web's sheet drops it), or a mix's link.
+/// Who a share is about to go to, when the sheet's own bottom row confirms
+/// it (round three, §643 `share-pick` C).
+struct ShareChoice: Equatable {
+    let to: String
+    let label: String
+    let button: String
+}
+
 struct SendInsideFAM: View {
     @EnvironmentObject private var social: SocialModel
     /// Sends to an id; the label is what the toast says. True when sent.
     let send: (_ to: String, _ label: String) async -> Bool
     let sent: () -> Void
+    /// Given, the pick is confirmed in the host's bottom row (Cancel turns
+    /// into "Cancel | Share with @x" in the same cell, nothing above it
+    /// moving) instead of a bar of its own here.
+    var choice: Binding<ShareChoice?>? = nil
 
     private struct Pick: Equatable {
         let to: String
@@ -33,7 +45,10 @@ struct SendInsideFAM: View {
             section("Friends", search: $friendSearch, prompt: "Search your friends")
                 .padding(.top, social.groups.isEmpty ? 0 : 18)
             friendFaces
-            if picked != nil { confirmBar }
+            if picked != nil && choice == nil { confirmBar }
+        }
+        .onChange(of: choice?.wrappedValue) { _, now in
+            if now == nil { picked = nil }
         }
         // Both asked afresh on every open (`loadShareContacts`); what was
         // drawn last time stays while they answer.
@@ -146,6 +161,7 @@ struct SendInsideFAM: View {
     private func toggle(_ pick: Pick) {
         guard !sending else { return }
         picked = picked == pick ? nil : pick
+        choice?.wrappedValue = picked.map { ShareChoice(to: $0.to, label: $0.label, button: $0.button) }
     }
 
     /// Cancel · Share with @handle; "Sending…" while it goes.

@@ -3311,9 +3311,8 @@
      Now one soft rise (nextup: B, §640): 8 px up, a 2 px blur clearing, on
      the arrival curve - the calmest arrival in the app, at the end people
      remember. `--nextup-fade` is set from NEXT_UP_FADE_MS in the script, so
-     the two timings cannot drift apart. The countdown is the lead tile's
-     own bar. With reduced motion the card is simply there; the bar still
-     drains. */
+     the two timings cannot drift apart. With reduced motion the card is
+     simply there. */
   #nextUpOverlay.active > .nextup-card{ opacity:1; transform:none; filter:blur(0px);
     transition:opacity var(--nextup-fade, var(--dur-nextup)) var(--ease-out),
       transform var(--nextup-fade, var(--dur-nextup)) var(--ease-out),
@@ -3349,9 +3348,6 @@
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
     overflow:hidden; }
   .nextup-tile.lead .nextup-tile-sub{ color:var(--copper); }
-  /* The countdown, drawn rather than described: a bar that empties. */
-  .nextup-timer{ position:absolute; left:0; top:0; height:3px; width:100%;
-    background:var(--copper); transform-origin:left center; }
   .nextup-search{ display:flex; align-items:center; gap:6px; margin-top:12px;
     padding:0 6px 0 12px; border-radius:12px; background:var(--bg);
     border:1px solid var(--border); }
@@ -5799,20 +5795,17 @@
       <div class="modal-overlay" id="nextUpOverlay">
         <div class="nextup-card">
           <div class="nextup-h">What&rsquo;s next</div>
-          <div class="nextup-sub" id="nextUpSub">First one starts in 15</div>
-          <!-- The episode check (surveys.py): only when the server offers it.
-               Touching it pauses the countdown, as the search box does. -->
-          <div class="svy-pulse" id="surveyPulse" hidden
-               onpointerdown="pauseNextUp()"></div>
+          <!-- Nothing here starts by itself (§686): every tile waits for a tap. -->
+          <div class="nextup-sub" id="nextUpSub">Tap one to keep listening</div>
+          <!-- The episode check (surveys.py): only when the server offers it. -->
+          <div class="svy-pulse" id="surveyPulse" hidden></div>
           <div class="nextup-grid" id="nextUpGrid"></div>
-          <!-- Your own prompt (9.30 #2). Touching it stops the countdown, so
-               the lead tile never starts under somebody's typing. -->
+          <!-- Your own prompt (9.30 #2): a follow-up on what just played. -->
           <form class="nextup-search" id="nextUpSearch" onsubmit="submitNextUpSearch(event)">
             <input class="nextup-search-input" id="nextUpSearchInput" type="search"
                    enterkeyhint="search" autocomplete="off" autocorrect="on"
                    autocapitalize="sentences" spellcheck="true" data-autocorrect aria-label="Search"
-                   placeholder="Search for anything"
-                   onfocus="pauseNextUp()" oninput="pauseNextUp()" onpointerdown="pauseNextUp()">
+                   placeholder="Search for anything">
             <button class="nextup-search-go" type="submit" aria-label="Search">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
             </button>
@@ -5884,6 +5877,9 @@
 
       <div class="modal-overlay" id="goDeeperOverlay" onclick="if(event.target===this) closeGoDeeper()">
         <div class="modal-card">
+          <!-- The way out, where a thumb looks for it (§687, at the owner's
+               direction): the backdrop tap alone was confusing. -->
+          <button class="modal-x" id="goDeeperX" onclick="closeGoDeeper()" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <div class="modal-title">Go deeper</div>
           <div class="gc-label" style="margin-bottom:8px;">Ask a follow-up, or steer where this goes next</div>
           <button class="deeper-chip" id="goDeeperSuggestion" style="display:none;" onclick="useThreadSuggestion()"></button>
@@ -9845,6 +9841,11 @@
                         // The picture the player is showing (10.10 #3).
                         thumb: (typeof PLAYER_CARD !== "undefined" && PLAYER_CARD.thumb) || "" };
       }
+      // What playback did, timestamped (§685), as the iPhone sends it
+      // (§653): a stop part-way says whether the stream broke, the browser
+      // paused it, or the audio ran dry.
+      var playback = window.FamAudio && FamAudio.playbackLog && FamAudio.playbackLog();
+      if(playback) out.playback = playback;
       return out;
     }
     function close(){ overlay.hidden = true; openBtn.focus(); }
@@ -9852,7 +9853,8 @@
       var c = context();
       document.getElementById("feedbackCtx").textContent =
         "Sent with: screen " + (c.screen || "unknown") + " \u00b7 " + c.build + " \u00b7 " + c.viewport
-        + (c.episode ? " \u00b7 this episode's title, picture, sources and transcript" : "");
+        + (c.episode ? " \u00b7 this episode's title, picture, sources and transcript" : "")
+        + (c.playback ? " \u00b7 the player's log" : "");
       err.hidden = true;
       overlay.hidden = false;
       text.focus();
@@ -14192,7 +14194,7 @@
                      heardEpisode());
         }
         // Ended under an open Go Deeper: the sound stops and the sheet stays
-        // up on its own - no album advance, no countdown over it (10.1).
+        // up on its own - no album advance, no What's next card over it (10.1).
         if(goDeeperIsOpen()) return;
         var carryOn = function(){
           // Something queued plays next, straight away (§190) - the full
@@ -14204,11 +14206,14 @@
           if(opts.nextUp !== false) maybeOfferNextUp(title, episodeTopicId);
         };
         // Ended while the listener is making a vibe of it (§550): the mix,
-        // the queue and the countdown wait until the editor closes, posted
+        // the queue and What's next wait until the editor closes, posted
         // or not, rather than moving on underneath it.
         if(vibeComposerIsOpen()){ heldForVibe = carryOn; return; }
         carryOn();
       },
+      // The browser stopped the audio and would not let it go on (§685):
+      // the controls say paused, so one tap plays rather than two.
+      onInterrupted: function(){ if(isPlaying) setPlayState(false); },
       onError: function(err){
         // No connection, and this one is on the device: play it from here.
         // `network` is set by FamAudio only when the request never reached
@@ -14374,8 +14379,8 @@
     // Both paths end the same way now: the "what's next" popup. It used to
     // jump straight into a random myFAM topic when the episode had not come
     // from search, which is a recommendation nobody made and nobody could
-    // decline. Album continuity is not lost - the popup's countdown tile is
-    // the next episode in the album whenever there is one.
+    // decline. Album continuity is not lost - the popup offers the next
+    // episode in the album whenever there is one, one tap away.
     // Listening history (§142): what to record once the first word plays.
     // A private search is nobody's history, its searcher's included (§282);
     // it still plays as a search (`playSurface`), which is what makes the
@@ -30730,14 +30735,13 @@
   // already continuous exploration, and a popup between cards there interrupts
   // rather than helps.
   var nextUpTiles = [];
-  var nextUpTimer = null;
   var nextUpFromSearch = false;
-  // Three times what it was. Five seconds is enough to notice a card and not
-  // enough to read four titles on it and choose - so the thing that was
-  // meant to offer a choice was making it. Fifteen is long enough to pick,
-  // and still short enough that putting the phone down keeps the audio going,
-  // which is the point of a countdown at all.
-  var NEXT_UP_SECONDS = 15;
+  // **Nothing on this card starts by itself** (PROBLEMS.md §686, at the
+  // owner's direction). The lead tile used to start itself after fifteen
+  // seconds - a Go Deeper follow-up, written and voiced for nobody if the
+  // phone had been put down - and that episode ended on this same card, so
+  // an unattended player chained new episodes for as long as it was left.
+  // Every tile now waits for a tap.
   // The card's soft rise (nextup: B, §640). It used to arrive in 180ms,
   // which reads as an interruption rather than as the episode handing over.
   var NEXT_UP_FADE_MS = 280;
@@ -30755,24 +30759,20 @@
     nextUpEpisode = { id: FamAudio.episode() || "", title: String(query || "").slice(0, 300) };
     // A guest on the sample pages can play only episodes already made, and
     // every tile here would be refused into the sign-up sheet - which the
-    // countdown would then raise by itself, fifteen seconds after an episode
-    // they enjoyed. So a guest's sample episode simply ends (§154).
+    // tap would raise. So a guest's sample episode simply ends (§154).
     if(!AUTH.authenticated
        && (currentPlaySurface === "myfam" || currentPlaySurface === "dailyfam")) return;
     buildNextUpTiles(query, topicId, function(tiles){
       // One tile is not a grid, and a popup offering nothing is worse than
       // the silence it replaced. Below two, the player simply stops.
       if(tiles.length < 2 || !nextUpAllowedHere() || goDeeperIsOpen()) return;
-      asksCapped(function(){
-        if(!nextUpAllowedHere() || goDeeperIsOpen()) return;
-        showNextUp(tiles);
-      });
+      showNextUp(tiles);
     });
   }
 
-  // The four tiles, and which one the countdown is on.
+  // The four tiles, and which one leads.
   //
-  // **The countdown tile is the most likely next listen, and the other three
+  // **The lead tile is the most likely next listen, and the other three
   // are the same ranking behind it.** All four come from `/api/nextup`, which
   // is `build_feed`'s own signals over a profile seeded with the episode that
   // just ended - the popup is the feed's opinion arrived at one tap earlier,
@@ -30787,11 +30787,11 @@
   // plays the way Go Deeper would, as a follow-up on this episode at its
   // length. It is the answer to "having heard this, what next", read off
   // what was actually covered, which no ranking over a bank can see; and
-  // there is always one, so the countdown is never on a stranger's pick.
+  // there is always one, so the lead is never a stranger's pick.
   //
   // The album's next episode, when one is playing, comes second: inside an
   // album it is the thing the listener already chose, so it stays one tap
-  // away, but the countdown is on the follow-up, at the owner's direction.
+  // away, but the follow-up leads, at the owner's direction.
   function buildNextUpTiles(query, topicId, done){
     var album = currentAlbumForPlayer && BRANCHES[currentAlbumForPlayer];
     var albumTile = null;
@@ -30823,7 +30823,7 @@
           tiles.push({
             title: t.title,
             // Says *why* this one, the way a feed card does, and says it
-            // loudest on the tile the countdown is on. A live story's angle
+            // loudest on the lead tile. A live story's angle
             // beats every generic sentence - it is about today, where
             // "recommended" is about nothing.
             sub: t.angle || t.subtitle
@@ -30845,103 +30845,31 @@
     return title ? "What's the bigger story behind " + title + "?" : "";
   }
 
-  // Whether this listener's searches and Go Deepers are counted (§656): the
-  // free tier's one a week. Read from /api/entitlements, at most once a
-  // minute; unknown reads as not counted.
-  var asksCappedAt = 0, asksCappedValue = false;
-  function asksCapped(done){
-    if(Date.now() - asksCappedAt < 60000){ done(asksCappedValue); return; }
-    fetch("/api/entitlements").then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){
-        var ask = d && d.usage && d.usage.ask;
-        asksCappedValue = !!(d && d.enforced === true && ask && ask.unlimited === false);
-        asksCappedAt = Date.now();
-        done(asksCappedValue);
-      })
-      .catch(function(){ done(false); });
-  }
-
   function showNextUp(tiles){
-    // The countdown never spends the week's one Go Deeper on its own (§656
-    // review): where Go Deeper is counted, its suggestion moves to second,
-    // still one tap away, and the countdown starts an episode that is free.
-    if(tiles.length > 1 && tiles[0].deeper && asksCappedValue){
-      tiles = [tiles[1], tiles[0]].concat(tiles.slice(2));
-    }
     nextUpTiles = tiles;
     document.getElementById("nextUpGrid").innerHTML = tiles.map(function(t, i){
       return '<div class="nextup-tile' + (i === 0 ? " lead" : "")
         + '" onclick="playNextUp(' + i + ')">'
-        + (i === 0 ? '<div class="nextup-timer" id="nextUpTimer"></div>' : "")
         + '<div class="nextup-tile-title">' + escapeHtml(t.title) + '</div>'
         + '<div class="nextup-tile-sub">' + escapeHtml(t.sub || "") + '</div>'
         + '</div>';
     }).join("");
-    document.getElementById("nextUpSub").textContent =
-      "First one starts in " + NEXT_UP_SECONDS;
+    document.getElementById("nextUpSub").textContent = "Tap one to keep listening";
     document.getElementById("nextUpOverlay").style.setProperty(
       "--nextup-fade", NEXT_UP_FADE_MS + "ms");
     document.getElementById("nextUpBack").textContent =
       nextUpFromSearch ? "Back to search" : "Back to DailyFAM";
     document.getElementById("nextUpSearchInput").value = "";
-    nextUpPaused = false;
     hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.add("active");
     offerEpisodeSurvey(nextUpEpisode);
-
-    // The countdown, shown rather than described: the bar empties over the
-    // same five seconds the timer runs for, so what is about to happen is
-    // legible without reading anything.
-    var bar = document.getElementById("nextUpTimer");
-    if(bar){
-      bar.style.transition = "none";
-      bar.style.transform = "scaleX(1)";
-      // Two frames, so the browser does not fold the reset and the animation
-      // into one style recalculation and skip the transition entirely.
-      requestAnimationFrame(function(){
-        requestAnimationFrame(function(){
-          // Paused before the bar started (the search box took focus at
-          // once): leave it full rather than let it empty on its own.
-          if(nextUpPaused) return;
-          bar.style.transition = "transform " + NEXT_UP_SECONDS + "s linear";
-          bar.style.transform = "scaleX(0)";
-        });
-      });
-    }
-    var left = NEXT_UP_SECONDS;
-    nextUpTimer = setInterval(function(){
-      left--;
-      var sub = document.getElementById("nextUpSub");
-      if(sub) sub.textContent = left > 0
-        ? "First one starts in " + left : "Starting…";
-      if(left <= 0){ playNextUp(0); }
-    }, 1000);
   }
 
-  function stopNextUpTimer(){
-    if(nextUpTimer){ clearInterval(nextUpTimer); nextUpTimer = null; }
-  }
-
-  // Touching the search box stops the countdown for good on this card: the
-  // bar freezes where it is and nothing starts itself while somebody types.
-  var nextUpPaused = false;
-  function pauseNextUp(){
-    if(nextUpPaused) return;
-    nextUpPaused = true;
-    stopNextUpTimer();
-    var bar = document.getElementById("nextUpTimer");
-    if(bar){
-      bar.style.transform = getComputedStyle(bar).transform;
-      bar.style.transition = "none";
-    }
-    var sub = document.getElementById("nextUpSub");
-    if(sub) sub.textContent = "Paused - pick one or search";
-  }
   function submitNextUpSearch(ev){
     if(ev) ev.preventDefault();
     var input = document.getElementById("nextUpSearchInput");
     var val = input.value.trim();
-    if(!val){ pauseNextUp(); input.focus(); return; }
+    if(!val){ input.focus(); return; }
     var baseKey = getGoDeeperBaseKey(nextUpContext());
     var minutes = currentPlayMinutes;
     closeNextUp();
@@ -30953,13 +30881,11 @@
   }
 
   function closeNextUp(){
-    stopNextUpTimer();
     hideSurveyPulse();
     document.getElementById("nextUpOverlay").classList.remove("active");
   }
 
-  // Tapping the countdown tile early does exactly what letting it run out
-  // does, and tapping any other one cancels the countdown.
+  // A tap is the only thing that starts one.
   function playNextUp(index){
     var tile = nextUpTiles[index];
     closeNextUp();

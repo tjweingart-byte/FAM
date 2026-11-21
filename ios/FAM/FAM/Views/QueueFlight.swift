@@ -1,10 +1,12 @@
 import SwiftUI
 
-// The queue's flight (`Motion.toQueue`): something queued flies as a
-// 28x22 copy of its picture to the Queue button (the full player) or the
-// mini player's picture, in an arc 24 pt over the higher end, shrinking to
-// 12x10 and fading in its second half, 450 ms on the web's ease-in-out;
-// the badge pops as it lands and the target bumps (1 → 1.3 → 1, 260 ms).
+// The queue's flight (`Motion.toQueue`, round three's `queue` A, §640):
+// something queued flies as a 28x22 copy of its picture to the Queue
+// button (the full player) or the mini player's picture, along a quadratic
+// arc bulging 15 % of the distance upward, lifting to 1.15 at its middle,
+// shrinking to 12 pt wide over its second half and fading over its last
+// fifth, 360 ms on `--ease-in-out`; the Queue's count rolls up as it lands
+// and nothing bumps.
 // A tile's ⋯ has no frame to fly from here, so it starts where the web's
 // does when its tile is not on screen: the middle of the page. Stilled by
 // Reduce Motion, as every movement is.
@@ -23,8 +25,8 @@ struct QueueGhost: View {
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .onAppear {
-                withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.45)) { t = 1 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.46) { done() }
+                withAnimation(Motion.easeInOut(Motion.Dur.flight)) { t = 1 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + Motion.Dur.flight + 0.01) { done() }
             }
     }
 
@@ -71,24 +73,29 @@ struct QueueFlightPath: ViewModifier, Animatable {
     }
 
     private func place(_ t: CGFloat) -> Frame {
-        // The web's numbers are top-left corners: 28x22 at the start,
-        // 20x16 half way (10 right of the middle, 24 over the higher end),
-        // 12x10 at the end.
-        let sx = from.x - 14
-        let sy = from.y - 11
-        let ex = to.x - 6
-        let ey = to.y - 5
-        let mid = CGPoint(x: (sx + ex) / 2 + 10 + 10, y: min(sy, ey) - 24 + 8)
-        if t <= 0.5 {
-            let u = t / 0.5
-            return Frame(centre: lerp(from, mid, u),
-                         size: CGSize(width: 28 - 8 * u, height: 22 - 6 * u),
-                         opacity: 1)
+        // The bulge, on whichever side of the line is up: a quadratic
+        // curve's middle is half its control point's offset, so 2 x 15 %.
+        let dx = to.x - from.x
+        let dy = to.y - from.y
+        let d = max(1, (dx * dx + dy * dy).squareRoot())
+        var nx = -dy / d
+        var ny = dx / d
+        if ny > 0 {
+            nx = -nx
+            ny = -ny
         }
-        let u = (t - 0.5) / 0.5
-        return Frame(centre: lerp(mid, to, u),
-                     size: CGSize(width: 20 - 8 * u, height: 16 - 6 * u),
-                     opacity: Double(1 - u))
+        let cx = dx / 2 + nx * 0.3 * d
+        let cy = dy / 2 + ny * 0.3 * d
+        let u = 1 - t
+        let x = 2 * u * t * cx + t * t * dx
+        let y = 2 * u * t * cy + t * t * dy
+        let lift = 1 + 0.15 * CGFloat(sin(Double.pi * Double(t)))
+        let shrink: CGFloat = t <= 0.5 ? 1 : 1 - (t - 0.5) * 2 * (1 - 12 / 28)
+        let k = lift * shrink
+        let fade: Double = t < 0.8 ? 1 : Double(max(0, (1 - t) / 0.2))
+        return Frame(centre: CGPoint(x: from.x + x, y: from.y + y),
+                     size: CGSize(width: 28 * k, height: 22 * k),
+                     opacity: fade)
     }
 
     private func lerp(_ a: CGPoint, _ b: CGPoint, _ u: CGFloat) -> CGPoint {

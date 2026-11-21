@@ -220,6 +220,14 @@ final class FAMAPI: @unchecked Sendable {
         try await get("api/v1/godeeper", [], as: PickUpPage.self)
     }
 
+    /// Pick up as the server sent it, so the phone can keep the last one
+    /// drawn (`famLastPickUp`, §641).
+    func pickUpData() async throws -> Data {
+        let (data, response) = try await readPaced(request("GET", "api/v1/godeeper", query: []))
+        try Self.check(response, data)
+        return data
+    }
+
     /// Never offer this one again, on any device.
     /// True when the server took it (`dismissGoDeeper` reloads only then).
     @discardableResult
@@ -256,6 +264,14 @@ final class FAMAPI: @unchecked Sendable {
     /// The faces row: friends and people followed, with their stories (§297).
     func circle() async throws -> CirclePage {
         try await get("api/v1/circle", [URLQueryItem(name: "notes", value: "1")], as: CirclePage.self)
+    }
+
+    /// The faces row as the server sent it (`famLastCircle`, §641).
+    func circleData() async throws -> Data {
+        let (data, response) = try await readPaced(request("GET", "api/v1/circle",
+                                                           query: [URLQueryItem(name: "notes", value: "1")]))
+        try Self.check(response, data)
+        return data
     }
 
     /// The heart a story's like sends as a message (`STORY_LIKE`).

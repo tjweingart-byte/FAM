@@ -671,4 +671,11 @@ and `limit` = Lines.
 | 40540 | 68 | 677. The whole pronunciation list audited, the joining rules redone, and a rulebook (2026-11-19) |
 | 40608 | 27 | 678. The owner's ear: Iran right, Kamala "kah-moo-lu" - every unstressed "uh" is "a" (2026-11-19) |
 | 40635 | 39 | 679. The owner's ear, second round: letters left to spoken_text, ordinary words left alone, the check heard alone (2026-11-19) |
-| 40674 | 33 | 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19) |
+| 40674 | 32 | 680. NVIDIA: one structured reading for every spelling, not "plain" (2026-11-19) |
+| 40706 | 114 | 681. The iPhone app catches up, part one (2026-11-17) |
+| 40820 | 92 | 682. The iPhone app catches up, part two: round-three motion (2026-11-17) |
+| 40912 | 32 | 683. iOS build 11: the iPhone's round-three catch-up and Find your friends, together (2026-11-19) |
+| 40944 | 17 | 684. Xcode's one warning: KeyboardDismiss's `weak var` (2026-11-19) |
+| 40961 | 94 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |
+| 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
+| 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |

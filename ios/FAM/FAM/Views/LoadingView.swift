@@ -46,6 +46,16 @@ final class LoadingModel: ObservableObject {
     @Published private(set) var visible = false
     /// How many steps are checked off (0-5).
     @Published private(set) var shown = 0
+    /// A replay painted all five done at once: no five ticks in a row
+    /// (`.fam-steps.instant`).
+    @Published private(set) var instant = false
+    /// The five steps' screen gave way to the player (not a cancel, not the
+    /// glide or the dial): it leaves by the iris (§643 `loader-to-player` C).
+    private(set) var handedOff = false
+    /// The dial's screen gave way to the player: the player grows out of
+    /// the dial's own picture, not the tile under it (§641 `tile-to-player`
+    /// A - one picture, never two).
+    private(set) var dialHandedOff = false
     /// A mix's episode: the glide along the mix (§509) instead of the
     /// five steps. It holds nothing - audio starts the moment it arrives,
     /// after the 0.45 s minimum.
@@ -66,6 +76,10 @@ final class LoadingModel: ObservableObject {
         var faces: [FriendFace] = []
         /// "Maya, Jordan and 4 others listened" (`friendsListenedLine`).
         var friendsLine: String = ""
+        /// The tile's episode is already written (`cached`): its picture is
+        /// sharp in 420 ms and its friends are drawn at rest (round three,
+        /// §641 `picture-develop` B, `friends-gather` C).
+        var ready: Bool = false
     }
 
     /// The dial and the glide have no steps and hold no audio.
@@ -113,7 +127,48 @@ final class LoadingModel: ObservableObject {
     private var startedAt = Date()
     private var handedAt: Date?
 
+    /// Opened on the press (§643's loader-arrives B): the five steps are on
+    /// screen while the speller's wait runs under step one - which is what
+    /// the speller is doing. Nothing is asked yet; `start` takes the open
+    /// screen over, and the first step's 0.5 s still counts from the
+    /// request. A cancel meanwhile (`stop`) leaves nothing to send.
+    func openEarly() {
+        run += 1
+        let mine = run
+        glide = nil
+        dial = nil
+        ask = nil
+        server = [false, false, false, false]
+        audioReady = false
+        releasing = false
+        shown = 0
+        instant = false
+        handedOff = false
+        dialHandedOff = false
+        since = Date()
+        shownAt = Date()
+        visible = true
+        early = true
+        deadline = nil
+        handedAt = nil
+        startedAt = Date()
+        hold(until: startedAt.addingTimeInterval(Self.quiet), words: Self.serverSilent)
+        Task { await self.watchDeadline(mine) }
+    }
+
+    /// Opened on the press and not yet taken over by a request.
+    private(set) var early = false
+
+    /// An early screen no request took over (the send was dropped): gone.
+    func closeEarly() {
+        guard early, visible else { return }
+        stop()
+    }
+
     func start(ask: @escaping () async -> Progress?, glide: Glide? = nil, dial: Dial? = nil) {
+        // A search's screen already up since the press keeps when it came.
+        let adopted = early && visible && glide == nil && dial == nil
+        early = false
         run += 1
         let mine = run
         self.glide = glide
@@ -123,8 +178,11 @@ final class LoadingModel: ObservableObject {
         audioReady = false
         releasing = false
         shown = 0
+        instant = false
+        handedOff = false
+        dialHandedOff = false
         since = Date()
-        shownAt = Date()
+        if !adopted { shownAt = Date() }
         visible = true
         deadline = nil
         handedAt = nil
@@ -165,6 +223,7 @@ final class LoadingModel: ObservableObject {
         if cacheHit || free {
             // A replay: all five done and the audio started now; only the
             // screen stays, long enough to be seen (`finishGenOverlay`).
+            instant = shown < Self.labels.count - 1
             shown = Self.labels.count
             onAudioNow?()
             let wait = max(0, Self.minVisible - Date().timeIntervalSince(shownAt))
@@ -174,6 +233,9 @@ final class LoadingModel: ObservableObject {
 
     func stop() {
         run += 1
+        early = false
+        handedOff = false
+        dialHandedOff = false
         visible = false
     }
 
@@ -209,6 +271,8 @@ final class LoadingModel: ObservableObject {
         Task {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard mine == self.run else { return }
+            self.handedOff = !self.free
+            self.dialHandedOff = self.dial != nil
             self.visible = false
             self.onRelease?()
         }
@@ -282,6 +346,13 @@ struct LoadingView: View {
                     .opacity(0.92)
                 RisingChevrons(still: reduceMotion)
                     .frame(width: 96, height: 88)
+                    // Where the iris opens from when the player takes over.
+                    .background(GeometryReader { geo in
+                        let frame = geo.frame(in: .global)
+                        Color.clear
+                            .onAppear { PlayerMotion.shared.chevrons = frame }
+                            .onChange(of: frame) { _, now in PlayerMotion.shared.chevrons = now }
+                    })
                     .padding(.top, 4)
                 Text("FAMiliarizing…")
                     .font(FAMFont.heading(21))
@@ -341,21 +412,58 @@ struct LoadingView: View {
     private var steps: some View {
         VStack(alignment: .leading, spacing: 13) {
             ForEach(Array(LoadingModel.labels.enumerated()), id: \.offset) { index, label in
-                StepRow(label: label,
+                StepRow(index: index,
+                        label: label,
                         done: index < loading.shown,
                         active: index == loading.shown,
-                        still: reduceMotion)
+                        still: reduceMotion || loading.instant,
+                        reduced: reduceMotion)
+                    // The rows rise in as the screen arrives (round three,
+                    // §643 `loader-arrives` B): 8 pt, 240 ms, 40 ms apart.
+                    .modifier(RowRise(delay: Double(index) * 0.04, still: reduceMotion))
             }
         }
     }
 }
 
+/// A step row rising into place as the loader arrives.
+private struct RowRise: ViewModifier {
+    let delay: Double
+    let still: Bool
+    @State private var up = false
+
+    func body(content: Content) -> some View {
+        let shown = still || up
+        return content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 8)
+            .onAppear {
+                guard !still else { return }
+                withAnimation(Motion.easeOut(0.24).delay(delay)) { up = true }
+            }
+    }
+}
+
 private struct StepRow: View {
+    let index: Int
     let label: String
     let done: Bool
     let active: Bool
+    /// No movement: Reduce Motion, or a replay painting all five at once.
     let still: Bool
-    @State private var pulse = false
+    /// Reduce Motion itself: the ring pulses instead of growing.
+    let reduced: Bool
+    /// When this row became the active one, for the ring's hold-off.
+    @State private var activeSince = Date()
+
+    /// The web's tick (`M5 12.5l4.5 4.5L19 7.5`, a 24 box).
+    private static let tick: Path = {
+        var p = Path()
+        p.move(to: CGPoint(x: 5, y: 12.5))
+        p.addLine(to: CGPoint(x: 9.5, y: 17))
+        p.addLine(to: CGPoint(x: 19, y: 7.5))
+        return p
+    }()
 
     var body: some View {
         HStack(spacing: 12) {
@@ -364,36 +472,85 @@ private struct StepRow: View {
                     .fill(done ? FAMColor.copper : Color.clear)
                 Circle()
                     .stroke(done || active ? FAMColor.copper : color, lineWidth: 1.6)
-                // The tick pops in: .25 s fade, .3 s overshooting scale
-                // (`.fam-step-dot svg`).
-                Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(FAMColor.ink)
-                    .opacity(done ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.25), value: done)
-                    .scaleEffect(done ? 1 : 0.4)
-                    .animation(.timingCurve(0.3, 1.6, 0.5, 1, duration: 0.3), value: done)
+                    // A later step's circle lights once the thread above
+                    // it has filled (120 + 260 ms).
+                    .animation(still ? nil : Motion.easeOut(Motion.Dur.colour)
+                                   .delay(active && index > 0 ? 0.38 : 0), value: active)
+                // The tick draws itself (220 ms after 80 ms, `--ease-out`).
+                Glyph(path: Self.tick, box: CGRect(x: 0, y: 0, width: 24, height: 24))
+                    .trim(from: 0, to: done ? 1 : 0)
+                    .stroke(FAMColor.ink, style: StrokeStyle(lineWidth: 3.2 * 12 / 24,
+                                                             lineCap: .round, lineJoin: .round))
+                    .frame(width: 12, height: 12)
+                    .animation(still ? nil : Motion.easeOut(Motion.Dur.tick).delay(Motion.Dur.tickAt), value: done)
+                if active { ring }
             }
             .frame(width: 20, height: 20)
-            // The dot fills over .3 s (`.fam-step-dot`).
-            .animation(.easeInOut(duration: 0.3), value: done)
-            .animation(.easeInOut(duration: 0.3), value: active)
-            .shadow(color: FAMColor.copper.opacity(active && pulse ? 0.45 : 0), radius: active ? 5 : 0)
+            // The dot fills over 150 ms.
+            .animation(still ? nil : Motion.easeOut(Motion.Dur.colour), value: done)
+            .overlay(alignment: .top) {
+                // The thread down to the next circle fills from the top
+                // (260 ms on `--ease-in-out`, after 120 ms).
+                if index < LoadingModel.labels.count - 1 {
+                    ZStack(alignment: .top) {
+                        Rectangle().fill(FAMColor.borderStrong)
+                        Rectangle().fill(FAMColor.copper)
+                            .scaleEffect(x: 1, y: done ? 1 : 0, anchor: .top)
+                            .animation(still ? nil : Motion.easeInOut(0.26).delay(0.12), value: done)
+                    }
+                    .frame(width: 2, height: 13)
+                    .offset(y: 20)
+                    .accessibilityHidden(true)
+                }
+            }
             Text(label)
                 .font(FAMFont.mono(12))
                 .tracking(0.24)
                 .foregroundStyle(color)
         }
         .opacity(done || active ? 1 : 0.55)
-        // The words' colour and strength change over .35 s (`.fam-steps li`).
-        .animation(.easeInOut(duration: 0.35), value: done)
-        .animation(.easeInOut(duration: 0.35), value: active)
-        .onAppear {
-            guard !still else { return }
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true }
-        }
+        // The words' colour and strength change over 150 ms.
+        .animation(still ? nil : Motion.easeOut(Motion.Dur.colour), value: done)
+        .animation(still ? nil : Motion.easeOut(Motion.Dur.colour), value: active)
+        .onChange(of: active) { _, now in if now { activeSince = Date() } }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label + (done ? ", done" : active ? ", in progress" : ""))
+    }
+
+    /// The active circle's heartbeat (§643 `loader-loops` A): once a beat
+    /// (2.4 s, the chevrons' clock), 920 ms in - as the chevrons land - a
+    /// copper ring grows from the circle to 1.7 and fades over 1.2 s. It
+    /// holds off until the circle has lit (380 ms on a later step). Reduce
+    /// Motion: it is a loading indicator, so it stays - no growth, its
+    /// opacity pulsing .35 to 1 over 1.2 s.
+    private var ring: some View {
+        TimelineView(.animation) { context in
+            let now = context.date
+            let t = now.timeIntervalSinceReferenceDate
+            let lit = index == 0 || now.timeIntervalSince(activeSince) >= 0.38
+            let look = Self.beat(t, reduced: reduced)
+            Circle()
+                .stroke(FAMColor.copper, lineWidth: 1.6)
+                .scaleEffect(look.scale)
+                .opacity(lit ? look.opacity : 0)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    static func beat(_ t: Double, reduced: Bool) -> (scale: CGFloat, opacity: Double) {
+        if reduced {
+            // Alternate .35 → 1 → .35, 1.2 s each way, eased.
+            let f = (t.truncatingRemainder(dividingBy: 2.4) + 2.4).truncatingRemainder(dividingBy: 2.4) / 1.2
+            let k = f <= 1 ? f : 2 - f
+            let eased = 0.5 - 0.5 * cos(Double.pi * k)
+            return (1, 0.35 + 0.65 * eased)
+        }
+        let phase = ((t - 0.92).truncatingRemainder(dividingBy: 2.4) + 2.4).truncatingRemainder(dividingBy: 2.4)
+        guard phase < 1.2 else { return (1, 0) }
+        let p = phase / 1.2
+        let eased = 1 - pow(1 - p, 3)
+        return (1 + 0.7 * CGFloat(eased), 0.5 * (1 - eased))
     }
 
     private var color: Color {
@@ -492,14 +649,15 @@ struct GlideView: View {
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
                 .frame(maxWidth: 300)
-                .modifier(LoadingTitleUp(still: still))
                 .padding(.horizontal, 32)
             status
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             guard !still else { return }
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.78).delay(0.1)) { arrived = true }
+            // Round three (§642 `mix-glide` B): the track moves one card
+            // over 300 ms on `--ease-in-out`, no overshoot.
+            withAnimation(Motion.easeInOut(0.3)) { arrived = true }
         }
         .id(glide.pos)
         .accessibilityElement(children: .combine)
@@ -529,7 +687,8 @@ struct GlideView: View {
     private var status: some View {
         let words = glide.pos > 0 ? "Getting the next episode ready" : "Getting your episode ready"
         return HStack(spacing: 8) {
-            PulsingDot(still: still)
+            // A loading indicator: it keeps pulsing under Reduce Motion.
+            PulsingDot(still: false)
             Text(note.isEmpty ? words : note)
                 .font(FAMFont.mono(11.5))
                 .tracking(0.345)
@@ -576,25 +735,44 @@ struct GlideView: View {
         .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(current ? FAMColor.copper : FAMColor.border,
                                                           lineWidth: 1))
-        .opacity(current ? 1 : 0.4)
-        .scaleEffect(current && (arrived || still) ? 1.08 : 1)
-        .animation(still ? nil : .spring(response: 0.4, dampingFraction: 0.6).delay(0.25), value: arrived)
+        // The light passes on (round three, `mix-glide` B): the card just
+        // heard steps down from 1.05 to its rest and dims to .45 (200 ms
+        // on `--ease-in`) as the next lifts to 1.05 (200 ms after 160 ms,
+        // `--ease-out`). Reduce Motion: the rest pose.
+        .opacity(current || (stepping(i) && !(arrived || still)) ? 1 : 0.45)
+        .scaleEffect(lift(i) ? 1.05 : 1)
+        .animation(still ? nil : (current ? Motion.easeOut(0.2).delay(0.16) : Motion.easeIn(0.2)), value: arrived)
     }
 
-    private func dotWidth(_ i: Int) -> CGFloat {
-        guard i == glide.pos else { return 6 }
-        return (arrived || still) ? 18 : 6
+    /// The card heard just before this one, before the hand-off.
+    private func stepping(_ i: Int) -> Bool {
+        glide.pos > 0 && i == glide.pos - 1 && !glide.first
     }
 
+    private func lift(_ i: Int) -> Bool {
+        if i == glide.pos { return arrived || still }
+        return stepping(i) && !(arrived || still)
+    }
+
+    /// Fixed 6 pt dots, and one 18 pt copper pill that moves one dot along
+    /// with the track (round three: no width animates).
     private var dots: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<glide.titles.count, id: \.self) { i in
-                Capsule()
-                    .fill(i == glide.pos ? FAMColor.copper : (i < glide.pos ? FAMColor.textFaint : FAMColor.borderStrong))
-                    .frame(width: dotWidth(i), height: 6)
-                    // The current dot grows to 18 (`famGlideDot`, .4 s after .25 s).
-                    .animation(still ? nil : .easeInOut(duration: 0.4).delay(0.25), value: arrived)
+        let pitch: CGFloat = 12
+        let at = CGFloat(glide.pos) * pitch - 6
+        let from = glide.pos > 0 && !glide.first ? at - pitch : at
+        return ZStack(alignment: .leading) {
+            HStack(spacing: 6) {
+                ForEach(0..<glide.titles.count, id: \.self) { i in
+                    Circle()
+                        .fill(i < glide.pos ? FAMColor.textFaint : FAMColor.borderStrong)
+                        .frame(width: 6, height: 6)
+                }
             }
+            Capsule()
+                .fill(FAMColor.copper)
+                .frame(width: 18, height: 6)
+                .offset(x: arrived || still ? at : from)
+                .animation(still ? nil : Motion.easeInOut(0.3), value: arrived)
         }
     }
 }
@@ -658,7 +836,7 @@ struct DailyLoadingView: View {
                                              CGSize(width: 190, height: -130)]
 
     private var friends: Bool { !dial.faces.isEmpty }
-    private var settled: Bool { shown || still }
+    private var settled: Bool { shown || still || dial.ready }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -672,7 +850,7 @@ struct DailyLoadingView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: Self.width)
                     .opacity(settled ? 1 : 0)
-                    .animation(still ? nil : .easeOut(duration: 0.3).delay(0.7), value: shown)
+                    .animation(still || dial.ready ? nil : .easeOut(duration: 0.3).delay(0.7), value: shown)
             }
             Text(dial.title)
                 .font(FAMFont.heading(19, .semibold))
@@ -682,7 +860,8 @@ struct DailyLoadingView: View {
                 .frame(maxWidth: 300)
                 .modifier(LoadingTitleUp(still: still))
             HStack(spacing: 8) {
-                PulsingDot(still: still)
+                // A loading indicator: it keeps pulsing under Reduce Motion.
+                PulsingDot(still: false)
                 Text(note.isEmpty ? "Getting your episode ready" : note)
                     .font(FAMFont.mono(11.5))
                     .tracking(0.345)
@@ -735,15 +914,28 @@ struct DailyLoadingView: View {
                 if let url = dial.picture {
                     AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
                 }
-                if develop { DevelopSheen() }
+                if develop && !dial.ready { DevelopSheen() }
             }
             .frame(width: Self.width, height: Self.width * 0.75)
             .clipShape(RoundedRectangle(cornerRadius: 16))
+            // Where the player grows from when the audio arrives.
+            .background(GeometryReader { geo in
+                let frame = geo.frame(in: .global)
+                Color.clear
+                    .onAppear { PlayerMotion.shared.dial = PictureSpot(url: dial.picture, frame: frame, radius: 16) }
+                    .onChange(of: frame) { _, now in
+                        PlayerMotion.shared.dial = PictureSpot(url: dial.picture, frame: now, radius: 16)
+                    }
+            })
             .blur(radius: soft ? 16 : 0)
             .saturation(soft ? 0 : 1)
             .brightness(soft ? 0.3 : 0)
-            .scaleEffect(soft ? 0.94 : 1)
-            .animation(develop ? .timingCurve(0.2, 0.7, 0.2, 1, duration: 2.4) : nil, value: shown)
+            // Round three (§641 `picture-develop` B): a written tile is
+            // sharp in 420 ms; an unwritten one keeps the slow develop.
+            // No scale.
+            .animation(develop ? (dial.ready ? Motion.easeOut(0.42)
+                                             : .timingCurve(0.2, 0.7, 0.2, 1, duration: 2.4)) : nil,
+                       value: shown)
             .shadow(color: .black.opacity(0.22), radius: 14, y: 10)
             if friends { faces.offset(x: 12, y: 18) }
         }
@@ -759,15 +951,19 @@ struct DailyLoadingView: View {
                     .offset(settled ? .zero : from)
                     .scaleEffect(settled ? 1 : 0.4)
                     .opacity(settled ? 1 : 0)
-                    .animation(still ? nil : .spring(response: 0.5, dampingFraction: 0.6)
-                                   .delay(0.12 + Double(i) * 0.16), value: shown)
+                    // Unwritten: the flight (600 ms, 160 ms apart); a
+                    // written tile's faces are drawn at rest (round three,
+                    // §641 `friends-gather` C).
+                    .animation(still || dial.ready ? nil
+                                   : .timingCurve(0.2, 1.3, 0.4, 1, duration: 0.6).delay(Double(i) * 0.16),
+                               value: shown)
             }
         }
     }
 }
 
 /// The light sweeping across a developing picture (`famDevSheen`): a soft
-/// white band, left to right every 1.6 s after 0.4 s.
+/// white band, left to right every 1.4 s, linear (round three).
 private struct DevelopSheen: View {
     @State private var across = false
 
@@ -779,7 +975,7 @@ private struct DevelopSheen: View {
                 .rotationEffect(.degrees(15))
                 .offset(x: across ? geo.size.width * 1.2 : -geo.size.width * 0.5)
                 .onAppear {
-                    withAnimation(.easeInOut(duration: 1.6).delay(0.4).repeatForever(autoreverses: false)) {
+                    withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
                         across = true
                     }
                 }

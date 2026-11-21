@@ -11,6 +11,22 @@ import SwiftUI
 struct MixDeckCard: View {
     @EnvironmentObject private var mixes: MixesModel
     let mix: Mix
+    /// Its place in the grid, for the deal's stagger.
+    var index: Int = 0
+
+    /// The mix cards already dealt on this phone this session: a redraw
+    /// never deals again (round three, §642 `mix-cards-arrive` B).
+    static let book = ArrivalBook()
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The three pictures fanned out from a squared stack.
+    @State private var fanned: Bool
+
+    init(mix: Mix, index: Int = 0) {
+        self.mix = mix
+        self.index = index
+        _fanned = State(initialValue: Motion.reduced || MixDeckCard.book.seen.contains("fan:" + mix.id))
+    }
 
     private var photo: Bool { !mix.cover.isEmpty }
     private var tiles: [MixCoverTile] { Array(mix.coverTiles.prefix(3)) }
@@ -22,6 +38,14 @@ struct MixDeckCard: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .onAppear {
+            guard !fanned else { return }
+            MixDeckCard.book.seen.insert("fan:" + mix.id)
+            if reduceMotion { fanned = true; return }
+            // Each card's pictures fan 40 ms after it rises (240 ms,
+            // `--ease-out`).
+            withAnimation(Motion.easeOut(0.24).delay(0.1 + Double(min(index, 3)) * 0.04)) { fanned = true }
+        }
     }
 
     // MARK: The cover
@@ -70,14 +94,16 @@ struct MixDeckCard: View {
             }
         } else {
             let box = stackBox(size)
+            let k: CGFloat = fanned ? 1 : 0
             ZStack {
                 ForEach(Array(Array(tiles.enumerated()).reversed()), id: \.offset) { pair in
                     tile(pair.element, index: pair.offset)
                         .frame(width: box.width, height: box.height)
-                        .rotationEffect(.degrees(rotation(pair.offset)))
-                        .offset(x: box.width * shift(pair.offset).x, y: box.height * shift(pair.offset).y)
+                        .rotationEffect(.degrees(rotation(pair.offset) * Double(k)))
+                        .offset(x: box.width * shift(pair.offset).x * k, y: box.height * shift(pair.offset).y * k)
                 }
             }
+
             .frame(width: box.width, height: box.height)
             .position(x: box.midX, y: box.midY)
         }

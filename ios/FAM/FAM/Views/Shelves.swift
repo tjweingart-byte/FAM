@@ -232,26 +232,39 @@ struct SavedView: View {
         } catch {
             problem = SocialModel.sentence(error, else: "Could not open your shelf")
         }
-        gone = []
+        // A row still under its Undo stays off (`savedPendingRemove`).
+        gone = model.you.savedPendingRemove
         loaded = true
     }
 
-    /// Off the shelf on the tap; read again either way, so a refusal puts
-    /// it back. The player's save goes off if it is that episode.
+    /// Off the shelf on the tap (§645's saved-remove A): "Removed · Undo"
+    /// for 5 s, and the DELETE only when the line goes; Undo fades the row
+    /// back. A refusal puts it back and says so. The player's save goes off
+    /// if it is that episode.
     private func remove(_ item: SavedItem) {
         guard let id = item.id else { return }
+        let you = model.you
+        let now = model.nowPlaying
+        let api = model.api
+        let shown = $gone
+        you.savedPendingRemove.insert(id)
         withAnimation(Animation.rowFold) { _ = gone.insert(id) }
-        Task {
-            do {
-                try await model.api.removeSaved(id)
-                model.nowPlaying.savedRemoved(query: item.query, minutes: item.minutes)
-                await load()
-                model.nowPlaying.say("Removed")
-            } catch {
-                await load()
-                model.nowPlaying.say("Could not remove that")
+        now.undoLine("Removed", undo: {
+            you.savedPendingRemove.remove(id)
+            withAnimation(Motion.anim(Motion.easeOut(Motion.Dur.undoIn))) {
+                _ = shown.wrappedValue.remove(id)
             }
-        }
+        }, commit: {
+            do {
+                // Gone for good: it stays off the shelf drawn.
+                try await api.removeSaved(id)
+                now.savedRemoved(query: item.query, minutes: item.minutes)
+            } catch {
+                you.savedPendingRemove.remove(id)
+                _ = shown.wrappedValue.remove(id)
+                now.say("Could not remove that")
+            }
+        })
     }
 
     private func folderSheet(_ item: SavedItem) -> some View {
@@ -548,7 +561,8 @@ struct MyVibeView: View {
         .task { await load() }
     }
 
-    private var vibes: [VibeRow] { page?.vibes ?? [] }
+    /// Less any taken back under its Undo (`vibePendingRemove`).
+    private var vibes: [VibeRow] { (page?.vibes ?? []).filter { !you.vibePendingRemove.contains($0.id) } }
     private var folders: [SavedFolder] { page?.folders ?? [] }
 
     @ViewBuilder private var content: some View {
@@ -583,7 +597,7 @@ struct MyVibeView: View {
                     .padding(.horizontal, 18)
             } else {
                 VStack(spacing: 9) {
-                    ForEach(shown) { v in row(v) }
+                    ForEach(shown) { v in row(v).transition(.rowRemoval) }
                 }
                 .padding(.horizontal, 18)
             }
@@ -652,12 +666,27 @@ struct MyVibeView: View {
         }
     }
 
+    /// "Vibe taken back · Undo" (§645): the row is off at once and the
+    /// DELETE goes when the line goes; a refusal reads the list again and
+    /// says "Could not take that back".
     private func remove(_ v: VibeRow) {
-        Task {
+        let you = self.you
+        let now = model.nowPlaying
+        let id = v.id
+        withAnimation(Animation.rowFold) { _ = you.vibePendingRemove.insert(id) }
+        now.undoLine("Vibe taken back", undo: {
+            withAnimation(Motion.anim(Motion.easeOut(Motion.Dur.undoIn))) {
+                _ = you.vibePendingRemove.remove(id)
+            }
+        }, commit: {
+            // Gone for good, it stays off the page drawn; refused, it is
+            // back.
             let ok = await you.deleteVibe(query: v.query, minutes: v.minutes ?? FAMAPI.browseMinutes)
-            await load()
-            if ok { model.nowPlaying.snack("Vibe taken back") } else { model.nowPlaying.say("Could not take that back") }
-        }
+            if !ok {
+                you.vibePendingRemove.remove(id)
+                now.say("Could not take that back")
+            }
+        })
     }
 
     private func folderSheet(_ v: VibeRow) -> some View {
