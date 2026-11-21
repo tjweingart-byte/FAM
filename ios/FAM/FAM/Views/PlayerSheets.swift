@@ -106,6 +106,20 @@ struct GoDeeperSheet: View {
                 ModalButton(label: "Continue", primary: true) { confirm() }
             }
         }
+        // The way out, top right (`#goDeeperX`, §687): the dim alone was
+        // confusing to leave by. 28 pt, 12 from the card's edge.
+        .overlay(alignment: .topTrailing) {
+            Button { shut() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press)
+            .accessibilityLabel("Close")
+            .offset(x: 8, y: -8)
+        }
         .onAppear {
             if shownLine.isEmpty { shownLine = suggestion }
             now.goDeeperOpen = true
