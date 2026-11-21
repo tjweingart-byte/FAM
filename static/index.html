@@ -24907,7 +24907,7 @@
   }
   // `/?person=<handle>`: open them once the app knows who is here, and take
   // it out of the address so a reload does not open it again.
-  // Only a handle's own characters ever leave the address bar (§686): it is
+  // Only a handle's own characters ever leave the address bar (§674): it is
   // drawn into onclick strings, where an entity-escaped quote is a quote.
   function linkHandle(raw){
     var h = String(raw || "").trim().replace(/^@/, "").toLowerCase();
