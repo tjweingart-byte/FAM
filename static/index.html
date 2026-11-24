@@ -5374,6 +5374,12 @@
              something to pick up. -->
         <div class="myfam-header myfam-header-fixed">
             <h2 class="wordmark" aria-label="dailyFAM">daily<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span></h2>
+            <!-- **Search friends**, top right (the owner, 11.24, §692): the
+                 header's own circle, back in the slot the bookshelf left
+                 (10.12 #3). It opens the Friends screen with the caret in
+                 its search - by name or @handle; a guest gets the sign-up
+                 door `openFriends` already is. -->
+            <button class="myfam-head-btn" id="dailyFriendSearchBtn" onclick="openFriendSearch()" aria-label="Search friends" title="Search friends"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
         </div>
         <div class="scroll">
           <!-- The friends row from YourFAM, first thing on the page (10.2
@@ -24126,6 +24132,15 @@
   function cssAttr(v){ return String(v).replace(/["\\]/g, "\\$&"); }
 
   // ---------------- Friends ----------------
+  // dailyFAM's top-right circle (the owner, 11.24, §692): the Friends
+  // screen, ready to type in. The caret is asked for inside the tap, which
+  // is the only time a phone's browser will raise the keyboard.
+  function openFriendSearch(){
+    openFriends();
+    if(!AUTH.authenticated) return;
+    var field = document.getElementById("friendSearch");
+    if(field){ try { field.focus({ preventScroll: true }); } catch(e){} }
+  }
   function openFriends(){
     if(!AUTH.authenticated){
       toast("Following people needs an account");

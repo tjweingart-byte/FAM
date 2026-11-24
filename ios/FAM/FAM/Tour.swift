@@ -45,12 +45,13 @@ final class TourModel: ObservableObject {
                      title: "Ask anything",
                      body: (VoiceSearchModel.available ? "Type, talk or attach a file." : "Type or attach a file.")
                         + " FAM looks it up and tells you the story, one to five minutes long."),
-            TourStep(screen: .myfam, target: .mixesTab, kicker: "myFAM",
-                     title: "Your mixes",
-                     body: "Follow a team, a market, anything, and get new episodes every morning."),
+            // Explore | Playlists (§691): Explore is the first tab.
             TourStep(screen: .myfam, target: .categoriesTab, kicker: "myFAM",
-                     title: "Categories",
-                     body: "Today\u{2019}s episodes, sorted by subject. Pick one and listen."),
+                     title: "Explore",
+                     body: "Today\u{2019}s stories, the trending ones first. Pick a subject, play one, or add it to a playlist."),
+            TourStep(screen: .myfam, target: .mixesTab, kicker: "myFAM",
+                     title: "Your playlists",
+                     body: "Follow a team, a market, anything, and get new episodes every morning."),
             TourStep(screen: .you, target: .youTab, kicker: "yourFAM",
                      title: "Friends and you",
                      body: "Share episodes in Messages. Your profile and Settings are in yourFAM, where you can take this tour again.",

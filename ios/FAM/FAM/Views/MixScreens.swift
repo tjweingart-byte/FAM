@@ -175,8 +175,9 @@ struct NewMixView: View {
     private func cancel() {
         path.removeAll()
         mixes.categoryState = CategoryState()
-        // Back on Mixes, and the tab looked at (`openPlayFAM`, §550).
-        mixes.arrived()
+        // Back on Playlists, where New playlist is, and the tab looked at
+        // (`closeMixPage` → `showPlayfamTab("mixes")`, §691).
+        mixes.arrived(playlists: true)
         Task { await mixes.load() }
     }
 
@@ -223,7 +224,7 @@ struct AddTopicsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MixHeader(title: "Add topics to mix", backLabel: "Back to the mix", back: { dismiss() }) { EmptyView() }
+            MixHeader(title: "Add topics to playlist", backLabel: "Back to the playlist", back: { dismiss() }) { EmptyView() }
             // A white field with no magnifier, unlike the cream search
             // fields elsewhere (`.at-search .modal-input`).
             TextField("", text: $words,

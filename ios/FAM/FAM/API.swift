@@ -2118,10 +2118,16 @@ struct MixItem: Decodable, Identifiable, Equatable {
     /// `_mix_episode_titles`); "" until then, and from an older server.
     /// `title` stays the topic's name: a whole-list write sends it back.
     let episodeTitle: String
+    /// Today's episode's one line (§691, `episode_hook`): its stored
+    /// summary, "" when there is none or from an older server.
+    let episodeHook: String
+    /// Heard today by this listener (§691, `heard_today`): the playlist's
+    /// page draws it as one quiet line with a tick.
+    let heardToday: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, title, query, custom, subtitle, dailyPrompt, prompt, minutes, follow, addedBy
-        case icon, picture, signal, since, episodeTitle
+        case icon, picture, signal, since, episodeTitle, episodeHook, heardToday
     }
 
     init(from decoder: Decoder) throws {
@@ -2141,6 +2147,8 @@ struct MixItem: Decodable, Identifiable, Equatable {
         signal = try? c.decode(MixSignal.self, forKey: .signal)
         since = try? c.decode(MixSince.self, forKey: .since)
         episodeTitle = (try? c.decode(String.self, forKey: .episodeTitle)) ?? ""
+        episodeHook = (try? c.decode(String.self, forKey: .episodeHook)) ?? ""
+        heardToday = (try? c.decode(Bool.self, forKey: .heardToday)) ?? false
     }
 
     /// What a row and the player call it (§570): today's episode by its
@@ -2385,10 +2393,15 @@ extension FAMAPI {
         _ = try await send("POST", "api/v1/categories/mine", body: ["categories": ids], as: Ignored.self)
     }
 
-    /// Today's cached episodes filed under a node, most played first.
+    /// Today's cached episodes filed under a node - or, for `exploreAll`,
+    /// under every one (§691, Explore's "All" chip) - the Trending
+    /// edition's stories first, then the most played (`sort=trending`).
+    /// `EXPLORE_ALL`: the id that asks for every category at once.
+    static let exploreAll = "all"
+
     func categoryEpisodes(_ id: String) async throws -> CategoryEpisodes {
         try await get("api/v1/categories/episodes", [URLQueryItem(name: "id", value: id),
-                                                     URLQueryItem(name: "sort", value: "popular")],
+                                                     URLQueryItem(name: "sort", value: "trending")],
                       as: CategoryEpisodes.self)
     }
 }
@@ -2448,6 +2461,14 @@ struct CategoryEpisode: Decodable, Identifiable, Hashable {
     let thumb: String?
     let explicit: Bool?
     let nodeLabel: String?
+    /// The category it is filed under (Explore's kicker reads its facet).
+    let node: String?
+    /// Its one line (§691, `hook`): the episode's own stored summary, ""
+    /// when it has none - the card then draws no line. Nil from a server
+    /// before §691.
+    let hook: String?
+    /// One of the Trending edition's stories (§691); they come first.
+    let trending: Bool?
 
     var id: String { query + "|" + String(minutes ?? 0) }
 }
@@ -2616,10 +2637,11 @@ extension FAMAPI {
 
     /// Save or unsave an episode a message carries (`saveSharedEpisode`).
     /// `episode` is the sent episode's id (§612), so the save replays it.
-    func saveShared(query: String, minutes: Double, title: String, episode: String = "") async throws {
+    func saveShared(query: String, minutes: Double, title: String, episode: String = "",
+                    source: String = "message") async throws {
         _ = try await send("POST", "api/v1/saved", body: [
             "query": Self.cut(query, 500), "minutes": minutes, "title": Self.cut(title, 200),
-            "source": "message", "episode": Self.cut(episode, 80),
+            "source": Self.cut(source, 40), "episode": Self.cut(episode, 80),
         ], as: SavedState.self)
     }
 

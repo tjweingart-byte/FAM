@@ -162,6 +162,18 @@ final class NowPlayingModel: ObservableObject {
     /// "Saved for Later · Open": the shelf (`openSaved`).
     var openSaved: () -> Void = {}
     var signedIn: () -> Bool = { false }
+    /// The player's own save answered (§691): the query, the minutes and
+    /// whether it is now on the shelf, so a playlist's row for the same
+    /// episode carries the same heart (`noteMixSaved`).
+    var savedChanged: (String, Double, Bool) -> Void = { _, _, _ in }
+
+    /// A save made off the player - a playlist row's heart (§691,
+    /// `toggleMixRowSave` → `setSaved`): if it is the episode on the
+    /// player, the player's own control follows.
+    func noteSaved(query: String, minutes: Double, on: Bool) {
+        guard let ep = episode, ep.key.query == query, ep.key.minutes == minutes else { return }
+        saved = on
+    }
     /// Whether the full player is on screen: What's next is offered there
     /// only, never under the mini bar (`post-episode-grid`).
     var playerShowing: () -> Bool = { true }
@@ -570,6 +582,7 @@ final class NowPlayingModel: ObservableObject {
                 do {
                     try await api.unsave(ep.key)
                     if self.episode == ep { self.saved = false }
+                    savedChanged(ep.key.query, ep.key.minutes, false)
                     // The Task already holds self; the Undo holds it too (no weak
                     // capture inside a strong one).
                     say("Removed from Saved for Later", action: "Undo") {
@@ -587,6 +600,7 @@ final class NowPlayingModel: ObservableObject {
                         self.saved = true
                         self.savedBurst += 1
                     }
+                    savedChanged(ep.key.query, ep.key.minutes, true)
                     say("Saved for Later", action: "Open") { self.openSaved() }
                 } catch {
                     say((error as? FAMError)?.errorDescription ?? "Could not save that")
@@ -604,6 +618,7 @@ final class NowPlayingModel: ObservableObject {
                 if let now = self.episode, now.key.query == ep.key.query, now.key.minutes == ep.key.minutes {
                     self.saved = true
                 }
+                savedChanged(ep.key.query, ep.key.minutes, true)
             } catch {
                 say("Could not save that")
             }

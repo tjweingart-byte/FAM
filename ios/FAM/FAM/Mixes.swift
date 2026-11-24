@@ -36,9 +36,13 @@ final class MixesModel: ObservableObject {
     /// Which chip is on; every arrival on the tab opens on All.
     @Published var categoryState = CategoryState()
     @Published var categorySubs: [CategorySub] = []
-    /// Which of myFAM's two tabs is on (§550, `playfamTab`): every arrival
-    /// on the screen opens on Mixes.
-    @Published var playfamTab: PlayfamTab = .mixes
+    /// Bumped by every arrival on the tab (`load`): Explore asks for its
+    /// stories again, so All is never yesterday's list (§691).
+    @Published private(set) var exploreAsk = 0
+    /// Which of myFAM's two tabs is on (§550, `playfamTab`): an arrival
+    /// opens on Explore, the first tab (§691), unless it is about a
+    /// playlist (`arrived`).
+    @Published var playfamTab: PlayfamTab = .categories
     /// The morning's new mixes (§550, `freshMixes`): the server's word
     /// (`/api/mixes/fresh`) on which mixes this morning's edition wrote and
     /// nobody has played since, and the edition it is.
@@ -81,7 +85,7 @@ final class MixesModel: ObservableObject {
         categories = nil
         categoryState = CategoryState()
         categorySubs = []
-        playfamTab = .mixes
+        playfamTab = .categories
         // The previous listener's new mix is not this one's.
         freshIDs = []
         freshEdition = ""
@@ -135,11 +139,16 @@ final class MixesModel: ObservableObject {
         }
     }
 
-    /// Every arrival on the screen (`openPlayFAM`): Mixes, no category
-    /// left open, and the dot looked at.
-    func arrived() {
+    /// Every arrival on the screen (`openPlayFAM(tab)`, §691): no category
+    /// left open, and the dot looked at. It opens on **Explore**, the first
+    /// tab - reversing §550's "every arrival opens on Mixes" - unless the
+    /// flow is about a playlist (`playlists`: back from one, one just made
+    /// or cancelled), or the tab's dot says a playlist is new this morning,
+    /// which is what the tap was for.
+    func arrived(playlists: Bool = false) {
+        let fresh = !freshIDs.isEmpty && !freshEdition.isEmpty && mixDotSeen != freshEdition
         categoryState = CategoryState()
-        playfamTab = .mixes
+        playfamTab = (playlists || fresh) ? .mixes : .categories
         clearMixDot()
     }
 
@@ -147,6 +156,7 @@ final class MixesModel: ObservableObject {
     /// sentence in place of the list, whatever was drawn before - because
     /// an old list would read as a fresh one.
     func load() async {
+        exploreAsk += 1
         Task { await loadCategories() }
         do {
             mixes = try await api.mixes()
@@ -551,8 +561,9 @@ final class MixesModel: ObservableObject {
     }
 }
 
-/// myFAM's two tabs (§550, `showPlayfamTab`): the mixes, and the
-/// categories that used to be a chip row over them.
+/// myFAM's two tabs (§550, `showPlayfamTab`; §691): `categories`, shown as
+/// **Explore** and first, and `mixes`, shown as **Playlists**. The cases
+/// keep the old names, as the web's ids do (`names-swapped`).
 enum PlayfamTab: Equatable {
     case mixes
     case categories

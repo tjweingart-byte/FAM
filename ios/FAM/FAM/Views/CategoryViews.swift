@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Where the myFAM tab's category chips stand (§229, §500, §550): at rest
-/// (the Categories tab's list), inside a category (its root and a chosen
-/// sub), or finding one.
+/// Where Explore's category chips stand (§229, §500, §550, §691): at rest
+/// (All - every category's stories), inside a category (its root and a
+/// chosen sub), or finding one.
 struct CategoryState: Equatable {
     var root: String?
     var node: String?
@@ -69,7 +69,10 @@ struct CategoryChipsRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     if state.atRest {
-                        // No "All" (§550): the mixes are their own tab now.
+                        // "All" is back (§691): Explore before a category
+                        // is picked, the trending stories first. It is the
+                        // chip that is on.
+                        CategoryChip(label: "All", on: true) {}
                         if page.saved {
                             ForEach(page.mine) { c in
                                 CategoryChip(label: c.label, starred: true) { pick(c.id) }
@@ -125,26 +128,35 @@ struct CategoryChipsRow: View {
     }
 }
 
-/// A category's panel (`drawCategoryPanel`): the most played episode as a
-/// 16:9 hero, Play all and Follow, then the rest as rows.
+/// Explore's panel (`drawCategoryPanel`; §691, the owner's 11.24 mock):
+/// a story to a card. With no category picked (`node` "") it is **All** -
+/// every category, the Trending edition's stories first, then today's most
+/// played; inside a category the same cards sit under Play all and Follow.
+/// The server's order is the order drawn. §500's 16:9 hero and its rows
+/// are gone, as on the web.
 struct CategoryPanel: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var mixes: MixesModel
+    /// The category, or "" for All.
     let node: String
     @Binding var subs: [CategorySub]
     /// The category the chips are inside: its answer alone sets the sub
-    /// row, and its facet colours the hero (`catPage.root`).
+    /// row (`catPage.root`).
     var root: String = ""
 
     @State private var page: CategoryEpisodes?
     @State private var failed = false
     @State private var following = false
-    /// The node `page` is for; while another loads, the last page stays,
+    /// What `page` was asked for; while another loads, the last page stays,
     /// inert (`aria-busy`, `inert`, §642/§646).
     @State private var pageNode = ""
     /// The first page has waited 300 ms: "Loading…" may show.
     @State private var slow = false
-    private var busy: Bool { page != nil && pageNode != node }
+    /// The story whose "Add to playlist" was tapped (`addExploreToPlaylist`).
+    @State private var adding: CategoryEpisode?
+    /// What the server is asked for: the category, or every one.
+    private var asked: String { node.isEmpty ? FAMAPI.exploreAll : node }
+    private var busy: Bool { page != nil && pageNode != asked }
     @Environment(\.dynamicTypeSize) private var typeSize
 
     static let tones: [String: Color] = [
@@ -157,29 +169,36 @@ struct CategoryPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             if let page {
                 if page.episodes.isEmpty {
-                    // The heading and Follow side by side; at the
-                    // accessibility sizes Follow goes under it (`large-text`).
-                    let layout = typeSize.isAccessibilitySize
-                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-                        : AnyLayout(HStackLayout(spacing: 10))
-                    layout {
-                        Text(page.label).font(FAMFont.heading(19, .semibold)).foregroundStyle(FAMColor.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                        followButton
+                    if node.isEmpty {
+                        note("Nothing has been made today yet. Stories come up here as FAM writes them and people play them.")
+                    } else {
+                        // The heading and Follow side by side; at the
+                        // accessibility sizes Follow goes under it (`large-text`).
+                        let layout = typeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                            : AnyLayout(HStackLayout(spacing: 10))
+                        layout {
+                            Text(page.label).font(FAMFont.heading(19, .semibold)).foregroundStyle(FAMColor.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                            followButton
+                        }
+                        .padding(.top, 6)
+                        .padding(.bottom, 12)
+                        note("Nothing has been made in \(page.label) today yet. Episodes come up here as people play and FAM writes them.")
                     }
-                    .padding(.top, 6)
-                    .padding(.bottom, 12)
-                    note("Nothing has been made in \(page.label) today yet. Episodes come up here as people play and FAM writes them.")
                 } else {
-                    hero(page)
-                    actions(page)
-                    ForEach(Array(page.episodes.enumerated().dropFirst()), id: \.offset) { i, e in
-                        row(e, i, page)
+                    if !node.isEmpty { actions(page) }
+                    ForEach(Array(page.episodes.enumerated()), id: \.offset) { i, e in
+                        ExploreCard(episode: e, kicker: mixes.exploreKicker(e),
+                                    tone: Self.tones[mixes.facet(of: e.node ?? "")] ?? FAMColor.surface2,
+                                    play: { model.playCategory(page.episodes, from: i) },
+                                    add: { adding = e })
                     }
                 }
             } else if failed {
                 VStack(spacing: 6) {
-                    note("Could not load this category right now.")
+                    note(node.isEmpty ? "Could not load today’s stories right now."
+                                      : "Could not load this category right now.")
                     // `.sample-note-btn`: the copper pill.
                     Button { Task { await load() } } label: {
                         Text("Try again")
@@ -193,35 +212,49 @@ struct CategoryPanel: View {
                 }
                 .frame(maxWidth: .infinity)
             } else if slow {
-                note("Loading today’s episodes…")
+                note("Loading today’s stories…")
             }
         }
         .padding(.horizontal, 18)
-        // Play all, Follow and the rows do nothing while the next loads.
+        // Play all, Follow and the cards do nothing while the next loads.
         .allowsHitTesting(!busy)
-        .task(id: node) { await load() }
+        // Asked again with every arrival on the tab (`exploreAsk`), so All
+        // is never yesterday's.
+        .task(id: asked + "|" + String(mixes.exploreAsk)) { await load() }
+        .famSheet(item: $adding) { e in
+            AddToMixSheet(query: e.query, title: e.title.isEmpty ? e.query : e.title)
+                .environmentObject(model)
+                .environmentObject(model.mixes)
+                .environmentObject(model.nowPlaying)
+        }
     }
 
     private func load() async {
         failed = false
+        let wanted = asked
+        // Nothing of a category left stays under the All chip while All
+        // loads (§691 review).
+        if node.isEmpty && page != nil && pageNode != wanted {
+            page = nil
+            pageNode = ""
+        }
         if page == nil {
             // The line only after 300 ms (`lateLoader`).
             slow = false
-            let asked = node
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
-                if page == nil && node == asked { slow = true }
+                if page == nil && asked == wanted { slow = true }
             }
         }
         do {
-            let answer = try await model.api.categoryEpisodes(node)
+            let answer = try await model.api.categoryEpisodes(wanted)
             if Task.isCancelled { return }
             page = answer
-            pageNode = node
+            pageNode = wanted
             // The level below comes from the category's own answer only,
             // so narrowing to one of its subs keeps the row
-            // (`if(node === catPage.root)`).
-            if root.isEmpty || node == root { subs = answer.subcategories }
+            // (`if(node === catPage.root)`). All has none.
+            if !node.isEmpty && (root.isEmpty || node == root) { subs = answer.subcategories }
         } catch {
             // A load overtaken by the next node's says nothing.
             if Task.isCancelled { return }
@@ -240,65 +273,6 @@ struct CategoryPanel: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 30)
             .padding(.horizontal, 18)
-    }
-
-    private func hero(_ page: CategoryEpisodes) -> some View {
-        let first = page.episodes[0]
-        let shade = Color(red: 10 / 255, green: 9 / 255, blue: 13 / 255)
-        // The frame is a 16:9 box of the facet's colour; the picture is an
-        // overlay cut to it, so a 4:3 thumbnail can never make it taller.
-        return Button { model.playCategory(page.episodes, from: 0) } label: {
-            Rectangle()
-                .fill(Self.tones[heroFacet(page)] ?? FAMColor.surface2)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .frame(maxWidth: .infinity, minHeight: 150)
-                .overlay {
-                    if let thumb = first.thumb, let url = model.api.picture(thumb) {
-                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
-                            .tapSpot(url, radius: 0)
-                    }
-                }
-                .overlay {
-                    LinearGradient(stops: [.init(color: shade.opacity(0), location: 0.35),
-                                           .init(color: shade.opacity(0.78), location: 1)],
-                                   startPoint: .top, endPoint: .bottom)
-                }
-                .overlay(alignment: .bottomLeading) { heroText(page, first) }
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .contentShape(RoundedRectangle(cornerRadius: 16))
-        }
-        .buttonStyle(.press)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
-    }
-
-    /// The root's facet (`categoryFacetOf(catPage.root)`), else the node's own.
-    private func heroFacet(_ page: CategoryEpisodes) -> String {
-        let id = root.isEmpty ? node : root
-        if let cats = mixes.categories {
-            if cats.facets.contains(where: { $0.id == id }) { return id }
-            if let found = cats.all.first(where: { $0.id == id }), let facet = found.facet { return facet }
-            return ""
-        }
-        return page.facet ?? ""
-    }
-
-    private func heroText(_ page: CategoryEpisodes, _ first: CategoryEpisode) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if first.explicit == true { ExplicitBadge() }
-                Text(first.title.isEmpty ? first.query : first.title)
-                    .font(FAMFont.heading(18, .semibold))
-                    .foregroundStyle(Color(hex: 0xF4EFE4))
-                    .multilineTextAlignment(.leading)
-            }
-            Text("Most played in \(page.label) today")
-                .font(FAMFont.mono(8.5))
-                .tracking(0.85)
-                .textCase(.uppercase)
-                .foregroundStyle(Color(hex: 0xF4EFE4).opacity(0.78))
-        }
-        .padding(14)
     }
 
     private func actions(_ page: CategoryEpisodes) -> some View {
@@ -321,6 +295,7 @@ struct CategoryPanel: View {
             .buttonStyle(.press)
             followButton
         }
+        .padding(.top, 4)
         .padding(.bottom, 10)
     }
 
@@ -342,56 +317,6 @@ struct CategoryPanel: View {
                 .overlay(Capsule().stroke(on ? FAMColor.paper : FAMColor.borderStrong))
         }
         .buttonStyle(.press)
-    }
-
-    private func row(_ e: CategoryEpisode, _ i: Int, _ page: CategoryEpisodes) -> some View {
-        Button { model.playCategory(page.episodes, from: i) } label: {
-            HStack(spacing: 11) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10).fill(FAMColor.surface2)
-                    if let thumb = e.thumb, let url = model.api.picture(thumb) {
-                        AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: {
-                            PlayTriangle().fill(FAMColor.copper).frame(width: 14, height: 14)
-                        }
-                        .tapSpot(url)
-                    } else {
-                        PlayTriangle().fill(FAMColor.copper).frame(width: 14, height: 14)
-                    }
-                }
-                .frame(width: 38, height: 38)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        if e.explicit == true { ExplicitBadge() }
-                        Text(e.title.isEmpty ? e.query : e.title)
-                            .font(FAMFont.heading(12.5, .medium))
-                            .foregroundStyle(FAMColor.text)
-                            .multilineTextAlignment(.leading)
-                    }
-                    Text(meta(e, page))
-                        .font(FAMFont.mono(8))
-                        .tracking(0.32)
-                        .foregroundStyle(FAMColor.textFaint)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.press)
-    }
-
-    /// "SPORT · 1.5 MIN · 12 PLAYS" (`catRowMeta`).
-    private func meta(_ e: CategoryEpisode, _ page: CategoryEpisodes) -> String {
-        // The node's own label, or nothing (`catRowMeta`'s filter(Boolean)).
-        var parts: [String] = []
-        let nodeLabel = (e.nodeLabel ?? "").uppercased()
-        if !nodeLabel.isEmpty { parts.append(nodeLabel) }
-        parts.append("\(FAMAPI.minutes(e.minutes ?? FAMAPI.browseMinutes)) MIN")
-        if let plays = e.plays, plays > 0 { parts.append(plays == 1 ? "1 PLAY" : "\(plays) PLAYS") }
-        return parts.joined(separator: " · ")
     }
 }
 
@@ -488,19 +413,21 @@ struct ExplicitBadge: View {
     }
 }
 
-// MARK: - Mixes | Categories (§550)
+// MARK: - Explore | Playlists (§550, §691)
 
 /// Two equal tabs under the wordmark, a copper rule under the one that is
-/// on, as Groups | Messages (`.pf-tabs`, `showPlayfamTab`): the listener's
-/// mixes, and the categories that used to be a chip row over them.
+/// on, as Groups | Messages (`.pf-tabs`, `showPlayfamTab`): **Explore** -
+/// today's stories, the trending ones first, filtered by a row of category
+/// chips - and **Playlists**, the listener's mixes. Explore is the first
+/// tab and the one an arrival opens on (§691, the owner's 11.24 mock).
 struct PlayfamTabs: View {
     let tab: PlayfamTab
     let pick: (PlayfamTab) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
-            button(.mixes, "Mixes")
-            button(.categories, "Categories")
+            button(.categories, "Explore")
+            button(.mixes, "Playlists")
         }
         // The hairline under both; the copper rule of the one on is drawn
         // over it (`margin-bottom:-1px`) - one rule that slides between
@@ -510,7 +437,7 @@ struct PlayfamTabs: View {
             Rectangle().fill(FAMColor.border).frame(height: 1)
         }
         .overlay(alignment: .bottom) {
-            SlidingRule(count: 2, index: tab == .mixes ? 0 : 1, height: 2.5, duration: 0.24)
+            SlidingRule(count: 2, index: tab == .categories ? 0 : 1, height: 2.5, duration: 0.24)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 12)
@@ -533,142 +460,9 @@ struct PlayfamTabs: View {
         }
         .buttonStyle(.press)
         .accessibilityAddTraits(on ? .isSelected : [])
-        // `#pfTabMixes` / `#pfTabCats`: the tour's "Your mixes" and
-        // "Categories".
+        // `#pfTabCats` / `#pfTabMixes`: the tour's "Explore" and
+        // "Your playlists".
         .tourTarget(which == .mixes ? .mixesTab : .categoriesTab)
     }
 }
 
-/// The Categories tab with none picked (`#catHome`, `renderCategoryHome`):
-/// the ones this listener follows, each with how many episodes it has
-/// today (else what is under it), then every other facet and the first of
-/// what is under it. A row opens that category in place, as a chip does.
-struct CategoryHome: View {
-    @EnvironmentObject private var mixes: MixesModel
-    @Binding var state: CategoryState
-
-    /// `CAT_FACET_ICONS`: each facet's glyph, "news" for anything else.
-    static let facetIcons: [String: String] = [
-        "sports": "ball", "business": "briefcase", "money": "chart", "tech": "chip",
-        "science": "atom", "health": "pulse", "culture": "palette", "world": "news",
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let page = mixes.categories {
-                content(page)
-            } else {
-                empty("Loading categories\u{2026}")
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 24)
-    }
-
-    @ViewBuilder
-    private func content(_ page: CategoriesPage) -> some View {
-        let mine: [CategoryNode] = page.saved ? page.mine : []
-        let followedIDs: Set<String> = Set(mine.map { $0.id })
-        let rest: [CategoryFacet] = page.facets.filter { !followedIDs.contains($0.id) }
-        if mine.isEmpty && rest.isEmpty {
-            empty("No categories yet.")
-        }
-        if !mine.isEmpty {
-            heading("Your categories")
-            ForEach(mine) { c in
-                row(id: c.id, label: c.label, facet: c.facet ?? "", sub: mineSub(c), followed: true)
-            }
-        }
-        if !rest.isEmpty {
-            heading(mine.isEmpty ? "All categories" : "More categories")
-            ForEach(rest) { f in
-                row(id: f.id, label: f.label, facet: f.id, sub: facetSub(f), followed: false)
-            }
-        }
-    }
-
-    /// "3 episodes today", else what is under it.
-    private func mineSub(_ c: CategoryNode) -> String {
-        let n = c.today ?? 0
-        if n > 0 { return n == 1 ? "1 episode today" : "\(n) episodes today" }
-        return (c.children ?? []).joined(separator: " \u{00B7} ")
-    }
-
-    /// The first four under a facet.
-    private func facetSub(_ f: CategoryFacet) -> String {
-        let names: [String] = (f.children ?? []).prefix(4).map { $0.label }
-        return names.joined(separator: " \u{00B7} ")
-    }
-
-    /// `.cath-h`: Geist Mono 10, 0.14 em, uppercase, faint.
-    private func heading(_ text: String) -> some View {
-        Text(text)
-            .font(FAMFont.mono(10))
-            .tracking(1.4)
-            .textCase(.uppercase)
-            .foregroundStyle(FAMColor.textFaint)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    /// `.sv-empty`.
-    private func empty(_ text: String) -> some View {
-        Text(text)
-            .font(FAMFont.body(11))
-            .foregroundStyle(FAMColor.textFaint)
-            .multilineTextAlignment(.center)
-            .lineSpacing(4)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 30)
-            .padding(.horizontal, 18)
-    }
-
-    /// `.cath-row`: the facet's tile, the name (starred when followed),
-    /// the line under it, the chevron.
-    private func row(id: String, label: String, facet: String, sub: String, followed: Bool) -> some View {
-        let tone: Color = CategoryPanel.tones[facet] ?? FAMColor.surface2
-        let icon: String = Self.facetIcons[facet] ?? "news"
-        let shape = RoundedRectangle(cornerRadius: 12)
-        return Button { state = CategoryState(root: id, node: id) } label: {
-            HStack(spacing: 12) {
-                SubjectIcon(name: icon, size: 20)
-                    .foregroundStyle(Color(hex: 0xF4EFE4))
-                    .frame(width: 38, height: 38)
-                    .background(tone, in: RoundedRectangle(cornerRadius: 10))
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if followed {
-                            StarShape().fill(FAMColor.copper).frame(width: 11, height: 11)
-                                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
-                                .accessibilityLabel("Following")
-                        }
-                        Text(label)
-                            .font(FAMFont.body(14.5, .semibold))
-                            .foregroundStyle(FAMColor.text)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if !sub.isEmpty {
-                        Text(sub)
-                            .font(FAMFont.body(12))
-                            .foregroundStyle(FAMColor.textMuted)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                WebIcon(path: Icons.chevron, size: 16, line: 2.2)
-                    .foregroundStyle(FAMColor.textFaint)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(FAMColor.surface, in: shape)
-            .overlay(shape.stroke(FAMColor.border))
-            .contentShape(shape)
-        }
-        .buttonStyle(.press)
-        .padding(.bottom, 8)
-    }
-}

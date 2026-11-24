@@ -1117,6 +1117,24 @@ struct MiniPlayer: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
+            // In a playlist (§691, the owner's 11.24 mock) the bar carries a
+            // heart - Saved for Later, the player's own save, never a vibe
+            // (`op-social-live`: not on the mini bar) - and, after play, the
+            // next story. Both are gone outside one.
+            if inPlaylist {
+                Button { now.toggleSave() } label: {
+                    ZStack {
+                        if now.saved { WebFill(path: Icons.heart, size: 18) }
+                        WebIcon(path: Icons.heart, size: 18, line: 2)
+                    }
+                    .foregroundStyle(now.saved ? FAMColor.copper : FAMColor.text)
+                    .frame(width: 30, height: 36)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel(now.saved ? "Take it off Saved for Later" : "Save for later")
+                .accessibilityAddTraits(now.saved ? .isSelected : [])
+            }
             Button { player.toggle() } label: {
                 PlayPauseGlyph(playing: player.playing, size: 16)
                     .frame(width: 36, height: 36)
@@ -1125,6 +1143,19 @@ struct MiniPlayer: View {
             .buttonStyle(.press)
             .offset(y: settled ? 0 : 8)
             .accessibilityLabel(player.playing ? "Pause" : "Play")
+            if inPlaylist {
+                Button { model.skipMixItem() } label: {
+                    NextGlyph()
+                        .scaleEffect(18.0 / 26.0)
+                        .foregroundStyle(FAMColor.text)
+                        .frame(width: 30, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Skip to the next story in this playlist")
+            }
+            // The X stays (§691's second decision): it is the only control
+            // that stops audio the bar left playing (`transport`, §250).
             Button { model.stopEpisode() } label: {
                 WebIcon(path: Icons.close, size: 16, line: 2.6)
                     .foregroundStyle(FAMColor.textMuted)
@@ -1166,9 +1197,29 @@ struct MiniPlayer: View {
         return max(player.total, 0.1)
     }
 
+    /// The playlist whose own episode is on the player (`nowBarMixLine`:
+    /// `mixPlay.key === currentPlayingTopicKey`) - not a Go Deeper detour
+    /// off it, and not something else played while it waits.
+    private var playlistNow: MixPlaylist? {
+        guard let list = model.mixPlay, !list.key.isEmpty, !list.order.isEmpty,
+              now.episode?.mixKey == list.key else { return nil }
+        return list
+    }
+
+    private var inPlaylist: Bool { playlistNow != nil }
+
+    /// "2 of 7 · NBA" while a playlist's own episode plays (§691).
+    private var playlistLine: String? {
+        guard let list = playlistNow else { return nil }
+        let topic: String = list.current?.title ?? ""
+        let place: String = "\(max(list.pos, 0) + 1) of \(list.order.count)"
+        return topic.isEmpty ? place : place + " \u{00B7} " + topic
+    }
+
     /// "{source · }m:ss left" (`startNowBarTicker`). No play on the web
     /// passes a source (`playOpts` has none), so the line is "m:ss left".
     private var metaLine: String {
+        if let line = playlistLine { return line }
         let source = ""
         let left = clock(max(0, asked - player.position)) + " left"
         return source.isEmpty ? left : source + " \u{00b7} " + left

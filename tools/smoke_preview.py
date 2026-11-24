@@ -258,6 +258,33 @@ def main() -> int:
             assert page.evaluate("document.getElementById('famTour').hidden"), \
                 "a skipped tour came back by itself"
 
+        def dailyfam_has_a_search_friends_button():
+            """The owner's 11.24 note (§692): a Search friends circle top
+            right of dailyFAM, opening the Friends screen with the caret in
+            its search."""
+            ensure_account()
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#screen-myfam.active", timeout=10000)
+            page.wait_for_timeout(500)
+            box = page.eval_on_selector("#dailyFriendSearchBtn", """b => {
+                var r = b.getBoundingClientRect(), s = b.closest('.screen').getBoundingClientRect();
+                var w = b.closest('.myfam-header').querySelector('.wordmark').getBoundingClientRect();
+                return { w: r.width, h: r.height, right: s.right - r.right, clear: r.left - w.right,
+                         label: b.getAttribute('aria-label') };
+            }""")
+            assert box["label"] == "Search friends", box
+            assert 33 <= box["w"] <= 35 and 33 <= box["h"] <= 35, box
+            assert 30 <= box["right"] <= 46, "not at the top right: %r" % box
+            assert box["clear"] >= 8, "the circle sits on the wordmark: %r" % box
+            page.click("#dailyFriendSearchBtn")
+            page.wait_for_timeout(1200)
+            assert page.eval_on_selector(".screen.active", "e => e.id") \
+                == "screen-friends", "Search friends did not open Friends"
+            assert page.evaluate("document.activeElement && document.activeElement.id") \
+                == "friendSearch", "the caret is not in the search"
+            page.evaluate("openMyFamTab()")
+            page.wait_for_timeout(400)
+
         def no_weekly_recap_pops_up():
             """The weekly recap popup is gone at the owner's direction, and
             its shelf is myFAM's "What you missed last week" rail.
@@ -5399,6 +5426,7 @@ def main() -> int:
         check("The first run asks, then lets you in", first_run_asks_before_it_shows_the_app)
         check("The tour walks the app and can be skipped", the_tour_walks_the_app_and_can_be_skipped)
         check("No weekly recap pops up", no_weekly_recap_pops_up)
+        check("dailyFAM has a Search friends button", dailyfam_has_a_search_friends_button)
         check("myFAM renders a rail per signal", myfam)
         check("a live story tile shows its angle", live_story_tiles_show_their_angle)
         check("a card describes the episode, not the feed",
