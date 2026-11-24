@@ -41415,3 +41415,107 @@ while All loads.
 Left as it is, knowingly: the mini player's next opens the full player, as
 skipping always has; the sliders do nothing on the guest's example, as the
 three dots did; the iPhone's tour still names the old tabs (PARITY.md).
+
+## 692. iOS build 12: the audit of Main since build 11, Explore | Playlists on the iPhone, and Search friends on dailyFAM (2026-11-24)
+
+**Asked.** The owner, with the session list open (Staging sync with main,
+Impact and context assessment, New packet of updates, myFAM page redesign,
+App Store review delay, Episode autoplay behavior, Admin page feedback):
+"Make the new iOS build (build 12), this is everything that has been changed
+since the last build, run a full audit to make sure everything is included in
+the build." Then, while it was being built: "there is one more change we
+want to make" - a mock of dailyFAM's header with a magnifier top right,
+"Search friends button added to the top".
+
+**Is everything on Main?** §683's lesson was that a build can be uploaded
+from a branch that never merged. Every remote branch was compared with
+Main: only four hold commits Main lacks, and none of them is app code Main
+is missing - `claude/bold-planck-uhnu14` (§686/§687) is on Main as the same
+four patches (`git cherry` marks all four applied), `claude/dazzling-hypatia`
+is two rebuilt previews, `staging` is merge commits. Build 12 is cut from
+Main at #339.
+
+**The audit.** Everything merged after build 11 (`cecb9282`), read for what
+it gave a listener and checked against the Swift:
+
+| Change | What | On the iPhone |
+|---|---|---|
+| #333 (§684) | Xcode's one warning, `KeyboardDismiss` | In the PR |
+| #334 (§685) | Web player reconnects a broken stream; reports carry its log | Web and server only: the iPhone player already reconnects three times and sends its log (§653) |
+| §686 (the autoplay session; #335's patches, on Main directly) | What's next starts nothing by itself | In the change (`NowPlayingModel.offerNextUp`) |
+| §687 (same) | The Go Deeper popup's X | In the change (`GoDeeperSheet`) |
+| #336, #338 (§691, the myFAM redesign session) | myFAM is Explore \| Playlists | **Missing: built here.** §691 said so ("Not done. The iPhone app") and PARITY.md's row read "Not started" |
+| #337 (§690, this session's packet) | The back chevrons, the Private lock's word and first-tap explanation, the mini player's tap, the story's like and revibe, an edition's prompt matching only itself | In the PR; the last is server only. `ios.yml` compiled it (run 163, green) |
+| #339 (§688, the impact session) | The Anthropic key leaves the cloud environment; paid runs move to a workflow | Server and tooling only |
+| Staging sync, App Store review delay | A merge into `staging`; a conversation | No app code |
+
+**Explore | Playlists on the iPhone** (`Views/Playlists.swift`, PARITY.md's
+row), after the web's §691 function for function:
+
+* *The tabs* (`PlayfamTabs`): Explore, then Playlists. An arrival opens on
+  Explore (`MixesModel.arrived`) unless the flow is about a playlist - back
+  from one, one just made or cancelled, a mix opened from a link or a
+  profile - or the tab's dot says one is new this morning.
+* *Explore* (`CategoryPanel`, node "" is All): the chips with **All** first
+  and on; `/api/categories/episodes?id=all&sort=trending`, asked again on
+  every arrival; a story to a card (`ExploreCard`): picture and
+  "SPORT · NBA", title, the stored one line when there is one, **FAM**
+  (replay only, the rest of the page queued) and **Add to playlist** (the
+  player's own sheet). Inside a category the same cards under Play all and
+  Follow. §550's list of categories (`CategoryHome`) and §500's hero are
+  gone, as on the web.
+* *Playlists* (`PlaylistCard`): one row a playlist - picture, name, "New
+  today", "7 BRIEFINGS · DAILY" and Trending / Major update in the signal's
+  colour, "Startups, AI, NBA and 4 more", a play that starts it from the top
+  without opening it. "Create new mix" under the wordmark is the dashed
+  "+ New playlist" under the cards; the public search is under that, its
+  bar kept in one place in the stack so opening it keeps the caret.
+* *A playlist's page* (`MixView`): "myFAM Playlist" over "MORNING · NOV 24 ·
+  7 STORIES" with the sliders where the three dots were; the outlined pill
+  ("Play Morning · 7 stories", "Playing Morning · 2 of 7", "Paused ...");
+  today's stories in the order they play (`Mix.pageRows`,
+  `playlistPageOrder`) as heard / now playing / up next (`heard_today`,
+  `episode_hook`); the cover, name, people, share and invite under them;
+  drag to reorder only inside Edit topics. The page follows the player
+  because it reads `model.mixPlay`.
+* *The heart* is Saved for Later, as §691 decided: `AppModel.savedTiles`,
+  saved by the same dated prompt a tap plays. The player's own save and a
+  row's heart are one shelf both ways (`savedChanged`, `noteSaved`).
+* *The mini player* in a playlist: "2 of 7 · NBA", the heart, next after
+  play; the X stays.
+* *The tour's* two myFAM cards are "Explore" and "Your playlists"; the
+  test's carve-out for the old names is gone.
+* The menu, the sheets and the notes on these screens say "playlist";
+  toasts and the naming screen still say "mix", as on the web.
+
+**Search friends on dailyFAM** (rule `find-friends`, Current note): the
+header's own 34 pt ring with the magnifier, top right, in the slot the
+bookshelf left (10.12 #3). Web: `#dailyFriendSearchBtn` →
+`openFriendSearch`, which is `openFriends()` with the caret put in the
+search inside the tap; a guest gets the sign-up door `openFriends` already
+is. iPhone: the same ring over the wordmark's row in `DailyView`,
+`model.social.open(.friends)`. It opens the page that exists - no second
+search was built.
+
+**The build.** `CURRENT_PROJECT_VERSION` 12; the registry's build is 12. No
+route was added (Explore asks the route the contract holds, with `id=all`
+and `sort=trending`; the hearts use `/api/saved`), so the contract is not
+recut, as for build 11.
+
+**Decisions taken without asking, each reversible.** (1) Search friends
+opens the Friends screen rather than a new search sheet. (2) On the iPhone
+it does not raise the keyboard: `ModalField` takes no focus, and the field
+is the first thing on the page. (3) The mini player's next moves the
+playlist on without opening the full player. (4) "+ New playlist" shows
+once the playlists have loaded, as the pill it replaces did.
+
+Tests: `tests/test_build12_ios.py`; the browser smoke run clicks the new
+button. `tests/test_ios_app_contract.py` compares the tour's two myFAM cards
+like the rest.
+
+**Not verified here:** there is no Xcode in this container. `ios.yml`
+compiles the Swift on a Mac; nothing here has been run on a phone - the
+layout of the new cards and rows at real sizes and at large text, the
+playlist page following a playing playlist, the hearts, and the mini
+player's two new buttons all want a device. Left for later (PARITY.md):
+Explore's cards rising in, the chips' slide, a guest's example playlist.

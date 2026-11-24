@@ -20,6 +20,24 @@ struct DailyView: View {
             VStack(spacing: 0) {
                 Wordmark(lead: "daily", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
+                    // **Search friends**, top right (the owner, 11.24,
+                    // §692; `#dailyFriendSearchBtn`): the app's ring and
+                    // the magnifier, opening the Friends screen, whose
+                    // first field searches by name or @handle. 38 pt from
+                    // the edge, where the web's header keeps its circle.
+                    .overlay(alignment: .trailing) {
+                        Button { model.social.open(.friends) } label: {
+                            WebIcon(path: Icons.search, size: 17, line: 2.2)
+                                .foregroundStyle(FAMColor.text)
+                                .frame(width: 34, height: 34)
+                                .overlay(Circle().stroke(FAMColor.borderStrong))
+                                .padding(5)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.press)
+                        .padding(.trailing, 33)
+                        .accessibilityLabel("Search friends")
+                    }
                     .padding(.top, 4)
                 ScrollViewReader { proxy in
                     ScrollView {

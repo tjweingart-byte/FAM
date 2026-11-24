@@ -10,9 +10,10 @@ enum MixRoute: Hashable {
     case publicMix(String)
 }
 
-/// The myFAM tab (`screen-playfam`): the wordmark, then two tabs (§550):
-/// Mixes - Create new mix, the public-mix search and your mixes - and
-/// Categories - §500's chips without All over a list of the categories.
+/// The myFAM tab (`screen-playfam`): the wordmark, then two tabs (§550,
+/// §691): Explore - the category chips, All first, over today's stories as
+/// cards - and Playlists - your mixes, "+ New playlist" and the search of
+/// public ones.
 /// Drawn to the web's measurements (PARITY.md).
 struct MyFAMView: View {
     @EnvironmentObject private var model: AppModel
@@ -32,30 +33,11 @@ struct MyFAMView: View {
                 Wordmark(lead: "my", size: 28)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .padding(.top, 4)
-                // Mixes | Categories (§550, the owner's 11.11 note, "like
-                // Groups | Messages"), outside the scroller with the wordmark.
+                // Explore | Playlists (§550; §691, the owner's 11.24 mock),
+                // outside the scroller with the wordmark. "Create new mix",
+                // the pill that sat under them, is the dashed "+ New
+                // playlist" under the cards now.
                 PlayfamTabs(tab: mixes.playfamTab) { showTab($0) }
-                // "Create new mix": on Mixes only - but its room is kept on
-                // Categories and from the first frame, so the page never
-                // jumps 42 pt as the mixes answer or the tab turns (§642).
-                let onMixes = mixes.playfamTab == .mixes
-                Button { path.append(.new) } label: {
-                        HStack(spacing: 7) {
-                            WebIcon(path: Icons.plus, size: 13, line: 2.4)
-                            Text("Create new mix")
-                        }
-                        .font(FAMFont.body(12, .bold))
-                        .foregroundStyle(FAMColor.text)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 32)
-                        .background(FAMColor.surface, in: Capsule())
-                        .overlay(Capsule().stroke(FAMColor.borderStrong))
-                    }
-                    .buttonStyle(.press)
-                    .padding(.bottom, 10)
-                    .opacity(onMixes ? 1 : 0)
-                    .allowsHitTesting(onMixes)
-                    .accessibilityHidden(!onMixes)
                 ScrollViewReader { proxy in
                 ScrollView {
                   VStack(alignment: .leading, spacing: 0) {
@@ -63,39 +45,41 @@ struct MyFAMView: View {
                     Color.clear.frame(height: 2).id("top")
                     if mixes.playfamTab == .categories {
                       // The list nudges 18 pt toward the tab chosen (round
-                      // three, §642 `playfam-tabs` B).
+                      // three, §642 `playfam-tabs` B); Explore is on the
+                      // left, so it comes from that side.
                       VStack(alignment: .leading, spacing: 0) {
                         CategoryChipsRow(state: $mixes.categoryState, subs: mixes.categorySubs)
                             .padding(.top, 4)
                         if mixes.categoryState.finding {
                             CategoryFind(state: $mixes.categoryState)
-                        } else if let node = mixes.categoryState.node {
-                            // One panel kept across nodes: the last one stays,
-                            // inert, while the next loads (§642, §646).
-                            CategoryPanel(node: node, subs: $mixes.categorySubs,
-                                          root: mixes.categoryState.root ?? node)
                         } else {
-                            CategoryHome(state: $mixes.categoryState)
+                            // One panel kept across All and every node: the
+                            // last one stays, inert, while the next loads
+                            // (§642, §646).
+                            CategoryPanel(node: mixes.categoryState.node ?? "", subs: $mixes.categorySubs,
+                                          root: mixes.categoryState.root ?? "")
                         }
                       }
-                      .transition(.tabSwap(forward: mixes.playfamTab == .categories))
+                      .padding(.bottom, 24)
+                      .transition(.tabSwap(forward: mixes.playfamTab == .mixes))
                     } else {
+                    // Playlists: the cards, "+ New playlist", then the
+                    // search of other listeners' public ones (§691: the
+                    // mock's list starts at the top). The bar keeps its
+                    // place in the stack, so opening it never loses the
+                    // caret; the cards and the button step aside.
                     VStack(alignment: .leading, spacing: 0) {
-                        searchBar.padding(.top, 18)
-                        if searching {
-                            searchResults
-                        } else {
-                            Text("Your mixes, with fresh episodes every morning.")
-                                .font(FAMFont.body(10.5))
-                                .foregroundStyle(FAMColor.textMuted)
-                                .padding(.top, 2)
-                                .padding(.bottom, 16)
+                        if !searching {
                             list
+                            newPlaylistRow
                         }
+                        searchBar
+                        if searching { searchResults }
                     }
                     .padding(.horizontal, 18)
+                    .padding(.top, 4)
                     .padding(.bottom, 24)
-                    .transition(.tabSwap(forward: mixes.playfamTab == .categories))
+                    .transition(.tabSwap(forward: mixes.playfamTab == .mixes))
                     }
                   }
                 }
@@ -138,8 +122,8 @@ struct MyFAMView: View {
         }
     }
 
-    /// Which tab is on (`showPlayfamTab`): leaving Categories forgets the
-    /// one that was open; arriving shows the list of them.
+    /// Which tab is on (`showPlayfamTab`): leaving Explore forgets the
+    /// category that was open; arriving shows All.
     private func showTab(_ which: PlayfamTab) {
         if which == .mixes && !mixes.categoryState.atRest {
             mixes.categoryState = CategoryState()
@@ -147,7 +131,7 @@ struct MyFAMView: View {
         mixes.playfamTab = which
     }
 
-    // MARK: - Your mixes
+    // MARK: - Your playlists
 
     @ViewBuilder
     private var list: some View {
@@ -155,29 +139,53 @@ struct MyFAMView: View {
         case .loading:
             EmptyView()
         case .failed:
-            EmptyNote(text: "Your mixes could not load. They’re safe — try again in a moment.")
+            EmptyNote(text: "Your playlists could not load. They’re safe — try again in a moment.")
+                .padding(.bottom, 11)
         case .ready:
             if mixes.mixes.isEmpty {
-                EmptyNote(text: "No mixes yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
+                EmptyNote(text: "No playlists yet. Make one for when you listen — the gym, the commute — and it’s fresh every morning.")
+                    .padding(.bottom, 11)
             } else {
-                // Option A, two to a row (§616, `.mix-a-grid`).
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 11, alignment: .top),
-                                    GridItem(.flexible(), spacing: 11, alignment: .top)],
-                          alignment: .leading, spacing: 16) {
-                    // The deck deals (round three, §642 `mix-cards-arrive`
-                    // B): each new card rises, 40 ms after the one before.
-                    ForEach(Array(mixes.mixes.enumerated()), id: \.element.id) { i, mix in
-                        Button { path.append(.mix(mix.id)) } label: { MixDeckCard(mix: mix, index: i) }
-                            .buttonStyle(.press)
-                            .modifier(ArriveOnce(key: "mix:" + mix.id, delay: Double(min(i, 3)) * 0.04,
-                                                 book: MixDeckCard.book))
-                    }
+                // **One row a playlist** (§691, the owner's 11.24 mock,
+                // after §616's stacked deck). Each new card rises, 40 ms
+                // after the one before (round three, §642
+                // `mix-cards-arrive` B).
+                ForEach(Array(mixes.mixes.enumerated()), id: \.element.id) { i, mix in
+                    PlaylistCard(mix: mix, fresh: mixes.isFresh(mix.id),
+                                 open: { path.append(.mix(mix.id)) },
+                                 play: { model.playMix(mix) })
+                        .modifier(ArriveOnce(key: "mix:" + mix.id, delay: Double(min(i, 3)) * 0.04,
+                                             book: MixDeckCard.book))
                 }
             }
         }
     }
 
-    // MARK: - Public mixes
+    /// "+ New playlist" (§691, `.pl-create`): the dashed row under the
+    /// cards, where the "Create new mix" pill under the wordmark was -
+    /// one control, in one place. Shown once `/api/mixes` has answered.
+    @ViewBuilder
+    private var newPlaylistRow: some View {
+        if mixes.state == .ready {
+            let shape = RoundedRectangle(cornerRadius: 18)
+            Button { path.append(.new) } label: {
+                HStack(spacing: 8) {
+                    WebIcon(path: Icons.plus, size: 14, line: 2.2)
+                    Text("New playlist")
+                }
+                .font(FAMFont.body(13.5, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .padding(13)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .overlay(shape.stroke(FAMColor.borderStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                .contentShape(shape)
+            }
+            .buttonStyle(.press)
+            .padding(.bottom, 16)
+        }
+    }
+
+    // MARK: - Public playlists
 
     private var searchBar: some View {
         HStack(spacing: 10) {
@@ -185,7 +193,7 @@ struct MyFAMView: View {
                 WebIcon(path: Icons.search, size: 15, line: 2.2)
                     .foregroundStyle(FAMColor.textMuted)
                 TextField("", text: $words,
-                          prompt: Text("Search mixes, topics or people").foregroundColor(FAMColor.textMuted))
+                          prompt: Text("Search playlists, topics or people").foregroundColor(FAMColor.textMuted))
                     .font(FAMFont.body(13))
                     .foregroundStyle(FAMColor.text)
                     .textInputAutocapitalization(.never)
@@ -193,7 +201,7 @@ struct MyFAMView: View {
                     .submitLabel(.search)
                     .focused($searchFocused)
                     .onSubmit { searchFocused = false }
-                    .accessibilityLabel("Search public mixes")
+                    .accessibilityLabel("Search public playlists")
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 38)
@@ -249,15 +257,15 @@ struct MyFAMView: View {
     private var searchResults: some View {
         let q = words.trimmingCharacters(in: .whitespaces)
         if searchFailed {
-            EmptyNote(text: "Search isn’t working right now. Tap Cancel to see your mixes.").padding(.top, 16)
+            EmptyNote(text: "Search isn’t working right now. Tap Cancel to see your playlists.").padding(.top, 16)
         } else if let results {
             if results.isEmpty {
                 EmptyNote(text: q.isEmpty
-                          ? "No public mixes yet. Make one of yours public and others can find it here."
-                          : "No public mixes match “\(q)”. Try a mix name, a topic, or somebody’s @handle.")
+                          ? "No public playlists yet. Make one of yours public and others can find it here."
+                          : "No public playlists match “\(q)”. Try a playlist name, a topic, or somebody’s @handle.")
                     .padding(.top, 16)
             } else {
-                Text(q.isEmpty ? "Public mixes" : "Public mixes matching “\(q)”")
+                Text(q.isEmpty ? "Public playlists" : "Public playlists matching “\(q)”")
                     .monoLabel(8.5, tracking: 0.85)
                     .padding(.top, 16)
                     .padding(.bottom, 10)

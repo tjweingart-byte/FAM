@@ -959,25 +959,10 @@ def test_the_tour_has_the_webs_seven_steps_594():
     web = _web_tour()
     swift = _unescape_swift(_swift("Tour.swift"))
     swift = swift[swift.index("static var steps"):swift.index("@Published private(set) var visible")]
-    # **One known difference (§691, PARITY.md "Not started"):** the web's
-    # myFAM screen is Explore | Playlists and its tour says so; the iPhone
-    # still draws Mixes | Categories, and its tour must name the tabs it
-    # has. Each side's two myFAM cards are checked here and left out of the
-    # comparison below; when the iPhone builds §691 this block goes.
-    web_myfam = ('      { screen: "playfam", target: "#pfTabCats", kicker: "myFAM",\n'
-                 '        title: "Explore",\n'
-                 '        body: "Today’s stories, the trending ones first. Pick a subject, play one, or add it to a playlist." },\n'
-                 '      { screen: "playfam", target: "#pfTabMixes", kicker: "myFAM",\n'
-                 '        title: "Your playlists",\n'
-                 '        body: "Follow a team, a market, anything, and get new episodes every morning." },\n')
-    assert web.count(web_myfam) == 1, "the web's two myFAM tour cards changed"
-    swift_myfam = swift[swift.index("TourStep(screen: .myfam, target: .mixesTab"):
-                        swift.index("TourStep(screen: .you,")]
-    assert re.findall(r'title: "([^"]+)"', swift_myfam) == ["Your mixes", "Categories"]
+    # Explore | Playlists (§691) is on the iPhone since build 12 (§692): the
+    # two myFAM cards are compared like the rest, Explore first.
     assert len(re.findall(r'title: "([^"]+)"', web)) == 7
-    two = 'screen: "playfam", kicker: "myFAM", title: "-", body: "-" },\n' * 2
-    web = web.replace(web_myfam, two)
-    swift = swift.replace(swift_myfam, 'TourStep(screen: .myfam, kicker: "myFAM", title: "-", body: "-"),\n' * 2)
+    assert re.findall(r"target: \.(\w+)Tab, kicker: \"myFAM\"", swift) == ["categories", "mixes"]
     for field in ("kicker", "title", "next"):
         mine = re.findall(field + r': "([^"]+)"', swift)
         theirs = re.findall(field + r': "([^"]+)"', web)
@@ -999,7 +984,7 @@ def test_the_tour_has_the_webs_seven_steps_594():
     # the myFAM tab.
     app = _swift("FAMApp.swift")
     arrive = app[app.index("private func arriveOnTab"):][:1600]
-    assert "(`openPlayFAM`, §550)" in arrive[arrive.index("case .myfam:"):arrive.index("case .messages:")]
+    assert "(`openPlayFAM`)" in arrive[arrive.index("case .myfam:"):arrive.index("case .messages:")]
     assert 'item(.daily, "dailyFAM"' in app and 'item(.myfam, "myFAM"' in app
 
 

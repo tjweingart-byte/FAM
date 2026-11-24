@@ -246,7 +246,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   friends' faces. [op-follow-graph] [friends-listened]
 - **Find your friends**: sign-up's third step; contacts matched, never kept
   (a newcomer's match leaves one "just joined" notice, §669); Suggested for
-  you cards, after a follow its people; doors on both tabs; follows record
+  you cards, after a follow its people; doors on both tabs, dailyFAM; follows record
   where they were tapped (`via`). [find-friends]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within

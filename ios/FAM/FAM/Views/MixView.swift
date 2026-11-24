@@ -64,37 +64,46 @@ struct MixView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MixHeader(title: mix?.name ?? "", back: { back() }) {
-                Button { openMenu() } label: { HeadDots() }
-                    .buttonStyle(.press)
-                    .accessibilityLabel("More options")
+            // "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§691, the
+            // owner's 11.24 mock); the sliders open the playlist's menu, as
+            // the three dots did.
+            PlaylistHead(name: mix?.name ?? "Playlist", count: mix?.items.count ?? 0, back: { back() }) {
+                Button { openMenu() } label: {
+                    WebIcon(path: PlaylistIcons.sliders, size: 18, line: 2)
+                        .foregroundStyle(FAMColor.text)
+                        .frame(width: 40, height: 40)
+                        .overlay(Circle().stroke(FAMColor.borderStrong))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Playlist options")
             }
             if let mix {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        hero(mix)
-                        actions(mix)
-                        if isEditing(mix) {
-                            editBar
-                        } else {
-                            addTopicsPill
-                        }
+                        // The page opens on what plays (§691): the pill and
+                        // today's stories; the playlist's own details -
+                        // cover, name, who is in it, share and invite - sit
+                        // under them.
                         if mix.items.isEmpty {
-                            EmptyNote(text: "Nothing in this mix yet. Add the topics you want a fresh briefing on every day.")
-                                .padding(.top, 16)
+                            EmptyNote(text: "Nothing in this playlist yet. Add the topics you want a fresh briefing on every day.")
+                                .padding(.top, 4)
+                                .padding(.bottom, 16)
+                            addTopicsPill
+                            hero(mix)
+                            actions(mix)
                         } else if isEditing(mix) {
-                            // Nothing plays from the page while it is edited.
-                            Text("Today’s edition · \(Self.today)")
-                                .monoLabel(8.5, tracking: 0.425)
-                                .padding(.bottom, 9)
+                            // Edit topics: the owner's order - what they
+                            // drag, what a reorder sends. Nothing plays
+                            // from the page while it is edited.
+                            editBar
                             topicList(mix)
                         } else {
                             playSection(mix)
-                            Text("Today’s edition · \(Self.today)")
-                                .monoLabel(8.5, tracking: 0.425)
-                                .padding(.top, changedCount(mix) > 0 ? 12 : 16)
-                                .padding(.bottom, 9)
-                            topicList(mix)
+                            playlistRows(mix)
+                            addTopicsPill
+                            hero(mix)
+                            actions(mix)
                         }
                         recommended(mix)
                         if mix.isOwner {
@@ -116,6 +125,8 @@ struct MixView: View {
         .task(id: id) {
             await model.api.noteMixOpen(id, played: false)
             await mixes.loadForPage()
+            // The hearts: what is already in Saved for Later (`loadMixSaved`).
+            await model.refreshSavedTiles()
             if shown.isEmpty { shuffle() }
         }
         // A topic added anywhere - Add topics, a member - leaves the five,
@@ -172,8 +183,11 @@ struct MixView: View {
         }
     }
 
-    /// Back to the list, asked for afresh (`loadMixes`).
+    /// Back to the list, asked for afresh (`loadMixes`). Back from a
+    /// playlist is back to the playlists, whichever tab the screen was last
+    /// left on (§691 review).
     private func back() {
+        mixes.playfamTab = .mixes
         path.removeAll()
         Task { await mixes.load() }
     }
@@ -273,7 +287,7 @@ struct MixView: View {
                     WebIcon(path: Icons.share, size: 19, line: 2).frame(width: 36, height: 36)
                 }
                 .buttonStyle(.press)
-                .accessibilityLabel("Share this mix")
+                .accessibilityLabel("Share this playlist")
                 Button { Task { await invite() } } label: {
                     WebIcon(path: Icons.invite, size: 20, line: 2).frame(width: 36, height: 36)
                 }
@@ -306,7 +320,7 @@ struct MixView: View {
         Button { path.append(.add(id)) } label: {
             HStack(spacing: 7) {
                 WebIcon(path: Icons.plus, size: 13, line: 2.6)
-                Text("Add topics to mix")
+                Text("Add topics to playlist")
             }
             .font(FAMFont.body(12, .bold))
             .foregroundStyle(FAMColor.background)
@@ -332,7 +346,7 @@ struct MixView: View {
     /// `.mix-edit-bar`: what the X does, and Done.
     private var editBar: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text("Tap \u{00D7} to remove a topic from this mix")
+            Text("Drag to reorder \u{00B7} tap \u{00D7} to remove a topic")
                 .font(FAMFont.body(11.5))
                 .foregroundStyle(FAMColor.textMuted)
                 .lineSpacing(2)
@@ -362,7 +376,7 @@ struct MixView: View {
     private func editTopics() {
         guard let mix else { return }
         if mix.items.isEmpty {
-            model.nowPlaying.say("Nothing in this mix to remove yet")
+            model.nowPlaying.say("Nothing in this playlist to remove yet")
             return
         }
         editing = true
@@ -395,12 +409,61 @@ struct MixView: View {
         mix.items.filter { $0.since != nil }.count
     }
 
-    /// Q5 (§545): when something changed, the one button starts there and
-    /// the whole mix is a link under it; else "Play today's N episodes".
+    /// The playlist that is playing, when it is this one (`mixLive`).
+    private func live(_ mix: Mix) -> MixPlaylist? {
+        guard let list = model.mixPlay, list.mixID == mix.id, !list.order.isEmpty else { return nil }
+        return list
+    }
+
+    /// **Today's stories, in the order they play** (§691, `.pl-rows`):
+    /// best first (§616), or - while this playlist plays - the order it is
+    /// playing, each row heard / now playing / up next. The page follows
+    /// the player: `model.mixPlay` moving on redraws it.
+    private func playlistRows(_ mix: Mix) -> some View {
+        let rows: [PlaylistEntry] = mix.pageRows(live: live(mix))
+        return VStack(spacing: 0) {
+            ForEach(rows) { row in
+                // What a tap plays is what the heart saves (`mixItemPrompt`).
+                let words: String = MixPlaylist.prompt(row.item).words
+                PlaylistRow(item: row.item, state: row.state, adder: adder(mix, row.item),
+                            saved: model.isSaved(query: words, minutes: row.item.minutes),
+                            play: { rowTapped(mix, row) },
+                            save: {
+                                model.toggleSaved(query: words, minutes: row.item.minutes,
+                                                  title: row.item.shownTitle, source: "myFAM")
+                            })
+            }
+        }
+        .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+        // Edge to edge (`.pl-rows{ margin:6px -18px 14px }`).
+        .padding(.horizontal, -18)
+        .padding(.top, 14)
+        .padding(.bottom, 14)
+    }
+
+    /// A row tapped: the one playing pauses and carries on; any other
+    /// plays the playlist from there (`playMixFrom`).
+    private func rowTapped(_ mix: Mix, _ row: PlaylistEntry) {
+        if row.state == .now {
+            model.player.toggle()
+        } else {
+            model.playMix(mix, from: row.item.id)
+        }
+    }
+
+    /// The page's one button (§691): while this playlist plays, where it
+    /// has got to - a tap pauses it; else Q5 (§545): when something
+    /// changed, the button starts there and the whole playlist is a link
+    /// under it; else "Play Morning · 7 stories".
     @ViewBuilder
     private func playSection(_ mix: Mix) -> some View {
         let changed = mix.items.filter { $0.since != nil }
-        if let first = changed.first {
+        if let list = live(mix) {
+            PlaylistPill(name: mix.name, at: max(list.pos, 0) + 1, count: list.order.count) {
+                model.player.toggle()
+            }
+            .padding(.top, 2)
+        } else if let first = changed.first {
             MixChangedButton(count: changed.count, isUpdate: first.signal?.isUpdate ?? false) {
                 model.playMixChangedFirst(mix)
             }
@@ -408,7 +471,7 @@ struct MixView: View {
             MixPlayAllLink(count: mix.items.count) { model.playMix(mix, listed: true) }
                 .padding(.top, 12)
         } else {
-            MixPlayButton(count: mix.items.count) { model.playMix(mix) }
+            PlaylistPill(name: mix.name, at: nil, count: mix.items.count) { model.playMix(mix) }
                 .padding(.top, 2)
         }
     }
@@ -531,7 +594,7 @@ struct MixView: View {
     private func topicRow(_ mix: Mix, _ item: MixItem, _ index: Int) -> some View {
         let editingNow = isEditing(mix)
         let removeName: String = item.title.isEmpty ? "this topic" : item.title
-        let removeLabel: String = "Remove \(removeName) from this mix"
+        let removeLabel: String = "Remove \(removeName) from this playlist"
         let who = adder(mix, item)
         let lifted = dragging == index
         let signal = rowSignal(item)
@@ -893,22 +956,22 @@ struct MixView: View {
             })
             rows.append(SheetAction(label: "Rename") { startRename(mix) })
             rows.append(SheetAction(label: mix.cover.isEmpty ? "Add a cover photo" : "Change cover") { tapCover(mix) })
-            rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            rows.append(SheetAction(label: "Add topics to playlist") { path.append(.add(id)) })
             rows.append(SheetAction(label: "Edit topics") { editTopics() })
             rows.append(SheetAction(label: "Invite collaborators") { Task { await invite() } })
             if mix.joint { rows.append(SheetAction(label: "Make it yours alone") { askAlone() }) }
-            rows.append(SheetAction(label: "Share mix") { Task { await shareTapped() } })
+            rows.append(SheetAction(label: "Share playlist") { Task { await shareTapped() } })
             // One tap, as on the web (`deleteMix`): no second question.
-            rows.append(SheetAction(label: "Delete mix", danger: true) { Task { await delete() } })
+            rows.append(SheetAction(label: "Delete playlist", danger: true) { Task { await delete() } })
         } else {
-            rows.append(SheetAction(label: "Add topics to mix") { path.append(.add(id)) })
+            rows.append(SheetAction(label: "Add topics to playlist") { path.append(.add(id)) })
             rows.append(SheetAction(label: "Edit topics") { editTopics() })
             // Always offered to a member; with nobody listed it opens
             // nothing (`openMixPeople`'s `!(m.people && m.people.length)`).
-            rows.append(SheetAction(label: "Who\u{2019}s in this mix") {
+            rows.append(SheetAction(label: "Who\u{2019}s in this playlist") {
                 if !(self.mix?.people.isEmpty ?? true) { people = true }
             })
-            rows.append(SheetAction(label: "Leave this mix", danger: true) { askLeave() })
+            rows.append(SheetAction(label: "Leave this playlist", danger: true) { askLeave() })
         }
         actionSheet = SheetSpec(actions: rows)
     }

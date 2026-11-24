@@ -458,6 +458,12 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        // The player's save and a playlist row's heart are one shelf (§691).
+        nowPlaying.savedChanged = { [weak self] query, minutes, on in
+            guard let self else { return }
+            let key = "\(query)|\(FAMAPI.minutes(minutes))"
+            if on { self.savedTiles.insert(key) } else { self.savedTiles.remove(key) }
+        }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
         // The myFAM screen on show is the dot looked at (§550,
         // `#screen-playfam.active`): its tab, with no mix pushed over it.
@@ -1264,6 +1270,9 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The shelf read again for a playlist's hearts (§691, `loadMixSaved`).
+    func refreshSavedTiles() async { await loadSavedTiles() }
+
     private func loadSavedTiles() async {
         // Offline the bookmarks are not drawn and not asked for (`loadTileSaves`).
         if isOffline { return }
@@ -1365,10 +1374,15 @@ final class AppModel: ObservableObject {
 
     /// A message card's bookmark (`saveSharedEpisode`): "Saved for Later" /
     /// "Removed from Saved for Later", or "Could not save that".
-    func toggleSaved(query: String, minutes: Double, title: String, episode: String = "") {
+    /// `source` says where it was saved from: a message's card, or a
+    /// playlist row's heart ("myFAM", §691), which also moves the player's
+    /// own save when the row is the episode playing.
+    func toggleSaved(query: String, minutes: Double, title: String, episode: String = "",
+                     source: String = "message") {
         let key = "\(query)|\(FAMAPI.minutes(minutes))"
         let on = savedTiles.contains(key)
         if on { savedTiles.remove(key) } else { savedTiles.insert(key) }
+        nowPlaying.noteSaved(query: query, minutes: minutes, on: !on)
         Task {
             do {
                 if on {
@@ -1376,11 +1390,12 @@ final class AppModel: ObservableObject {
                     nowPlaying.snack("Removed from Saved for Later")
                 } else {
                     try await api.saveShared(query: query, minutes: minutes, title: title,
-                                             episode: episode)
+                                             episode: episode, source: source)
                     nowPlaying.say("Saved for Later", action: "Open") { self.openSaved() }
                 }
             } catch {
                 if on { savedTiles.insert(key) } else { savedTiles.remove(key) }
+                nowPlaying.noteSaved(query: query, minutes: minutes, on: on)
                 nowPlaying.say("Could not save that")
             }
         }
@@ -2096,6 +2111,8 @@ extension AppModel {
     /// Open one of your mixes from anywhere: the myFAM tab, its page.
     func openMix(_ id: String) {
         tabRequest = .myfam
+        // Back from it is back to the playlists (§691).
+        mixes.playfamTab = .mixes
         mixPath = [.mix(id)]
         showPlayer = false
     }
@@ -2104,6 +2121,7 @@ extension AppModel {
     /// the myFAM tab, its public page.
     func openPublicMix(_ id: String) {
         tabRequest = .myfam
+        mixes.playfamTab = .mixes
         mixPath = [.publicMix(id)]
         showPlayer = false
     }
