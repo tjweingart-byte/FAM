@@ -8967,6 +8967,9 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None,
             affinity = mix_today.affinity(tags, profile, topics_mod.tag_weight)
             signal = (out.get("signal") or {}).get("kind", "")
             written = out.get("episode_title") or ""
+            # The playlist's page marks what was heard today (§691).
+            if normalize_query(out.get("prompt") or "") in heard:
+                out["heard_today"] = True
             entries.append(mix_today.Entry(
                 item_id=item.id, position=n,
                 heard_today=normalize_query(out.get("prompt") or "") in heard,
@@ -9028,6 +9031,10 @@ def _mix_episode_titles(body: dict) -> None:
             title = ""
         if title:
             out["episode_title"] = title
+            # And its one line (§691), for the playlist's row: a new field.
+            hook = _today_hook(out.get("prompt") or "", out.get("minutes"))
+            if hook:
+                out["episode_hook"] = hook
 
 
 def _mix_pictures(mix, body: dict) -> None:
@@ -9159,6 +9166,19 @@ def _today_title(prompt: str, minutes) -> str:
             return ""
         return (SCRIPT_CACHE.title(key) or "").strip()
     except Exception:  # noqa: BLE001 - a missing title is no title
+        return ""
+
+
+def _today_hook(prompt: str, minutes) -> str:
+    """The stored one-line summary of today's episode of a mix item, "" when
+    there is none. A cache read, never a write."""
+    read = getattr(SCRIPT_CACHE, "summary", None)
+    if not prompt or read is None:
+        return ""
+    try:
+        key = _episode_key(_validated_plan(prompt, as_minutes(minutes or BROWSE_MINUTES)))
+        return content_filter.scrub((read(key) or "").strip()) if key else ""
+    except Exception:  # noqa: BLE001 - a missing line is no line
         return ""
 
 
@@ -11200,7 +11220,12 @@ async def myfam_catalog(request: Request) -> dict:
 #: a deployment this size; past it the newest win.
 CATEGORY_SCAN = 1000
 #: The orders a category page offers, the first the default.
-CATEGORY_SORTS = ("popular", "az", "recent")
+CATEGORY_SORTS = ("popular", "az", "recent", "trending")
+#: The id that asks for every category at once: Explore's "All" chip.
+EXPLORE_ALL = "all"
+#: How many rows "All" sends, and how many rows of any page carry their
+#: one-line `hook` (a cache read each).
+EXPLORE_ALL_LIMIT = 60
 #: How long one filing of today's cached episodes serves every category page
 #: and every "Your categories" count. A filing is one category read per row.
 CATEGORY_MEMO_SECONDS = 30.0
@@ -11405,6 +11430,63 @@ def _category_row(row: dict, now: float) -> dict:
     }
 
 
+def _trending_keys(now: float) -> dict:
+    """cache key -> place in the Trending edition, loudest first: which of
+    today's cached episodes are the edition's stories. The edition as held
+    in memory and one key derivation per story; never a store read, a model
+    call or the network. {} when it cannot be read - Explore then shows
+    what is most played, and nothing is called trending that is not."""
+    out: dict = {}
+    try:
+        tiles = topics_mod.topics_from_stories(
+            trending_bank.stories_in_memory(now), now=now)
+    except Exception:  # noqa: BLE001 - no edition is no trending, not an error
+        log.exception("could not read the Trending edition for Explore")
+        return out
+    for tile in tiles:
+        try:
+            key = _episode_key(_validated_plan(tile.query, BROWSE_MINUTES))
+        except Exception:  # noqa: BLE001
+            continue
+        if key and key not in out:
+            out[key] = len(out)
+    return out
+
+
+#: key -> (its one line, when read): a row's line is asked for on every
+#: draw of Explore, and a summary is written once with its episode, so a
+#: read serves every listener for `CATEGORY_MEMO_SECONDS`.
+_HOOK_MEMO: dict = {"store": None, "lines": {}}
+
+
+def _hook_episodes(episodes: list[dict]) -> None:
+    """Each row's one line (`hook`): the episode's own stored summary, ""
+    when it has none. A local cache read per row not read in the last
+    `CATEGORY_MEMO_SECONDS`, the first `EXPLORE_ALL_LIMIT` rows only; never
+    fails the page."""
+    read = getattr(SCRIPT_CACHE, "summary", None)
+    # The store itself, not its id: an id is reused once a store is gone.
+    if _HOOK_MEMO["store"] is not SCRIPT_CACHE:
+        _HOOK_MEMO.update(store=SCRIPT_CACHE, lines={})
+    lines = _HOOK_MEMO["lines"]
+    now = time.monotonic()
+    if len(lines) > 4 * CATEGORY_SCAN:
+        lines.clear()
+    for n, episode in enumerate(episodes):
+        hook, key = "", episode.get("key") or ""
+        if read is not None and n < EXPLORE_ALL_LIMIT and key:
+            held = lines.get(key)
+            if held is not None and now - held[1] < CATEGORY_MEMO_SECONDS:
+                hook = held[0]
+            else:
+                try:
+                    hook = content_filter.scrub((read(key) or "").strip())
+                except Exception:  # noqa: BLE001 - a line is never worth the page
+                    hook = ""
+                lines[key] = (hook, now)
+        episode["hook"] = hook
+
+
 def _category_words(text: str) -> list[str]:
     return re.findall(r"[0-9a-z]+", (text or "").casefold())
 
@@ -11496,10 +11578,17 @@ async def category_episodes(
     (newest made first). `q` keeps the titles holding every word typed,
     whole or begun. Screened for the viewer (`_todays_for`).
     `subcategories` are the categories one level down that have something
-    today, with how many."""
+    today, with how many.
+
+    **Explore** (§691): `id=all` is every category at once (at most
+    `EXPLORE_ALL_LIMIT` rows), and `sort=trending` puts the Trending
+    edition's stories first, in the edition's order, then the rest by
+    popularity. Every row says whether it is one of them (`trending`) and
+    carries its one line (`hook`); both are new fields (`old-clients`)."""
     _read_limit(request)
     node = id.strip().lower()
-    if not _category_known(node):
+    everything = node == EXPLORE_ALL
+    if not everything and not _category_known(node):
         raise HTTPException(status_code=404, detail="There is no such category.")
     order = sort if sort in CATEGORY_SORTS else CATEGORY_SORTS[0]
     try:
@@ -11508,9 +11597,9 @@ async def category_episodes(
         log.exception("could not file today's episodes")
         raise HTTPException(status_code=503,
                             detail="Could not read today's episodes.")
-    inside = [row for row in filed if node in row["chain"]]
+    inside = [row for row in filed if everything or node in row["chain"]]
     subs = []
-    for child in _category_children(node):
+    for child in ([] if everything else _category_children(node)):
         count = sum(1 for row in inside if child in row["chain"])
         if count:
             subs.append({"id": child, "label": _category_label(child),
@@ -11529,7 +11618,17 @@ async def category_episodes(
     else:
         inside.sort(key=lambda r: (-r["popularity"], -r["created"]))
     now = time.time()
+    leading = _trending_keys(now)
+    if order == "trending":
+        # Stable: the edition's stories in its order, the rest as sorted.
+        inside.sort(key=lambda r: leading.get(r.get("key") or "", len(leading)))
+    if everything:
+        inside = inside[:EXPLORE_ALL_LIMIT]
     episodes = [_category_row(row, now) for row in inside]
+    for episode in episodes:
+        episode["trending"] = bool(episode["key"]) and episode["key"] in leading
+    # Off the event loop, as the other store reads here are.
+    await asyncio.to_thread(_hook_episodes, episodes)
     # The numbers down a reel card's right side (the category's reel, as
     # Explore's): vibes, likes and comments, and this listener's own thumb
     # and vibe so the buttons open in the right state. A count is never
@@ -11553,8 +11652,8 @@ async def category_episodes(
         await asyncio.to_thread(_picture_episodes, episodes)
     except Exception:  # noqa: BLE001 - a picture is never worth a failed page
         log.exception("could not picture a category's episodes")
-    return {"id": node, "label": _category_label(node),
-            "facet": topics_mod._root_facet(node), "sort": order,
+    return {"id": node, "label": "All" if everything else _category_label(node),
+            "facet": "" if everything else topics_mod._root_facet(node), "sort": order,
             "q": q.strip(), "subcategories": subs, "episodes": episodes}
 
 

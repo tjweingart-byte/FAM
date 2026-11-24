@@ -346,7 +346,7 @@ def test_share_mix_is_in_the_mix_menu():
     html = _html()
     menu = html[html.index("function openMixMenu("):]
     menu = menu[:menu.index("\n  }\n")]
-    assert '{ label: "Share mix", action: shareMix }' in menu
+    assert '{ label: "Share playlist", action: shareMix }' in menu
 
 
 def test_dailyfam_has_a_search_bar_for_public_mixes():

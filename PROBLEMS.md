@@ -41101,3 +41101,131 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 `shut()` - the player's modal close or the sheet's dismiss. Cancel and the
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
+
+## 691. myFAM is Explore | Playlists, from the owner's mock (2026-11-24)
+
+**The owner's request:** three frames of the screen that shows "myFAM", and
+"it should look exactly like this. The explore should operate similar to
+categories right now, but it should highlight major trending stories".
+
+**What the frames show, in this repo's terms.** (1) The two tabs are
+**Explore | Playlists**, Explore first: a chip row (All, Business, Sport,
+Money & markets...) over one card a story - small picture, category, title,
+one line, a **FAM** button and **+ Add to playlist**. (2) Playlists: one row
+a mix - picture, name, "7 BRIEFINGS · DAILY", "Startups, AI, NBA and 4
+more", a play button - then a dashed **+ New playlist**. (3) A mix's page:
+"myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES", sliders top right, a
+"Playing Morning · 2 of 7" pill, then the stories as heard / now playing /
+up next with a heart each, and a mini player reading "2 OF 7 · NBA" with a
+heart, pause and next.
+
+**Built, on the web.**
+
+- *Explore* is the Categories tab renamed and put first. `All` is new:
+  `/api/categories/episodes?id=all&sort=trending` - every category, at most
+  `EXPLORE_ALL_LIMIT` (60) rows. `sort=trending` puts the Trending edition's
+  stories first in the edition's order and leaves the rest by popularity;
+  `_trending_keys` matches the edition held in memory to today's cache by
+  cache key, so nothing is read from a store, written, or asked of a model
+  or the network, and a story is only called trending when its episode is
+  already made. Each row gains `trending` and `hook` (the episode's stored
+  one-sentence summary, scrubbed; "" when it has none - the card then has
+  no line rather than an invented one). A chip still opens its category in
+  place (X, the category, the level below), now as the same cards under
+  Play all and Follow. FAM is `playCategoryEpisode` (replay only, the rest
+  of the page queued behind it, as before); Add to playlist is the player's
+  `openAddToMix`. Gone: §550's list of category rows and §500's hero
+  picture.
+- *Playlists*: `playlistCardHTML` replaces §616's stacked deck. The count
+  and topic line §544 took off the card are back because the mock draws
+  them. §545's signal is a word after "DAILY". The "Create new mix" pill
+  under the wordmark is the dashed row under the cards (`#newMixBtn`, still
+  hidden without an account); the public search moved under it.
+- *A playlist's page*: the header, the pill and `playlistRowHTML`. The rows
+  are drawn in the order they play (`todayOrder`, or `mixPlay.order` while
+  it plays) and follow the transport (`refreshMixPlaying`, called from
+  `setNowBarPlaying` and `drawMixSkip`). `heard_today` and `episode_hook`
+  are new fields on a mix's items. The page has the tab bar, which is what
+  puts the mini player on it.
+- *The mini player* in a playlist: "2 of 7 · NBA", a heart, a next.
+
+**Decisions taken without asking, each reversible.**
+
+1. **The heart is Saved for Later** - the existing pointer and toggle
+   (`[save-pointer]`), on the row and on the mini player (`data-save`).
+   There is no like in this product (`[explore-reel]`: no dislike anywhere)
+   and a vibe posts to friends, which a heart on a strip must not
+   (`[op-social-live]`: not on the mini bar).
+2. **The mini player keeps its X.** The mock draws heart, pause, next and no
+   X; the X is the only control that stops audio the bar left playing
+   (`[transport]`, §250), so it stays, last in the row.
+3. **An arrival opens on Explore** (the mock's first tab), reversing §550's
+   "every arrival opens on Mixes" - except when the tab's dot says a
+   playlist is new this morning, and from a flow that is about a playlist.
+4. **Reordering moved into Edit topics.** The mock's rows have no handle;
+   Edit topics already redraws the page with an X per topic, and now with
+   the handle too. The rows outside it are in play order, which is not the
+   order a drag edits.
+5. **Nothing was removed that the mock merely does not show**: public
+   search, Add topics, the cover / name / share / invite block, Recommended
+   topics, the listen time and Public / Private are all still on the page,
+   under what the mock draws.
+6. **"Playlist" on these screens only.** The tab, the cards, the page and
+   its sheet read "playlist"; toasts, the naming screen and the server's
+   sentences still say "mix". Code and docs keep "mix" (`[names-swapped]`).
+7. **No "trending" badge on a card.** The mock has none; trending stories
+   are highlighted by coming first.
+
+**Not done.** The iPhone app (`ios/`): it is a native client and still
+draws Mixes | Categories and the stacked deck; the API it needs is in this
+change. Trending's order on Explore is the edition's own (loudest first),
+not `rank_world`'s country-aware order. The unused `.mix-a*` deck styles
+and `Motion.mixDeck`'s tile reshuffle are left in place.
+
+**Held against the rules.** `[your-categories]` and `[mix-made-by-naming]`
+amended (Current notes); `[old-clients]`: `popular`, `az` and `recent` are
+unchanged and every new thing is a new value or field; `[player-no-autogen]`
+and "cached only": Explore plays replay-only, as a category did;
+`[trending-floor]` / `[two-crowd-rows]`: the edition is read, never
+re-ranked or mixed into a crowd row; `[no-dead-controls]`: a card with no
+summary draws no line, a playlist with no topics no play button.
+
+**Verified:** `tests/test_explore_playlists_688.py` (server and source),
+screenshots of the three frames in dark and light from the fixture preview.
+**Not verified:** against a deployment with a real Trending edition and
+approved pictures - the preview's stories and pictures are fixtures; how
+often a cached episode has a stored summary to show as its line.
+
+**The owner's follow-up, "people can still add their own cover picture to
+their playlists":** they can, three ways, none changed in what it does - the
+naming screen's folder, the picture on the playlist's page (now under the
+stories, with its camera badge) and "Add a cover photo" / "Change cover" in
+the sliders' menu. A playlist's own photo is what its card, the add sheet
+and its page draw, ahead of today's lead picture (`coverOf`). Run in a
+browser with a real file through the chooser and the crop editor, then
+pinned: the smoke check sets a cover and reads it back off the card, and
+`test_a_playlist_can_still_be_given_its_own_cover` holds the three ways in.
+The menu's rows say "playlist" now too. Review of the branch also moved a
+row's `hook` behind a 30-second memo (`_HOOK_MEMO`), so a draw of Explore
+is not sixty reads of the store for every listener.
+
+**The branch reviewed before its PR** (a second reader given only the diff).
+Fixed: (1) three ways onto the screen that never chose a tab - the morning
+push's `/?mixes=1`, your own mix's link, joining a joint mix - landed on a
+blank Explore with the playlists behind the other tab; each now opens
+Playlists, as does Back from a playlist and the myFAM tab on a playlist's
+own page. (2) A playlist's page was stale when the playlist moved on under
+the full player; `showScreen` redraws it. (3) Rows in play order left out a
+topic still being added, and anything added while the playlist played;
+`playlistPageOrder` appends them and drops what was removed. (4) The redraw
+on every transport change no longer happens under the listen-time field or
+a row still moving. (5) The mini player's heart and a row's heart agree
+(`noteMixSaved`), and a late shelf read cannot undo a tap. (6) Cards drawn
+before `/api/categories` answered kept a bare kicker. (7) `_hook_episodes`
+runs off the event loop. (8) The tour said "Your mixes" and "Categories";
+`tools/landing_shots.py` clicked a card class that is gone; five more
+strings said "mix". (9) A category's cards no longer sit under the All chip
+while All loads.
+Left as it is, knowingly: the mini player's next opens the full player, as
+skipping always has; the sliders do nothing on the guest's example, as the
+three dots did; the iPhone's tour still names the old tabs (PARITY.md).

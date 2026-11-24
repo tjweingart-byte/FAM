@@ -68,11 +68,11 @@ SHOTS = [
                        " if(sc) sc.scrollTop = 520; }, 600)", "light"),
     # The fixtures hold no categories, so the section under the mixes is
     # left off the picture rather than shown failing to load.
-    ("myfam-mixes", "openPlayFAM(); setTimeout(function(){"
+    ("myfam-mixes", "openPlayFAM('mixes'); setTimeout(function(){"
                     " var c = document.getElementById('catSection');"
                     " if(c) c.style.display = 'none'; }, 600)", "light"),
-    ("myfam-mix", "openPlayFAM(); setTimeout(function(){"
-                  " document.querySelectorAll('#mixList .mix-a')[0].click(); }, 600)", "light"),
+    ("myfam-mix", "openPlayFAM('mixes'); setTimeout(function(){"
+                  " document.querySelectorAll('#mixList .pl-card')[0].click(); }, 600)", "light"),
 ]
 
 #: name -> cut from a screenshot of the app, not photographed: the preview
