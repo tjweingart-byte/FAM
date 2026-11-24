@@ -252,7 +252,10 @@ def test_progress_asks_about_the_same_episode_as_the_audio():
     not_key = {"fmt", "link", "own", "cached_only", "episode", "ask_reading",
                "voice", "voice_picked", "private", "attach",
                # §656: which mix it plays from - counted, never the key.
-               "mix"}
+               "mix",
+               # §693: which episode a Go Deeper follows - what the writer
+               # is shown, never the key (`context` names the parent).
+               "heard"}
     assert names("audio") - not_key == names("progress"), (names("audio"), names("progress"))
 
 

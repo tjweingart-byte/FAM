@@ -59,6 +59,30 @@ log = logging.getLogger(__name__)
 AUTO = "auto"
 
 
+def _note_cut_at_length(stats, spoken, unspoken) -> None:
+    """An episode stopped at its length with script still to say, on
+    /admin's errors ([failures-visible]).
+
+    The length is a ceiling ([duration-ceiling]) and the cut is at a
+    sentence boundary, so this is by design - but the listener hears an
+    episode that stops before its own ending, and a tester reported one that
+    "ended in the middle of a sentence". Nothing counted how often. Report
+    only, once an episode; never raises.
+    """
+    try:
+        if stats.truncated:
+            return
+        last = str(spoken[-1]) if spoken else ""
+        nxt = str(unspoken[0]) if unspoken else ""
+        pipeline_errors.record(
+            "episode", "stopped at its length before the script's end",
+            f"last said: {last[-90:]!r}; not said: {nxt[:90]!r}",
+            getattr(stats, "query", "") or getattr(stats, "title", ""),
+            pipeline_errors.NOTICE)
+    except Exception:  # noqa: BLE001 - a notice is never worth an episode
+        log.debug("could not note an episode cut at its length", exc_info=True)
+
+
 class NotCached(Exception):
     """A replay-only request found nothing in the cache.
 
@@ -754,6 +778,7 @@ class PodcastPipeline:
         fit = fit_to_budget(chunk.parts, pace.remaining_seconds, wpm,
                             SENTENCE_GAP, OVERRUN_GRACE)
         if fit.truncated:
+            _note_cut_at_length(stats, fit.spoken or stats.script, fit.remainder)
             stats.truncated = True
         if not fit.spoken:
             return
@@ -958,6 +983,7 @@ class PodcastPipeline:
         # why the pipeline works in sentences.
         estimated = words / (wpm / 60.0) + SENTENCE_GAP
         if estimated > pace.remaining_seconds + OVERRUN_GRACE:
+            _note_cut_at_length(stats, stats.script, [sentence])
             stats.truncated = True
             return
 

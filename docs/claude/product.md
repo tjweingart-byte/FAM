@@ -633,6 +633,7 @@ is cached in its own column beside the script for the same reason `thread` is
 whoever-asked-first's wording - and a re-write keeps the title it has.
 
 <!-- rule:next-is-prediction -->
+> **Current (PROBLEMS.md §693, a tester's report):** a `<<NEXT:>>` line that only leads back to the episode's own request, or to the briefing it follows, is dropped in code (`script_generator.circles_back`) and the follow-up's writer is told its line "leads somewhere neither briefing has been". And a follow-up is no longer written from its parent's *title* alone: `app._heard_before` reads the parent's script from the cache (by the id the player sends as `heard=`, else from the listener's history by title) into `EpisodePlan.heard`, which the brief and the writer are shown - never in the cache key, like `covered`.
 > **Current (PROBLEMS.md §186):** opening Go Deeper no longer stops the episode playing (the player's or an Explore card's). If it ends while the sheet is up, the sound stops and the sheet stays: no album advance, no What's next countdown, no next Explore card, until a prompt is sent, the suggestion taken, or the sheet closed.
 
 **Go Deeper did not lose its suggestion — it stopped coming from the script.**

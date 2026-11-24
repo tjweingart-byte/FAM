@@ -120,6 +120,7 @@
    > edit a pronunciation is the `pronunciation` skill**
    > (`.claude/skills/pronunciation/SKILL.md`) - read it first.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §693, at the owner's direction, 11.24):** the player has no Voice row, on the web or the iPhone ("You shouldn't even have the option to switch voices mid episode"). A pick there re-made the searched episode playing from its start. A voice is picked on the search page or in Settings, for the next search; wherever "or in the player" is written below, it is history.
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default
 > or at the voice last picked - plays in the voice its audio is already kept
