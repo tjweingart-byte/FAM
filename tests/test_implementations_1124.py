@@ -62,13 +62,24 @@ def test_the_iphone_explains_it_the_same_way():
     assert "Button { tapPrivateLock() }" in lock
     tap = view.split("private func tapPrivateLock", 1)[1].split("// MARK:", 1)[0]
     assert "if on || UserDefaults.standard.bool(forKey: Self.privateExplainedKey)" in tap
-    assert 'SheetAction(label: "Turn on Private search")' in tap
+    assert "explainPrivate = true" in tap and "setPrivateSearch(true)" not in tap
     assert 'privateExplainedKey = "fam.privateExplained"' in tap
     assert '"fam.privateExplained"' in INDEX
-    for said in ("saved to your history", "never shown to friends or other listeners",
-                 "until you tap the lock again"):
-        assert said in tap
-    assert ".famSheet(item: $explainPrivate) { spec in FAMActionSheet(spec: spec) }" in view
+    # Turned on, and remembered, only by the sheet's own row.
+    shown = view.split(".famSheet(isPresented: $explainPrivate)", 1)[1].split(".famThemed()", 1)[0]
+    assert "UserDefaults.standard.set(true, forKey: Self.privateExplainedKey)" in shown
+    assert "model.setPrivateSearch(true)" in shown
+    sheet = view.split("struct PrivateExplainSheet", 1)[1]
+    assert 'Text("Turn on Private search")' in sheet and "SheetCancelButton { dismiss() }" in sheet
+    # The web's words, line for line - never the action sheet's small
+    # upper-case header, which is what a long explanation was first put in.
+    web = INDEX.split("var PRIVATE_EXPLAIN_LINES", 1)[1].split("];", 1)[0]
+    for line in re.findall(r'"([^"]+)"', sheet.split("static let lines", 1)[1].split("]", 1)[0]):
+        assert line.replace("\\u{2019}", "\\u2019") in web, line
+    assert "While the lock is closed, anything you search or Go Deeper on:" in sheet
+    assert "While the lock is closed, anything you search or Go Deeper on:" in INDEX
+    assert "It stays on until you tap the lock again." in sheet
+    assert "monoLabel" not in sheet and "SheetGroupLabel" not in sheet
 
 
 # --- 3. the mini player opens the player --------------------------------------
@@ -97,7 +108,10 @@ def test_the_storys_buttons_take_a_tap_anywhere_in_their_box():
 
 def test_every_pressed_button_is_hit_across_its_box():
     """The cause was general: an outlined icon in a frame is hit only on its
-    line. `.press` gives every button its whole box."""
-    pressed = _swift("Motion.swift").split("struct PressedLabel", 1)[1].split("struct TapSqueeze", 1)[0]
-    body = pressed.split("var body: some View", 1)[1]
-    assert body.index(".contentShape(Rectangle())") < body.index(".background(GeometryReader")
+    line. `.press` gives every button its whole box - the button style, not
+    `PressedLabel`, which also squeezes cards that are not buttons."""
+    motion = _swift("Motion.swift")
+    style = motion.split("struct PressButtonStyle", 1)[1].split("extension ButtonStyle", 1)[0]
+    assert ".contentShape(Rectangle())" in style
+    label = motion.split("struct PressedLabel", 1)[1].split("struct TapSqueeze", 1)[0]
+    assert ".contentShape(" not in label

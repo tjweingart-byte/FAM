@@ -58,7 +58,7 @@ struct SearchView: View {
     }
     @State private var sheet: SearchSheet?
     /// What Private search does, asked before its first turning on (§690).
-    @State private var explainPrivate: SheetSpec?
+    @State private var explainPrivate = false
     @State private var linkOpen = false
     @State private var photoPicking = false
     @State private var photoItem: PhotosPickerItem?
@@ -104,7 +104,13 @@ struct SearchView: View {
             YouSheet(items: items(for: kind)).environmentObject(model)
                 .famThemed()
         }
-        .famSheet(item: $explainPrivate) { spec in FAMActionSheet(spec: spec) }
+        .famSheet(isPresented: $explainPrivate) {
+            PrivateExplainSheet {
+                UserDefaults.standard.set(true, forKey: Self.privateExplainedKey)
+                model.setPrivateSearch(true)
+            }
+            .famThemed()
+        }
         .famSheet(isPresented: $linkOpen) {
             LinkModal { url in attach.addLink(url) }
                 .famThemed()
@@ -488,20 +494,10 @@ struct SearchView: View {
             model.setPrivateSearch(!on)
             return
         }
-        explainPrivate = SheetSpec(header: Self.privateExplanation, actions: [
-            SheetAction(label: "Turn on Private search") {
-                UserDefaults.standard.set(true, forKey: Self.privateExplainedKey)
-                model.setPrivateSearch(true)
-            }
-        ])
+        explainPrivate = true
     }
 
     static let privateExplainedKey = "fam.privateExplained"
-    /// The web's sheet (`tapPrivateLock`), as one sentence run.
-    static let privateExplanation = "Private search: search without leaving a trace. "
-        + "While the lock is closed, anything you search or Go Deeper on isn\u{2019}t saved to your history, "
-        + "is never shown to friends or other listeners, and doesn\u{2019}t change what FAM recommends to you. "
-        + "It stays on until you tap the lock again."
 
     // MARK: - Trending searches (`.trend-searches`)
 
@@ -847,5 +843,70 @@ private struct SlotFace: ViewModifier {
             .opacity(shown ? 1 : 0)
             .allowsHitTesting(shown)
             .accessibilityHidden(!shown)
+    }
+}
+
+/// What Private search does, said before it is first turned on (§690): the
+/// web's `.sheet-explain` - a title, a sentence, three plain lines, then
+/// the one row that turns it on, and Cancel. Sized by its words, so larger
+/// phone text makes it taller (`large-text`).
+struct PrivateExplainSheet: View {
+    let turnOn: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    static let title = "Private search"
+    static let lead = "Keep a search to yourself. While the lock is closed, anything you search or Go Deeper on:"
+    static let lines = [
+        "It isn\u{2019}t saved to your history",
+        "Friends and other listeners never see it",
+        "It doesn\u{2019}t change what FAM recommends to you"
+    ]
+    static let tail = "It stays on until you tap the lock again."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(Self.title)
+                    .font(FAMFont.heading(18, .medium))
+                    .foregroundStyle(FAMColor.text)
+                    .accessibilityAddTraits(.isHeader)
+                Text(Self.lead)
+                    .font(FAMFont.body(13.5))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Self.lines, id: \.self) { line in
+                        Text("\u{2022}  " + line)
+                            .font(FAMFont.body(13.5))
+                            .foregroundStyle(FAMColor.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Text(Self.tail)
+                    .font(FAMFont.body(13.5))
+                    .foregroundStyle(FAMColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 6)
+            .padding(.bottom, 10)
+            Button {
+                dismiss()
+                turnOn()
+            } label: {
+                Text("Turn on Private search")
+                    .font(FAMFont.body(13.5, .semibold))
+                    .foregroundStyle(FAMColor.text)
+                    .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                    .padding(.horizontal, 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press)
+            SheetCancelButton { dismiss() }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(FAMColor.surface)
     }
 }

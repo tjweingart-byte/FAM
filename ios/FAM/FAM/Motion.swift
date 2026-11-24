@@ -138,6 +138,12 @@ struct IconSwap<Key: Hashable, Icon: View>: View {
 struct PressButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PressedLabel(label: configuration.label, pressed: configuration.isPressed)
+            // A button is pressed anywhere in its box, as the web's
+            // `<button>` is (§690): without this an outlined icon in a
+            // 44 pt frame takes a tap only on its line, and the miss goes
+            // to whatever is underneath. Here and not in `PressedLabel`,
+            // which also squeezes cards that are not buttons (`tapSqueeze`).
+            .contentShape(Rectangle())
     }
 }
 
@@ -183,11 +189,6 @@ struct PressedLabel<Label: View>: View {
         let curve: Animation = pressed ? .easeOut(duration: 0.09)
                                        : .spring(response: 0.22, dampingFraction: 0.55)
         label
-            // A button is pressed anywhere in its box, as the web's
-            // `<button>` is (§690): without this an outlined icon in a
-            // 44 pt frame takes a tap only on its line, and the miss goes
-            // to whatever is underneath.
-            .contentShape(Rectangle())
             .background(GeometryReader { geo in
                 Color.clear
                     .onAppear { size = geo.size }

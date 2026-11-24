@@ -41165,9 +41165,12 @@ story's surface gesture, which stepped the story on. The header's ⋯ and X
 already carried `.contentShape(Rectangle())`; these did not.
 
 **Fix.** The three buttons in the reply row (send, like, VIBE!) take their
-whole box, and `PressedLabel` gives **every** `.press` button its box
+whole box, and `PressButtonStyle` gives **every** `.press` button its box
 (`Motion.swift`), as the web's `<button>` has - the cause was general
-(285 `.press` buttons, 148 content shapes).
+(285 `.press` buttons, 148 content shapes). On the button style and not in
+`PressedLabel`: that view also squeezes cards that are not buttons
+(`tapSqueeze`), whose hit shape nothing here had reason to change - moved
+there on the branch's own review.
 
 ### 3. "If I click on the MiniPlayer, I want it to expand into the large player"
 
@@ -41200,6 +41203,26 @@ on until the lock is tapped again - with one row, "Turn on Private search".
 Cancel turns nothing on. After a yes the lock is one tap either way, with
 its toast (`fam.privateExplained`, on the device). Both clients.
 `[private-search]`.
+
+### The branch read again before merging
+
+Asked to double-check, three things were changed:
+
+- **The iPhone's explainer was in the wrong component.** It was the action
+  sheet's header, which is drawn 9.5 pt, upper case, mono - some 290
+  letters of it. It is now a card of its own (`PrivateExplainSheet`): the
+  web's title, sentence, three lines and one row, sized by its words.
+- **"Search without leaving a trace" claimed too much**: a private episode
+  is still kept so its own replay works (`[private-search]`). The sheet
+  opens "Keep a search to yourself." in both clients.
+- **The whole-box hit shape moved from `PressedLabel` to `PressButtonStyle`**
+  (above): only buttons were diagnosed, and `PressedLabel` also draws cards.
+
+Checked and left: the old cache would also have shared "NBA (Basketball)"
+with "MLB (Baseball)" (0.929), with plain Baseball (0.822) and with plain
+Basketball (0.865) - the focused wordings the owner's tile may have sent;
+all are refused now. Every Swift edit balances its brackets and uses calls
+already used elsewhere in the app, which is as far as reading goes.
 
 ### Not verified
 
