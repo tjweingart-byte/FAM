@@ -22,7 +22,8 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE = ROOT / "preview" / "fam-artifact.html"
-CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+import os
+CHROME = os.environ.get("PLAYWRIGHT_CHROMIUM") or "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
 #: name -> the script that puts the interface on that surface.
 SURFACES = [
@@ -31,7 +32,7 @@ SURFACES = [
     ("dailyfam", "openPlayFAM()"),
     ("profile", "openProfile()"),
     ("messages", "openMessages()"),
-    ("mixdetail", "setTab('playfam'); document.querySelectorAll('#mixList .mix-a')[0].click()"),
+    ("mixdetail", "setTab('playfam'); showPlayfamTab('mixes'); document.querySelectorAll('#mixList [data-mix]')[0].click()"),
     ("addtopics", "openAddTopics && openAddTopics()"),
     ("player", "setTab('myfam'); document.querySelectorAll('.gd-card')[0].click()"),
     # The first run, which is otherwise the hardest set of screens to look at

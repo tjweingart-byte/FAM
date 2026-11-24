@@ -680,3 +680,4 @@ and `limit` = Lines.
 | 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
 | 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |
 | 41105 | 132 | 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24) |
+| 41237 | 128 | 691. myFAM is Explore / Playlists, from the owner's mock (2026-11-24) |

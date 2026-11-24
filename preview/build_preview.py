@@ -345,7 +345,8 @@ def load_fixtures() -> dict:
                  "minutes": c["minutes"] or 1.5, "plays": 0, "key": "",
                  "mixes": 0, "popularity": 0, "made_age_seconds": 0,
                  "sourced_age_seconds": 0, "explicit": False, "node": tag,
-                 "node_label": label, "thumb": ""}
+                 "node_label": label, "thumb": "", "trending": False,
+                 "hook": c.get("angle", "")}
                 for c in interest.get(tag, [])][:8]
         for row in rows:
             row["plays"] = next((e["plays"] for e in explore["episodes"]
@@ -354,6 +355,19 @@ def load_fixtures() -> dict:
         category_pages["/api/categories/episodes:" + tag] = {
             "id": tag, "label": label, "facet": tag, "sort": "popular", "q": "",
             "subcategories": [], "episodes": rows}
+    # Explore's "All" (§691): a couple from every facet, one row a story,
+    # the first few marked as the Trending edition's.
+    everything, seen_all = [], set()
+    for depth in range(2):
+        for page in list(category_pages.values()):
+            if depth < len(page["episodes"]):
+                row = page["episodes"][depth]
+                if row["query"] not in seen_all:
+                    seen_all.add(row["query"])
+                    everything.append(dict(row, trending=len(everything) < 3))
+    category_pages["/api/categories/episodes:all"] = {
+        "id": "all", "label": "All", "facet": "", "sort": "trending", "q": "",
+        "subcategories": [], "episodes": everything}
 
     # A guest's page (§154): the evergreen bank on every rail, and the example
     # DailyFAM playlist. Nothing is kept in a preview, so no tile is playable
@@ -848,11 +862,28 @@ ROW_PICTURES = {
 }
 
 
+#: Today's episode of some fixture topics (§570, §691): the title and one
+#: line a playlist's row shows once the edition has written it. Invented
+#: for the preview, like every fixture; the rest show the topic alone.
+ROW_EPISODES = {
+    "f:stocks~Nvidia": ("Why chip stocks had their worst day since 2022",
+                        "One export rule, and a quarter of the sector's value."),
+    "f:ai": ("A call for shared limits on AI",
+             "What is in the proposal, and which labs have answered it."),
+    "f:nfl~Eagles": ("Eagles beat the Cowboys in overtime",
+                     "The fourth-down call that decided it, and what it changes."),
+    "f:basketball~Lakers": ("The Lakers' week, in three games",
+                            "Two wins, one loss, and a rotation that changed."),
+}
+
+
 def _signal_fixtures(mixes: list) -> None:
     by_id = {m["id"]: m for m in mixes}
     crops: dict = {}
     for m in mixes:
         for item in m["items"]:
+            if item["id"] in ROW_EPISODES:
+                item["episode_title"], item["episode_hook"] = ROW_EPISODES[item["id"]]
             tile = ROW_PICTURES.get(item["id"])
             item["picture"] = crops.setdefault(tile, _tile_crop(tile)) if tile else ""
     morning, gym = by_id["m1"], by_id["m2"]
@@ -2322,8 +2353,14 @@ __PREVIEW_PICTURE__
       });
     }
     if (path === "/api/categories/episodes") {
-      return json(FIXTURES["/api/categories/episodes:" + (qs.get("id") || "")]
-                  || { episodes: [], subcategories: [] });
+      var catPageFixture = JSON.parse(JSON.stringify(
+        FIXTURES["/api/categories/episodes:" + (qs.get("id") || "")]
+        || { episodes: [], subcategories: [] }));
+      // A preview has no approved photos: the stand-in the player draws.
+      catPageFixture.episodes.forEach(function (e) {
+        if (!e.thumb) e.thumb = previewPicture(e.query + " " + (e.title || ""));
+      });
+      return json(catPageFixture);
     }
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in the preview build." }, 404);

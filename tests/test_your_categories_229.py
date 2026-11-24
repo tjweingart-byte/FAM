@@ -272,31 +272,33 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("paintCategoryChips")
-    # Followed, then the facets not followed - each chip once - then More.
-    # No "All" since §550: the mixes are their own tab.
-    assert 'catChipHTML("", "All"' not in draw
-    assert draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
+    # All (back since §691: Explore before a category is picked), followed,
+    # then the facets not followed - each chip once - then More.
+    assert draw.index('data-chip="all"') < draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
     assert "CAT_STAR" in _fn("catChipHTML")
 
 
 def test_a_chip_filters_the_page_in_place():
     pick = _fn("pickCategory")
-    assert "showCategoryPanel(true)" in pick and "navigate(" not in pick
+    assert "showCategoryPanel()" in pick and "navigate(" not in pick
     shown = _fn("showCategoryPanel")
-    assert '"catPanel").hidden = !on' in shown and '"mixesPane").hidden = on || cats' in shown
+    assert '"catPanel").hidden = !cats' in shown and '"mixesPane").hidden = cats' in shown
     # Inside a category the row is an X, the category and the level below.
     draw = _fn("paintCategoryChips")
     assert "catPage.subs.map(" in draw and "clearCategory(true)" in draw
     load = _fn("loadCategoryEpisodes")
-    assert "/api/categories/episodes?id=" in load and "&sort=popular" in load
+    # Trending first since §691; `popular` is still what an older client asks.
+    assert "/api/categories/episodes?id=" in load and "&sort=trending" in load
     assert "catPage.subs = d.subcategories" in load
 
 
-def test_the_panel_is_a_hero_play_all_follow_and_a_list():
+def test_the_panel_is_play_all_follow_and_cards():
+    # The hero picture went with §691: every story is a card with its own.
     panel = _fn("drawCategoryPanel")
-    assert "catp-hero" in panel and "playCategoryEpisode(0)" in panel
+    assert "catp-hero" not in HTML
     assert "playCategoryAll()" in panel and "toggleFollowCategory()" in panel
-    assert "eps.slice(1).map(" in panel
+    assert "eps.map(exploreCardHTML)" in panel
+    assert "playCategoryEpisode(' + i + ')" in _fn("exploreCardHTML")
 
 
 def test_category_episodes_carry_their_picture(monkeypatch):
@@ -327,10 +329,12 @@ def test_no_category_opens_a_reel():
 
 # --- the §500 review ---------------------------------------------------------
 
-def test_arriving_on_the_screen_opens_on_mixes():
+def test_arriving_on_the_screen_forgets_the_open_category():
+    # The review's point stands - a category left open never greets an
+    # arrival - but the tab it opens on is Explore's All since §691.
     body = HTML.split("function openPlayFAM(", 1)[1].split("\n  }\n", 1)[0]
-    assert "if(catPage.root || catPage.finding) clearCategory();" in body
-    assert body.index("clearCategory()") < body.index('showPlayfamTab("mixes")') < body.index("loadMixes()")
+    assert "if(catPage.root || catPage.finding){" in body
+    assert body.index("catPage = { root: \"\"") < body.index("showPlayfamTab(") < body.index("loadMixes()")
 
 
 def test_a_late_categories_answer_cannot_undo_a_follow():
