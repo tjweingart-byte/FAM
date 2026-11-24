@@ -41190,7 +41190,10 @@ logo was (§255). It still only minimises. `[player-layout]`.
 
 §637, eight days earlier, made it "just a simple lock button" and took the
 word and the paragraph off the page; a test still says the button carries
-no word. So the lock is unchanged, and **the first tap on a device opens a
+no word. So the lock was left bare at first; told so, the owner answered
+"add the word Private on the lock too", and it now reads **Private** beside
+the padlock in both clients, a pill its own width (that test now says so).
+And **the first tap on a device opens a
 sheet that says what closing it does** - not saved to your history, never
 shown to friends or other listeners, doesn't change what FAM recommends,
 on until the lock is tapped again - with one row, "Turn on Private search".

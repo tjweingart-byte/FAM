@@ -445,21 +445,32 @@ struct SearchView: View {
     }
 
     /// Private search (§282, §285) as a lock (`.private-bubble`, 11.16
-    /// notes): a 44 pt round button beside the bubbles, an open padlock
+    /// notes): a pill with the word "Private" (§690) beside the bubbles, an open padlock
     /// while it is off; closed, copper with an ink icon, while it is on.
     /// What it does is said once, in the toast (`AppModel.setPrivateSearch`).
     private var privateLock: some View {
         let on = model.privateSearch
         return Button { tapPrivateLock() } label: {
             // Open and shut cross on the icon spring (round three).
-            IconSwap(key: on) {
-                WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
-                    .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+            // The lock carries its word (the owner, 11.24, §690: "add the
+            // word Private on the lock too"): a pill its own width, beside
+            // Length and Voice, which share what is left.
+            HStack(spacing: 7) {
+                IconSwap(key: on) {
+                    WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
+                        .foregroundStyle(on ? FAMColor.ink : FAMColor.textMuted)
+                }
+                Text("Private")
+                    .font(FAMFont.body(14, .semibold))
+                    .foregroundStyle(on ? FAMColor.ink : FAMColor.text)
+                    .lineLimit(1)
+                    .fixedSize()
             }
-                .frame(width: 44, height: 44)
-                .background(on ? FAMColor.copper : FAMColor.surface, in: Circle())
-                .overlay(Circle().stroke(on ? FAMColor.copper : FAMColor.border))
-                .contentShape(Circle())
+                .padding(.horizontal, 15)
+                .frame(minHeight: 44)
+                .background(on ? FAMColor.copper : FAMColor.surface, in: Capsule())
+                .overlay(Capsule().stroke(on ? FAMColor.copper : FAMColor.border))
+                .contentShape(Capsule())
         }
         .buttonStyle(.press)
         .accessibilityLabel(on ? "Private search is on" : "Private search")
@@ -467,7 +478,7 @@ struct SearchView: View {
     }
 
     /// `tapPrivateLock` (the owner's 11.24 packet, §690: "someone who
-    /// doesn't [know] might not know"): the button stays a bare lock, and
+    /// doesn't [know] might not know"): the button is a lock and its word, and
     /// the first time it is tapped on this phone a sheet says in plain
     /// words what closing it does, turning it on only on a yes. After that
     /// the lock is one tap either way; turning it off never asks.

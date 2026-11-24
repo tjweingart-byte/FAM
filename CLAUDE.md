@@ -58,7 +58,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   takes the mic's slot while typing, §643);
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
   every return to the app; **Private** is a lock. [search-bar]
-- **Private search**: a lock; on till off (bubble=Settings)
+- **Private search**: a lock+word; on till off (bubble=Settings)
   search, Go Deeper; no play, history, author; 1st tap explains. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos [autocorrect-at-send]

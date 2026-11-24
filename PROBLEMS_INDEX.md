@@ -679,4 +679,4 @@ and `limit` = Lines.
 | 40961 | 94 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |
 | 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
 | 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |
-| 41105 | 106 | 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24) |
+| 41105 | 109 | 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24) |

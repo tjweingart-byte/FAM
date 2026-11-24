@@ -436,7 +436,10 @@
      it used to go charcoal in either theme, which the owner found too much.
      `#screen-home.private-search` is still set, as the state other code and
      the smoke run read; it paints nothing. */
-  .search-bubble.private-bubble{ flex:none; width:44px; padding:0; }
+  /* The lock carries its word (the owner, 11.24, §690: "add the word
+     Private on the lock too", reversing §637's bare lock). Its own width,
+     never squeezed: Length and Voice share what is left. */
+  .search-bubble.private-bubble{ flex:none; padding:0 15px; gap:7px; white-space:nowrap; }
   .private-bubble .lock-shut{ display:none; }
   .private-bubble[aria-pressed="true"] .lock-open{ display:none; }
   .private-bubble[aria-pressed="true"] .lock-shut{ display:block; }
@@ -5245,7 +5248,7 @@
                  open while off, closed while on; the page keeps its colours.
                  The first tap on a device says what it does before it turns
                  anything on (11.24 packet, §690). -->
-            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="tapPrivateLock()" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="tapPrivateLock()" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Private</button>
           </div>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
                of the last two hours, in order, each one an episode already
@@ -10121,7 +10124,7 @@
   }
   // **The lock says what it is before it is first turned on** (the owner's
   // 11.24 packet, §690: "We know what it means, but someone who doesn't
-  // might not know"). The button stays a bare lock (11.16 notes); the first
+  // might not know"). The button is a lock and its word; the first
   // time it is tapped on this device a sheet says in plain words what
   // closing it does, and turns it on only on a yes. After that the lock is
   // one tap either way, and turning it off never asks.

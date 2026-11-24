@@ -31,11 +31,15 @@ def _fn(name: str) -> str:
 
 # --- 2. Private search explains itself ---------------------------------------
 
-def test_the_lock_is_still_a_bare_lock():
-    """The 11.16 notes stand: no word on the button, no repainted page."""
+def test_the_lock_carries_its_word():
+    """"Add the word Private on the lock too" (the owner, 11.24), reversing
+    the bare lock of the 11.16 notes; the page is still not repainted."""
     bubble = re.search(r'<button[^>]*id="privateBubble".*?</button>', INDEX, re.S).group(0)
-    assert ">Private<" not in bubble
+    assert bubble.endswith("</svg>Private</button>")
     assert 'onclick="tapPrivateLock()"' in bubble
+    lock = _swift("Views/SearchView.swift").split("private var privateLock", 1)[1]
+    lock = lock.split("private func tapPrivateLock", 1)[0]
+    assert 'Text("Private")' in lock and "Capsule()" in lock
 
 
 def test_the_first_tap_explains_before_it_turns_anything_on():
