@@ -399,6 +399,21 @@ def _token_set(query: str) -> set:
     return set(embeddings.tokens(normalize_query(query)))
 
 
+#: A whole date as an edition's prompt writes it (`mixes.date_label`:
+#: "Monday, November 23, 2026"), however it was cased or punctuated since.
+_EDITION_DAY = re.compile(
+    r"\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\W+"
+    r"(?:january|february|march|april|may|june|july|august|september|october|"
+    r"november|december)\W+\d{1,2}\W+\d{4}\b", re.I)
+
+
+def is_edition_prompt(query: str) -> bool:
+    """Whether these are the words an edition sends for one subject on one
+    day (`mixes.daily_prompt`): a sentence FAM composed around a subject and
+    a whole date, never a question somebody phrased."""
+    return bool(_EDITION_DAY.search(query or ""))
+
+
 def comparable(asked: str, stored: str) -> str:
     """"" if these two questions may share an episode, else why they may not.
 
@@ -406,8 +421,8 @@ def comparable(asked: str, stored: str) -> str:
     expensive one. A cache miss costs a cent and a few seconds; a *false* hit
     plays a confident answer to a question nobody asked, which breaks the first
     duty of an episode - satisfy the thing that brought them. So the score has
-    to clear a bar, and then survive three checks that a vector is known to be
-    bad at:
+    to clear a bar, and then survive four checks that a vector is known to be
+    bad at (the fourth, for an edition's prompt, is beside its code):
 
     * **Numbers must be identical.** "NFL week 5" and "NFL week 6" score 0.70
       here and are different episodes. Digits are the detail an embedding blurs
@@ -426,6 +441,17 @@ def comparable(asked: str, stored: str) -> str:
     """
     if embeddings.numbers(asked) != embeddings.numbers(stored):
         return "different numbers"
+    # **An edition's prompt is only ever itself** (§688). Two of them on one
+    # day are the same sentence around two subjects - "The latest on
+    # Basketball as of Monday, November 23, 2026: what happened in the last
+    # 24 hours..." and the same for Baseball share every number and all but
+    # one word, score 0.95, and passed both checks below: a listener tapped
+    # NBA and heard a baseball signing. Nobody rephrases a sentence FAM
+    # wrote, so there is no near neighbour to find: the same words are the
+    # exact key, and any other words are another subject.
+    if ((is_edition_prompt(asked) or is_edition_prompt(stored))
+            and _token_set(asked) != _token_set(stored)):
+        return "an edition's prompt for another subject"
     if needs_fresh_information(asked) != needs_fresh_information(stored):
         return "one needs today's facts and the other does not"
     a, b = _token_set(asked), _token_set(stored)

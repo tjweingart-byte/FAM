@@ -267,3 +267,70 @@ def test_an_oversized_cover_is_refused_in_words(client):
     res = client.post("/api/mixes", json={"name": "Big", "topic_ids": ["f:nfl"], "cover": huge})
     assert res.status_code == 400
     assert "too large" in res.json()["error"]
+
+
+# ---- §688: an edition's prompt is only ever itself ------------------------
+#
+# The owner's 11.24 packet: "It generated an episode about an MLB headline on
+# my FAM for the nba story." Two subjects' prompts on one day are one
+# sentence around two words, and the near-match cache took them for one
+# question whenever the tapped subject's own episode was not current.
+
+def _every_daily_prompt(day):
+    items = [M.followed_item("f:" + ident) for ident in sorted(M.CATALOGUE_BY_ID)]
+    items += [M.followed_item("f:nfl~Eagles"), M.followed_item("f:nfl~Chiefs"),
+              M.followed_item("f:basketball~NBA"), M.followed_item("f:baseball~MLB"),
+              M.custom_item("the stock market"), M.custom_item("the bond market")]
+    return [M.prompt_for(item, day) for item in items]
+
+
+def test_one_subjects_edition_never_stands_in_for_anothers():
+    import itertools
+
+    import embeddings
+
+    day = date(2026, 11, 23)
+    prompts = _every_daily_prompt(day)
+    assert len(set(prompts)) == len(prompts)
+    basketball = M.prompt_for(M.followed_item("f:basketball"), day)
+    baseball = M.prompt_for(M.followed_item("f:baseball"), day)
+    # What made it possible, so this test fails if it stops being the case
+    # and the rule can be looked at again: the vector alone says "the same".
+    close = embeddings.cosine(embeddings.embed(cache.normalize_query(basketball)),
+                              embeddings.embed(cache.normalize_query(baseball)))
+    assert close > 0.9
+    for asked, stored in itertools.permutations(prompts, 2):
+        assert cache.comparable(asked, stored) != "", (asked, stored)
+        # However the stored words were cased or punctuated since.
+        assert cache.comparable(asked, stored.lower().replace(",", "")) != ""
+
+
+def test_the_cache_plays_no_neighbour_for_a_daily_prompt():
+    """The serving path's own lookup: baseball's episode is current, the
+    tapped basketball one is not held, and nothing is found."""
+    from config import settings
+
+    day = date(2026, 11, 23)
+    basketball = M.prompt_for(M.followed_item("f:basketball"), day)
+    baseball = M.prompt_for(M.followed_item("f:baseball"), day)
+    was = settings.cache_vector
+    object.__setattr__(settings, "cache_vector", True)
+    try:
+        store = cache.MemoryScriptCache()
+        bucket = cache.key_bucket(2)
+        store.put(cache.cache_key(baseball, 2), ["Camilo Doval is staying."], 3600,
+                  query=baseball, bucket=bucket)
+        assert store.nearest(bucket, basketball) is None
+        # The same words still find their own episode by its neighbour scan.
+        assert store.nearest(bucket, baseball) is not None
+    finally:
+        object.__setattr__(settings, "cache_vector", was)
+
+
+def test_the_date_an_edition_writes_is_the_date_the_cache_recognises():
+    for day in (date(2026, 1, 1), date(2026, 5, 9), date(2026, 9, 30), date(2027, 2, 28)):
+        assert cache.is_edition_prompt(M.date_label(day))
+        assert cache.is_edition_prompt(
+            M.prompt_for(M.followed_item("f:nfl"), day).lower().replace(",", ""))
+    assert not cache.is_edition_prompt("what happened in the nba on monday")
+    assert not cache.is_edition_prompt("nfl week 5 recap 2026")

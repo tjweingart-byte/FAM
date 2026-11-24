@@ -57,6 +57,8 @@ struct SearchView: View {
         }
     }
     @State private var sheet: SearchSheet?
+    /// What Private search does, asked before its first turning on (§688).
+    @State private var explainPrivate: SheetSpec?
     @State private var linkOpen = false
     @State private var photoPicking = false
     @State private var photoItem: PhotosPickerItem?
@@ -102,6 +104,7 @@ struct SearchView: View {
             YouSheet(items: items(for: kind)).environmentObject(model)
                 .famThemed()
         }
+        .famSheet(item: $explainPrivate) { spec in FAMActionSheet(spec: spec) }
         .famSheet(isPresented: $linkOpen) {
             LinkModal { url in attach.addLink(url) }
                 .famThemed()
@@ -447,7 +450,7 @@ struct SearchView: View {
     /// What it does is said once, in the toast (`AppModel.setPrivateSearch`).
     private var privateLock: some View {
         let on = model.privateSearch
-        return Button { model.setPrivateSearch(!on) } label: {
+        return Button { tapPrivateLock() } label: {
             // Open and shut cross on the icon spring (round three).
             IconSwap(key: on) {
                 WebIcon(path: on ? SearchIcons.lock : SearchIcons.lockOpen, size: 16, line: 2)
@@ -462,6 +465,32 @@ struct SearchView: View {
         .accessibilityLabel(on ? "Private search is on" : "Private search")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
+
+    /// `tapPrivateLock` (the owner's 11.24 packet, §688: "someone who
+    /// doesn't [know] might not know"): the button stays a bare lock, and
+    /// the first time it is tapped on this phone a sheet says in plain
+    /// words what closing it does, turning it on only on a yes. After that
+    /// the lock is one tap either way; turning it off never asks.
+    private func tapPrivateLock() {
+        let on = model.privateSearch
+        if on || UserDefaults.standard.bool(forKey: Self.privateExplainedKey) {
+            model.setPrivateSearch(!on)
+            return
+        }
+        explainPrivate = SheetSpec(header: Self.privateExplanation, actions: [
+            SheetAction(label: "Turn on Private search") {
+                UserDefaults.standard.set(true, forKey: Self.privateExplainedKey)
+                model.setPrivateSearch(true)
+            }
+        ])
+    }
+
+    static let privateExplainedKey = "fam.privateExplained"
+    /// The web's sheet (`tapPrivateLock`), as one sentence run.
+    static let privateExplanation = "Private search: search without leaving a trace. "
+        + "While the lock is closed, anything you search or Go Deeper on isn\u{2019}t saved to your history, "
+        + "is never shown to friends or other listeners, and doesn\u{2019}t change what FAM recommends to you. "
+        + "It stays on until you tap the lock again."
 
     // MARK: - Trending searches (`.trend-searches`)
 

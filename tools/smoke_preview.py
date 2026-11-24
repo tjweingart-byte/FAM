@@ -2918,7 +2918,10 @@ def main() -> int:
             assert sent["got"] == sent["seen"], f"Go Deeper sent a line nobody read: {sent}"
             page.evaluate("closeGoDeeper(); delete TOPICS['__gd']; currentPlayingTopicKey = null;")
             page.wait_for_timeout(400)
-            # The lock swaps on the icon spring, on the tap.
+            # The lock swaps on the icon spring, on the tap (one already
+            # explained on this device: the first tap's sheet is §688's own
+            # check below).
+            page.evaluate("localStorage.setItem('fam.privateExplained', '1')")
             was = page.evaluate("privateSearch")
             swapped = page.evaluate("""() => { document.getElementById('privateBubble').click();
                 return document.querySelectorAll('.motion-icon').length; }""")
@@ -5644,11 +5647,34 @@ def main() -> int:
             page.wait_for_timeout(300)
             ground = "getComputedStyle(document.getElementById('screen-home')).backgroundColor"
             before = page.evaluate(ground)
+            # The first tap on a device says what the lock does and turns
+            # nothing on (11.24 packet, §688); its own row turns it on.
+            page.evaluate("localStorage.removeItem('fam.privateExplained')")
             page.click("#privateBubble")
+            page.wait_for_selector("#sheetOverlay.active #privateExplain", timeout=3000)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false", \
+                "the lock closed before anybody said yes"
+            said = page.text_content("#privateExplain")
+            assert "history" in said and "Friends" in said and "tap the lock again" in said, said
+            page.click("#sheetCard .sheet-cancel")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false", "Cancel turned it on"
+            page.click("#privateBubble")
+            page.wait_for_selector("#sheetOverlay.active #privateExplain", timeout=3000)
+            page.click("#sheetCard .sheet-item")
             page.wait_for_timeout(200)
             assert page.get_attribute("#privateBubble", "aria-pressed") == "true"
             assert page.evaluate(ground) == before, "Private repainted the search page"
             assert page.eval_on_selector("#privateBubble .lock-shut", "e => getComputedStyle(e).display") != "none"
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false"
+            # Explained once: from here the lock is one tap either way.
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "true", \
+                "an explained lock asked again"
+            assert not page.eval_on_selector("#sheetOverlay", "e => e.classList.contains('active')")
             page.click("#privateBubble")
             page.wait_for_timeout(200)
             assert page.get_attribute("#privateBubble", "aria-pressed") == "false"

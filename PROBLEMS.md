@@ -41101,3 +41101,105 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 `shut()` - the player's modal close or the sheet's dismiss. Cancel and the
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
+
+## 688. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24)
+
+**The owner's packet, five pictures.** Dark screens with a phone's status
+bar: the iPhone app (dark is its default, §546), not the web.
+
+### 5. "It generated an episode about an MLB headline on my FAM for the nba story"
+
+The player said "NBA · today" and the captions read a Giants reliever's
+one-year contract. Nothing was written wrongly: **the right episode for a
+different subject was played.**
+
+A mix's subject plays the words `mixes.daily_prompt` composes - "The latest
+on Basketball as of Monday, November 23, 2026: what happened in the last 24
+hours, what changed, and why it matters. Lead with the newest development;
+skip background the listener heard yesterday." The same sentence is
+composed for every subject, so two subjects' prompts on one day share every
+number and all but one word. On an exact-key miss the pipeline asks the
+near-match cache (`cache.nearest`), and `cache.comparable`'s three checks
+all pass for such a pair: the numbers are identical (the same date, the
+same "24"), both need today's facts, and the word overlap is far over
+`CACHE_VECTOR_OVERLAP`. Measured here with the shipped thresholds (0.68):
+
+| pair, same day | cosine | before | now |
+|---|---|---|---|
+| Basketball / Baseball | 0.951 | shared | refused |
+| NFL / Soccer | 0.949 | shared | refused |
+| Baseball / Stocks | 0.924 | shared | refused |
+
+Every pair tried shared. It stayed hidden because the edition writes every
+subject, so a tap is normally an exact hit and no neighbour is looked for.
+The miss needs the tapped subject's own episode to be **not current** while
+another subject's is: an edition episode written while a game is in progress
+is kept but never current (§143, §359), which in November is basketball
+most nights and never baseball. §137's test covered only yesterday's
+prompt for the same subject, which the date already separates.
+
+**Fix.** `cache.comparable` refuses any pair in which either side carries a
+whole date as an edition writes it (`cache.is_edition_prompt`) unless the
+two are the same set of words - the exact key. Nobody rephrases a sentence
+FAM composed, so there is no near neighbour to find. The NBA tap now
+misses and is written, as any miss is. Typed topics' prompts (`TYPED_HEAD`)
+carry the same date and are covered by the same rule. Tests in
+`tests/test_dailyfam_follow.py`: every catalogue subject's prompt against
+every other's, the serving path's own `nearest`, and that the date an
+edition writes is the date the cache recognises.
+
+### 4. "These two buttons are not working: the like and revibe buttons"
+
+On a friend's story. In a browser at a phone's size with touch, the web's
+two buttons work on a plain and on a composed story (the heart fills, the
+editor opens), and its pointer handlers already leave the reply row alone.
+The iPhone's did not, by reading: `Button { like() }` and `Button {
+reshare() }` are labelled with an outlined icon in a 42 x 44 frame and
+styled `.press`, and a custom button style is hit only where its label
+draws - a 1.9 pt line. A finger beside the line fell through to the
+story's surface gesture, which stepped the story on. The header's ⋯ and X
+already carried `.contentShape(Rectangle())`; these did not.
+
+**Fix.** The three buttons in the reply row (send, like, VIBE!) take their
+whole box, and `PressedLabel` gives **every** `.press` button its box
+(`Motion.swift`), as the web's `<button>` has - the cause was general
+(285 `.press` buttons, 148 content shapes).
+
+### 3. "If I click on the MiniPlayer, I want it to expand into the large player"
+
+Both clients already had this: the web's `#nowBar` calls `openNowPlaying`
+(the smoke run taps it and checks the player opens), and the iPhone's
+`MiniPlayer` had `.onTapGesture { model.showPlayer = true }`. On the iPhone
+the squeeze (`tapSqueeze`, a long-press gesture) was attached *inside* the
+tap, so the tap waited on a gesture below it. The tap is now attached first
+and the squeeze beside it, the order the story title already uses, where
+`simultaneousGesture` is defined to run both. Whether that ordering was what
+stopped the owner's tap is not known - see below.
+
+### 1. "Change to back arrow double chevon"
+
+The player's top-left button is the app's back arrow («,
+`M17 6l-6 6 6 6M10 6l-6 6 6 6`, the iPhone's `Icons.back`) where the Home
+logo was (§255). It still only minimises. `[player-layout]`.
+
+### 2. "Make 'private search' more understandable"
+
+§637, eight days earlier, made it "just a simple lock button" and took the
+word and the paragraph off the page; a test still says the button carries
+no word. So the lock is unchanged, and **the first tap on a device opens a
+sheet that says what closing it does** - not saved to your history, never
+shown to friends or other listeners, doesn't change what FAM recommends,
+on until the lock is tapped again - with one row, "Turn on Private search".
+Cancel turns nothing on. After a yes the lock is one tap either way, with
+its toast (`fam.privateExplained`, on the device). Both clients.
+`[private-search]`.
+
+### Not verified
+
+- **Nothing in the iPhone app was built or run**: no Xcode here. Items 3 and
+  4 on the iPhone are fixes by reading; the tests read the Swift.
+- The cause of 5 is shown by the real cache code on the real prompts, not
+  by the production log of the owner's tap: which stored episode it played
+  was not read.
+- If the mini player still does not open the player on the next build, the
+  ordering was not the cause and it needs a device.
