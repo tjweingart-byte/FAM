@@ -196,7 +196,7 @@ def test_the_playlists_page_says_what_plays():
     assert 'onclick="openMixMenu()"' in head
     body = _fn("renderMixBody")
     assert '" of " + mixPlay.order.length' in body.replace("' of '", '" of "')
-    assert "playlistRowHTML(m, t, state)" in body
+    assert "playlistRowHTML(m, row.t, row.state)" in body
     row = _fn("playlistRowHTML")
     assert '"Now playing"' in row and '"Up next"' in row and '"Heard"' in row
 
@@ -243,3 +243,55 @@ def test_a_playlist_can_still_be_given_its_own_cover():
     assert "{ cover: dataUrl }" in _fn("applyCover")
     assert "m.cover || (m.thumbs || [])[0]" in _fn("coverOf")
     assert "coverOf(m)" in _fn("playlistCardHTML")
+
+
+# --- the review of the branch -------------------------------------------------
+
+
+def test_every_way_to_a_playlist_lands_on_the_playlists_tab():
+    """The screen opens on Explore, so a path that only showed the screen
+    (the morning push's link, your own mix's link, joining a joint mix)
+    landed on a blank Explore with the playlists behind the other tab."""
+    assert 'if(mixesTab && !listen){ openPlayFAM("mixes"); return; }' in _fn("openNotificationLink")
+    assert 'setTab("playfam"); showPlayfamTab("mixes");' in _fn("openOwnMix")
+    assert HTML.count('setTab("playfam"); showPlayfamTab("mixes");') == 2
+    assert 'if(prev === "playfam"){ showPlayfamTab("mixes"); loadMixes(); }' in _fn("closeMixPage")
+    page = HTML.split('id="screen-mixdetail"', 1)[1].split("</section>", 1)[0]
+    assert "openPlayFAM('mixes')" in page
+
+
+def test_the_playlists_page_catches_up_when_it_is_shown_again():
+    assert 'if(id === "mixdetail" && typeof refreshMixPlaying === "function") refreshMixPlaying();' \
+        in _fn("showScreen")
+    body = _fn("refreshMixPlaying")
+    # Never under a field in use or a row still moving.
+    assert "INPUT|SELECT|TEXTAREA" in body and "mixBodyCalmAt" in body
+
+
+def test_every_topic_in_the_playlist_is_on_its_page():
+    """Rows are drawn in play order, which leaves out a topic still being
+    added and one added while the playlist plays; both are appended."""
+    order = _fn("playlistPageOrder")
+    assert "items.forEach(function(t){ if(!seen[t.id]) out.push({ t: t, state: \"\" }); });" in order
+    assert "if(!held[t.id] && n !== mixPlay.pos) return;" in order
+    assert "playlistPageOrder(m, live)" in _fn("renderMixBody")
+
+
+def test_the_two_hearts_agree():
+    assert "noteMixSaved(nowBarState.query, nowBarState.minutes, on)" in _fn("setSaved")
+    assert "began !== mixSavedTouched" in _fn("loadMixSaved")
+
+
+def test_cards_drawn_before_the_categories_get_their_facet():
+    assert "drawCategoryPanel();" in _fn("loadMyCategories")
+
+
+def test_the_tour_names_the_tabs_as_they_read():
+    tour = HTML.split('target: "#pfTabCats", kicker: "myFAM"', 1)[1][:700]
+    assert 'title: "Explore"' in tour and 'title: "Your playlists"' in tour
+    assert 'title: "Categories"' not in HTML and 'title: "Your mixes"' not in HTML
+
+
+def test_a_rows_line_is_read_off_the_event_loop():
+    src = (ROOT / "app.py").read_text(encoding="utf-8")
+    assert "await asyncio.to_thread(_hook_episodes, episodes)" in src

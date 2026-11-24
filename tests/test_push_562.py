@@ -441,7 +441,8 @@ def test_settings_has_the_three_switches():
 
 def test_a_notification_tap_opens_what_it_names():
     body = _fn("openNotificationLink")
-    assert 'params.get("listen")' in body and 'setTab("playfam")' in body
+    # The mixes link opens the Playlists tab: the screen opens on Explore (§688).
+    assert 'params.get("listen")' in body and 'openPlayFAM("mixes")' in body
     play = _fn("playNotifiedStory")
     assert "exploreMinutes: BROWSE_MINUTES" in play and "prompt: query" in play
     assert "openNotificationLink(); })" in INDEX

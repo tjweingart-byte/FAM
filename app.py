@@ -11627,7 +11627,8 @@ async def category_episodes(
     episodes = [_category_row(row, now) for row in inside]
     for episode in episodes:
         episode["trending"] = bool(episode["key"]) and episode["key"] in leading
-    _hook_episodes(episodes)
+    # Off the event loop, as the other store reads here are.
+    await asyncio.to_thread(_hook_episodes, episodes)
     # The numbers down a reel card's right side (the category's reel, as
     # Explore's): vibes, likes and comments, and this listener's own thumb
     # and vibe so the buttons open in the right state. A count is never

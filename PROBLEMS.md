@@ -41208,3 +41208,24 @@ pinned: the smoke check sets a cover and reads it back off the card, and
 The menu's rows say "playlist" now too. Review of the branch also moved a
 row's `hook` behind a 30-second memo (`_HOOK_MEMO`), so a draw of Explore
 is not sixty reads of the store for every listener.
+
+**The branch reviewed before its PR** (a second reader given only the diff).
+Fixed: (1) three ways onto the screen that never chose a tab - the morning
+push's `/?mixes=1`, your own mix's link, joining a joint mix - landed on a
+blank Explore with the playlists behind the other tab; each now opens
+Playlists, as does Back from a playlist and the myFAM tab on a playlist's
+own page. (2) A playlist's page was stale when the playlist moved on under
+the full player; `showScreen` redraws it. (3) Rows in play order left out a
+topic still being added, and anything added while the playlist played;
+`playlistPageOrder` appends them and drops what was removed. (4) The redraw
+on every transport change no longer happens under the listen-time field or
+a row still moving. (5) The mini player's heart and a row's heart agree
+(`noteMixSaved`), and a late shelf read cannot undo a tap. (6) Cards drawn
+before `/api/categories` answered kept a bare kicker. (7) `_hook_episodes`
+runs off the event loop. (8) The tour said "Your mixes" and "Categories";
+`tools/landing_shots.py` clicked a card class that is gone; five more
+strings said "mix". (9) A category's cards no longer sit under the All chip
+while All loads.
+Left as it is, knowingly: the mini player's next opens the full player, as
+skipping always has; the sliders do nothing on the guest's example, as the
+three dots did; the iPhone's tour still names the old tabs (PARITY.md).
