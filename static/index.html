@@ -3020,7 +3020,7 @@
     letter-spacing:0.12em; text-transform:uppercase; color:var(--text-faint);
   }
   /* What a control does, said before it is turned on (Private search's
-     first tap, 11.24 packet, §688). */
+     first tap, 11.24 packet, §690). */
   .sheet-explain{ padding:6px 22px 10px; }
   .sheet-explain-title{ font-family:'Bricolage Grotesque', sans-serif; font-size:18px; font-weight:500;
     color:var(--text); }
@@ -5244,7 +5244,7 @@
                  in nobody's history. A lock and nothing more (11.16 notes):
                  open while off, closed while on; the page keeps its colours.
                  The first tap on a device says what it does before it turns
-                 anything on (11.24 packet, §688). -->
+                 anything on (11.24 packet, §690). -->
             <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="tapPrivateLock()" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
           </div>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
@@ -5504,7 +5504,7 @@
                mini player, whose button still pauses it and whose tap brings
                this screen back exactly where it is. -->
           <!-- The app's own back arrow, the double chevron (11.24 packet #1,
-               §688), where the Home logo was (10.12 packet #1) and the down
+               §690), where the Home logo was (10.12 packet #1) and the down
                arrow before it; it still only minimises the player. -->
           <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 6l-6 6 6 6M10 6l-6 6 6 6"/></svg></button>
           <!-- GO DEEPER at the top, where "Now playing" was (10.2 packet):
@@ -10120,7 +10120,7 @@
     toast(privateSearch ? "Private search on \u00b7 kept out of history and feeds" : "Private search off");
   }
   // **The lock says what it is before it is first turned on** (the owner's
-  // 11.24 packet, §688: "We know what it means, but someone who doesn't
+  // 11.24 packet, §690: "We know what it means, but someone who doesn't
   // might not know"). The button stays a bare lock (11.16 notes); the first
   // time it is tapped on this device a sheet says in plain words what
   // closing it does, and turns it on only on a yes. After that the lock is

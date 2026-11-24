@@ -269,7 +269,7 @@ def test_an_oversized_cover_is_refused_in_words(client):
     assert "too large" in res.json()["error"]
 
 
-# ---- §688: an edition's prompt is only ever itself ------------------------
+# ---- §690: an edition's prompt is only ever itself ------------------------
 #
 # The owner's 11.24 packet: "It generated an episode about an MLB headline on
 # my FAM for the nba story." Two subjects' prompts on one day are one

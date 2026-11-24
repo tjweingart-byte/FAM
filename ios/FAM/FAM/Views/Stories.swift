@@ -757,7 +757,7 @@ struct StoryViewer: View {
                 }
                 .frame(width: 42, height: 44)
                 // The whole 42 x 44 box takes the tap (the owner's 11.24
-                // packet, §688: "the like and revibe buttons are not
+                // packet, §690: "the like and revibe buttons are not
                 // working"). An outlined icon is hit only on its 1.9 pt
                 // line; a finger beside it fell through to the story's own
                 // surface, which stepped to the next vibe instead.

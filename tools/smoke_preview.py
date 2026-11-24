@@ -2919,7 +2919,7 @@ def main() -> int:
             page.evaluate("closeGoDeeper(); delete TOPICS['__gd']; currentPlayingTopicKey = null;")
             page.wait_for_timeout(400)
             # The lock swaps on the icon spring, on the tap (one already
-            # explained on this device: the first tap's sheet is §688's own
+            # explained on this device: the first tap's sheet is §690's own
             # check below).
             page.evaluate("localStorage.setItem('fam.privateExplained', '1')")
             was = page.evaluate("privateSearch")
@@ -5648,7 +5648,7 @@ def main() -> int:
             ground = "getComputedStyle(document.getElementById('screen-home')).backgroundColor"
             before = page.evaluate(ground)
             # The first tap on a device says what the lock does and turns
-            # nothing on (11.24 packet, §688); its own row turns it on.
+            # nothing on (11.24 packet, §690); its own row turns it on.
             page.evaluate("localStorage.removeItem('fam.privateExplained')")
             page.click("#privateBubble")
             page.wait_for_selector("#sheetOverlay.active #privateExplain", timeout=3000)

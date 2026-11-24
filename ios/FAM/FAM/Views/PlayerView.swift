@@ -220,7 +220,7 @@ struct PlayerView: View {
         HStack(spacing: 0) {
             Button { model.showPlayer = false } label: {
                 // The app's back arrow, the double chevron, where the Home
-                // mark was (the owner's 11.24 packet, §688).
+                // mark was (the owner's 11.24 packet, §690).
                 WebIcon(path: Icons.back, size: 22, line: 2)
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
@@ -1143,7 +1143,7 @@ struct MiniPlayer: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
         .contentShape(Rectangle())
         // A tap anywhere on the bar opens the full player (the owner's
-        // 11.24 packet, §688). The tap is attached first and the squeeze
+        // 11.24 packet, §690). The tap is attached first and the squeeze
         // after it, so the squeeze's own gesture runs beside the tap
         // (`simultaneousGesture`) and can never be the one that takes it.
         .onTapGesture {

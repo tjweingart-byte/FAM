@@ -441,7 +441,7 @@ def comparable(asked: str, stored: str) -> str:
     """
     if embeddings.numbers(asked) != embeddings.numbers(stored):
         return "different numbers"
-    # **An edition's prompt is only ever itself** (§688). Two of them on one
+    # **An edition's prompt is only ever itself** (§690). Two of them on one
     # day are the same sentence around two subjects - "The latest on
     # Basketball as of Monday, November 23, 2026: what happened in the last
     # 24 hours..." and the same for Baseball share every number and all but

@@ -41102,7 +41102,11 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
 
-## 688. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24)
+## 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24)
+
+Numbered 690, not 688: two other branches pushed the same day each hold a
+§688 of their own (a playlist's cover and Explore's cards; the paid writing
+runs' workflow), and this one leaves them 688 and 689.
 
 **The owner's packet, five pictures.** Dark screens with a phone's status
 bar: the iPhone app (dark is its default, §546), not the web.

@@ -184,7 +184,7 @@ struct PressedLabel<Label: View>: View {
                                        : .spring(response: 0.22, dampingFraction: 0.55)
         label
             // A button is pressed anywhere in its box, as the web's
-            // `<button>` is (§688): without this an outlined icon in a
+            // `<button>` is (§690): without this an outlined icon in a
             // 44 pt frame takes a tap only on its line, and the miss goes
             // to whatever is underneath.
             .contentShape(Rectangle())

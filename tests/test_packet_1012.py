@@ -1,6 +1,6 @@
 """§255: the 10.12 implementations packet.
 
-1. The player's collapse button was the Home logo; the back chevrons since §688.
+1. The player's collapse button was the Home logo; the back chevrons since §690.
 2. exploreFAM has a dropdown under its wordmark: Made for you, Trending,
    Most recent, What people are searching and Explore; the first three run
    out into the shuffled cached catalogue.
@@ -44,7 +44,7 @@ def _screen(name: str) -> str:
 
 def test_the_players_collapse_button_is_the_back_chevrons():
     """The Home logo (§255) until the owner's 11.24 packet: "Change to back
-    arrow double chevon" (§688). It still only minimises."""
+    arrow double chevon" (§690). It still only minimises."""
     btn = HTML.split('id="playerDown"', 1)[1].split("</button>", 1)[0]
     assert 'd="M17 6l-6 6 6 6M10 6l-6 6 6 6"' in btn, "not the app's back arrow"
     assert HOUSE not in btn, "still DailyFAM's house"

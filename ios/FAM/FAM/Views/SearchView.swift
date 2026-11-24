@@ -57,7 +57,7 @@ struct SearchView: View {
         }
     }
     @State private var sheet: SearchSheet?
-    /// What Private search does, asked before its first turning on (§688).
+    /// What Private search does, asked before its first turning on (§690).
     @State private var explainPrivate: SheetSpec?
     @State private var linkOpen = false
     @State private var photoPicking = false
@@ -466,7 +466,7 @@ struct SearchView: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
-    /// `tapPrivateLock` (the owner's 11.24 packet, §688: "someone who
+    /// `tapPrivateLock` (the owner's 11.24 packet, §690: "someone who
     /// doesn't [know] might not know"): the button stays a bare lock, and
     /// the first time it is tapped on this phone a sheet says in plain
     /// words what closing it does, turning it on only on a yes. After that

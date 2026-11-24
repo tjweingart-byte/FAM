@@ -1,4 +1,4 @@
-"""The owner's 11.24 packet (PROBLEMS.md §688), read from the sources.
+"""The owner's 11.24 packet (PROBLEMS.md §690), read from the sources.
 
 1. The player's top-left button is the back chevrons (`test_packet_1012`).
 2. Private search says what it is before it is first turned on.
