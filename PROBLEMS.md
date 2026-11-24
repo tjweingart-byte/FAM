@@ -41195,3 +41195,16 @@ screenshots of the three frames in dark and light from the fixture preview.
 **Not verified:** against a deployment with a real Trending edition and
 approved pictures - the preview's stories and pictures are fixtures; how
 often a cached episode has a stored summary to show as its line.
+
+**The owner's follow-up, "people can still add their own cover picture to
+their playlists":** they can, three ways, none changed in what it does - the
+naming screen's folder, the picture on the playlist's page (now under the
+stories, with its camera badge) and "Add a cover photo" / "Change cover" in
+the sliders' menu. A playlist's own photo is what its card, the add sheet
+and its page draw, ahead of today's lead picture (`coverOf`). Run in a
+browser with a real file through the chooser and the crop editor, then
+pinned: the smoke check sets a cover and reads it back off the card, and
+`test_a_playlist_can_still_be_given_its_own_cover` holds the three ways in.
+The menu's rows say "playlist" now too. Review of the branch also moved a
+row's `hook` behind a 30-second memo (`_HOOK_MEMO`), so a draw of Explore
+is not sixty reads of the store for every listener.

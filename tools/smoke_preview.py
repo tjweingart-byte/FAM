@@ -5110,8 +5110,31 @@ def main() -> int:
                 assert " 2 of " in state["pill"], f"the pill reads {state['pill']!r}"
                 assert state["rows"][:2] == ["heard", "now"] and set(state["rows"][2:]) <= {"next"}, \
                     f"the rows read {state['rows']}"
-            page.evaluate("goBack()")
-            page.wait_for_timeout(400)
+            # A playlist's own cover photo (§688): the page still offers
+            # it - the picture under the stories and the sliders' menu - and
+            # the photo chosen is the one its card draws.
+            assert page.eval_on_selector("#mixBody button.mix-hero-art",
+                                         "e => /coverTapped/.test(e.getAttribute('onclick'))"), \
+                "the playlist's picture no longer opens the cover chooser"
+            page.click("#screen-mixdetail .pl-tune")
+            page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+            labels = page.eval_on_selector_all("#sheetCard .sheet-item", "e => e.map(x => x.textContent.trim())")
+            assert any("cover" in x.lower() for x in labels), f"the menu has no cover row: {labels}"
+            page.evaluate("document.getElementById('sheetOverlay').classList.remove('active')")
+            dot = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4"
+                   "2mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+            mid = page.evaluate("currentMixId")
+            page.evaluate("([id, d]) => applyCover(id, d)", [mid, dot])
+            page.wait_for_timeout(600)
+            assert page.evaluate("mixById(currentMixId).cover") == dot, "the cover was not kept"
+            assert page.query_selector("#mixBody .mix-hero-art.has-cover"), "the page does not draw the cover"
+            page.evaluate("closeMixPage()")
+            page.wait_for_timeout(700)
+            art = page.evaluate("""id => { var c = document.querySelector('#mixList .pl-card[data-mix="' + id + '"] .pl-art');
+                return c ? c.style.backgroundImage : ''; }""", mid)
+            assert "iVBORw0KGgo" in art, f"the card does not draw the playlist's own cover: {art[:60]}"
+            page.evaluate("id => applyCover(id, '')", mid)
+            page.wait_for_timeout(500)
 
         def not_interested_takes_a_tile_off_the_page():
             """The 11.3 packet #2: a tile's three dots end in Not interested,

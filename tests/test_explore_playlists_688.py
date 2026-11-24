@@ -227,3 +227,19 @@ def test_the_mini_player_in_a_playlist_keeps_its_x():
     # And it is on a playlist's own page: the page has the tabs.
     page = HTML.split('id="screen-mixdetail"', 1)[1].split("</section>", 1)[0]
     assert '<div class="tabbar">' in page
+
+
+def test_a_playlist_can_still_be_given_its_own_cover():
+    """The owner's follow-up: the redesign must not cost a playlist its own
+    cover photo. Three ways in - the naming screen, the picture on the
+    playlist's page, the sliders' menu - and the photo is what the card
+    and the add sheet draw, ahead of today's lead picture."""
+    assert "coverTapped('new')" in HTML.split('id="screen-newmix"', 1)[1].split("</section>", 1)[0]
+    body = _fn("renderMixBody")
+    assert "coverTapped(" in body and "nm-cam" in body
+    assert "if(!editing) html += details;" in body
+    menu = _fn("openMixMenu")
+    assert '"Change cover" : "Add a cover photo"' in menu and "coverTapped(m.id)" in menu
+    assert "{ cover: dataUrl }" in _fn("applyCover")
+    assert "m.cover || (m.thumbs || [])[0]" in _fn("coverOf")
+    assert "coverOf(m)" in _fn("playlistCardHTML")
