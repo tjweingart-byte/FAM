@@ -11453,18 +11453,37 @@ def _trending_keys(now: float) -> dict:
     return out
 
 
+#: key -> (its one line, when read): a row's line is asked for on every
+#: draw of Explore, and a summary is written once with its episode, so a
+#: read serves every listener for `CATEGORY_MEMO_SECONDS`.
+_HOOK_MEMO: dict = {"store": None, "lines": {}}
+
+
 def _hook_episodes(episodes: list[dict]) -> None:
     """Each row's one line (`hook`): the episode's own stored summary, ""
-    when it has none. A local cache read per row, the first
-    `EXPLORE_ALL_LIMIT` only; never fails the page."""
+    when it has none. A local cache read per row not read in the last
+    `CATEGORY_MEMO_SECONDS`, the first `EXPLORE_ALL_LIMIT` rows only; never
+    fails the page."""
     read = getattr(SCRIPT_CACHE, "summary", None)
+    # The store itself, not its id: an id is reused once a store is gone.
+    if _HOOK_MEMO["store"] is not SCRIPT_CACHE:
+        _HOOK_MEMO.update(store=SCRIPT_CACHE, lines={})
+    lines = _HOOK_MEMO["lines"]
+    now = time.monotonic()
+    if len(lines) > 4 * CATEGORY_SCAN:
+        lines.clear()
     for n, episode in enumerate(episodes):
-        hook = ""
-        if read is not None and n < EXPLORE_ALL_LIMIT and episode.get("key"):
-            try:
-                hook = content_filter.scrub((read(episode["key"]) or "").strip())
-            except Exception:  # noqa: BLE001 - a line is never worth the page
-                hook = ""
+        hook, key = "", episode.get("key") or ""
+        if read is not None and n < EXPLORE_ALL_LIMIT and key:
+            held = lines.get(key)
+            if held is not None and now - held[1] < CATEGORY_MEMO_SECONDS:
+                hook = held[0]
+            else:
+                try:
+                    hook = content_filter.scrub((read(key) or "").strip())
+                except Exception:  # noqa: BLE001 - a line is never worth the page
+                    hook = ""
+                lines[key] = (hook, now)
         episode["hook"] = hook
 
 

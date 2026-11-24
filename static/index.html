@@ -18044,10 +18044,10 @@
     // owner's (11.7 packet).
     if(m.role === "member"){
       showActionSheet([
-        { label: "Add topics to mix", action: openAddTopics },
+        { label: "Add topics to playlist", action: openAddTopics },
         { label: "Edit topics", action: editMixTopics },
-        { label: "Who’s in this mix", action: openMixPeople },
-        { label: "Leave this mix", danger: true, action: leaveMix }
+        { label: "Who’s in this playlist", action: openMixPeople },
+        { label: "Leave this playlist", danger: true, action: leaveMix }
       ]);
       return;
     }
@@ -18055,13 +18055,13 @@
       { label: m.public ? "Make private" : "Make public", action: toggleMixVisibility },
       { label: "Rename", action: renameMix },
       { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
-      { label: "Add topics to mix", action: openAddTopics },
+      { label: "Add topics to playlist", action: openAddTopics },
       { label: "Edit topics", action: editMixTopics },
       { label: "Invite collaborators", action: inviteCollaborators }
     ];
     if(m.joint) rows.push({ label: "Make it yours alone", action: stopJointMix });
-    rows.push({ label: "Share mix", action: shareMix });
-    rows.push({ label: "Delete mix", danger: true, action: deleteMix });
+    rows.push({ label: "Share playlist", action: shareMix });
+    rows.push({ label: "Delete playlist", danger: true, action: deleteMix });
     showActionSheet(rows);
   }
 
