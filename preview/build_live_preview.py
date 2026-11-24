@@ -2457,6 +2457,17 @@ __WRITING_SIM__
                     card: "/api/share/card?share=preview", targets: made });
     }
 
+    // Explore (§688): reference data from the fixtures, as the fixture
+    // preview answers it - a published page writes no episodes to file.
+    if (path === "/api/categories/episodes") {
+      var catPageFixture = JSON.parse(JSON.stringify(
+        FIXTURES["/api/categories/episodes:" + (qs.get("id") || "")]
+        || { episodes: [], subcategories: [] }));
+      catPageFixture.episodes.forEach(function (e) {
+        if (!e.thumb) e.thumb = previewPicture(e.query + " " + (e.title || ""));
+      });
+      return json(catPageFixture);
+    }
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in this build." }, 404);
   }
