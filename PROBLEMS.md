@@ -41102,7 +41102,7 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
 
-## 688. myFAM is Explore | Playlists, from the owner's mock (2026-11-24)
+## 691. myFAM is Explore | Playlists, from the owner's mock (2026-11-24)
 
 **The owner's request:** three frames of the screen that shows "myFAM", and
 "it should look exactly like this. The explore should operate similar to

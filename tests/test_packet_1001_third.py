@@ -68,7 +68,7 @@ def test_dailyfam_suggests_no_mix_names():
 def test_the_new_mix_button_is_the_dashed_row():
     """Superseded twice: the circled (+) became a "Create new mix" pill
     (11.7 packet, §498), and that the dashed "+ New playlist" under the
-    cards (the owner's 11.24 mock, §688)."""
+    cards (the owner's 11.24 mock, §691)."""
     button = INDEX.split('id="newMixBtn"', 1)[1].split("</button>", 1)[0]
     head = INDEX.split('id="newMixBtn"', 1)[0].rsplit("<button", 1)[1]
     assert "pl-create" in head

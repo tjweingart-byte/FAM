@@ -25,7 +25,7 @@ def _section(screen):
 
 def test_the_two_circles_wear_one_ring():
     # The second circle was myFAM's (+), then the "Create new mix" pill
-    # (§498), which is a dashed row under the cards since §688. The circle
+    # (§498), which is a dashed row under the cards since §691. The circle
     # top right of a playlist's page (its sliders) wears the same ring.
     ring = "border:1px solid var(--border-strong)"
     assert ring in _css(".myfam-head-btn") and ring in _css(".pl-tune")
@@ -33,7 +33,7 @@ def test_the_two_circles_wear_one_ring():
 
 def test_myfams_header_is_fixed_like_dailyfams():
     # DailyFAM's bookshelf moved to search (10.12 packet #3); its header
-    # is still fixed. myFAM's (+) is the row under its cards since §688.
+    # is still fixed. myFAM's (+) is the row under its cards since §691.
     for screen in ("myfam", "playfam"):
         page = _section(screen)
         head = page.index('class="myfam-header myfam-header-fixed"')

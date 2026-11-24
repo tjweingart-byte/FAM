@@ -20,7 +20,7 @@ def _fn(name: str) -> str:
 
 def test_a_mix_card_is_the_mocks_row():
     """§544's row (picture, name, arrow) became option A, the stacked deck
-    (§616), and then the row of the owner's 11.24 mock (§688): the picture,
+    (§616), and then the row of the owner's 11.24 mock (§691): the picture,
     the name, the count, the topics and a play button. Both lists draw it."""
     card = _fn("playlistCardHTML")
     for need in ('class="pl-art', 'class="pl-name"', 'class="pl-meta"',
@@ -32,7 +32,7 @@ def test_a_mix_card_is_the_mocks_row():
 
 
 def test_what_the_mock_brought_back_and_what_stays_off():
-    """§688 reverses two of §544's removals because the mock draws them -
+    """§691 reverses two of §544's removals because the mock draws them -
     the briefing count with "daily", and the topics. The rest stay off the
     card: public/private and whose it is are on the playlist's own page."""
     card = _fn("playlistCardHTML")

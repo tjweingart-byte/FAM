@@ -8967,7 +8967,7 @@ def _mix_today(user: str, mix, body: dict, history: list, profile=None,
             affinity = mix_today.affinity(tags, profile, topics_mod.tag_weight)
             signal = (out.get("signal") or {}).get("kind", "")
             written = out.get("episode_title") or ""
-            # The playlist's page marks what was heard today (§688).
+            # The playlist's page marks what was heard today (§691).
             if normalize_query(out.get("prompt") or "") in heard:
                 out["heard_today"] = True
             entries.append(mix_today.Entry(
@@ -9031,7 +9031,7 @@ def _mix_episode_titles(body: dict) -> None:
             title = ""
         if title:
             out["episode_title"] = title
-            # And its one line (§688), for the playlist's row: a new field.
+            # And its one line (§691), for the playlist's row: a new field.
             hook = _today_hook(out.get("prompt") or "", out.get("minutes"))
             if hook:
                 out["episode_hook"] = hook
@@ -11580,7 +11580,7 @@ async def category_episodes(
     `subcategories` are the categories one level down that have something
     today, with how many.
 
-    **Explore** (§688): `id=all` is every category at once (at most
+    **Explore** (§691): `id=all` is every category at once (at most
     `EXPLORE_ALL_LIMIT` rows), and `sort=trending` puts the Trending
     edition's stories first, in the edition's order, then the rest by
     popularity. Every row says whether it is one of them (`trending`) and

@@ -959,11 +959,11 @@ def test_the_tour_has_the_webs_seven_steps_594():
     web = _web_tour()
     swift = _unescape_swift(_swift("Tour.swift"))
     swift = swift[swift.index("static var steps"):swift.index("@Published private(set) var visible")]
-    # **One known difference (§688, PARITY.md "Not started"):** the web's
+    # **One known difference (§691, PARITY.md "Not started"):** the web's
     # myFAM screen is Explore | Playlists and its tour says so; the iPhone
     # still draws Mixes | Categories, and its tour must name the tabs it
     # has. Each side's two myFAM cards are checked here and left out of the
-    # comparison below; when the iPhone builds §688 this block goes.
+    # comparison below; when the iPhone builds §691 this block goes.
     web_myfam = ('      { screen: "playfam", target: "#pfTabCats", kicker: "myFAM",\n'
                  '        title: "Explore",\n'
                  '        body: "Today’s stories, the trending ones first. Pick a subject, play one, or add it to a playlist." },\n'

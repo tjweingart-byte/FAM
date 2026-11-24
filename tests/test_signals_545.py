@@ -236,7 +236,7 @@ def _user(client) -> str:
 
 
 def test_the_card_and_the_mix_draw_r5_and_q5():
-    # The list's card is the mock's row since §688 (option A before it,
+    # The list's card is the mock's row since §691 (option A before it,
     # §616); a signal reaches it as a coloured word and icon after "daily".
     # Q5 is unchanged.
     assert "function playlistCardHTML(m)" in INDEX

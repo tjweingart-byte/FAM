@@ -2457,7 +2457,7 @@ __WRITING_SIM__
                     card: "/api/share/card?share=preview", targets: made });
     }
 
-    // Explore (§688): reference data from the fixtures, as the fixture
+    // Explore (§691): reference data from the fixtures, as the fixture
     // preview answers it - a published page writes no episodes to file.
     if (path === "/api/categories/episodes") {
       var catPageFixture = JSON.parse(JSON.stringify(

@@ -355,7 +355,7 @@ def load_fixtures() -> dict:
         category_pages["/api/categories/episodes:" + tag] = {
             "id": tag, "label": label, "facet": tag, "sort": "popular", "q": "",
             "subcategories": [], "episodes": rows}
-    # Explore's "All" (§688): a couple from every facet, one row a story,
+    # Explore's "All" (§691): a couple from every facet, one row a story,
     # the first few marked as the Trending edition's.
     everything, seen_all = [], set()
     for depth in range(2):
@@ -862,7 +862,7 @@ ROW_PICTURES = {
 }
 
 
-#: Today's episode of some fixture topics (§570, §688): the title and one
+#: Today's episode of some fixture topics (§570, §691): the title and one
 #: line a playlist's row shows once the edition has written it. Invented
 #: for the preview, like every fixture; the rest show the topic alone.
 ROW_EPISODES = {

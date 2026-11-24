@@ -604,7 +604,7 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
-  /* Explore | Playlists (§550, §688): two equal tabs, a copper rule under the one
+  /* Explore | Playlists (§550, §691): two equal tabs, a copper rule under the one
      that is on, as Groups | Messages. Outside the scroller with the
      wordmark, so they stay put. */
   .pf-tabs{ flex:none; display:flex; margin:0 18px 12px; border-bottom:1px solid var(--border);
@@ -618,14 +618,14 @@
   .pf-tabs::after{ content:""; position:absolute; left:0; bottom:-1px; width:50%; height:2.5px;
     background:var(--copper); pointer-events:none;
     transition:transform var(--dur-underline) var(--ease-in-out); }
-  /* Explore ("cats") is the left tab since §688; Playlists the right. */
+  /* Explore ("cats") is the left tab since §691; Playlists the right. */
   .pf-tabs:not(.cats)::after{ transform:translateX(100%); }
   .pf-tabs.pf-still::after{ transition:none; }
   @media (prefers-reduced-motion: reduce){
     .pf-tabs::after, .pf-tab{ transition:none; }
   }
   .pf-tab:active{ opacity:0.7; }
-  /* **Explore's cards** (§688, the owner's 11.24 mock): a story to a card -
+  /* **Explore's cards** (§691, the owner's 11.24 mock): a story to a card -
      picture and category, title, one line, then FAM and Add to playlist. */
   .xp-card{ margin:0 0 12px; padding:14px 14px 15px; background:var(--surface);
     border:1px solid var(--border); border-radius:18px; }
@@ -652,7 +652,7 @@
     min-height:40px; padding:8px 16px; border-radius:20px; background:transparent;
     color:var(--text); border:1px solid var(--border-strong); font-family:'Geist', sans-serif;
     font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
-  /* **A playlist's card** (§688): picture, name, count, topics, play. */
+  /* **A playlist's card** (§691): picture, name, count, topics, play. */
   .pl-card{ display:flex; align-items:center; gap:13px; margin:0 0 11px; padding:13px;
     background:var(--surface); border:1px solid var(--border); border-radius:18px;
     cursor:pointer; position:relative; }
@@ -2428,7 +2428,7 @@
   .nowbar-heart[hidden], .nowbar-next[hidden]{ display:none; }
   .nowbar-heart.saved-on{ color:var(--copper); }
   .nowbar-heart.saved-on svg{ fill:currentColor; }
-  /* ---- The playlist's page (§688, the owner's 11.24 mock) ---- */
+  /* ---- The playlist's page (§691, the owner's 11.24 mock) ---- */
   .pl-head{ flex:1; min-width:0; }
   .pl-wordmark{ margin:0; font-size:25px; text-align:left; justify-content:flex-start; }
   .pl-word{ margin-left:0.28em; font-family:'Bricolage Grotesque', sans-serif; font-weight:600; }
@@ -5390,7 +5390,7 @@
                only one of them that is irreversible is the one that posts to
                your friends. Vibing is still on all three real players, where
                there is room to see what you are vibing. -->
-          <!-- In a playlist (§688, the owner's 11.24 mock) the bar says where
+          <!-- In a playlist (§691, the owner's 11.24 mock) the bar says where
                it has got to ("2 OF 7 · NBA") and carries a heart - Saved for
                Later, the player's own save, never a vibe - and the next
                story. Both are hidden outside one. -->
@@ -5433,7 +5433,7 @@
                control that appears and then vanishes reads as a fault. The
                sign-up buttons `renderMixesLocked` draws are the way in. -->
         </div>
-        <!-- Two tabs under the wordmark (§550; §688, the owner's 11.24
+        <!-- Two tabs under the wordmark (§550; §691, the owner's 11.24
              mock): **Explore** - today's stories, the trending ones first,
              filtered by a row of category chips - and **Playlists**, the
              listener's mixes. Explore is the first tab and the one an
@@ -5450,18 +5450,18 @@
                in place (`#catPanel` in place of `#mixesPane`); there is no
                separate category page. Cached episodes only. -->
           <div class="catchips" id="catChips" role="tablist" aria-label="Categories"></div>
-          <!-- Explore's cards (§688): "All" before a chip is picked - the
+          <!-- Explore's cards (§691): "All" before a chip is picked - the
                Trending edition's stories first, then today's most played -
                and one category's after. -->
           <div id="catPanel"></div>
           <div id="mixesPane" hidden>
           <div id="mixList"></div>
-          <!-- "+ New playlist" (§688): the dashed row under the cards, where
+          <!-- "+ New playlist" (§691): the dashed row under the cards, where
                the "Create new mix" pill under the wordmark was. Hidden until
                `/api/mixes` says there is an account (`showNewMixButton`). -->
           <button class="pl-create" id="newMixBtn" onclick="openNewMix()" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New playlist</button>
           <!-- Other listeners' public playlists, under the listener's own
-               (§688: the mock's list starts at the top). Tapping the bar
+               (§691: the mock's list starts at the top). Tapping the bar
                lists every public one; typing narrows it by name, by a topic
                in it, or by whose it is. Anybody can search and listen;
                adding one to your own myFAM needs an account. -->
@@ -5490,7 +5490,7 @@
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="closeMixPage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <!-- "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§688, the
+          <!-- "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§691, the
                owner's 11.24 mock); the sliders open the playlist's menu, as
                the three dots did. -->
           <div class="pl-head">
@@ -5501,7 +5501,7 @@
         </div>
         <div class="scroll" id="mixBody"></div>
         <!-- The tabs, and so the mini player above them, on a playlist's own
-             page too (§688, the owner's 11.24 mock). -->
+             page too (§691, the owner's 11.24 mock). -->
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
           <div class="tab active" data-tab="playfam" onclick="openPlayFAM('mixes')"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
@@ -9740,7 +9740,7 @@
     next.classList.add("active");
     placeNowBar(next);
     // A playlist's page says where the playlist has got to, however long
-    // another screen was over it (§688 review).
+    // another screen was over it (§691 review).
     if(id === "mixdetail" && typeof refreshMixPlaying === "function") refreshMixPlaying();
     followSurveyInvite(id);
     // How it moves (§292) - after the bar is placed, so a player closing
@@ -12596,11 +12596,11 @@
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
       !!on);
     paintNowBarMix();
-    // The playlist's page follows the transport (§688).
+    // The playlist's page follows the transport (§691).
     if(typeof refreshMixPlaying === "function") refreshMixPlaying();
   }
 
-  // "2 OF 7 · NBA" while a playlist's own episode plays (§688); "" otherwise.
+  // "2 OF 7 · NBA" while a playlist's own episode plays (§691); "" otherwise.
   function nowBarMixLine(){
     if(typeof mixPlay === "undefined" || !mixPlay || !mixPlay.order || mixPlay.key !== currentPlayingTopicKey) return "";
     var item = mixPlay.order[mixPlay.pos] || {};
@@ -16109,7 +16109,7 @@
 
   // `tab`: "mixes" from a flow that is about a playlist (back from one,
   // one just made); otherwise an arrival opens on **Explore**, the first
-  // tab (§688, the owner's 11.24 mock, reversing §550's "every arrival
+  // tab (§691, the owner's 11.24 mock, reversing §550's "every arrival
   // opens on Mixes") - unless the tab's dot says a playlist is new this
   // morning, which is what the tap was for.
   function openPlayFAM(tab){
@@ -16277,7 +16277,7 @@
     return MIX_HUES[h % MIX_HUES.length];
   }
 
-  // **A playlist's card** (§688, the owner's 11.24 mock, after §616's
+  // **A playlist's card** (§691, the owner's 11.24 mock, after §616's
   // stacked deck): one row - today's lead picture (or the playlist's own
   // photo), its name, "7 BRIEFINGS · DAILY", its topics in today's order
   // ("Startups, AI, NBA and 4 more") and a play button that starts it from
@@ -16330,7 +16330,7 @@
       // "+ New playlist" under the cards is the way to make one.
       html += '<div class="mix-empty">No playlists yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
     }
-    // **One row a playlist** (§688, the owner's 11.24 mock, after §616's
+    // **One row a playlist** (§691, the owner's 11.24 mock, after §616's
     // stacked deck and §544's picture-name-arrow row). Making one is the
     // dashed "+ New playlist" under them - one control, in one place.
     html += mixes.map(playlistCardHTML).join("");
@@ -16446,7 +16446,7 @@
       var mine = catData.saved ? catData.mine : [];
       var followed = {};
       mine.forEach(function(c){ followed[c.id] = true; });
-      // "All" is back (§688): Explore before a category is picked, the
+      // "All" is back (§691): Explore before a category is picked, the
       // trending stories first. It is the chip that is on.
       el.innerHTML = '<button type="button" class="catchip on" role="tab" aria-selected="true" data-chip="all"'
         + ' onclick="clearCategory(true)">All</button>'
@@ -16464,7 +16464,7 @@
         }).join("");
   }
   // Which of myFAM's two tabs is on (§550): "categories" - shown as
-  // **Explore**, the first tab (§688) - or "mixes", shown as **Playlists**.
+  // **Explore**, the first tab (§691) - or "mixes", shown as **Playlists**.
   var playfamTab = "categories";
   // `how` (playfam-tabs: B, §642): the event of a tap, which slides the
   // underline and nudges the list toward the side chosen; a key (arrows,
@@ -16559,7 +16559,7 @@
     // Nothing of the category left stays under the All chip.
     var panel = document.getElementById("catPanel");
     if(panel && was) panel.innerHTML = "";
-    // Back to All (§688): Explore is never an empty panel.
+    // Back to All (§691): Explore is never an empty panel.
     if(playfamTab === "categories") loadCategoryEpisodes();
   }
   function isFollowed(id){
@@ -16623,7 +16623,7 @@
     if(catPage.finding) return;
     var req = ++catReq;
     var el = document.getElementById("catPanel");
-    // No category picked is "All" (§688): every category, trending first.
+    // No category picked is "All" (§691): every category, trending first.
     var node = catPage.node;
     var asked = node || "all";
     catPage.episodes = [];
@@ -16672,7 +16672,7 @@
     if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
     return meta.filter(Boolean).join(" · ");
   }
-  // **Explore's cards** (§688, the owner's 11.24 mock): each story is a
+  // **Explore's cards** (§691, the owner's 11.24 mock): each story is a
   // card - its picture small beside its category, its title, its one line,
   // then **FAM** (plays it, replay only, the rest of the page queued after
   // it as a category always did) and **Add to playlist** (the player's own
@@ -16875,7 +16875,7 @@
     if(!prev){ openPlayFAM("mixes"); return; }
     goBack();
     // Back from a playlist is back to the playlists, whichever tab the
-    // screen was last left on (§688 review).
+    // screen was last left on (§691 review).
     if(prev === "playfam"){ showPlayfamTab("mixes"); loadMixes(); }
   }
   // The open mix redrawn where it is - a rename, the cover, a joint mix
@@ -16957,7 +16957,7 @@
     var nBrief = items.length;
     paintMixHead(m);
     // The playlist's own details - cover, name, who is in it, share and
-    // invite - sit under today's stories since §688; the page opens on
+    // invite - sit under today's stories since §691; the page opens on
     // what plays.
     var details = '<div class="mix-hero">'
       + (owner
@@ -16995,7 +16995,7 @@
     var addTopics = editing ? '' : '<button class="mix-add-topics" data-flip="add" onclick="openAddTopics()">'
         + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
         + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to playlist</button>';
-    // Is this the playlist that is playing (§688)? Then the pill says where
+    // Is this the playlist that is playing (§691)? Then the pill says where
     // it has got to and pauses it, and the rows say heard / now / up next.
     var live = mixLive(m);
     var changed = items.filter(function(t){ return t.since; });
@@ -17022,9 +17022,9 @@
         + (items.length === 1 ? " story" : " stories") + '</button>';
     }
     if(items.length && !editing){
-      // **Today's stories, in the order they play** (§688): best first
+      // **Today's stories, in the order they play** (§691): best first
       // (§616), or - while this playlist plays - the order it is playing.
-      // Every topic the playlist holds is on the page (§688 review): one
+      // Every topic the playlist holds is on the page (§691 review): one
       // still being added, or added while it plays, follows the order.
       var order = playlistPageOrder(m, live);
       html += '<div class="pl-rows" id="mixOrder">' + order.map(function(row){
@@ -17117,7 +17117,7 @@
     body.innerHTML = html;
   }
 
-  // ---------------- The playlist page's rows (§688) ----------------
+  // ---------------- The playlist page's rows (§691) ----------------
   var PL_PLAY_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
   var PL_PAUSE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.4"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.4"/></svg>';
   var PL_HEART_SVG = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10-7.5 10z"/></svg>';
@@ -17165,7 +17165,7 @@
     if(item.prompt && item.daily_prompt) daily = item.prompt;
     return daily || item.query || "";
   }
-  // **One story** (§688, the owner's 11.24 mock): its picture with the play
+  // **One story** (§691, the owner's 11.24 mock): its picture with the play
   // (or pause) on it, "UP NEXT · AI" over today's title and its one line,
   // and a heart that keeps it in Saved for Later. One already heard is a
   // single quiet line with a tick; a tap plays it again.
@@ -17210,7 +17210,7 @@
         + ' onclick="event.stopPropagation(); toggleMixRowSave(this.closest(\'.pl-row\').dataset.key)">' + PL_HEART_SVG + '</button>')
       + '</div>';
   }
-  // The hearts (§688): Saved for Later, the pointer the player's save keeps
+  // The hearts (§691): Saved for Later, the pointer the player's save keeps
   // (`save-pointer`) - never a like, and nothing anybody else sees. The
   // shelf is read once when a playlist opens.
   var mixSavedKeys = null;
@@ -17222,7 +17222,7 @@
   // before one never draws over it.
   var mixSavedTouched = 0;
   // The player's own save (the full player's, the mini player's heart)
-  // reaches the row of the same episode (§688 review).
+  // reaches the row of the same episode (§691 review).
   function noteMixSaved(query, minutes, on){
     if(!mixSavedKeys) return;
     var key = mixSaveKey(query, minutes);
@@ -17275,7 +17275,7 @@
       .catch(function(){ set(was); toast(was ? "Could not take that off" : "Could not save that"); })
       .then(function(){ mixRowSaving = false; });
   }
-  // The page follows the player (§688): the pill, the row that is playing
+  // The page follows the player (§691): the pill, the row that is playing
   // and what has been heard are redrawn when the playlist moves on, pauses
   // or ends. Called from the one place the transport is drawn.
   function refreshMixPlaying(){
@@ -17283,7 +17283,7 @@
     if(!screen || !screen.classList.contains("active") || mixEditing) return;
     var m = mixById(currentMixId);
     if(!m) return;
-    // Never under something in hand (§688 review): a field being typed in
+    // Never under something in hand (§691 review): a field being typed in
     // (the listen time) is left alone, and a row still moving is let land.
     var body = document.getElementById("mixBody"), at = document.activeElement;
     if(body && at && body.contains(at) && /^(INPUT|SELECT|TEXTAREA)$/.test(at.tagName)) return;
@@ -28684,7 +28684,7 @@
 
   function setSaved(on){
     savedNow = on;
-    // A playlist's row for this episode carries the same heart (§688).
+    // A playlist's row for this episode carries the same heart (§691).
     if(nowBarState && typeof noteMixSaved === "function") noteMixSaved(nowBarState.query, nowBarState.minutes, on);
     document.querySelectorAll("[data-save]").forEach(function(el){
       el.classList.toggle("saved-on", on);

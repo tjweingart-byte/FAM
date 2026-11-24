@@ -1,4 +1,4 @@
-"""§688: the screen that shows "myFAM" is Explore | Playlists, drawn from
+"""§691: the screen that shows "myFAM" is Explore | Playlists, drawn from
 the owner's 11.24 mock. Explore is the categories tab as cards, the Trending
 edition's stories first; a playlist is a row; a playlist's page is today's
 stories - heard, now playing, up next - with a heart that saves for later."""

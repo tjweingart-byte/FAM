@@ -272,7 +272,7 @@ def test_an_erased_member_leaves_their_topics_under_nobodys_name(tmp_path):
 
 def test_new_playlist_is_one_control_under_the_cards():
     """§498's pill under the wordmark is the dashed "+ New playlist" under
-    the cards since the owner's 11.24 mock (§688): still one control, still
+    the cards since the owner's 11.24 mock (§691): still one control, still
     hidden until `/api/mixes` says there is an account."""
     page = _screen("playfam")
     assert page.index('<div id="mixList">') < page.index('id="newMixBtn"')

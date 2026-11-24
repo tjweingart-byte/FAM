@@ -272,7 +272,7 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("paintCategoryChips")
-    # All (back since §688: Explore before a category is picked), followed,
+    # All (back since §691: Explore before a category is picked), followed,
     # then the facets not followed - each chip once - then More.
     assert draw.index('data-chip="all"') < draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
     assert "CAT_STAR" in _fn("catChipHTML")
@@ -287,13 +287,13 @@ def test_a_chip_filters_the_page_in_place():
     draw = _fn("paintCategoryChips")
     assert "catPage.subs.map(" in draw and "clearCategory(true)" in draw
     load = _fn("loadCategoryEpisodes")
-    # Trending first since §688; `popular` is still what an older client asks.
+    # Trending first since §691; `popular` is still what an older client asks.
     assert "/api/categories/episodes?id=" in load and "&sort=trending" in load
     assert "catPage.subs = d.subcategories" in load
 
 
 def test_the_panel_is_play_all_follow_and_cards():
-    # The hero picture went with §688: every story is a card with its own.
+    # The hero picture went with §691: every story is a card with its own.
     panel = _fn("drawCategoryPanel")
     assert "catp-hero" not in HTML
     assert "playCategoryAll()" in panel and "toggleFollowCategory()" in panel
@@ -331,7 +331,7 @@ def test_no_category_opens_a_reel():
 
 def test_arriving_on_the_screen_forgets_the_open_category():
     # The review's point stands - a category left open never greets an
-    # arrival - but the tab it opens on is Explore's All since §688.
+    # arrival - but the tab it opens on is Explore's All since §691.
     body = HTML.split("function openPlayFAM(", 1)[1].split("\n  }\n", 1)[0]
     assert "if(catPage.root || catPage.finding){" in body
     assert body.index("catPage = { root: \"\"") < body.index("showPlayfamTab(") < body.index("loadMixes()")

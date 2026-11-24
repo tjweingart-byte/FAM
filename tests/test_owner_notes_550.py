@@ -84,7 +84,7 @@ def test_anything_else_starting_drops_what_was_held():
 
 def test_the_screen_is_two_tabs_under_the_wordmark():
     """§550's two tabs, renamed and turned round by the owner's 11.24 mock
-    (§688): Explore (the categories) first, then Playlists (the mixes)."""
+    (§691): Explore (the categories) first, then Playlists (the mixes)."""
     screen = INDEX.split('id="screen-playfam"', 1)[1].split("</section>", 1)[0]
     tabs = re.findall(r'class="pf-tab[^"]*" id="(\w+)"[^>]*>(\w+)</button>', screen)
     assert tabs == [("pfTabCats", "Explore"), ("pfTabMixes", "Playlists")]
@@ -102,7 +102,7 @@ def test_each_tab_shows_its_own_half():
 
 
 def test_explore_lists_followed_then_the_rest_as_chips():
-    """§550's landing list of category rows went with §688: before a chip
+    """§550's landing list of category rows went with §691: before a chip
     is picked the tab shows All's stories. The order it kept is the chips'."""
     chips = _fn("paintCategoryChips")
     assert chips.index("mine.map(") < chips.index("!followed[f.id]")

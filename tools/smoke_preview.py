@@ -3865,7 +3865,7 @@ def main() -> int:
                 "#mixBody .pl-rows > .pl-row .pl-row-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL · Eagles"], rows
-            # The date is in the header since §688: "NAME · NOV 24 · 1 STORY".
+            # The date is in the header since §691: "NAME · NOV 24 · 1 STORY".
             assert re.search(r"· \w{3} \d{1,2} · 1 story", page.inner_text("#screen-mixdetail .pl-head-sub"), re.I), \
                 "the edition is not dated"
 
@@ -5035,7 +5035,7 @@ def main() -> int:
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
         def category_chips_filter_the_page_in_place():
-            """§688, the owner's 11.24 mock, over the 11.3 packet's chips:
+            """§691, the owner's 11.24 mock, over the 11.3 packet's chips:
             the screen that shows "myFAM" opens on Explore - All on, cards
             with FAM and Add to playlist; a chip shows that category as the
             same cards under Play all; the X goes back to All; Playlists
@@ -5078,7 +5078,7 @@ def main() -> int:
             assert page.eval_on_selector("#catPanel", "e => e.hidden")
 
         def a_playlists_page_follows_what_plays():
-            """§688: a playlist's card is a row with a play button; its page
+            """§691: a playlist's card is a row with a play button; its page
             says "myFAM Playlist", and while it plays the pill says where it
             has got to and the rows read heard, now playing, up next."""
             ensure_account()
@@ -5110,7 +5110,7 @@ def main() -> int:
                 assert " 2 of " in state["pill"], f"the pill reads {state['pill']!r}"
                 assert state["rows"][:2] == ["heard", "now"] and set(state["rows"][2:]) <= {"next"}, \
                     f"the rows read {state['rows']}"
-            # A playlist's own cover photo (§688): the page still offers
+            # A playlist's own cover photo (§691): the page still offers
             # it - the picture under the stories and the sliders' menu - and
             # the photo chosen is the one its card draws.
             assert page.eval_on_selector("#mixBody button.mix-hero-art",
