@@ -3990,7 +3990,7 @@ def main() -> int:
             labels = page.eval_on_selector_all(
                 "#sheetCard .sheet-item", "els => els.map(e => e.textContent)")
             assert "Share playlist" in labels, labels
-            page.click("#sheetCard .sheet-item:text-is('Share mix')")
+            page.click("#sheetCard .sheet-item:text-is('Share playlist')")
             page.wait_for_timeout(300)
             confirm = page.query_selector("#sheetOverlay.active .sheet-item:text-is('Make public and share')")
             if confirm:
