@@ -436,7 +436,10 @@
      it used to go charcoal in either theme, which the owner found too much.
      `#screen-home.private-search` is still set, as the state other code and
      the smoke run read; it paints nothing. */
-  .search-bubble.private-bubble{ flex:none; width:44px; padding:0; }
+  /* The lock carries its word (the owner, 11.24, §690: "add the word
+     Private on the lock too", reversing §637's bare lock). Its own width,
+     never squeezed: Length and Voice share what is left. */
+  .search-bubble.private-bubble{ flex:none; padding:0 15px; gap:7px; white-space:nowrap; }
   .private-bubble .lock-shut{ display:none; }
   .private-bubble[aria-pressed="true"] .lock-open{ display:none; }
   .private-bubble[aria-pressed="true"] .lock-shut{ display:block; }
@@ -3100,6 +3103,13 @@
     padding:14px 22px 6px; font-family:'Geist Mono', monospace; font-size:9.5px;
     letter-spacing:0.12em; text-transform:uppercase; color:var(--text-faint);
   }
+  /* What a control does, said before it is turned on (Private search's
+     first tap, 11.24 packet, §690). */
+  .sheet-explain{ padding:6px 22px 10px; }
+  .sheet-explain-title{ font-family:'Bricolage Grotesque', sans-serif; font-size:18px; font-weight:500;
+    color:var(--text); }
+  .sheet-explain p{ margin:6px 0 0; font-size:13.5px; line-height:1.45; color:var(--text-muted); }
+  .sheet-explain ul{ margin:8px 0 0; padding:0 0 0 18px; font-size:13.5px; line-height:1.5; color:var(--text); }
   .sheet-item{ padding:14px 22px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer; }
   .sheet-item.danger{ color:var(--coral); }
   .sheet-item:active{ background:var(--surface-2); }
@@ -5316,8 +5326,10 @@
             <!-- Private search (10.15 packet, §282): Google's incognito, left
                  on until turned off (§285), Go Deeper included. In no episode library, on no friend's DailyFAM,
                  in nobody's history. A lock and nothing more (11.16 notes):
-                 open while off, closed while on; the page keeps its colours. -->
-            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="setPrivateSearch(!privateSearch)" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
+                 open while off, closed while on; the page keeps its colours.
+                 The first tap on a device says what it does before it turns
+                 anything on (11.24 packet, §690). -->
+            <button type="button" class="search-bubble private-bubble" id="privateBubble" aria-pressed="false" onclick="tapPrivateLock()" aria-label="Private search" title="Private search"><svg class="lock-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg><svg class="lock-shut" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Private</button>
           </div>
           <!-- Trending searches (10.1 #3, §190): the most searched questions
                of the last two hours, in order, each one an episode already
@@ -5596,9 +5608,10 @@
           <!-- Minimises, never stops (§142): the episode carries on in the
                mini player, whose button still pauses it and whose tap brings
                this screen back exactly where it is. -->
-          <!-- The Home logo, DailyFAM's own tab glyph (10.12 packet #1), where
-               the down arrow was; it still only minimises the player. -->
-          <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Minimise the player"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></button>
+          <!-- The app's own back arrow, the double chevron (11.24 packet #1,
+               §690), where the Home logo was (10.12 packet #1) and the down
+               arrow before it; it still only minimises the player. -->
+          <button type="button" class="p-down" id="playerDown" onclick="minimizePlayer()" aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 6l-6 6 6 6M10 6l-6 6 6 6"/></svg></button>
           <!-- GO DEEPER at the top, where "Now playing" was (10.2 packet):
                the one invitation on the player to keep going, and nothing
                says "now playing" - the player is what is playing. -->
@@ -10213,6 +10226,35 @@
       refreshSettingsIfOpen();
     }
     toast(privateSearch ? "Private search on \u00b7 kept out of history and feeds" : "Private search off");
+  }
+  // **The lock says what it is before it is first turned on** (the owner's
+  // 11.24 packet, §690: "We know what it means, but someone who doesn't
+  // might not know"). The button is a lock and its word; the first
+  // time it is tapped on this device a sheet says in plain words what
+  // closing it does, and turns it on only on a yes. After that the lock is
+  // one tap either way, and turning it off never asks.
+  var PRIVATE_EXPLAINED_KEY = "fam.privateExplained";
+  var PRIVATE_EXPLAIN_LINES = [
+    "It isn\u2019t saved to your history",
+    "Friends and other listeners never see it",
+    "It doesn\u2019t change what FAM recommends to you"
+  ];
+  function privateExplained(){
+    try { return localStorage.getItem(PRIVATE_EXPLAINED_KEY) === "1"; } catch(e){ return false; }
+  }
+  function tapPrivateLock(){
+    if(privateSearch || privateExplained()){ setPrivateSearch(!privateSearch); return; }
+    showActionSheet([
+      { head: '<div class="sheet-explain" id="privateExplain">'
+          + '<div class="sheet-explain-title">Private search</div>'
+          + '<p>Keep a search to yourself. While the lock is closed, anything you search or Go Deeper on:</p>'
+          + '<ul>' + PRIVATE_EXPLAIN_LINES.map(function(l){ return '<li>' + l + '</li>'; }).join('') + '</ul>'
+          + '<p>It stays on until you tap the lock again.</p></div>' },
+      { label: "Turn on Private search", action: function(){
+          try { localStorage.setItem(PRIVATE_EXPLAINED_KEY, "1"); } catch(e){}
+          setPrivateSearch(true);
+        } }
+    ]);
   }
   // Drawing only: what the page shows for the switch, with nothing saved.
   function paintPrivateSearch(on, tapped){

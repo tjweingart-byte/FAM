@@ -48,7 +48,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   and briefs for likely taps. Cached episodes keep audio; idle
   always-on workers voice edition scripts ahead, listener first. [decouple-script-audio]
 - Matching happens at write time too: `CACHE_VECTOR` embeds once at store,
-  **on by default** (§107; `=0` restores the old cache). [match-at-write-time]
+  **on by default** (§107; `=0` restores the old cache); an edition's
+  prompt matches only itself (§690). [match-at-write-time]
 - **Latency is answered by starting earlier, never by filling the gap**; nor
   does motion fill one. [latency-start-earlier] [motion]
 - **Trending searches**: under the search bubbles, the five questions most
@@ -57,8 +58,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   takes the mic's slot while typing, §643);
   Length (1-5 min, §219) and Voice bubbles never print the choice; back to 1.5 on
   every return to the app; **Private** is a lock. [search-bar]
-- **Private search**: a lock; on till off (bubble=Settings)
-  search, Go Deeper; no play, history, author. [private-search]
+- **Private search**: a lock+word; on till off (bubble=Settings)
+  search, Go Deeper; no play, history, author; 1st tap explains. [private-search]
 - Searches (Go Deeper too) corrected at send, titles never misspell, EI
   fixes typos [autocorrect-at-send]
 - The from-knowledge cover half on search is deleted; search's wait is
@@ -83,7 +84,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   the episode's topic to a mix. [interface-181]
 - **Tour** once per account, Skip on any card [tour]
 
-- **The player is Spotify's layout**: Home logo, picture (4:3, §192;
+- **The player is Spotify's layout**: back « (§690), picture (4:3, §192;
   centred between GO DEEPER and the title; `pick_for_player` borrows (tiles
   §214), by category §247, named team first §282, never hashed, several per broad node §507; mini player cropped §193), sources by it, GO
   DEEPER pill at the top, share/vibe/save on the right, CC pill,

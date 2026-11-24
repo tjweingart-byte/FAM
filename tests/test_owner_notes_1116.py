@@ -67,7 +67,9 @@ def test_friends_is_two_tabs():
 def test_private_search_is_a_lock_and_the_page_keeps_its_colours():
     bubble = re.search(r'<button[^>]*id="privateBubble".*?</button>', INDEX, re.S).group(0)
     assert 'class="lock-open"' in bubble and 'class="lock-shut"' in bubble
-    assert ">Private<" not in bubble
+    # The word came back at the owner's direction on 11.24 (§690): "add the
+    # word Private on the lock too". The page still keeps its colours.
+    assert bubble.endswith("</svg>Private</button>")
     assert "dimDown" not in INDEX
     assert 'id="privateNote"' not in INDEX
     assert "#0F0E12" not in INDEX      # the charcoal ground
