@@ -174,8 +174,9 @@ def _interface() -> str:
 def test_the_last_tab_is_yourfam_on_every_tab_bar():
     page = _interface()
     # Six since §181: Messages became a tab with a bar of its own. Five
-    # since the 11.3 packet, when exploreFAM's reel and its bar went.
-    assert page.count('<div class="lbl">yourFAM</div>') == page.count('<div class="tabbar">') == 5
+    # since the 11.3 packet, when exploreFAM's reel and its bar went. Six
+    # again since §691: a playlist's own page carries the tabs.
+    assert page.count('<div class="lbl">yourFAM</div>') == page.count('<div class="tabbar">') == 6
     assert '<div class="lbl">Profile</div>' not in page
 
 

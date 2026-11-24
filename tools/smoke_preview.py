@@ -1805,7 +1805,7 @@ def main() -> int:
         def the_account_gate_reads_as_a_choice():
             """Skipping the account step has to look like a decision, not a
             broken screen - and it has to offer the way out of itself."""
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             # After the load settles, not with it: loadMixes writes the same
             # element asynchronously and would paint over this.
             page.wait_for_timeout(1200)
@@ -1989,9 +1989,9 @@ def main() -> int:
 
         def dailyfam():
             ensure_account()
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
-            assert page.eval_on_selector_all("#mixList .mix-a", "e => e.length") >= 1
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
+            assert page.eval_on_selector_all("#mixList .pl-card", "e => e.length") >= 1
 
         def a_playlist_plays_through_and_then_stops():
             """§134. "Play all" used to play the first episode and stop, and
@@ -2005,8 +2005,8 @@ def main() -> int:
             episode's length is not what is being checked.
             """
             ensure_account()
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             name, count = page.evaluate(
@@ -2062,8 +2062,8 @@ def main() -> int:
             the failure and plays the next one; two failures in a row end it.
             """
             ensure_account()
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             count = page.evaluate("() => mixById(currentMixId).items.length")
@@ -2110,7 +2110,7 @@ def main() -> int:
             and this one took two screens to say so. The sign-up buttons the
             locked note already draws are the way in.
             """
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             page.wait_for_timeout(1200)
             assert page.eval_on_selector("#newMixBtn", "e => !e.hidden"), \
                 "the new-mix + is hidden from a listener who has an account"
@@ -2150,7 +2150,7 @@ def main() -> int:
                     topicBank = [];
                 }""")
             try:
-                page.evaluate("openPlayFAM()")
+                page.evaluate("openPlayFAM('mixes')")
                 page.wait_for_timeout(1000)
                 assert page.query_selector("#screen-playfam .locked-note"), \
                     "the stubbed 401 did not reach the locked branch"
@@ -2164,7 +2164,7 @@ def main() -> int:
                 # serialise, and the failure it raises names fetch, so it
                 # reads exactly like the thing this check is testing.
                 page.evaluate("() => { window.fetch = window.__realFetch; }")
-                page.evaluate("openPlayFAM()")
+                page.evaluate("openPlayFAM('mixes')")
                 page.wait_for_timeout(1000)
 
         def the_search_page_picks_its_voice_from_the_bank():
@@ -2681,18 +2681,15 @@ def main() -> int:
             page.evaluate("Tour.on() && Tour.skip(); stopSpeech(); clearGenOverlay();"
                           " document.querySelectorAll('.modal-overlay.active, .sheet-overlay.active')"
                           ".forEach(function(e){ e.classList.remove('active'); })")
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a[data-mix]", timeout=10000)
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card[data-mix]", timeout=10000)
             page.wait_for_timeout(600)
             assert page.evaluate("Motion.DUR.glide") == 300 and page.evaluate("Motion.DUR.knob") == 220
             # Tabs: one underline, slid; the old list leaves as a copy.
             page.click("#pfTabCats")
             moved = page.evaluate("""() => ({ cats: document.querySelector('#screen-playfam .pf-tabs').classList.contains('cats'),
-                copy: document.querySelectorAll('.motion-panel').length,
-                row: getComputedStyle(document.getElementById('newMixRow')).visibility,
-                h: document.getElementById('newMixRow').offsetHeight })""")
+                copy: document.querySelectorAll('.motion-panel').length })""")
             assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
-            assert moved["row"] == "hidden", f"the Create row was taken out of the page: {moved}"
             page.wait_for_timeout(500)
             assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
             # A chip: the X comes at once, the chip is the same element.
@@ -2707,22 +2704,15 @@ def main() -> int:
             page.wait_for_timeout(500)
             # Cards not seen are dealt; a card whose stack changed reshuffles.
             dealt = page.evaluate("""() => { mixCardsSeen = {}; document.getElementById('mixList')._drawn = null;
-                renderMixList(); return Array.prototype.filter.call(document.querySelectorAll('#mixList .mix-a[data-mix]'),
+                renderMixList(); return Array.prototype.filter.call(document.querySelectorAll('#mixList .pl-card[data-mix]'),
                   function(c){ return c.getAnimations().length; }).length; }""")
             assert dealt >= 1, "no mix card was dealt on first sight"
             page.wait_for_timeout(700)
             again = page.evaluate("""() => { renderMixList(); document.getElementById('mixList')._drawn = null; renderMixList();
-                return document.querySelectorAll('#mixList .mix-a[data-mix]')[0].getAnimations().length; }""")
+                return document.querySelectorAll('#mixList .pl-card[data-mix]')[0].getAnimations().length; }""")
             assert again == 0, "a card seen before was dealt again"
-            shuffled = page.evaluate("""() => { var m = mixes.filter(function(x){ return (x.cover_tiles || []).length > 1; })[0];
-                if(!m) return -1; m.cover_tiles = m.cover_tiles.slice(1).concat(m.cover_tiles.slice(0, 1));
-                renderMixList(); var card = document.querySelector('#mixList [data-mix="' + m.id + '"]');
-                return Array.prototype.reduce.call(card.querySelectorAll('.mix-a-tile'),
-                  function(n, t){ return n + t.getAnimations().length; }, 0); }""")
-            assert shuffled != 0, "a card whose lead changed did not reshuffle"
-            page.wait_for_timeout(700)
             # Inside a mix: the switch changes on the tap, in place.
-            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.evaluate("document.querySelector('#mixList .pl-card[data-mix]').click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.wait_for_timeout(500)
             if page.query_selector("#mixBody .mix-vis"):
@@ -2771,7 +2761,7 @@ def main() -> int:
             page.wait_for_timeout(500)
             assert page.evaluate("document.getElementById('screen-playfam').classList.contains('active')")
             # The glide: its pill and lit card by transform, never width.
-            page.evaluate("document.querySelector('#mixList .mix-a[data-mix]').click()")
+            page.evaluate("document.querySelector('#mixList .pl-card[data-mix]').click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.wait_for_timeout(400)
             if page.evaluate("(mixById(currentMixId).items || []).length") > 1:
@@ -2918,7 +2908,10 @@ def main() -> int:
             assert sent["got"] == sent["seen"], f"Go Deeper sent a line nobody read: {sent}"
             page.evaluate("closeGoDeeper(); delete TOPICS['__gd']; currentPlayingTopicKey = null;")
             page.wait_for_timeout(400)
-            # The lock swaps on the icon spring, on the tap.
+            # The lock swaps on the icon spring, on the tap (one already
+            # explained on this device: the first tap's sheet is §690's own
+            # check below).
+            page.evaluate("localStorage.setItem('fam.privateExplained', '1')")
             was = page.evaluate("privateSearch")
             swapped = page.evaluate("""() => { document.getElementById('privateBubble').click();
                 return document.querySelectorAll('.motion-icon').length; }""")
@@ -3786,9 +3779,9 @@ def main() -> int:
 
             **A long prompt is never shown whole** (the owner's "most important
             thing"): it goes in under a short name."""
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
-            page.evaluate("document.querySelectorAll('#mixList .mix-a')[0].click()")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
+            page.evaluate("document.querySelectorAll('#mixList .pl-card')[0].click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.click("#mixBody .mix-add-topics")
             page.wait_for_selector("#screen-addtopics.active .mix-topic",
@@ -3816,7 +3809,7 @@ def main() -> int:
             page.click("#screen-addtopics .back")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             rows = page.eval_on_selector_all(
-                "#mixBody .mix-list .mix-topic-title", "els => els.map(e => e.textContent)")
+                "#mixBody .pl-rows .pl-row-title", "els => els.map(e => e.textContent)")
             assert "Daily positive story" in rows and typed not in rows, rows
 
         def a_new_mix_follows_narrowed_subjects():
@@ -3827,10 +3820,10 @@ def main() -> int:
 
             Every step is a screen the listener meets, so every step is
             asserted on the screen rather than in a variable alone."""
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
-            assert page.is_visible("#newMixBtn"), "no Create new mix pill"
-            assert "Create new mix" in page.inner_text("#newMixBtn")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
+            assert page.is_visible("#newMixBtn"), "no New playlist row"
+            assert "New playlist" in page.inner_text("#newMixBtn")
             page.click("#newMixBtn")
             page.wait_for_selector("#screen-newmix.active", timeout=5000)
             assert "Step" not in page.inner_text("#screen-newmix"), \
@@ -3851,8 +3844,8 @@ def main() -> int:
                 "Create did not make the mix"
             assert page.text_content("#mixTitle").strip() == name
             body = page.inner_text("#mixBody")
-            assert "Add topics to mix" in body and "Change" in body, body[:300]
-            assert "Nothing in this mix yet" in body, body[:300]
+            assert "Add topics to playlist" in body and "Change" in body, body[:300]
+            assert "Nothing in this playlist yet" in body, body[:300]
 
             # Add topics: search reaches into the specifics - people think in
             # teams - and the (+) saves at once.
@@ -3872,10 +3865,11 @@ def main() -> int:
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.wait_for_timeout(300)
             rows = page.eval_on_selector_all(
-                "#mixBody .mix-list > .mix-topic .mix-topic-title",
+                "#mixBody .pl-rows > .pl-row .pl-row-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL · Eagles"], rows
-            assert "edition ·" in page.inner_text("#mixBody").lower(), \
+            # The date is in the header since §691: "NAME · NOV 24 · 1 STORY".
+            assert re.search(r"· \w{3} \d{1,2} · 1 story", page.inner_text("#screen-mixdetail .pl-head-sub"), re.I), \
                 "the edition is not dated"
 
             # Recommendations: five subjects, one tap adds, shuffled.
@@ -3908,7 +3902,7 @@ def main() -> int:
             assert "Cover only Eagles, not NFL in general" in text, text
             assert str(time.localtime().tm_year) in text and "{date}" not in text, text
             assert title.endswith("today") and bank == "", (title, bank)
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             page.wait_for_timeout(300)
 
         def dailyfam_searches_other_peoples_mixes():
@@ -3919,7 +3913,7 @@ def main() -> int:
             The live build's database has one listener in it, so there is
             nobody else's mix to find - there the check is that the bar opens
             and says so rather than showing a blank."""
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             page.wait_for_selector("#screen-playfam.active", timeout=5000)
             page.click("#dailySearch")
             page.wait_for_timeout(600)
@@ -3954,7 +3948,7 @@ def main() -> int:
             page.evaluate("showPersonShelf('mixes')")
             page.wait_for_selector("#screen-person.active .yf-pic-wrap .mix-add",
                                    timeout=5000, state="attached")
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             page.wait_for_timeout(300)
 
         def an_added_mix_is_removed_by_the_same_button():
@@ -3962,7 +3956,7 @@ def main() -> int:
             your myFAM?" and on yes takes the copy back out. Runs after
             the add above; with nobody else's mix to find there is nothing
             to remove."""
-            page.evaluate("openPlayFAM()")
+            page.evaluate("openPlayFAM('mixes')")
             page.wait_for_selector("#screen-playfam.active", timeout=5000)
             page.click("#dailySearch")
             page.wait_for_timeout(600)
@@ -3990,16 +3984,16 @@ def main() -> int:
             episode does - people and every destination - worded for a mix.
             A private mix asks before it goes public, since the link opens it
             for whoever follows it."""
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             page.evaluate("openMix(mixes[0].id)")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
             page.evaluate("openMixMenu()")
             page.wait_for_timeout(200)
             labels = page.eval_on_selector_all(
                 "#sheetCard .sheet-item", "els => els.map(e => e.textContent)")
-            assert "Share mix" in labels, labels
-            page.click("#sheetCard .sheet-item:text-is('Share mix')")
+            assert "Share playlist" in labels, labels
+            page.click("#sheetCard .sheet-item:text-is('Share playlist')")
             page.wait_for_timeout(300)
             confirm = page.query_selector("#sheetOverlay.active .sheet-item:text-is('Make public and share')")
             if confirm:
@@ -4487,10 +4481,10 @@ def main() -> int:
 
             The switch means **public** (at the owner's direction): on is
             Public with an open lock, off is Private with a closed one."""
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             page.wait_for_timeout(400)
-            page.evaluate("document.querySelectorAll('#mixList .mix-a')[0].click()")
+            page.evaluate("document.querySelectorAll('#mixList .pl-card')[0].click()")
             page.wait_for_timeout(500)
             switch = page.query_selector(".mix-vis .mix-switch")
             assert switch, "no public/private switch inside a mix"
@@ -4803,8 +4797,8 @@ def main() -> int:
             page.evaluate("""id => { myFamTopics[id].friendKeys = []; myFamTopics[id].friends_listened = 0;
                                      stopSpeech(); clearGenOverlay(); }""", plain)
 
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             page.evaluate("() => openMix(mixes[0].id)")
             page.wait_for_timeout(400)
             count = page.evaluate("() => mixById(currentMixId).items.length")
@@ -5044,43 +5038,106 @@ def main() -> int:
             assert leftovers == 0, f"{leftovers} old per-screen overlay(s) survive"
 
         def category_chips_filter_the_page_in_place():
-            """The 11.3 packet, option 2, under §550's tabs: the screen that
-            shows "myFAM" opens on Mixes; Categories lists them with a chip
-            row; a chip shows that category - a picture, Play all, the rest -
-            the X goes back to the list, and Mixes brings the mixes back."""
+            """§691, the owner's 11.24 mock, over the 11.3 packet's chips:
+            the screen that shows "myFAM" opens on Explore - All on, cards
+            with FAM and Add to playlist; a chip shows that category as the
+            same cards under Play all; the X goes back to All; Playlists
+            brings the playlists back."""
             page.evaluate("openPlayFAM()")
-            assert page.is_visible("#pfTabMixes.on"), "myFAM did not open on Mixes"
-            assert page.eval_on_selector("#catChips", "e => e.hidden"), \
-                "the category chips showed over the mixes"
-            page.click("#pfTabCats")
-            page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
-            page.wait_for_selector("#catHome:not([hidden]) .cath-row", timeout=5000)
+            assert page.is_visible("#pfTabCats.on"), "myFAM did not open on Explore"
+            assert page.inner_text("#pfTabCats") == "Explore" and page.inner_text("#pfTabMixes") == "Playlists"
             assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
-                "the mixes stayed under Categories"
+                "the playlists showed under Explore"
+            page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            assert "All" not in chips and chips[-1] == "More", f"the chip row reads {chips}"
+            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            assert page.query_selector("#catChips .catchip.on[data-chip=all]"), "All is not the chip that is on"
+            page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
+            card = page.eval_on_selector("#catPanel .xp-card", """e => ({
+                title: !!e.querySelector('.xp-title').textContent.trim(),
+                kick: !!e.querySelector('.xp-kick').textContent.trim(),
+                play: !!e.querySelector('.xp-play'),
+                add: e.querySelector('.xp-add').textContent.trim() })""")
+            assert card["title"] and card["kick"] and card["play"] and card["add"] == "Add to playlist", \
+                f"an Explore card is missing a part: {card}"
             target = page.eval_on_selector(
                 "#catChips .catchip[data-cat]:not([data-cat=''])",
                 "e => e.getAttribute('data-cat')")
             page.click(f'#catChips .catchip[data-cat="{target}"]')
-            page.wait_for_selector("#catPanel:not([hidden]) .catp-hero, #catPanel:not([hidden]) .sv-empty",
+            page.wait_for_selector("#catPanel:not([hidden]) .catp-play, #catPanel:not([hidden]) .sv-empty",
                                    timeout=5000)
-            assert page.eval_on_selector("#mixesPane", "e => e.hidden"), \
-                "the mixes stayed under the category"
-            assert page.query_selector("#catChips .catchip-x"), "no way back to the categories"
-            if page.query_selector("#catPanel .catp-hero"):
-                assert page.query_selector("#catPanel .catp-play"), "no Play all"
+            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            if page.query_selector("#catPanel .catp-play"):
+                assert page.query_selector("#catPanel .xp-card"), "the category has Play all and no cards"
             page.click("#catChips .catchip-x")
-            page.wait_for_timeout(200)
-            assert page.eval_on_selector("#catPanel", "e => e.hidden"), \
-                "the X left the category showing"
-            assert not page.eval_on_selector("#catHome", "e => e.hidden"), \
-                "the X did not go back to the categories"
+            page.wait_for_selector("#catChips .catchip.on[data-chip=all]", timeout=3000)
+            page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
+            assert not page.query_selector("#catPanel .catp-play"), "the X left the category showing"
             page.click("#pfTabMixes")
-            page.wait_for_timeout(200)
+            page.wait_for_timeout(300)
             assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
             assert page.eval_on_selector("#catChips", "e => e.hidden")
+            assert page.eval_on_selector("#catPanel", "e => e.hidden")
+
+        def a_playlists_page_follows_what_plays():
+            """§691: a playlist's card is a row with a play button; its page
+            says "myFAM Playlist", and while it plays the pill says where it
+            has got to and the rows read heard, now playing, up next."""
+            ensure_account()
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card[data-mix]", timeout=10000)
+            card = page.eval_on_selector("#mixList .pl-card", """e => ({
+                meta: e.querySelector('.pl-meta').textContent.toLowerCase(),
+                topics: e.querySelector('.pl-topics').textContent.trim(),
+                play: !!e.querySelector('.pl-play') })""")
+            assert "briefing" in card["meta"] and "daily" in card["meta"] and card["topics"] and card["play"], \
+                f"a playlist's card is missing a part: {card}"
+            page.evaluate("document.querySelector('#mixList .pl-card[data-mix]').click()")
+            page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
+            assert "STOR" in page.inner_text("#screen-mixdetail .pl-head-sub").upper()
+            assert page.inner_text("#mixBody .pl-pill").startswith(("Play ", "Start with")), \
+                "the pill does not offer to play the playlist"
+            assert page.query_selector("#mixBody .pl-row .pl-heart"), "a story has no heart"
+            assert not page.query_selector("#mixBody .mix-drag"), "the drag handle is outside Edit topics"
+            state = page.evaluate("""() => { var m = mixById(currentMixId), order = todayOrder(m);
+                if(order.length < 2) return null;
+                mixPlay = { name: m.name, id: m.id, order: order, pos: 1, key: "smoke_mix" };
+                refreshMixPlaying();
+                var out = { pill: document.querySelector('#mixBody .pl-pill').textContent.trim(),
+                  rows: Array.prototype.map.call(document.querySelectorAll('#mixBody .pl-row'),
+                    function(r){ return r.classList.contains('heard') ? 'heard' : r.classList.contains('now') ? 'now' : 'next'; }) };
+                mixPlay = null; refreshMixPlaying();
+                return out; }""")
+            if state:
+                assert " 2 of " in state["pill"], f"the pill reads {state['pill']!r}"
+                assert state["rows"][:2] == ["heard", "now"] and set(state["rows"][2:]) <= {"next"}, \
+                    f"the rows read {state['rows']}"
+            # A playlist's own cover photo (§691): the page still offers
+            # it - the picture under the stories and the sliders' menu - and
+            # the photo chosen is the one its card draws.
+            assert page.eval_on_selector("#mixBody button.mix-hero-art",
+                                         "e => /coverTapped/.test(e.getAttribute('onclick'))"), \
+                "the playlist's picture no longer opens the cover chooser"
+            page.click("#screen-mixdetail .pl-tune")
+            page.wait_for_selector("#sheetOverlay.active", timeout=3000)
+            labels = page.eval_on_selector_all("#sheetCard .sheet-item", "e => e.map(x => x.textContent.trim())")
+            assert any("cover" in x.lower() for x in labels), f"the menu has no cover row: {labels}"
+            page.evaluate("document.getElementById('sheetOverlay').classList.remove('active')")
+            dot = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4"
+                   "2mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+            mid = page.evaluate("currentMixId")
+            page.evaluate("([id, d]) => applyCover(id, d)", [mid, dot])
+            page.wait_for_timeout(600)
+            assert page.evaluate("mixById(currentMixId).cover") == dot, "the cover was not kept"
+            assert page.query_selector("#mixBody .mix-hero-art.has-cover"), "the page does not draw the cover"
+            page.evaluate("closeMixPage()")
+            page.wait_for_timeout(700)
+            art = page.evaluate("""id => { var c = document.querySelector('#mixList .pl-card[data-mix="' + id + '"] .pl-art');
+                return c ? c.style.backgroundImage : ''; }""", mid)
+            assert "iVBORw0KGgo" in art, f"the card does not draw the playlist's own cover: {art[:60]}"
+            page.evaluate("id => applyCover(id, '')", mid)
+            page.wait_for_timeout(500)
 
         def not_interested_takes_a_tile_off_the_page():
             """The 11.3 packet #2: a tile's three dots end in Not interested,
@@ -5426,6 +5483,7 @@ def main() -> int:
         check("The interests list is alphabetical", the_interests_list_is_alphabetical)
         check("Not interested takes a tile off the page", not_interested_takes_a_tile_off_the_page)
         check("Category chips filter the page in place", category_chips_filter_the_page_in_place)
+        check("A playlist's page follows what plays", a_playlists_page_follows_what_plays)
         check("Messages opens and closes", messages_sheet)
         check("YourFAM renders identity, friends, messages and shelf", profile)
         check("The player's X minimises into the mini bar",
@@ -5644,11 +5702,34 @@ def main() -> int:
             page.wait_for_timeout(300)
             ground = "getComputedStyle(document.getElementById('screen-home')).backgroundColor"
             before = page.evaluate(ground)
+            # The first tap on a device says what the lock does and turns
+            # nothing on (11.24 packet, §690); its own row turns it on.
+            page.evaluate("localStorage.removeItem('fam.privateExplained')")
             page.click("#privateBubble")
+            page.wait_for_selector("#sheetOverlay.active #privateExplain", timeout=3000)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false", \
+                "the lock closed before anybody said yes"
+            said = page.text_content("#privateExplain")
+            assert "history" in said and "Friends" in said and "tap the lock again" in said, said
+            page.click("#sheetCard .sheet-cancel")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false", "Cancel turned it on"
+            page.click("#privateBubble")
+            page.wait_for_selector("#sheetOverlay.active #privateExplain", timeout=3000)
+            page.click("#sheetCard .sheet-item")
             page.wait_for_timeout(200)
             assert page.get_attribute("#privateBubble", "aria-pressed") == "true"
             assert page.evaluate(ground) == before, "Private repainted the search page"
             assert page.eval_on_selector("#privateBubble .lock-shut", "e => getComputedStyle(e).display") != "none"
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "false"
+            # Explained once: from here the lock is one tap either way.
+            page.click("#privateBubble")
+            page.wait_for_timeout(200)
+            assert page.get_attribute("#privateBubble", "aria-pressed") == "true", \
+                "an explained lock asked again"
+            assert not page.eval_on_selector("#sheetOverlay", "e => e.classList.contains('active')")
             page.click("#privateBubble")
             page.wait_for_timeout(200)
             assert page.get_attribute("#privateBubble", "aria-pressed") == "false"
@@ -5697,8 +5778,8 @@ def main() -> int:
             page.evaluate("stopSpeech(); clearGenOverlay()")
 
             # Edit topics: an X on every topic, and one press removes it.
-            page.evaluate("openPlayFAM()")
-            page.wait_for_selector("#mixList .mix-a", timeout=10000, state="attached")
+            page.evaluate("openPlayFAM('mixes')")
+            page.wait_for_selector("#mixList .pl-card", timeout=10000, state="attached")
             mix = page.evaluate(
                 "() => { var m = mixes.filter(function(x){ return (x.items || []).length >= 2; })[0];"
                 " return m ? m.id : ''; }")

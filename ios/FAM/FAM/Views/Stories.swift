@@ -722,6 +722,7 @@ struct StoryViewer: View {
                     .padding(.trailing, 4)
                 Button(action: sendReply) {
                     WebIcon(path: Icons.send, size: 20, line: 1.9).frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.press)
                 .padding(.trailing, 2)
@@ -755,6 +756,12 @@ struct StoryViewer: View {
                         .foregroundStyle(on ? Color(hex: 0xFF4D5E) : Self.paper)
                 }
                 .frame(width: 42, height: 44)
+                // The whole 42 x 44 box takes the tap (the owner's 11.24
+                // packet, §690: "the like and revibe buttons are not
+                // working"). An outlined icon is hit only on its 1.9 pt
+                // line; a finger beside it fell through to the story's own
+                // surface, which stepped to the next vibe instead.
+                .contentShape(Rectangle())
             }
             .buttonStyle(.press)
             .accessibilityLabel("Like")
@@ -762,6 +769,7 @@ struct StoryViewer: View {
             if !isNote {
                 Button { reshare() } label: {
                     WebIcon(path: Icons.reshare, size: 24, line: 1.9).frame(width: 42, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.press)
                 .accessibilityLabel("VIBE! to your story")

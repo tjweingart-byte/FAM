@@ -41101,3 +41101,317 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 `shut()` - the player's modal close or the sheet's dismiss. Cancel and the
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
+
+## 688. The Anthropic key leaves the cloud environment; paid writing runs move to a workflow (2026-11-24)
+
+**From Anthropic, forwarded by the owner:** from Monday 14 December 2026,
+Claude API calls made from a cloud sandbox on limited network access
+(Claude Code on the web, at the `None` and `Limited` levels) with another
+organisation's key are refused - HTTP 403, "Access restricted by network
+policy". Those sessions run outside the Console organisation, so a Console
+key counts as another organisation's, the owner's own included. The ways
+round it are to move the calls out of the sandbox, to give the sandbox
+`Full` network access, or an Owner setting that allows foreign keys, which
+the notice calls a last resort.
+
+**What it touched.** The session environment ("Default") is `Limited` and
+held `FAM_ANTHROPIC_KEY` (§527, §625, §634), which is how `write.py`,
+`tools/ei_eval.py`, `tools/editor_eval.py`, `tools/nando_eval.py`,
+`compare_models.py` and `diagnose_api.py` could run in a session. Those
+are what would have started failing. Nothing a listener touches was at
+risk: production and staging run on Render, outside any sandbox; the
+tests, the smoke runs and CI need no key (`[tests-no-key]`); the search
+and sports keys are not Claude calls.
+
+**Decided by the owner:** move the calls out, and the key with them. The
+owner removed `FAM_ANTHROPIC_KEY` from the environment on 2026-11-24
+(checked: the environment lists the BALLDONTLIE, Parallel, Perplexity and
+ScaleDown keys and no other). `Full` network access was not taken: it
+would drop the host allowlist for every session to keep one key working.
+
+**Now.** `.github/workflows/writing.yml`, "Writing run", is started by
+hand and never by a push. It takes a tool (the six above and
+`tools/compare_search.py`), its arguments and any `NAME=value` settings,
+and runs it with the key from the repository secret `FAM_ANTHROPIC_KEY`;
+the search, sports, news and markets keys are read from secrets of their
+own names when set (`PERPLEXITY_API_KEY`, `PARALLEL_API_KEY`,
+`BALLDONTLIE_API_KEY`, `SCALEDOWN_API_KEY`, `GNEWS_KEY`, `TIINGO_API_KEY`). The output is in the job log, on the run's summary page and in the
+attached `writing-run` folder. `tools/writing_run.py` builds the command:
+the inputs arrive in the environment and are split in Python, never
+pasted into a shell; a tool not on the list is refused; a setting whose
+name ends in KEY, TOKEN, SECRET or PASSWORD is refused, since a credential
+is a secret and never an input (`[credentials-fetched]`). A missing secret
+fails the run with a sentence saying where to add it.
+
+`[no-api-key]` is brought up to date here and in the core, with the
+`fam-method` skill and the two session prompts that told a reader to pass
+`$FAM_ANTHROPIC_KEY`. Spending is unchanged: each run is the owner's
+decision, asked for with an estimate.
+
+**Not done, and why.** The workflow can only be started once its file is
+on `Main` (GitHub offers a manual workflow from the default branch only),
+and the secret has to be added by the owner. `tools/compare_backends.py`
+still copies `FAM_ANTHROPIC_KEY` into `ANTHROPIC_API_KEY` when it is set;
+that is harmless without the variable and is left alone.
+
+Tests: `tests/test_writing_run_688.py`.
+
+## 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24)
+
+Numbered 690, not 688: two other branches pushed the same day each hold a
+§688 of their own (a playlist's cover and Explore's cards, since merged as
+§691; the paid writing runs' workflow), and this one stays clear of both.
+
+**The owner's packet, five pictures.** Dark screens with a phone's status
+bar: the iPhone app (dark is its default, §546), not the web.
+
+### 5. "It generated an episode about an MLB headline on my FAM for the nba story"
+
+The player said "NBA · today" and the captions read a Giants reliever's
+one-year contract. Nothing was written wrongly: **the right episode for a
+different subject was played.**
+
+A mix's subject plays the words `mixes.daily_prompt` composes - "The latest
+on Basketball as of Monday, November 23, 2026: what happened in the last 24
+hours, what changed, and why it matters. Lead with the newest development;
+skip background the listener heard yesterday." The same sentence is
+composed for every subject, so two subjects' prompts on one day share every
+number and all but one word. On an exact-key miss the pipeline asks the
+near-match cache (`cache.nearest`), and `cache.comparable`'s three checks
+all pass for such a pair: the numbers are identical (the same date, the
+same "24"), both need today's facts, and the word overlap is far over
+`CACHE_VECTOR_OVERLAP`. Measured here with the shipped thresholds (0.68):
+
+| pair, same day | cosine | before | now |
+|---|---|---|---|
+| Basketball / Baseball | 0.951 | shared | refused |
+| NFL / Soccer | 0.949 | shared | refused |
+| Baseball / Stocks | 0.924 | shared | refused |
+
+Every pair tried shared. It stayed hidden because the edition writes every
+subject, so a tap is normally an exact hit and no neighbour is looked for.
+The miss needs the tapped subject's own episode to be **not current** while
+another subject's is: an edition episode written while a game is in progress
+is kept but never current (§143, §359), which in November is basketball
+most nights and never baseball. §137's test covered only yesterday's
+prompt for the same subject, which the date already separates.
+
+**Fix.** `cache.comparable` refuses any pair in which either side carries a
+whole date as an edition writes it (`cache.is_edition_prompt`) unless the
+two are the same set of words - the exact key. Nobody rephrases a sentence
+FAM composed, so there is no near neighbour to find. The NBA tap now
+misses and is written, as any miss is. Typed topics' prompts (`TYPED_HEAD`)
+carry the same date and are covered by the same rule. Tests in
+`tests/test_dailyfam_follow.py`: every catalogue subject's prompt against
+every other's, the serving path's own `nearest`, and that the date an
+edition writes is the date the cache recognises.
+
+### 4. "These two buttons are not working: the like and revibe buttons"
+
+On a friend's story. In a browser at a phone's size with touch, the web's
+two buttons work on a plain and on a composed story (the heart fills, the
+editor opens), and its pointer handlers already leave the reply row alone.
+The iPhone's did not, by reading: `Button { like() }` and `Button {
+reshare() }` are labelled with an outlined icon in a 42 x 44 frame and
+styled `.press`, and a custom button style is hit only where its label
+draws - a 1.9 pt line. A finger beside the line fell through to the
+story's surface gesture, which stepped the story on. The header's ⋯ and X
+already carried `.contentShape(Rectangle())`; these did not.
+
+**Fix.** The three buttons in the reply row (send, like, VIBE!) take their
+whole box, and `PressButtonStyle` gives **every** `.press` button its box
+(`Motion.swift`), as the web's `<button>` has - the cause was general
+(285 `.press` buttons, 148 content shapes). On the button style and not in
+`PressedLabel`: that view also squeezes cards that are not buttons
+(`tapSqueeze`), whose hit shape nothing here had reason to change - moved
+there on the branch's own review.
+
+### 3. "If I click on the MiniPlayer, I want it to expand into the large player"
+
+Both clients already had this: the web's `#nowBar` calls `openNowPlaying`
+(the smoke run taps it and checks the player opens), and the iPhone's
+`MiniPlayer` had `.onTapGesture { model.showPlayer = true }`. On the iPhone
+the squeeze (`tapSqueeze`, a long-press gesture) was attached *inside* the
+tap, so the tap waited on a gesture below it. The tap is now attached first
+and the squeeze beside it, the order the story title already uses, where
+`simultaneousGesture` is defined to run both. Whether that ordering was what
+stopped the owner's tap is not known - see below.
+
+### 1. "Change to back arrow double chevon"
+
+The player's top-left button is the app's back arrow («,
+`M17 6l-6 6 6 6M10 6l-6 6 6 6`, the iPhone's `Icons.back`) where the Home
+logo was (§255). It still only minimises. `[player-layout]`.
+
+### 2. "Make 'private search' more understandable"
+
+§637, eight days earlier, made it "just a simple lock button" and took the
+word and the paragraph off the page; a test still says the button carries
+no word. So the lock was left bare at first; told so, the owner answered
+"add the word Private on the lock too", and it now reads **Private** beside
+the padlock in both clients, a pill its own width (that test now says so).
+And **the first tap on a device opens a
+sheet that says what closing it does** - not saved to your history, never
+shown to friends or other listeners, doesn't change what FAM recommends,
+on until the lock is tapped again - with one row, "Turn on Private search".
+Cancel turns nothing on. After a yes the lock is one tap either way, with
+its toast (`fam.privateExplained`, on the device). Both clients.
+`[private-search]`.
+
+### The branch read again before merging
+
+Asked to double-check, three things were changed:
+
+- **The iPhone's explainer was in the wrong component.** It was the action
+  sheet's header, which is drawn 9.5 pt, upper case, mono - some 290
+  letters of it. It is now a card of its own (`PrivateExplainSheet`): the
+  web's title, sentence, three lines and one row, sized by its words.
+- **"Search without leaving a trace" claimed too much**: a private episode
+  is still kept so its own replay works (`[private-search]`). The sheet
+  opens "Keep a search to yourself." in both clients.
+- **The whole-box hit shape moved from `PressedLabel` to `PressButtonStyle`**
+  (above): only buttons were diagnosed, and `PressedLabel` also draws cards.
+
+Checked and left: the old cache would also have shared "NBA (Basketball)"
+with "MLB (Baseball)" (0.929), with plain Baseball (0.822) and with plain
+Basketball (0.865) - the focused wordings the owner's tile may have sent;
+all are refused now. Every Swift edit balances its brackets and uses calls
+already used elsewhere in the app, which is as far as reading goes.
+
+### Not verified
+
+- **Nothing in the iPhone app was built or run**: no Xcode here. Items 3 and
+  4 on the iPhone are fixes by reading; the tests read the Swift.
+- The cause of 5 is shown by the real cache code on the real prompts, not
+  by the production log of the owner's tap: which stored episode it played
+  was not read.
+- If the mini player still does not open the player on the next build, the
+  ordering was not the cause and it needs a device.
+
+## 691. myFAM is Explore | Playlists, from the owner's mock (2026-11-24)
+
+**The owner's request:** three frames of the screen that shows "myFAM", and
+"it should look exactly like this. The explore should operate similar to
+categories right now, but it should highlight major trending stories".
+
+**What the frames show, in this repo's terms.** (1) The two tabs are
+**Explore | Playlists**, Explore first: a chip row (All, Business, Sport,
+Money & markets...) over one card a story - small picture, category, title,
+one line, a **FAM** button and **+ Add to playlist**. (2) Playlists: one row
+a mix - picture, name, "7 BRIEFINGS · DAILY", "Startups, AI, NBA and 4
+more", a play button - then a dashed **+ New playlist**. (3) A mix's page:
+"myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES", sliders top right, a
+"Playing Morning · 2 of 7" pill, then the stories as heard / now playing /
+up next with a heart each, and a mini player reading "2 OF 7 · NBA" with a
+heart, pause and next.
+
+**Built, on the web.**
+
+- *Explore* is the Categories tab renamed and put first. `All` is new:
+  `/api/categories/episodes?id=all&sort=trending` - every category, at most
+  `EXPLORE_ALL_LIMIT` (60) rows. `sort=trending` puts the Trending edition's
+  stories first in the edition's order and leaves the rest by popularity;
+  `_trending_keys` matches the edition held in memory to today's cache by
+  cache key, so nothing is read from a store, written, or asked of a model
+  or the network, and a story is only called trending when its episode is
+  already made. Each row gains `trending` and `hook` (the episode's stored
+  one-sentence summary, scrubbed; "" when it has none - the card then has
+  no line rather than an invented one). A chip still opens its category in
+  place (X, the category, the level below), now as the same cards under
+  Play all and Follow. FAM is `playCategoryEpisode` (replay only, the rest
+  of the page queued behind it, as before); Add to playlist is the player's
+  `openAddToMix`. Gone: §550's list of category rows and §500's hero
+  picture.
+- *Playlists*: `playlistCardHTML` replaces §616's stacked deck. The count
+  and topic line §544 took off the card are back because the mock draws
+  them. §545's signal is a word after "DAILY". The "Create new mix" pill
+  under the wordmark is the dashed row under the cards (`#newMixBtn`, still
+  hidden without an account); the public search moved under it.
+- *A playlist's page*: the header, the pill and `playlistRowHTML`. The rows
+  are drawn in the order they play (`todayOrder`, or `mixPlay.order` while
+  it plays) and follow the transport (`refreshMixPlaying`, called from
+  `setNowBarPlaying` and `drawMixSkip`). `heard_today` and `episode_hook`
+  are new fields on a mix's items. The page has the tab bar, which is what
+  puts the mini player on it.
+- *The mini player* in a playlist: "2 of 7 · NBA", a heart, a next.
+
+**Decisions taken without asking, each reversible.**
+
+1. **The heart is Saved for Later** - the existing pointer and toggle
+   (`[save-pointer]`), on the row and on the mini player (`data-save`).
+   There is no like in this product (`[explore-reel]`: no dislike anywhere)
+   and a vibe posts to friends, which a heart on a strip must not
+   (`[op-social-live]`: not on the mini bar).
+2. **The mini player keeps its X.** The mock draws heart, pause, next and no
+   X; the X is the only control that stops audio the bar left playing
+   (`[transport]`, §250), so it stays, last in the row.
+3. **An arrival opens on Explore** (the mock's first tab), reversing §550's
+   "every arrival opens on Mixes" - except when the tab's dot says a
+   playlist is new this morning, and from a flow that is about a playlist.
+4. **Reordering moved into Edit topics.** The mock's rows have no handle;
+   Edit topics already redraws the page with an X per topic, and now with
+   the handle too. The rows outside it are in play order, which is not the
+   order a drag edits.
+5. **Nothing was removed that the mock merely does not show**: public
+   search, Add topics, the cover / name / share / invite block, Recommended
+   topics, the listen time and Public / Private are all still on the page,
+   under what the mock draws.
+6. **"Playlist" on these screens only.** The tab, the cards, the page and
+   its sheet read "playlist"; toasts, the naming screen and the server's
+   sentences still say "mix". Code and docs keep "mix" (`[names-swapped]`).
+7. **No "trending" badge on a card.** The mock has none; trending stories
+   are highlighted by coming first.
+
+**Not done.** The iPhone app (`ios/`): it is a native client and still
+draws Mixes | Categories and the stacked deck; the API it needs is in this
+change. Trending's order on Explore is the edition's own (loudest first),
+not `rank_world`'s country-aware order. The unused `.mix-a*` deck styles
+and `Motion.mixDeck`'s tile reshuffle are left in place.
+
+**Held against the rules.** `[your-categories]` and `[mix-made-by-naming]`
+amended (Current notes); `[old-clients]`: `popular`, `az` and `recent` are
+unchanged and every new thing is a new value or field; `[player-no-autogen]`
+and "cached only": Explore plays replay-only, as a category did;
+`[trending-floor]` / `[two-crowd-rows]`: the edition is read, never
+re-ranked or mixed into a crowd row; `[no-dead-controls]`: a card with no
+summary draws no line, a playlist with no topics no play button.
+
+**Verified:** `tests/test_explore_playlists_688.py` (server and source),
+screenshots of the three frames in dark and light from the fixture preview.
+**Not verified:** against a deployment with a real Trending edition and
+approved pictures - the preview's stories and pictures are fixtures; how
+often a cached episode has a stored summary to show as its line.
+
+**The owner's follow-up, "people can still add their own cover picture to
+their playlists":** they can, three ways, none changed in what it does - the
+naming screen's folder, the picture on the playlist's page (now under the
+stories, with its camera badge) and "Add a cover photo" / "Change cover" in
+the sliders' menu. A playlist's own photo is what its card, the add sheet
+and its page draw, ahead of today's lead picture (`coverOf`). Run in a
+browser with a real file through the chooser and the crop editor, then
+pinned: the smoke check sets a cover and reads it back off the card, and
+`test_a_playlist_can_still_be_given_its_own_cover` holds the three ways in.
+The menu's rows say "playlist" now too. Review of the branch also moved a
+row's `hook` behind a 30-second memo (`_HOOK_MEMO`), so a draw of Explore
+is not sixty reads of the store for every listener.
+
+**The branch reviewed before its PR** (a second reader given only the diff).
+Fixed: (1) three ways onto the screen that never chose a tab - the morning
+push's `/?mixes=1`, your own mix's link, joining a joint mix - landed on a
+blank Explore with the playlists behind the other tab; each now opens
+Playlists, as does Back from a playlist and the myFAM tab on a playlist's
+own page. (2) A playlist's page was stale when the playlist moved on under
+the full player; `showScreen` redraws it. (3) Rows in play order left out a
+topic still being added, and anything added while the playlist played;
+`playlistPageOrder` appends them and drops what was removed. (4) The redraw
+on every transport change no longer happens under the listen-time field or
+a row still moving. (5) The mini player's heart and a row's heart agree
+(`noteMixSaved`), and a late shelf read cannot undo a tap. (6) Cards drawn
+before `/api/categories` answered kept a bare kicker. (7) `_hook_episodes`
+runs off the event loop. (8) The tour said "Your mixes" and "Categories";
+`tools/landing_shots.py` clicked a card class that is gone; five more
+strings said "mix". (9) A category's cards no longer sit under the All chip
+while All loads.
+Left as it is, knowingly: the mini player's next opens the full player, as
+skipping always has; the sliders do nothing on the guest's example, as the
+three dots did; the iPhone's tour still names the old tabs (PARITY.md).

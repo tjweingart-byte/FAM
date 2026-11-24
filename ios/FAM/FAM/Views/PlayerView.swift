@@ -5,7 +5,7 @@ import UIKit
 /// The player, ported from the web's `#screen-player` (`player-layout`,
 /// §190, §192) as the 11.9 packet left it (§519). Top to bottom:
 ///
-/// - the Home mark (minimises, never stops), GO DEEPER, the ⋯ menu
+/// - the back arrow (minimises, never stops), GO DEEPER, the ⋯ menu
 /// - the picture: 40 pt wider than the screen, 4:3 (less tall where the
 ///   stage is shorter), centred, faded into the page at top and bottom; the captions card over it when captions are
 ///   on; share / vibe / save stacked on its right, 34 pt up, above the card
@@ -53,7 +53,7 @@ struct PlayerView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                // The Home mark and GO DEEPER keep their place and stay on
+                // The back arrow and GO DEEPER keep their place and stay on
                 // top (11.16 notes): in a window short for its width - the
                 // iPhone app on an iPad - the picture, as tall as 3/4 of
                 // the width whatever room the stage had, ran up over this
@@ -154,7 +154,7 @@ struct PlayerView: View {
 
     /// Swipe down to collapse into the mini player (the owner's 11.18
     /// notes: "Ability to swipe down on audio player to collapse into mini
-    /// player"). The Home mark's close, by hand: it minimises and never
+    /// player"). The back arrow's close, by hand: it minimises and never
     /// stops (`transport`), and goes the way every close goes - shrinking
     /// into the mini player (`movePlayer`). Only a drag that starts plainly
     /// downward; the scrubber's own drag wins on the bar, and a swipe on
@@ -219,12 +219,15 @@ struct PlayerView: View {
     private var topRow: some View {
         HStack(spacing: 0) {
             Button { model.showPlayer = false } label: {
-                WebIcon(path: Icons.daily, size: 22, line: 2)
+                // The app's back arrow, the double chevron, where the Home
+                // mark was (the owner's 11.24 packet, §690).
+                WebIcon(path: Icons.back, size: 22, line: 2)
                     .foregroundStyle(FAMColor.text)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.press)
-            .accessibilityLabel("Minimise the player")
+            .accessibilityLabel("Back")
             Spacer(minLength: 0)
             Button { openGoDeeper() } label: {
                 Text("GO DEEPER")
@@ -1139,15 +1142,21 @@ struct MiniPlayer: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.borderStrong))
         .contentShape(Rectangle())
-        // The web's squeeze on the bar's tap (`.press`), let go as soon as
-        // the finger moves away.
-        .tapSqueeze()
+        // A tap anywhere on the bar opens the full player (the owner's
+        // 11.24 packet, §690). The tap is attached first and the squeeze
+        // after it, so the squeeze's own gesture runs beside the tap
+        // (`simultaneousGesture`) and can never be the one that takes it.
         .onTapGesture {
             // The player grows out of this picture (`pictured` finds
             // `#nowThumb` inside the bar).
             PlayerMotion.shared.pressed(PlayerMotion.shared.mini)
             model.showPlayer = true
         }
+        // The web's squeeze on the bar's tap (`.press`), let go as soon as
+        // the finger moves away.
+        .tapSqueeze()
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the player")
     }
 
     /// The length the bar counts against: the minutes asked for

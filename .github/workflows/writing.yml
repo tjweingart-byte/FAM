@@ -1,0 +1,101 @@
+name: Writing run
+
+# The writing loop and the paid evaluations, by hand (PROBLEMS.md §688).
+# From 14 December 2026 a cloud coding session on limited network access may
+# not call Claude with a Console key, so the key was taken out of that
+# environment and these runs happen here instead: the key is the repository
+# secret FAM_ANTHROPIC_KEY and never enters a sandbox.
+#
+# Never on a push: every run spends the owner's money, so every run is the
+# owner's decision, asked for with an estimate first (`[no-api-key]`).
+#
+# The script, the brief above it and the cost are in the job log, on the
+# run's summary page and in the attached `writing-run` folder. A tool that
+# writes files should be pointed at `writing-run/` so they are attached too.
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: "What to run"
+        type: choice
+        options:
+          - write.py
+          - tools/ei_eval.py
+          - tools/editor_eval.py
+          - tools/nando_eval.py
+          - tools/compare_search.py
+          - compare_models.py
+          - diagnose_api.py
+        default: write.py
+      args:
+        description: "Its arguments, e.g. \"the fed decision\" --minutes 3"
+        default: ""
+        required: false
+      env:
+        description: "Settings for this run, e.g. AGENTS=1 EDITOR_AGENT=1"
+        default: ""
+        required: false
+
+concurrency:
+  group: writing-run-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # The inputs are read from the environment and split in Python, never
+      # pasted into the shell, so an argument is only ever an argument.
+      - name: Run
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.FAM_ANTHROPIC_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
+          BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+          SCALEDOWN_API_KEY: ${{ secrets.SCALEDOWN_API_KEY }}
+          GNEWS_KEY: ${{ secrets.GNEWS_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          RUN_TOOL: ${{ inputs.tool }}
+          RUN_ARGS: ${{ inputs.args }}
+          RUN_ENV: ${{ inputs.env }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::The repository secret FAM_ANTHROPIC_KEY is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          mkdir -p writing-run
+          set -o pipefail
+          python tools/writing_run.py 2>&1 | tee writing-run/output.log
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### \`${{ inputs.tool }}\`"
+            echo
+            echo '```'
+            tail -c 60000 writing-run/output.log 2>/dev/null || echo "no output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: writing-run
+          path: writing-run/

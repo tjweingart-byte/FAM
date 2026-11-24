@@ -29,9 +29,10 @@ three things in it (§627); those corrections are in the text.
    it reads, what it writes, what it costs and what it refuses to do.
 4. **Check the machine, not the document about the machine.** For a long
    time `[no-api-key]` said there was no key here and `[ci-python]` named
-   the wrong Python; both are corrected (§634), and both will drift again.
-   `[ -n "$FAM_ANTHROPIC_KEY" ] && echo set` and `python3 --version` take
-   a second. Never print a key.
+   the wrong Python; both were corrected (§634), the key left again (§688),
+   and both will drift again. `[ -n "$FAM_ANTHROPIC_KEY" ] && echo set` and
+   `python3 --version` take a second. Never print a key. With no key here,
+   a paid writing run goes through the Writing run workflow (§688).
 5. **Check CI on `Main`** before starting (`[ci-green-first]`).
 
 ## 2. Working out what is being asked
