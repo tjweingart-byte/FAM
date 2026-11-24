@@ -412,9 +412,9 @@ struct MainTabs: View {
             model.dailyPath = []
             Task { await model.loadRails() }
         case .myfam:
-            // Every arrival opens on Mixes and asks for the list
-            // afresh; looking at the tab clears its dot
-            // (`openPlayFAM`, §550).
+            // Every arrival opens on Explore (§691) - on Playlists when
+            // the dot says one is new - and asks for the list afresh;
+            // looking at the tab clears its dot (`openPlayFAM`).
             model.mixPath = []
             model.mixes.categoryState = CategoryState()
             model.mixes.arrived()
@@ -647,8 +647,8 @@ struct MainTabs: View {
                         model.mixDone = nil
                         show(.myfam)
                         model.mixPath = []
-                        // `closeMixDone(true)` → `openPlayFAM` (§550).
-                        model.mixes.arrived()
+                        // `closeMixDone(true)` → `openPlayFAM("mixes")` (§691).
+                        model.mixes.arrived(playlists: true)
                         Task { await model.mixes.load() }
                     }
                     // `#mixDoneOverlay` is a `.modal-overlay`: in over 200 ms,
