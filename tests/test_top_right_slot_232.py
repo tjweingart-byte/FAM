@@ -24,22 +24,23 @@ def _section(screen):
 
 
 def test_the_two_circles_wear_one_ring():
-    # The second circle, myFAM's (+), is the "Create new mix" pill now (11.7
-    # packet, §498); the pill wears the same ring.
+    # The second circle was myFAM's (+), then the "Create new mix" pill
+    # (§498), which is a dashed row under the cards since §688. The circle
+    # top right of a playlist's page (its sliders) wears the same ring.
     ring = "border:1px solid var(--border-strong)"
-    assert ring in _css(".myfam-head-btn") and ring in _css(".new-mix-pill")
+    assert ring in _css(".myfam-head-btn") and ring in _css(".pl-tune")
 
 
 def test_myfams_header_is_fixed_like_dailyfams():
     # DailyFAM's bookshelf moved to search (10.12 packet #3); its header
-    # is still fixed, and myFAM's (+) still sits in its own.
+    # is still fixed. myFAM's (+) is the row under its cards since §688.
     for screen in ("myfam", "playfam"):
         page = _section(screen)
         head = page.index('class="myfam-header myfam-header-fixed"')
         assert head < page.index('<div class="scroll"'), screen
     page = _section("playfam")
     head = page.index('class="myfam-header myfam-header-fixed"')
-    assert head < page.index('id="newMixBtn"') < page.index('<div class="scroll"')
+    assert head < page.index('<div class="scroll"') < page.index('id="newMixBtn"')
 
 
 def test_the_loading_screen_counts_no_seconds():

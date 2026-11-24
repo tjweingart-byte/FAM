@@ -65,17 +65,18 @@ def test_dailyfam_suggests_no_mix_names():
     assert ".starter-chip" not in INDEX
 
 
-def test_the_new_mix_button_is_the_create_pill():
-    """Superseded (11.7 packet, §498): the circled (+) is a "Create new mix"
-    pill under the wordmark."""
+def test_the_new_mix_button_is_the_dashed_row():
+    """Superseded twice: the circled (+) became a "Create new mix" pill
+    (11.7 packet, §498), and that the dashed "+ New playlist" under the
+    cards (the owner's 11.24 mock, §688)."""
     button = INDEX.split('id="newMixBtn"', 1)[1].split("</button>", 1)[0]
     head = INDEX.split('id="newMixBtn"', 1)[0].rsplit("<button", 1)[1]
-    assert "new-mix-pill" in head
-    assert "<svg" in button and "Create new mix" in button
-    css = INDEX.split("  .new-mix-pill{", 1)[1].split("}", 1)[0]
-    assert "border:1px solid var(--border-strong)" in css
+    assert "pl-create" in head
+    assert "<svg" in button and "New playlist" in button
+    css = INDEX.split("  .pl-create{", 1)[1].split("}", 1)[0]
+    assert "border:1px dashed var(--border-strong)" in css
     # Still hidden until /api/mixes answers (`showNewMixButton`).
-    assert ".new-mix-pill[hidden]{ display:none; }" in INDEX
+    assert ".pl-create[hidden], .pl-create.searching{ display:none; }" in INDEX
 
 
 def test_old_clients_still_get_starters():

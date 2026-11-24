@@ -270,14 +270,16 @@ def test_an_erased_member_leaves_their_topics_under_nobodys_name(tmp_path):
 
 # --- the interface --------------------------------------------------------------
 
-def test_create_new_mix_is_a_pill_under_the_wordmark():
+def test_new_playlist_is_one_control_under_the_cards():
+    """§498's pill under the wordmark is the dashed "+ New playlist" under
+    the cards since the owner's 11.24 mock (§688): still one control, still
+    hidden until `/api/mixes` says there is an account."""
     page = _screen("playfam")
-    head = page.index('class="myfam-header myfam-header-fixed"')
-    pill = page.index('id="newMixBtn"')
-    assert head < page.index('class="wordmark"') < pill < page.index('<div class="scroll"')
+    assert page.index('<div id="mixList">') < page.index('id="newMixBtn"')
+    assert page.count('id="newMixBtn"') == 1
     tag = re.search(r'<button[^>]*id="newMixBtn"[^>]*>', page).group(0)
-    assert "new-mix-pill" in tag and " hidden" in tag
-    assert "Create new mix" in page.split('id="newMixBtn"', 1)[1].split("</button>", 1)[0]
+    assert "pl-create" in tag and " hidden" in tag and "openNewMix()" in tag
+    assert "New playlist" in page.split('id="newMixBtn"', 1)[1].split("</button>", 1)[0]
     assert "new-mix-plus" not in INDEX
 
 
@@ -302,7 +304,7 @@ def test_step_two_is_gone():
 
 def test_the_mix_page_is_spotifys():
     body = _fn("renderMixBody")
-    assert "Add topics to mix" in body and "openAddTopics()" in body
+    assert "Add topics to playlist" in body and "openAddTopics()" in body
     assert "recommendedHTML(m)" in body
     assert 'class="mix-change"' in body, "no Change pill beside the name"
     rec = _fn("recommendedHTML")

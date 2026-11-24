@@ -83,28 +83,30 @@ def test_anything_else_starting_drops_what_was_held():
 
 
 def test_the_screen_is_two_tabs_under_the_wordmark():
+    """§550's two tabs, renamed and turned round by the owner's 11.24 mock
+    (§688): Explore (the categories) first, then Playlists (the mixes)."""
     screen = INDEX.split('id="screen-playfam"', 1)[1].split("</section>", 1)[0]
     tabs = re.findall(r'class="pf-tab[^"]*" id="(\w+)"[^>]*>(\w+)</button>', screen)
-    assert tabs == [("pfTabMixes", "Mixes"), ("pfTabCats", "Categories")]
-    assert screen.index('class="pf-tabs"') < screen.index('id="newMixRow"') < screen.index('id="catChips"')
-    assert 'id="catHome" hidden' in screen
+    assert tabs == [("pfTabCats", "Explore"), ("pfTabMixes", "Playlists")]
+    assert screen.index('class="pf-tabs cats"') < screen.index('id="catChips"') < screen.index('id="mixesPane" hidden')
 
 
 def test_each_tab_shows_its_own_half():
     tab = _fn("showPlayfamTab")
-    # The Create row keeps its height on Categories (playfam-tabs: B, §642).
-    assert 'row.style.visibility = cats ? "hidden" : "";' in tab and "chips.hidden = !cats;" in tab
+    assert "chips.hidden = !cats;" in tab
     shown = _fn("showCategoryPanel")
-    assert 'home.hidden = on || !cats;' in shown
+    assert 'document.getElementById("catPanel").hidden = !cats;' in shown
+    assert 'document.getElementById("mixesPane").hidden = cats;' in shown
     # Picking a category from anywhere opens its tab.
     assert 'if(playfamTab !== "categories") showPlayfamTab("categories");' in _fn("pickCategory")
 
 
-def test_the_categories_tab_lists_followed_then_the_rest():
-    home = _fn("renderCategoryHome")
-    assert home.index("Your categories") < home.index("!followed[f.id]")
-    assert 'onclick="pickCategory(this.dataset.cat)"' in home
-    assert "renderCategoryHome();" in _fn("renderCategoryChips")
+def test_explore_lists_followed_then_the_rest_as_chips():
+    """§550's landing list of category rows went with §688: before a chip
+    is picked the tab shows All's stories. The order it kept is the chips'."""
+    chips = _fn("paintCategoryChips")
+    assert chips.index("mine.map(") < chips.index("!followed[f.id]")
+    assert "function renderCategoryHome" not in INDEX and 'id="catHome"' not in INDEX
 
 
 # --- 4. the morning dot -------------------------------------------------------

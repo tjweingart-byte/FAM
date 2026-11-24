@@ -84,7 +84,9 @@ def test_the_switch_slides_the_knob_that_is_there():
 def test_the_tabs_and_chips():
     tab = _fn("showPlayfamTab")
     assert "Motion.panels(" in tab and 'how.type === "click" && how.detail > 0' in tab
-    assert ".pf-tabs.cats::after{ transform:translateX(100%); }" in INDEX
+    # Explore ("cats") is the left tab since §688; the rule slides right for Playlists.
+    assert ".pf-tabs:not(.cats)::after{ transform:translateX(100%); }" in INDEX
+    assert "Motion.panels(scroller, cats ? -1 : 1, change)" in tab
     load = _fn("loadCategoryEpisodes")
     assert "Motion.DUR.spinnerAfter" in load and "Motion.DUR.spinnerMin" in load
 

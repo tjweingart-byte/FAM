@@ -236,10 +236,11 @@ def _user(client) -> str:
 
 
 def test_the_card_and_the_mix_draw_r5_and_q5():
-    # The list's card is option A since §616 (the owner's pick of six); a
-    # signal reaches it as the headline's colour and icon. Q5 is unchanged.
-    assert "function mixCardAHTML(m, open)" in INDEX
-    assert 'h.why === "update" ? "update" : h.why === "trending"' in INDEX
+    # The list's card is the mock's row since §688 (option A before it,
+    # §616); a signal reaches it as a coloured word and icon after "daily".
+    # Q5 is unchanged.
+    assert "function playlistCardHTML(m)" in INDEX
+    assert '(why === "update" ? "Major update" : "Trending")' in INDEX
     # Q5's two day bubbles were removed at the owner's direction (11.16
     # notes); the tag and the outline are what is left of it.
     assert "mixBubblesHTML" not in INDEX

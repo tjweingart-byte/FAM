@@ -18,24 +18,26 @@ def _fn(name: str) -> str:
     return INDEX[start:INDEX.index("\n  }\n", start)]
 
 
-def test_a_mix_card_is_option_a():
-    """§544's row (picture, name, arrow) became option A, the stacked deck,
-    at the owner's pick of six (§616): the cover with today's stack, the
-    name on it, and today's headline under it. Both lists draw it."""
-    card = _fn("mixCardAHTML")
-    for need in ('class="mix-a-cover', 'class="mix-a-stack"', 'class="mix-a-name"',
-                 "mixHeadlineHTML(m)", "m.cover_tiles"):
+def test_a_mix_card_is_the_mocks_row():
+    """§544's row (picture, name, arrow) became option A, the stacked deck
+    (§616), and then the row of the owner's 11.24 mock (§688): the picture,
+    the name, the count, the topics and a play button. Both lists draw it."""
+    card = _fn("playlistCardHTML")
+    for need in ('class="pl-art', 'class="pl-name"', 'class="pl-meta"',
+                 'class="pl-topics"', 'class="pl-play"', "coverOf(m)"):
         assert need in card, need
-    assert "mixCardAHTML(m, \"openMix('\" + m.id + \"')\")" in _fn("renderMixList")
-    assert "mixCardAHTML(m, \"openMix('sample')\")" in _fn("sampleMixCardHTML")
+    assert "mixes.map(playlistCardHTML)" in _fn("renderMixList")
+    assert "playlistCardHTML(m)" in _fn("sampleMixCardHTML")
+    assert "function mixCardAHTML" not in INDEX
 
 
-def test_the_removed_lines_stay_removed():
-    """§544's removals hold on the new card: no briefing count, no "daily",
-    no public/private, no owner line."""
-    card = _fn("mixCardAHTML") + _fn("mixHeadlineHTML")
-    for gone in ("mix-meta", "mix-preview", "briefing", "daily", "public",
-                 "private", "mix-by", "example"):
+def test_what_the_mock_brought_back_and_what_stays_off():
+    """§688 reverses two of §544's removals because the mock draws them -
+    the briefing count with "daily", and the topics. The rest stay off the
+    card: public/private and whose it is are on the playlist's own page."""
+    card = _fn("playlistCardHTML")
+    assert "briefing" in card and "daily" in card
+    for gone in ("mix-preview", "public", "private", "mix-by"):
         assert gone not in card, gone
     assert "function jointLabel" not in INDEX
 

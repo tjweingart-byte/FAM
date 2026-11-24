@@ -92,8 +92,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - **Search DailyFAM opens on an A-Z catalogue** of others' cached episodes,
   lettered (`/api/myfam/catalog`); typing shows the closest; each row
   says the day it was made, then a date past six days. [dailyfam-catalogue]
-- **Categories are a tab**: myFAM is Mixes | Categories; chips
-  filter in place; today's cache. [your-categories]
+- **Explore is a tab**: myFAM is Explore | Playlists (§688); trending
+  first; chips filter; today's cache. [your-categories]
 - **A queue**: Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
  . [queue]
