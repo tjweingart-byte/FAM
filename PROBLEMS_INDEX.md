@@ -680,3 +680,4 @@ and `limit` = Lines.
 | 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
 | 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |
 | 41105 | 53 | 688. The Anthropic key leaves the cloud environment; paid writing runs move to a workflow (2026-11-24) |
+| 41158 | 128 | 691. myFAM is Explore / Playlists, from the owner's mock (2026-11-24) |

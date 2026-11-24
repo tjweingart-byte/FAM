@@ -604,13 +604,7 @@
 
   .myfam-dots-btn{ background:none; border:none; color:var(--text-muted); font-size:15px; letter-spacing:1px; cursor:pointer; padding:6px; line-height:1; }
   .myfam-dots-btn[hidden]{ display:none; }
-  /* "Create new mix" (11.7 packet): a pill under the myFAM wordmark where
-     the circled (+) on the top right was. Outside the scroller like the
-     header above it, so it stays put while the mixes scroll. */
-  .new-mix-row{ flex:none; display:flex; justify-content:center; background:var(--bg);
-    position:relative; z-index:2; }
-  .new-mix-row[hidden]{ display:none; }
-  /* Mixes | Categories (§550): two equal tabs, a copper rule under the one
+  /* Explore | Playlists (§550, §691): two equal tabs, a copper rule under the one
      that is on, as Groups | Messages. Outside the scroller with the
      wordmark, so they stay put. */
   .pf-tabs{ flex:none; display:flex; margin:0 18px 12px; border-bottom:1px solid var(--border);
@@ -624,34 +618,67 @@
   .pf-tabs::after{ content:""; position:absolute; left:0; bottom:-1px; width:50%; height:2.5px;
     background:var(--copper); pointer-events:none;
     transition:transform var(--dur-underline) var(--ease-in-out); }
-  .pf-tabs.cats::after{ transform:translateX(100%); }
+  /* Explore ("cats") is the left tab since §691; Playlists the right. */
+  .pf-tabs:not(.cats)::after{ transform:translateX(100%); }
   .pf-tabs.pf-still::after{ transition:none; }
   @media (prefers-reduced-motion: reduce){
     .pf-tabs::after, .pf-tab{ transition:none; }
   }
   .pf-tab:active{ opacity:0.7; }
-  /* The Categories tab's landing: a row per category. */
-  .cath-h{ margin:6px 0 8px; font-family:'Geist Mono', monospace; font-size:10px;
-    letter-spacing:0.14em; text-transform:uppercase; color:var(--text-faint); }
-  .cath-row{ display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px;
-    margin-bottom:8px; background:var(--surface); border:1px solid var(--border);
-    border-radius:12px; text-align:left; cursor:pointer; font-family:inherit; color:var(--text); }
-  .cath-row:active{ background:rgba(var(--fg-rgb),0.06); }
-  .cath-ico{ flex:none; width:38px; height:38px; border-radius:10px; display:flex;
-    align-items:center; justify-content:center; color:#F4EFE4; background-color:var(--surface-2); }
-  .cath-ico svg{ width:20px; height:20px; }
-  .cath-body{ flex:1; min-width:0; }
-  .cath-name{ font-size:14.5px; font-weight:600; overflow-wrap:anywhere; }
-  .cath-name .cat-star{ vertical-align:-1px; margin-right:4px; color:var(--copper); }
-  .cath-sub{ margin-top:2px; font-size:12px; color:var(--text-muted); white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis; }
-  .cath-go{ flex:none; color:var(--text-faint); }
-  .new-mix-pill{ display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 16px;
-    margin:0 0 10px; border-radius:16px; background:var(--surface); color:var(--text);
-    border:1px solid var(--border-strong); font-family:'Geist',sans-serif; font-size:12px;
-    font-weight:700; cursor:pointer; }
-  .new-mix-pill:active{ background:rgba(var(--fg-rgb),0.06); }
-  .new-mix-pill[hidden]{ display:none; }
+  /* **Explore's cards** (§691, the owner's 11.24 mock): a story to a card -
+     picture and category, title, one line, then FAM and Add to playlist. */
+  .xp-card{ margin:0 0 12px; padding:14px 14px 15px; background:var(--surface);
+    border:1px solid var(--border); border-radius:18px; }
+  .xp-top{ display:flex; align-items:center; gap:9px; margin-bottom:9px; }
+  .xp-thumb{ flex:none; width:34px; height:34px; border-radius:9px; overflow:hidden;
+    background-color:var(--surface-2); }
+  .xp-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .xp-kick{ min-width:0; font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--text-faint); overflow-wrap:anywhere; }
+  .xp-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:17px;
+    line-height:1.25; color:var(--text); overflow-wrap:anywhere; }
+  .xp-hook{ margin-top:7px; font-size:13px; line-height:1.45; color:var(--text-muted);
+    overflow-wrap:anywhere; }
+  .xp-acts{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; margin-top:13px; }
+  .xp-play{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    min-height:40px; min-width:98px; padding:8px 18px; border:0; border-radius:20px;
+    background:var(--paper); color:var(--ink); cursor:pointer; }
+  .xp-play:active, .xp-add:active{ opacity:0.75; }
+  html[data-theme="light"] .xp-play{ background:var(--text); color:var(--bg); }
+  .xp-fam{ display:inline-flex; align-items:center; gap:2.5px; }
+  .xp-fam svg{ height:13px; width:auto; display:block; }
+  .xp-add{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    min-height:40px; padding:8px 16px; border-radius:20px; background:transparent;
+    color:var(--text); border:1px solid var(--border-strong); font-family:'Geist', sans-serif;
+    font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  /* **A playlist's card** (§691): picture, name, count, topics, play. */
+  .pl-card{ display:flex; align-items:center; gap:13px; margin:0 0 11px; padding:13px;
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    cursor:pointer; position:relative; }
+  .pl-card:active{ background:rgba(var(--fg-rgb),0.06); }
+  .pl-art{ flex:none; width:72px; height:72px; border-radius:14px; display:flex;
+    align-items:center; justify-content:center; color:#18151F;
+    background:var(--mix-hue, var(--surface-2)) center / cover no-repeat; }
+  .pl-art svg{ width:26px; height:26px; opacity:0.6; }
+  .pl-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .pl-name{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:17px;
+    line-height:1.2; color:var(--text); overflow-wrap:anywhere; }
+  .pl-new{ display:inline-block; margin-left:8px; padding:2px 7px; border-radius:8px;
+    vertical-align:2px; background:var(--copper); color:var(--ink);
+    font-family:'Geist', sans-serif; font-size:9.5px; font-weight:700; }
+  .pl-meta{ font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--text-faint); }
+  .pl-meta b{ font-weight:700; white-space:nowrap; }
+  .pl-meta b.why-trending{ color:var(--sig-tr); }
+  .pl-meta b.why-update{ color:var(--sig-up); }
+  .pl-meta svg{ display:inline-block; vertical-align:-1px; margin-right:3px; }
+  .pl-topics{ font-size:12.5px; line-height:1.4; color:var(--text-muted); overflow-wrap:anywhere; }
+  .pl-play{ flex:none; width:40px; height:40px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; background:transparent; color:var(--text);
+    border:1px solid var(--border-strong); cursor:pointer; position:relative; }
+  .pl-play::before{ content:""; position:absolute; inset:-4px; }
+  .pl-play:active{ background:rgba(var(--fg-rgb),0.08); }
   /* Offline (27/09 packet): a card whose episode is not on this device is
      faded; one that is keeps full brightness and plays from here. */
   .seed-card.not-offline .seed-thumb{ opacity:0.35; filter:grayscale(0.7); }
@@ -1145,10 +1172,11 @@
   .mix-play-all{ display:block; width:100%; margin:-4px 0 12px; padding:6px; border:0; background:none;
     color:var(--text-muted); font-family:'Geist',sans-serif; font-size:12px; font-weight:600;
     text-align:center; cursor:pointer; }
-  .mix-new{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
-    padding:13px; border-radius:14px; background:transparent; color:var(--copper);
+  .pl-create{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    min-height:54px; padding:13px; border-radius:18px; background:transparent; color:var(--text);
     border:1px dashed var(--border-strong); font-family:'Geist',sans-serif;
-    font-size:12px; font-weight:700; cursor:pointer; margin-bottom:11px; }
+    font-size:13.5px; font-weight:600; cursor:pointer; margin-bottom:16px; }
+  .pl-create[hidden], .pl-create.searching{ display:none; }
   /* Categories as filter chips (the 11.3 packet, option 2): one row across
      the top of the screen that shows "myFAM", scrolled sideways; the one
      that is on is filled. Inside a category the row is an X, the category
@@ -1175,18 +1203,6 @@
   .catp-head{ display:flex; align-items:center; gap:10px; margin:6px 0 12px; }
   .catp-name{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:19px;
     color:var(--text); min-width:0; overflow-wrap:anywhere; }
-  .catp-hero{ position:relative; display:flex; flex-direction:column; justify-content:flex-end;
-    width:100%; min-height:150px; aspect-ratio:16/9; margin:4px 0 10px; padding:14px;
-    border:0; border-radius:16px; overflow:hidden; text-align:left; cursor:pointer;
-    background-color:var(--surface-2); background-size:cover; background-position:center;
-    color:#F4EFE4; }
-  .catp-hero::before{ content:""; position:absolute; inset:0;
-    background:linear-gradient(to bottom, rgba(10,9,13,0) 35%, rgba(10,9,13,0.78) 100%); }
-  .catp-hero > span{ position:relative; }
-  .catp-hero-t{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:18px;
-    line-height:1.2; overflow-wrap:anywhere; }
-  .catp-hero-k{ margin-top:4px; font-family:'Geist Mono', monospace; font-size:8.5px;
-    letter-spacing:0.1em; text-transform:uppercase; color:rgba(244,239,228,0.78); }
   .catp-acts{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
   .catp-play{ flex:1; min-width:150px; display:flex; align-items:center; justify-content:center; gap:7px;
     min-height:38px; padding:8px 14px; border:0; border-radius:19px; background:var(--copper);
@@ -2405,6 +2421,71 @@
     transform-origin:0 50%; transition:transform 200ms linear; }
   /* display:flex above beats the hidden attribute, so restate it. */
   .nowbar[hidden]{ display:none; }
+  .nowbar-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nowbar-heart, .nowbar-next{ flex:none; width:32px; height:36px; border:0; background:none;
+    color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
+    padding:0; margin:0 -3px; }
+  .nowbar-heart[hidden], .nowbar-next[hidden]{ display:none; }
+  .nowbar-heart.saved-on{ color:var(--copper); }
+  .nowbar-heart.saved-on svg{ fill:currentColor; }
+  /* ---- The playlist's page (§691, the owner's 11.24 mock) ---- */
+  .pl-head{ flex:1; min-width:0; }
+  .pl-wordmark{ margin:0; font-size:25px; text-align:left; justify-content:flex-start; }
+  .pl-word{ margin-left:0.28em; font-family:'Bricolage Grotesque', sans-serif; font-weight:600; }
+  .pl-head-sub{ margin-top:3px; font-family:'Geist Mono', monospace; font-size:9px;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--text-faint);
+    overflow-wrap:anywhere; }
+  .pl-tune{ flex:none; width:40px; height:40px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; background:transparent; color:var(--text);
+    border:1px solid var(--border-strong); cursor:pointer; padding:0; }
+  .pl-tune:active{ background:rgba(var(--fg-rgb),0.08); }
+  #screen-mixdetail .mix-play.pl-pill{ background:transparent; color:var(--copper);
+    border:1.5px solid var(--copper); min-height:50px; border-radius:25px; font-size:14.5px; }
+  #screen-mixdetail .mix-play.pl-pill.playing{ background:rgba(var(--fg-rgb),0.04); }
+  .back-row h2.pl-wordmark{ font-size:26px; flex:none; }
+  #screen-mixdetail .back-row{ align-items:center; padding-bottom:14px; }
+  #screen-mixdetail .mix-play.pl-pill:active{ background:rgba(var(--fg-rgb),0.06); }
+  .pl-rows{ margin:6px -18px 14px; border-top:1px solid var(--border); }
+  .pl-row{ display:flex; align-items:flex-start; gap:13px; padding:14px 18px;
+    border-bottom:1px solid var(--border); cursor:pointer; position:relative; }
+  .pl-row.now{ margin:8px 8px; padding:13px 10px; border:1px solid var(--border-strong);
+    border-radius:16px; background:var(--surface); cursor:default; }
+  .pl-row.has-sig{ box-shadow:inset 3px 0 0 var(--sig-tr); }
+  .pl-row.has-sig.sig-update{ box-shadow:inset 3px 0 0 var(--sig-up); }
+  .pl-row-pic{ flex:none; position:relative; width:76px; height:76px; padding:0; border:0;
+    border-radius:13px; overflow:hidden; background:var(--surface-2); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; color:var(--text-muted); }
+  .pl-row-pic img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .pl-row-btn{ position:relative; width:36px; height:36px; border-radius:50%; display:flex;
+    align-items:center; justify-content:center; background:rgba(16,14,22,0.55); color:#F4EFE4;
+    border:1.5px solid rgba(244,239,228,0.85); }
+  .pl-row.now .pl-row-btn{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .pl-row-pic .mix-topic-icon{ position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; opacity:0.35; }
+  .pl-row-body{ flex:1; min-width:0; }
+  .pl-row-kick{ font-family:'Geist Mono', monospace; font-size:9px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--text-faint); overflow-wrap:anywhere; }
+  .pl-row.now .pl-row-kick{ color:var(--copper); }
+  .pl-row-title{ margin-top:4px; font-family:'Bricolage Grotesque', sans-serif; font-weight:600;
+    font-size:15.5px; line-height:1.25; color:var(--text); overflow-wrap:anywhere; }
+  .pl-row-hook{ margin-top:5px; font-size:12.5px; line-height:1.45; color:var(--text-muted);
+    overflow-wrap:anywhere; }
+  .pl-row-by{ display:flex; align-items:center; gap:6px; margin-top:6px; font-size:11px;
+    color:var(--text-faint); }
+  .pl-row-by .mix-face{ width:18px; height:18px; font-size:8px; }
+  .pl-row.heard{ align-items:center; padding-top:10px; padding-bottom:10px; }
+  .pl-row.heard .pl-row-pic{ width:40px; height:40px; border-radius:10px; color:#F4EFE4; }
+  .pl-row.heard .pl-row-pic img{ opacity:0.45; }
+  .pl-row.heard .pl-row-pic > svg{ position:relative; }
+  .pl-row.heard .pl-row-title{ margin-top:2px; font-family:'Geist', sans-serif; font-weight:400;
+    font-size:13px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pl-heart{ flex:none; width:32px; height:32px; margin:-5px -6px 0 0; padding:0; border:0;
+    background:none; color:var(--text-muted); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; position:relative; }
+  .pl-heart::before{ content:""; position:absolute; inset:-6px; }
+  .pl-heart.on{ color:var(--copper); }
+  .pl-heart.on svg{ fill:currentColor; }
+  #screen-mixdetail .mix-hero{ margin-top:18px; }
 
   /* -------- tabbar -------- */
   /* Five tabs with search raised on a circle in the middle. Search is the
@@ -5256,7 +5337,7 @@
 
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre active" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -5309,7 +5390,15 @@
                only one of them that is irreversible is the one that posts to
                your friends. Vibing is still on all three real players, where
                there is room to see what you are vibing. -->
+          <!-- In a playlist (§691, the owner's 11.24 mock) the bar says where
+               it has got to ("2 OF 7 · NBA") and carries a heart - Saved for
+               Later, the player's own save, never a vibe - and the next
+               story. Both are hidden outside one. -->
+          <button class="nowbar-heart" id="nowHeart" data-save onclick="event.stopPropagation(); saveForLater()"
+                  aria-label="Save for later" aria-pressed="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10-7.5 10z"/></svg></button>
           <button class="nowbar-play" id="nowPlay" onclick="event.stopPropagation(); toggleNowBar()"></button>
+          <button class="nowbar-next" id="nowNext" onclick="event.stopPropagation(); skipMixItem()"
+                  aria-label="Skip to the next story in this playlist" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 5.2v13.6a.8.8 0 0 0 1.2.7l10-6.8a.8.8 0 0 0 0-1.4l-10-6.8a.8.8 0 0 0-1.2.7z"/><rect x="18.4" y="4.6" width="2.4" height="14.8" rx="1.1" stroke="none"/></svg></button>
           <!-- The X stops the episode and takes the bar down (§250, the
                10.10 packet): with the bar gone there was no way left to
                stop audio it had left playing. Leaving the player (the down
@@ -5320,7 +5409,7 @@
         </div>
         <div class="tabbar">
           <div class="tab active" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -5344,18 +5433,14 @@
                control that appears and then vanishes reads as a fault. The
                sign-up buttons `renderMixesLocked` draws are the way in. -->
         </div>
-        <!-- Two tabs under the wordmark (§550, the owner's 11.11 note, "like
-             Groups | Messages"): the listener's mixes, and the categories
-             that used to be a chip row over them. -->
-        <div class="pf-tabs" role="tablist" aria-label="myFAM" onkeydown="playfamTabKey(event)">
-          <button type="button" class="pf-tab on" id="pfTabMixes" role="tab" aria-selected="true" onclick="showPlayfamTab('mixes', event)">Mixes</button>
-          <button type="button" class="pf-tab" id="pfTabCats" role="tab" aria-selected="false" tabindex="-1" onclick="showPlayfamTab('categories', event)">Categories</button>
-        </div>
-        <!-- "Create new mix" (11.7 packet): a pill under the wordmark in place
-             of the circled (+) top right. Still hidden until `/api/mixes`
-             says there is an account (`showNewMixButton`). On Mixes only. -->
-        <div class="new-mix-row" id="newMixRow">
-          <button class="new-mix-pill" id="newMixBtn" onclick="openNewMix()" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Create new mix</button>
+        <!-- Two tabs under the wordmark (§550; §691, the owner's 11.24
+             mock): **Explore** - today's stories, the trending ones first,
+             filtered by a row of category chips - and **Playlists**, the
+             listener's mixes. Explore is the first tab and the one an
+             arrival opens on. The ids keep the old names. -->
+        <div class="pf-tabs cats" role="tablist" aria-label="myFAM" onkeydown="playfamTabKey(event)">
+          <button type="button" class="pf-tab on" id="pfTabCats" role="tab" aria-selected="true" onclick="showPlayfamTab('categories', event)">Explore</button>
+          <button type="button" class="pf-tab" id="pfTabMixes" role="tab" aria-selected="false" tabindex="-1" onclick="showPlayfamTab('mixes', event)">Playlists</button>
         </div>
         <div class="scroll">
           <!-- **Categories as filter chips** (the 11.3 packet, option 2 of
@@ -5364,34 +5449,36 @@
                find any category in the tree. Picking one filters this page
                in place (`#catPanel` in place of `#mixesPane`); there is no
                separate category page. Cached episodes only. -->
-          <div class="catchips" id="catChips" role="tablist" aria-label="Categories" hidden></div>
-          <!-- The Categories tab before one is picked (§550): the ones this
-               listener follows, then every facet, each a row to open. -->
-          <div id="catHome" hidden></div>
-          <div id="catPanel" hidden></div>
-          <div id="mixesPane">
-          <!-- Other listeners' public mixes. Tapping the bar lists every
-               public mix; typing narrows it by mix name, by a topic in the
-               mix, or by whose it is. Anybody can search and listen; adding
-               one to your own DailyFAM needs an account, like any mix. -->
+          <div class="catchips" id="catChips" role="tablist" aria-label="Categories"></div>
+          <!-- Explore's cards (§691): "All" before a chip is picked - the
+               Trending edition's stories first, then today's most played -
+               and one category's after. -->
+          <div id="catPanel"></div>
+          <div id="mixesPane" hidden>
+          <div id="mixList"></div>
+          <!-- "+ New playlist" (§691): the dashed row under the cards, where
+               the "Create new mix" pill under the wordmark was. Hidden until
+               `/api/mixes` says there is an account (`showNewMixButton`). -->
+          <button class="pl-create" id="newMixBtn" onclick="openNewMix()" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New playlist</button>
+          <!-- Other listeners' public playlists, under the listener's own
+               (§691: the mock's list starts at the top). Tapping the bar
+               lists every public one; typing narrows it by name, by a topic
+               in it, or by whose it is. Anybody can search and listen;
+               adding one to your own myFAM needs an account. -->
           <div class="dm-search" id="dailySearchRow">
             <svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <input id="dailySearch" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                   placeholder="Search mixes, topics or people" aria-label="Search public mixes"
+                   placeholder="Search playlists, topics or people" aria-label="Search public playlists"
                    onfocus="openDailySearch()" oninput="onDailySearch()"
                    onkeydown="if(event.key==='Enter') this.blur()">
             <button class="dm-search-x" id="dailySearchX" onclick="closeDailySearch()" hidden>Cancel</button>
           </div>
-          <div class="connect-sub" id="dailySub" style="margin:2px 0 16px;">
-            Your mixes, with fresh episodes every morning.
-          </div>
           <div id="dailyResults" hidden></div>
-          <div id="mixList"></div>
           </div>
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab active" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -5403,10 +5490,25 @@
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="closeMixPage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <h2 id="mixTitle">Mix</h2>
-          <div class="head-dots" onclick="openMixMenu()"><span></span><span></span><span></span></div>
+          <!-- "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§691, the
+               owner's 11.24 mock); the sliders open the playlist's menu, as
+               the three dots did. -->
+          <div class="pl-head">
+            <h2 class="wordmark pl-wordmark" aria-label="myFAM Playlist">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span><span class="pl-word">Playlist</span></h2>
+            <div class="pl-head-sub"><span id="mixTitle">Playlist</span><span id="mixHeadMeta"></span></div>
+          </div>
+          <button type="button" class="pl-tune" onclick="openMixMenu()" aria-label="Playlist options"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 4v5M6 13v7M12 4v9M12 17v3M18 4v3M18 11v9"/><path d="M3.5 11h5M9.5 15h5M15.5 9h5"/></svg></button>
         </div>
         <div class="scroll" id="mixBody"></div>
+        <!-- The tabs, and so the mini player above them, on a playlist's own
+             page too (§691, the owner's 11.24 mock). -->
+        <div class="tabbar">
+          <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
+          <div class="tab active" data-tab="playfam" onclick="openPlayFAM('mixes')"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
+          <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
+          <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
+        </div>
       </section>
 
       <!-- ============ DAILYFAM — somebody else's public mix ============ -->
@@ -5681,7 +5783,7 @@
         </div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab active" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -5710,7 +5812,7 @@
         <div class="scroll"><div id="threadList"></div></div>
         <div class="tabbar">
           <div class="tab" data-tab="myfam" onclick="openMyFamTab()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 10l8-7 8 7v11H4z"/><path d="M4 10l8-7 8 7v11H4z"/><path d="M8.5 12.5L12 9l3.5 3.5M8.5 17L12 13.5l3.5 3.5"/></svg></div><div class="lbl">dailyFAM</div></div>
-          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new mix is ready" hidden></span></div><div class="lbl">myFAM</div></div>
+          <div class="tab" data-tab="playfam" onclick="openPlayFAM()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M13 5l6 7-6 7z"/><path d="M6 5l6 7-6 7M13 5l6 7-6 7"/></svg><span class="tab-badge tab-new" data-mix-dot aria-label="A new playlist is ready" hidden></span></div><div class="lbl">myFAM</div></div>
           <div class="tab centre" data-tab="home" onclick="setTab('home')"><div class="dot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle class="tone" cx="11" cy="11" r="7"/><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div></div>
           <div class="tab active" data-tab="messages" onclick="openMessages()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="tone" d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M4 4h16a2 2 0 012 2v9a2 2 0 01-2 2H9l-4 4v-4H4a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg><span class="tab-badge" data-msg-badge hidden></span></div><div class="lbl">Messages</div></div>
           <div class="tab" data-tab="profile" onclick="openProfile()"><div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle class="tone" cx="9" cy="8" r="3.5"/><path class="tone" d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6z"/><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.5 0 4 2 4 5"/></svg></div><div class="lbl">yourFAM</div></div>
@@ -9637,6 +9739,9 @@
     document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
     next.classList.add("active");
     placeNowBar(next);
+    // A playlist's page says where the playlist has got to, however long
+    // another screen was over it (§691 review).
+    if(id === "mixdetail" && typeof refreshMixPlaying === "function") refreshMixPlaying();
     followSurveyInvite(id);
     // How it moves (§292) - after the bar is placed, so a player closing
     // into the mini player knows where the mini player is.
@@ -12490,8 +12595,25 @@
       ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="3.8" width="4.6" height="16.4" rx="1.7"/><rect x="13.4" y="3.8" width="4.6" height="16.4" rx="1.7"/></svg>'
       : '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M8.2 4.9v14.2L18.6 12z"/></svg>',
       !!on);
+    paintNowBarMix();
+    // The playlist's page follows the transport (§691).
+    if(typeof refreshMixPlaying === "function") refreshMixPlaying();
   }
 
+  // "2 OF 7 · NBA" while a playlist's own episode plays (§691); "" otherwise.
+  function nowBarMixLine(){
+    if(typeof mixPlay === "undefined" || !mixPlay || !mixPlay.order || mixPlay.key !== currentPlayingTopicKey) return "";
+    var item = mixPlay.order[mixPlay.pos] || {};
+    return (mixPlay.pos + 1) + " of " + mixPlay.order.length + (item.title ? " \u00b7 " + item.title : "");
+  }
+  function paintNowBarMix(){
+    var inMix = !!nowBarMixLine();
+    var heart = document.getElementById("nowHeart"), next = document.getElementById("nowNext");
+    if(heart) heart.hidden = !inMix;
+    if(next) next.hidden = !inMix;
+    var meta = document.getElementById("nowMeta");
+    if(meta && inMix) meta.textContent = nowBarMixLine();
+  }
   function startNowBarTicker(){
     stopNowBarTicker();
     nowBarTimer = setInterval(function(){
@@ -12499,8 +12621,8 @@
       var total = nowBarState.minutes * 60;
       var at = FamAudio.position();
       var left = Math.max(0, total - at);
-      document.getElementById("nowMeta").textContent =
-        (nowBarState.source ? nowBarState.source + " \u00b7 " : "") + formatTime(left) + " left";
+      document.getElementById("nowMeta").textContent = nowBarMixLine()
+        || (nowBarState.source ? nowBarState.source + " \u00b7 " : "") + formatTime(left) + " left";
       document.getElementById("nowFill").style.transform =
         "scaleX(" + Math.min(1, at / total) + ")";
       // Written as it plays rather than only on pause, so closing the tab
@@ -15985,17 +16107,25 @@
       + '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>';
   }
 
-  function openPlayFAM(){
+  // `tab`: "mixes" from a flow that is about a playlist (back from one,
+  // one just made); otherwise an arrival opens on **Explore**, the first
+  // tab (§691, the owner's 11.24 mock, reversing §550's "every arrival
+  // opens on Mixes") - unless the tab's dot says a playlist is new this
+  // morning, which is what the tap was for.
+  function openPlayFAM(tab){
+    var fresh = false;
+    document.querySelectorAll("[data-mix-dot]").forEach(function(el){ if(!el.hidden) fresh = true; });
     // setTab already shows the screen and resets the back stack; navigating
     // on top of it would push the same screen twice and make Back a no-op.
     setTab("playfam");
-    // Every arrival opens on Mixes (§500 review, §550): a category left
-    // open would hide the mixes behind yesterday's list after "Create new
-    // mix" or a mix - and the morning's new mix is what the tab is for.
-    if(catPage.root || catPage.finding) clearCategory();
-    showPlayfamTab("mixes");
-    // The Create row is decided from the account on the first frame, so
-    // the cards never land and then jump 42 px down (§642).
+    // A category left open would show yesterday's list.
+    if(catPage.root || catPage.finding){
+      catReq++; catPanelIdle();
+      catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
+      document.getElementById("catPanel").innerHTML = "";
+      renderCategoryChips();
+    }
+    showPlayfamTab(tab === "mixes" || fresh ? "mixes" : "categories");
     showNewMixButton(!!AUTH.authenticated);
     clearMixDot();
     loadMixes();
@@ -16056,7 +16186,7 @@
       // A failure has to look like one. An empty page here would read as
       // "you have no mixes", which is a different and much worse message.
       el._drawn = null;
-      el.innerHTML = '<div class="mix-empty">Your mixes could not load. They\u2019re safe \u2014 try again in a moment.</div>';
+      el.innerHTML = '<div class="mix-empty">Your playlists could not load. They\u2019re safe \u2014 try again in a moment.</div>';
     });
   }
 
@@ -16066,7 +16196,7 @@
   function renderMixesLocked(){
     showNewMixButton(false);
     drawMixCards(
-      '<div class="locked-note" data-mix="locked">Make mixes of the topics you want every day, with fresh episodes each morning. Free with an account.'
+      '<div class="locked-note" data-mix="locked">Make playlists of the topics you want every day, with fresh episodes each morning. Free with an account.'
       + '<div class="locked-acts">'
       + '<button class="pf-btn primary" onclick="openAuth(\'signup\')">Sign up</button>'
       + '<button class="pf-btn" onclick="openAuth(\'login\')">Log in</button>'
@@ -16094,36 +16224,29 @@
   }
   // Drawn like a listener's own mix card (option A, §616).
   function sampleMixCardHTML(m){
-    return '<div class="mix-a-grid">' + mixCardAHTML(m, "openMix('sample')") + '</div>';
+    return playlistCardHTML(m);
   }
 
 
   // Inside the example: its briefings and a play button, and none of the
   // controls that edit a mix - there is nothing kept to edit.
   function renderSampleMixBody(m){
-    var html = '<div class="mix-hero"><div class="mix-hero-art static">' + folderSVG() + '</div><div>'
-      + '<div class="mix-hero-t">' + escapeHtml(m.name) + '</div>'
-      + '<div class="mix-hero-s">' + m.items.length + ' briefings \u00b7 daily \u00b7 example</div>'
-      + '</div></div>';
-    html += '<button class="mix-play" onclick="playMix()">'
-      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
-      + '<path d="M8 5v14l11-7z"/></svg>Play ' + m.items.length + ' episodes</button>';
-    html += m.items.map(function(t){
-      return '<div class="mix-topic">'
-        + '<div class="mix-topic-body">'
-        + '<div class="mix-topic-title">' + escapeHtml(t.title) + '</div>'
-        + '<div class="mix-topic-sub">' + escapeHtml(t.subtitle || "") + '</div>'
-        + '</div>'
-        + '<button class="mix-topic-act" title="Play this one" data-id="' + escapeHtml(t.id) + '" '
-        + 'onclick="event.stopPropagation(); playMixFrom(this.dataset.id)">'
-        + '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">'
-        + '<path d="M8 5v14l11-7z"/></svg></button>'
-        + '</div>';
-    }).join("");
+    paintMixHead(m);
+    var live = mixLive(m);
+    var html = live
+      ? '<button class="mix-play pl-pill playing" onclick="togglePlay()">' + (isPlaying ? PL_PAUSE_SVG : PL_PLAY_SVG)
+        + (isPlaying ? "Playing " : "Paused ") + escapeHtml(m.name) + ' \u00b7 ' + (mixPlay.pos + 1) + ' of ' + mixPlay.order.length + '</button>'
+      : '<button class="mix-play pl-pill" onclick="playMix()">' + PL_PLAY_SVG
+        + 'Play ' + escapeHtml(m.name) + ' \u00b7 ' + m.items.length + (m.items.length === 1 ? " story" : " stories") + '</button>';
+    var order = live ? mixPlay.order : m.items;
+    html += '<div class="pl-rows">' + order.map(function(t, n){
+      return playlistRowHTML(m, t, live ? (n < mixPlay.pos ? "heard" : n === mixPlay.pos ? "now" : "next") : "");
+    }).join("") + '</div>';
     html += '<div class="locked-note" style="margin-top:14px;">' + escapeHtml(m.note || "")
       + gateActions() + '</div>';
     var body = document.getElementById("mixBody");
-    body._drawn = null;
+    if(body._drawn === html && body.innerHTML) return;
+    body._drawn = html;
     body.innerHTML = html;
   }
 
@@ -16154,49 +16277,48 @@
     return MIX_HUES[h % MIX_HUES.length];
   }
 
-  // "↗ News · Carney promotes Asia trade deals": today's headline (§616),
-  // the icon and colour of why it leads (trending, a result in, most
-  // covered - §545's signals among them); else the topics in today's order.
-  function mixHeadlineHTML(m){
-    var h = m.headline;
-    if(h && h.title){
-      var why = h.why === "update" ? "update" : h.why === "trending" ? "trending" : h.why === "covered" ? "covered" : "";
-      var icon = why === "update" || why === "trending" ? sigIconSVG(why, 11)
-        : why === "covered" ? '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M4 18V9M10 18V5M16 18v-7M22 18H2"/></svg>' : "";
-      return '<div class="mix-a-line"><b class="' + (why ? "why-" + why : "") + '">' + icon
-        + escapeHtml(h.topic || "") + '</b>' + (h.topic ? ' \u00b7 ' : '') + escapeHtml(h.title) + '</div>';
-    }
-    var names = todayOrder(m).map(function(t){ return t.episode_title || t.title; }).filter(Boolean);
-    return '<div class="mix-a-line quiet">' + escapeHtml(names.length ? names.slice(0, 3).join(" \u00b7 ") : "No topics yet") + '</div>';
+  // **A playlist's card** (§691, the owner's 11.24 mock, after §616's
+  // stacked deck): one row - today's lead picture (or the playlist's own
+  // photo), its name, "7 BRIEFINGS · DAILY", its topics in today's order
+  // ("Startups, AI, NBA and 4 more") and a play button that starts it from
+  // the top without opening it. A topic that is trending or has a result in
+  // since the listener last heard it (§545) says so after "DAILY".
+  function playlistTopicsLine(m){
+    var names = todayOrder(m).map(function(t){ return t.title; }).filter(Boolean);
+    if(!names.length) return "No topics yet";
+    if(names.length <= 3) return names.join(", ");
+    var more = names.length - 3;
+    return names.slice(0, 3).join(", ") + " and " + more + " more";
   }
-
-  // **Option A, the stacked deck** (§616). The stack is today's order:
-  // whatever leads today sits on top (`cover_tiles`, best first, drawn last
-  // so it lands on top). No picture anywhere: the mix's colour and its folder.
-  function mixCardAHTML(m, open){
-    var tiles = (m.cover_tiles || []).slice(0, 3);
-    var photo = !!m.cover;
-    var stack = tiles.map(function(t, i){ return { t: t, i: i }; }).reverse().map(function(x){
-      // Keyed by the story, so a reshuffle can tell which card went where.
-      return '<div class="mix-a-tile t' + x.i + '" data-slot="' + x.i + '" data-key="'
-        + escapeHtml(String(x.t.id || (x.t.picture || "") + "|" + (x.t.label || x.i))) + '" style="background-image:url(' + x.t.picture + ')">'
-        + (x.i === 0 && x.t.ready ? '<span class="mix-a-ready">READY</span>' : '')
-        + (x.t.label ? '<span class="mix-a-label">' + escapeHtml(x.t.label) + '</span>' : '')
-        + '</div>';
-    }).join("");
-    var style = photo ? ' style="--mix-hue:' + mixHue(m.id) + '; background-image:url(' + m.cover + ')"'
-                      : ' style="--mix-hue:' + mixHue(m.id) + '"';
-    return '<div class="mix-a" role="button" tabindex="0" data-mix="' + escapeHtml(String(m.id)) + '" onclick="' + open + '"'
-      + ' onkeydown="if(event.key===\'Enter\' || event.key===\' \'){ event.preventDefault(); this.click(); }"'
+  function playlistCardHTML(m){
+    var id = String(m.id), n = (m.items || []).length;
+    var pic = coverOf(m);
+    var why = m.headline && (m.headline.why === "update" || m.headline.why === "trending") ? m.headline.why : "";
+    return '<div class="pl-card" role="button" tabindex="0" data-mix="' + escapeHtml(id) + '"'
+      + ' onclick="openMix(this.dataset.mix)"'
+      + ' onkeydown="if(event.target === this && (event.key===\'Enter\' || event.key===\' \')){ event.preventDefault(); this.click(); }"'
       + ' aria-label="' + escapeHtml(m.name) + '">'
-      + '<div class="mix-a-cover' + (photo ? " photo" : "") + '"' + style + '>'
-      + (tiles.length ? '<div class="mix-a-stack">' + stack + '</div>'
-                      : (photo ? '' : '<div class="mix-a-folder">' + folderSVG() + '</div>'))
-      + (open.indexOf("sample") < 0 && isFreshMix(m.id) ? '<span class="mix-a-new">New today</span>' : '')
-      + '<div class="mix-a-name">' + escapeHtml(m.name) + '</div>'
-      + '</div>'
-      + mixHeadlineHTML(m)
+      + '<span class="pl-art' + (pic ? " has-cover" : "") + '" style="--mix-hue:' + mixHue(m.id)
+      + (pic ? '; background-image:url(' + pic + ')' : '') + '">' + (pic ? '' : folderSVG()) + '</span>'
+      + '<span class="pl-body">'
+      + '<span class="pl-name">' + escapeHtml(m.name)
+      + (!m.sample && isFreshMix(m.id) ? '<span class="pl-new">New today</span>' : '') + '</span>'
+      + '<span class="pl-meta">' + n + (n === 1 ? " briefing" : " briefings") + ' \u00b7 daily'
+      + (m.sample ? ' \u00b7 example' : '')
+      + (why ? ' \u00b7 <b class="' + (why === "update" ? "why-update" : "why-trending") + '">' + sigIconSVG(why, 10) + (why === "update" ? "Major update" : "Trending") + '</b>' : '')
+      + '</span>'
+      + '<span class="pl-topics">' + escapeHtml(playlistTopicsLine(m)) + '</span>'
+      + '</span>'
+      + (n ? '<button type="button" class="pl-play" data-id="' + escapeHtml(id) + '"'
+        + ' onclick="event.stopPropagation(); playMixCard(this.dataset.id)" aria-label="Play ' + escapeHtml(m.name) + '">'
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button>' : '')
       + '</div>';
+  }
+  // The card's play button: the playlist from the top, in today's order.
+  function playMixCard(id){
+    var m = mixById(id);
+    if(!m || !(m.items || []).length) return;
+    startMixQueue(m, 0);
   }
 
   function renderMixList(){
@@ -16205,22 +16327,13 @@
     if(!mixes.length){
       // No suggested mixes under this (10.1 packet, third set): "Morning",
       // "At the gym" and "Wind down" were removed at the owner's direction.
-      // The "Create new mix" pill under the wordmark is the way to make one.
-      html += '<div class="mix-empty">No mixes yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
+      // "+ New playlist" under the cards is the way to make one.
+      html += '<div class="mix-empty">No playlists yet. Make one for when you listen \u2014 the gym, the commute \u2014 and it\u2019s fresh every morning.</div>';
     }
-    // No inline "New mix" button here. Creating a mix is the "Create new mix"
-    // pill under the wordmark, and one control in one place is the whole of item 6:
-    // this screen carried both, so the same action sat twice on one page and
-    // the second copy pushed every mix card down.
-
-    // **A mix card is option A, the stacked deck** (§616, the owner's pick
-    // of six on 11.14, after §544's picture-name-arrow row and §545's R5).
-    // Two to a row; everything else about the mix is on its own page.
-    if(mixes.length){
-      html += '<div class="mix-a-grid">' + mixes.map(function(m){
-        return mixCardAHTML(m, "openMix('" + m.id + "')");
-      }).join("") + '</div>';
-    }
+    // **One row a playlist** (§691, the owner's 11.24 mock, after §616's
+    // stacked deck and §544's picture-name-arrow row). Making one is the
+    // dashed "+ New playlist" under them - one control, in one place.
+    html += mixes.map(playlistCardHTML).join("");
     drawMixCards(html);
   }
   // The grid redrawn under the deck's motion (mix-cards-arrive: B,
@@ -16261,7 +16374,15 @@
     var req = ++catDataReq;
     fetch("/api/categories")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(d){ if(req !== catDataReq) return; catData = d; renderCategoryChips(); })
+      .then(function(d){
+        if(req !== catDataReq) return;
+        var first = !catData;
+        catData = d;
+        renderCategoryChips();
+        // Cards drawn before the categories arrived get their facet now.
+        if(first && playfamTab === "categories" && !catPage.finding && !catPage.loading && catPage.episodes.length)
+          drawCategoryPanel();
+      })
       .catch(function(){
         // The chips simply are not drawn: the page under them still works,
         // and a row of chips that leads nowhere would be worse.
@@ -16309,7 +16430,6 @@
   function renderCategoryChips(anim, together){
     var el = document.getElementById("catChips");
     if(!el) return;
-    renderCategoryHome();
     if(!catData){ el.innerHTML = ""; return; }
     var before = anim ? Motion.chipLayout(el) : null;
     paintCategoryChips(el);
@@ -16326,8 +16446,11 @@
       var mine = catData.saved ? catData.mine : [];
       var followed = {};
       mine.forEach(function(c){ followed[c.id] = true; });
-      // No "All" (§550): the mixes are their own tab now.
-      el.innerHTML = mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
+      // "All" is back (§691): Explore before a category is picked, the
+      // trending stories first. It is the chip that is on.
+      el.innerHTML = '<button type="button" class="catchip on" role="tab" aria-selected="true" data-chip="all"'
+        + ' onclick="clearCategory(true)">All</button>'
+        + mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
         + catData.facets.filter(function(f){ return !followed[f.id]; })
             .map(function(f){ return catChipHTML(f.id, f.label, false, false, "pickCategory"); }).join("")
         + '<button type="button" class="catchip catchip-more" data-chip="more" onclick="openCategoryFind()">More</button>';
@@ -16340,8 +16463,9 @@
           return catChipHTML(s.id, s.label, catPage.node === s.id, isFollowed(s.id), "pickCategorySub");
         }).join("");
   }
-  // Which of myFAM's two tabs is on (§550): "mixes" or "categories".
-  var playfamTab = "mixes";
+  // Which of myFAM's two tabs is on (§550): "categories" - shown as
+  // **Explore**, the first tab (§691) - or "mixes", shown as **Playlists**.
+  var playfamTab = "categories";
   // `how` (playfam-tabs: B, §642): the event of a tap, which slides the
   // underline and nudges the list toward the side chosen; a key (arrows,
   // or Enter / Space, whose click has no pointer) and every arrival on
@@ -16366,81 +16490,42 @@
         b.setAttribute("aria-selected", t[1] ? "true" : "false");
         b.tabIndex = t[1] ? 0 : -1;
       });
-      // The Create row keeps its height on Categories, so the list never
-      // rides a 42 px jump.
-      var row = document.getElementById("newMixRow");
-      if(row) row.style.visibility = cats ? "hidden" : "";
       var chips = document.getElementById("catChips");
       if(chips) chips.hidden = !cats;
-      // Leaving Categories forgets the one that was open; arriving shows the
-      // list of them.
-      if(!cats && (catPage.root || catPage.finding)){ clearCategory(); }
-      else showCategoryPanel(!!(cats && (catPage.root || catPage.finding)));
+      // Leaving Explore forgets the category that was open; arriving shows
+      // All, read again.
+      if(!cats && (catPage.root || catPage.finding)) clearCategory();
+      showCategoryPanel();
+      if(cats && !catPage.root && !catPage.finding) loadCategoryEpisodes();
       if(scroller) scroller.scrollTop = 0;
     };
     var scroller = document.querySelector("#screen-playfam .scroll");
-    if(tapped) Motion.panels(scroller, cats ? 1 : -1, change); else change();
+    // Explore is on the left: going to it comes from that side.
+    if(tapped) Motion.panels(scroller, cats ? -1 : 1, change); else change();
   }
   // The tab list's keys: left and right move between the two, at once.
   function playfamTabKey(e){
     if(e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
-    var cats = e.key === "ArrowRight";
+    var cats = e.key === "ArrowLeft";
     showPlayfamTab(cats ? "categories" : "mixes");
     var b = document.getElementById(cats ? "pfTabCats" : "pfTabMixes");
     if(b) b.focus();
   }
 
-  function showCategoryPanel(on){
+  // Explore's panel on its tab, the playlists on theirs.
+  function showCategoryPanel(){
     var cats = playfamTab === "categories";
-    document.getElementById("catPanel").hidden = !on;
-    var home = document.getElementById("catHome");
-    if(home) home.hidden = on || !cats;
-    document.getElementById("mixesPane").hidden = on || cats;
+    document.getElementById("catPanel").hidden = !cats;
+    document.getElementById("mixesPane").hidden = cats;
   }
-  // The Categories tab with none picked (§550): followed first, each with
-  // how many episodes it has today, then every facet and what is under it.
   var CAT_FACET_ICONS = { sports: "ball", business: "briefcase", money: "chart",
     tech: "chip", science: "atom", health: "pulse", culture: "palette", world: "news" };
-  function renderCategoryHome(){
-    var el = document.getElementById("catHome");
-    if(!el) return;
-    if(!catData){ el.innerHTML = '<div class="sv-empty">Loading categories\u2026</div>'; return; }
-    var row = function(id, label, facet, sub, followed){
-      return '<button type="button" class="cath-row" data-cat="' + escapeHtml(id) + '"'
-        + ' onclick="pickCategory(this.dataset.cat)">'
-        + '<span class="cath-ico ' + categoryTone(facet) + '">' + catIcon(CAT_FACET_ICONS[facet] || "news") + '</span>'
-        + '<span class="cath-body"><span class="cath-name">' + (followed ? CAT_STAR : '') + escapeHtml(label) + '</span>'
-        + (sub ? '<span class="cath-sub">' + escapeHtml(sub) + '</span>' : '') + '</span>'
-        + '<svg class="cath-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
-        + '</button>';
-    };
-    var mine = catData.saved ? catData.mine : [];
-    var followed = {};
-    mine.forEach(function(c){ followed[c.id] = true; });
-    var html = "";
-    if(mine.length){
-      html += '<div class="cath-h">Your categories</div>' + mine.map(function(c){
-        var n = c.today || 0;
-        return row(c.id, c.label, c.facet, n ? n + (n === 1 ? " episode today" : " episodes today")
-                                              : (c.children || []).join(" \u00b7 "), true);
-      }).join("");
-    }
-    var rest = catData.facets.filter(function(f){ return !followed[f.id]; });
-    if(rest.length){
-      html += '<div class="cath-h">' + (mine.length ? "More categories" : "All categories") + '</div>'
-        + rest.map(function(f){
-            return row(f.id, f.label, f.id, (f.children || []).slice(0, 4)
-              .map(function(c){ return c.label; }).join(" \u00b7 "), false);
-          }).join("");
-    }
-    el.innerHTML = html || '<div class="sv-empty">No categories yet.</div>';
-  }
   function pickCategory(id){
     if(!id){ clearCategory(); return; }
     if(playfamTab !== "categories") showPlayfamTab("categories");
     catPage = { root: id, node: id, episodes: [], subs: [], finding: false };
-    showCategoryPanel(true);
+    showCategoryPanel();
     // A new category: nothing of the last one's list stays under it.
     var panel = document.getElementById("catPanel");
     if(panel) panel.innerHTML = "";
@@ -16467,9 +16552,15 @@
   function clearCategory(tapped){
     catReq++;
     catPanelIdle();
+    var was = !!(catPage.root || catPage.finding);
     catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
-    showCategoryPanel(false);
+    showCategoryPanel();
     renderCategoryChips(tapped === true, true);
+    // Nothing of the category left stays under the All chip.
+    var panel = document.getElementById("catPanel");
+    if(panel && was) panel.innerHTML = "";
+    // Back to All (§691): Explore is never an empty panel.
+    if(playfamTab === "categories") loadCategoryEpisodes();
   }
   function isFollowed(id){
     if(!catData || !catData.saved) return false;
@@ -16529,9 +16620,12 @@
   }
 
   function loadCategoryEpisodes(){
+    if(catPage.finding) return;
     var req = ++catReq;
     var el = document.getElementById("catPanel");
+    // No category picked is "All" (§691): every category, trending first.
     var node = catPage.node;
+    var asked = node || "all";
     catPage.episodes = [];
     catPage.loading = true;
     // No flash (§642): what was there stays, and says it is busy; the
@@ -16543,7 +16637,7 @@
     var wait = setTimeout(function(){
       if(req !== catReq) return;
       shownAt = Date.now();
-      el.innerHTML = '<div class="sv-empty">Loading today’s episodes…</div>';
+      el.innerHTML = '<div class="sv-empty">Loading today’s stories…</div>';
     }, Motion.DUR.spinnerAfter);
     var landed = function(draw){
       clearTimeout(wait);
@@ -16551,7 +16645,7 @@
       var go = function(){ if(req !== catReq) return; catPanelIdle(el); draw(); };
       if(hold) setTimeout(go, hold); else go();
     };
-    fetch("/api/categories/episodes?id=" + encodeURIComponent(node) + "&sort=popular")
+    fetch("/api/categories/episodes?id=" + encodeURIComponent(asked) + "&sort=trending")
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
       .then(function(d){
         if(req !== catReq) return;
@@ -16560,7 +16654,7 @@
           catPage.episodes = d.episodes || [];
           // The level below comes from the category's own answer, so
           // narrowing to one of them keeps the row.
-          if(node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(true); }
+          if(node && node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(true); }
           drawCategoryPanel();
         });
       })
@@ -16568,7 +16662,7 @@
         if(req !== catReq) return;
         landed(function(){
           catPage.loading = false;
-          el.innerHTML = '<div class="sv-empty">Could not load this category right now. '
+          el.innerHTML = '<div class="sv-empty">Could not load ' + (node ? "this category" : "today’s stories") + ' right now. '
             + '<button class="sample-note-btn" onclick="loadCategoryEpisodes()">Try again</button></div>';
         });
       });
@@ -16578,12 +16672,57 @@
     if(ep.plays) meta.push(ep.plays + (ep.plays === 1 ? " PLAY" : " PLAYS"));
     return meta.filter(Boolean).join(" · ");
   }
-  // The picture of today's most played on top, Play all and Follow under
-  // it, then the rest in the same order.
+  // **Explore's cards** (§691, the owner's 11.24 mock): each story is a
+  // card - its picture small beside its category, its title, its one line,
+  // then **FAM** (plays it, replay only, the rest of the page queued after
+  // it as a category always did) and **Add to playlist** (the player's own
+  // sheet, for this story's topic). "All" is every category with the
+  // Trending edition's stories first; inside a category the same cards sit
+  // under Play all and Follow. The server's order is the order drawn.
+  var FAM_GLYPHS = '<span class="xp-fam" aria-hidden="true">'
+    + '<svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg>'
+    + '<svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg>'
+    + '<svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>';
+  // "SPORT · NBA": the facet, then the category when it is a narrower one.
+  function exploreKicker(ep){
+    var facet = categoryFacetOf(ep.node);
+    var top = facet ? categoryLabelOf(facet) : "";
+    var own = ep.node_label || "";
+    return (top && own && top.toLowerCase() !== own.toLowerCase() ? [top, own] : [own || top])
+      .filter(Boolean).join(" \u00b7 ");
+  }
+  function exploreCardHTML(ep, i){
+    var name = ep.title || ep.query;
+    return '<div class="xp-card" data-i="' + i + '">'
+      + '<div class="xp-top"><span class="xp-thumb ' + categoryTone(categoryFacetOf(ep.node)) + '">'
+      + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '')
+      + '</span><span class="xp-kick">' + escapeHtml(exploreKicker(ep)) + '</span></div>'
+      + '<div class="xp-title' + (ep.explicit ? ' is-explicit' : '') + '">' + escapeHtml(name) + '</div>'
+      + (ep.hook ? '<div class="xp-hook">' + escapeHtml(ep.hook) + '</div>' : '')
+      + '<div class="xp-acts">'
+      + '<button type="button" class="xp-play" onclick="playCategoryEpisode(' + i + ')" aria-label="Play ' + escapeHtml(name) + '">'
+      + '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+      + FAM_GLYPHS + '</button>'
+      + '<button type="button" class="xp-add" onclick="addExploreToPlaylist(' + i + ')">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+      + 'Add to playlist</button>'
+      + '</div></div>';
+  }
+  function addExploreToPlaylist(i){
+    var ep = catPage.episodes[i];
+    if(!ep || catPage.loading) return;
+    openAddToMix(ep.query, ep.title || ep.query);
+  }
   function drawCategoryPanel(){
     var el = document.getElementById("catPanel");
-    if(!el || !catPage.root || catPage.finding) return;
+    if(!el || catPage.finding) return;
     var eps = catPage.episodes;
+    var cards = eps.map(exploreCardHTML).join("");
+    if(!catPage.root){
+      el.innerHTML = cards || '<div class="sv-empty">Nothing has been made today yet. '
+        + 'Stories come up here as FAM writes them and people play them.</div>';
+      return;
+    }
     var label = categoryLabelOf(catPage.node);
     var on = isFollowed(catPage.node);
     var follow = catData ? '<button type="button" class="cat-follow' + (on ? ' on' : '')
@@ -16595,28 +16734,11 @@
         + 'Episodes come up here as people play and FAM writes them.</div>';
       return;
     }
-    var hero = eps[0];
     var mins = eps.reduce(function(t, ep){ return t + (Number(ep.minutes) || BROWSE_MINUTES); }, 0);
-    var tone = categoryTone(categoryFacetOf(catPage.root));
-    el.innerHTML = '<button type="button" class="catp-hero ' + tone + (hero.thumb ? ' has-img' : '') + '"'
-      + ' onclick="playCategoryEpisode(0)"'
-      + (hero.thumb ? ' style="background-image:url(&quot;' + escapeHtml(hero.thumb) + '&quot;)"' : '') + '>'
-      + '<span class="catp-hero-t' + (hero.explicit ? ' is-explicit' : '') + '">' + escapeHtml(hero.title || hero.query) + '</span>'
-      + '<span class="catp-hero-k">Most played in ' + escapeHtml(label) + ' today</span></button>'
-      + '<div class="catp-acts"><button type="button" class="catp-play" onclick="playCategoryAll()">'
+    el.innerHTML = '<div class="catp-acts"><button type="button" class="catp-play" onclick="playCategoryAll()">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
-      + 'Play all ' + eps.length + ' · ' + Math.max(1, Math.round(mins)) + ' min</button>' + follow + '</div>'
-      + eps.slice(1).map(function(ep, k){
-          var i = k + 1;
-          return '<div class="sv-row" onclick="playCategoryEpisode(' + i + ')">'
-            + '<div class="sv-art' + (ep.thumb ? ' has-img' : '') + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
-            + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async"'
-              + ' onerror="this.parentNode.classList.remove(\'has-img\'); this.remove()">' : '')
-            + '</div>'
-            + '<div class="sv-main"><div class="sv-title' + (ep.explicit ? ' is-explicit' : '') + '">'
-            + escapeHtml(ep.title || ep.query) + '</div>'
-            + '<div class="sv-meta">' + escapeHtml(catRowMeta(ep)) + '</div></div></div>';
-        }).join("");
+      + 'Play all ' + eps.length + ' \u00b7 ' + Math.max(1, Math.round(mins)) + ' min</button>' + follow + '</div>'
+      + cards;
   }
   // **More**: every category the tree holds, found by a word it starts
   // with ("nfl" is the NFL, not "conflict"). Only the results redraw, so
@@ -16625,7 +16747,7 @@
     catReq++;
     catPanelIdle();
     catPage = { root: "", node: "", episodes: [], subs: [], finding: true };
-    showCategoryPanel(true);
+    showCategoryPanel();
     renderCategoryChips();
     document.getElementById("catPanel").innerHTML = '<div class="dm-search cat-find">'
       + '<svg class="dm-search-i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
@@ -16665,7 +16787,7 @@
   function categoryQueueEntry(ep){
     return { title: ep.title || ep.query, prompt: ep.query,
              minutes: ep.minutes || BROWSE_MINUTES,
-             source: categoryLabelOf(catPage.node) || "Category", surface: "",
+             source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", surface: "",
              cachedOnly: true, thumb: ep.thumb || "", titleOverridden: true,
              fromCategory: true };
   }
@@ -16673,7 +16795,7 @@
     if(!list.length) return;
     var first = list[0];
     TOPICS["_category"] = { title: first.title || first.query, prompt: first.query,
-                            source: categoryLabelOf(catPage.node) || "Category", caption: "",
+                            source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", caption: "",
                             cachedOnly: true, exploreMinutes: first.minutes || BROWSE_MINUTES,
                             titleOverridden: true };
     generate("_category");
@@ -16710,7 +16832,6 @@
     if(!m) return;
     currentMixId = id;
     mixEditing = false;
-    document.getElementById("mixTitle").textContent = m.name;
     if(m.sample){
       renderSampleMixBody(m);
       navigate("mixdetail");
@@ -16724,6 +16845,11 @@
       Motion.newMixLands(folder, name, document.getElementById("screen-mixdetail"));
     } else navigate("mixdetail");
     noteMixOpen(m.id, false);
+    // The hearts: what is already in Saved for Later.
+    loadMixSaved(function(){
+      var again = mixById(currentMixId);
+      if(again && again.id === id && !mixEditing) rerenderMixKeepScroll(again);
+    });
     if(!pushState) loadPushState(repaintMixWhen);
     // The recommendations are drawn from the catalogue; if it has not
     // arrived yet, draw them when it does rather than leaving the space empty.
@@ -16746,15 +16872,17 @@
   // as going forward. With nothing under it, myFAM as a tab.
   function closeMixPage(){
     var prev = stack.length > 1 ? stack[stack.length - 2] : "";
-    if(!prev){ openPlayFAM(); return; }
+    if(!prev){ openPlayFAM("mixes"); return; }
     goBack();
-    if(prev === "playfam") loadMixes();
+    // Back from a playlist is back to the playlists, whichever tab the
+    // screen was last left on (§691 review).
+    if(prev === "playfam"){ showPlayfamTab("mixes"); loadMixes(); }
   }
   // The open mix redrawn where it is - a rename, the cover, a joint mix
   // made one person's - rather than pushed onto itself (the review's bug).
   function repaintOpenMix(saved){
     if(!saved || currentMixId !== saved.id) return;
-    document.getElementById("mixTitle").textContent = saved.name;
+    paintMixHead(saved);
     rerenderMixKeepScroll(saved);
   }
 
@@ -16812,7 +16940,7 @@
   function openMixPeople(){
     var m = mixById(currentMixId);
     if(!m || !(m.people && m.people.length)) return;
-    var rows = [{ group: escapeHtml(m.name) + " · a joint mix" }];
+    var rows = [{ group: escapeHtml(m.name) + " · a joint playlist" }];
     m.people.forEach(function(p){
       rows.push({ label: '<span class="mix-pick">' + mixFaceHTML(p) + '<span class="mix-pick-body">'
           + '<span class="mix-pick-name">' + escapeHtml(p.name || "@" + p.handle) + (p.you ? " (you)" : "") + '</span>'
@@ -16827,7 +16955,11 @@
     var owner = m.role !== "member";
     var items = m.items || [];
     var nBrief = items.length;
-    html += '<div class="mix-hero">'
+    paintMixHead(m);
+    // The playlist's own details - cover, name, who is in it, share and
+    // invite - sit under today's stories since §691; the page opens on
+    // what plays.
+    var details = '<div class="mix-hero">'
       + (owner
           ? '<button class="mix-hero-art' + (coverOf(m) ? " has-cover" : "") + '"' + coverStyle(m)
             + ' onclick="coverTapped(\'' + m.id + '\')" aria-label="' + (m.cover ? "Change" : "Add") + ' cover photo">'
@@ -16846,8 +16978,8 @@
       + '</div></div>';
     // Share and invite, under the name as on Spotify; the menu is the
     // header's three dots.
-    html += '<div class="mix-actions">'
-      + (owner ? '<button class="mix-act" onclick="shareMix()" aria-label="Share this mix">'
+    details += '<div class="mix-actions">'
+      + (owner ? '<button class="mix-act" onclick="shareMix()" aria-label="Share this playlist">'
         + '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
         + '<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg></button>'
         + '<button class="mix-act" onclick="inviteCollaborators()" aria-label="Invite collaborators">'
@@ -16857,35 +16989,49 @@
     // "Edit topics" (11.16 notes): the same page, every topic with an X.
     var editing = mixEditing && items.length > 0;
     if(editing){
-      html += '<div class="mix-edit-bar"><span>Tap \u00d7 to remove a topic from this mix</span>'
+      html += '<div class="mix-edit-bar"><span>Drag to reorder \u00b7 tap \u00d7 to remove a topic</span>'
         + '<button class="mix-edit-done" onclick="doneEditingTopics()">Done</button></div>';
-    } else {
-      html += '<button class="mix-add-topics" data-flip="add" onclick="openAddTopics()">'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to mix</button>';
     }
+    var addTopics = editing ? '' : '<button class="mix-add-topics" data-flip="add" onclick="openAddTopics()">'
+        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add topics to playlist</button>';
+    // Is this the playlist that is playing (§691)? Then the pill says where
+    // it has got to and pauses it, and the rows say heard / now / up next.
+    var live = mixLive(m);
     var changed = items.filter(function(t){ return t.since; });
     if(editing){
       // Nothing plays from the page while it is being edited.
+    } else if(live){
+      var paused = !isPlaying;
+      html += '<button class="mix-play pl-pill playing" onclick="togglePlay()">'
+        + (paused ? PL_PLAY_SVG : PL_PAUSE_SVG)
+        + (paused ? "Paused " : "Playing ") + escapeHtml(m.name) + ' \u00b7 ' + (mixPlay.pos + 1) + ' of ' + mixPlay.order.length
+        + '</button>';
     } else if(items.length && changed.length){
       // Q5 (§545): something changed since this listener last heard the mix,
       // so the one button starts there; the whole mix is a link under it.
-      html += '<button class="mix-play" onclick="playWhatChanged()">'
+      html += '<button class="mix-play pl-pill" onclick="playWhatChanged()">'
         + sigIconSVG(changed[0].signal && changed[0].signal.kind, 14)
         + (changed.length === 1 ? "Start with what changed" : "Start with the " + changed.length + " that changed")
         + '</button>'
         + '<button class="mix-play-all" onclick="playMixListed()">or play all ' + items.length
         + ' from the top</button>';
     } else if(items.length){
-      html += '<button class="mix-play" onclick="playMix()">'
-        + '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">'
-        + '<path d="M8 5v14l11-7z"/></svg>Play today’s ' + items.length
-        + (items.length === 1 ? " episode" : " episodes") + '</button>';
+      html += '<button class="mix-play pl-pill" onclick="playMix()">' + PL_PLAY_SVG
+        + 'Play ' + escapeHtml(m.name) + ' \u00b7 ' + items.length
+        + (items.length === 1 ? " story" : " stories") + '</button>';
     }
-    if(items.length){
-      html += '<div class="mix-meta" data-flip="meta" style="margin:0 0 9px;">Today’s edition · '
-        + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        + ((m.today_order || []).length > 1 ? ' · plays best stories first' : '') + '</div>';
+    if(items.length && !editing){
+      // **Today's stories, in the order they play** (§691): best first
+      // (§616), or - while this playlist plays - the order it is playing.
+      // Every topic the playlist holds is on the page (§691 review): one
+      // still being added, or added while it plays, follows the order.
+      var order = playlistPageOrder(m, live);
+      html += '<div class="pl-rows" id="mixOrder">' + order.map(function(row){
+        return playlistRowHTML(m, row.t, row.state);
+      }).join("") + '</div>';
+    } else if(items.length){
+      // Edit topics: the owner's order - what they drag, what a reorder sends.
       html += '<div class="mix-list" id="mixOrder">' + items.map(function(t, i){
         // On a joint mix, the face of whoever added it (Spotify's).
         var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
@@ -16919,7 +17065,7 @@
           // quoted onclick argument is a button that throws.
           + (editing
             ? '<button class="mix-topic-act mix-topic-x" aria-label="Remove '
-              + escapeHtml(t.title || t.episode_title || "this topic") + ' from this mix" data-id="' + escapeHtml(t.id) + '" '
+              + escapeHtml(t.title || t.episode_title || "this topic") + ' from this playlist" data-id="' + escapeHtml(t.id) + '" '
               + 'onclick="event.stopPropagation(); removeMixTopic(this.dataset.id)">'
               + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
               + 'stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
@@ -16930,8 +17076,10 @@
           + '</div>';
       }).join("") + '</div>';
     } else {
-      html += '<div class="mix-empty" data-flip="empty">Nothing in this mix yet. Add the topics you want a fresh briefing on every day.</div>';
+      html += '<div class="mix-empty" data-flip="empty">Nothing in this playlist yet. Add the topics you want a fresh briefing on every day.</div>';
     }
+    html += addTopics;
+    if(!editing) html += details;
     html += recommendedHTML(m);
     if(owner){
       html += mixWhenHTML();
@@ -16956,7 +17104,7 @@
         + '<div class="mix-vis-w pub' + (m.public ? " on" : "") + '"' + (m.public ? '' : ' aria-hidden="true"') + '>'
         + '<div class="mix-vis-t">Public</div><div class="mix-vis-s">Public will be displayed on your profile</div></div>'
         + '<div class="mix-vis-w priv' + (m.public ? "" : " on") + '"' + (m.public ? ' aria-hidden="true"' : '') + '>'
-        + '<div class="mix-vis-t">Private</div><div class="mix-vis-s">Only you can see this mix</div></div>'
+        + '<div class="mix-vis-t">Private</div><div class="mix-vis-s">Only you can see this playlist</div></div>'
         + '</div>'
         + '<div class="mix-switch' + (m.public ? " on" : "") + '"><span>' + lockSVG() + '</span></div>'
         + '</div>';
@@ -16967,6 +17115,188 @@
     if(body._drawn === html && body.innerHTML) return;
     body._drawn = html;
     body.innerHTML = html;
+  }
+
+  // ---------------- The playlist page's rows (§691) ----------------
+  var PL_PLAY_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var PL_PAUSE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.4"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.4"/></svg>';
+  var PL_HEART_SVG = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10-7.5 10z"/></svg>';
+  // The rows of a playlist's page, in the order they play, each with its
+  // state. While it plays that is the order it is playing - less what has
+  // since been taken out of the playlist, plus what has since been put in.
+  function playlistPageOrder(m, live){
+    var items = m.items || [], out = [], seen = {}, held = {};
+    items.forEach(function(t){ held[t.id] = t; });
+    if(live){
+      mixPlay.order.forEach(function(t, n){
+        if(!held[t.id] && n !== mixPlay.pos) return;
+        seen[t.id] = true;
+        out.push({ t: held[t.id] || t, state: n < mixPlay.pos ? "heard" : n === mixPlay.pos ? "now" : "next" });
+      });
+    } else {
+      todayOrder(m).forEach(function(t){
+        seen[t.id] = true;
+        out.push({ t: t, state: t.heard_today ? "heard" : "" });
+      });
+    }
+    items.forEach(function(t){ if(!seen[t.id]) out.push({ t: t, state: "" }); });
+    return out;
+  }
+  // Whether `m` is the playlist that is playing now.
+  function mixLive(m){
+    return !!(m && mixPlay && mixPlay.order && mixPlay.order.length
+              && (m.sample ? !mixPlay.id && mixPlay.name === m.name : mixPlay.id === m.id));
+  }
+  // "MORNING · NOV 23 · 7 STORIES" under the wordmark.
+  function paintMixHead(m){
+    var name = document.getElementById("mixTitle"), meta = document.getElementById("mixHeadMeta");
+    var n = (m.items || []).length;
+    if(name) name.textContent = m.name;
+    if(meta) meta.textContent = " \u00b7 " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      + " \u00b7 " + n + (n === 1 ? " story" : " stories");
+  }
+  // The words a play of this item asks for: the server's own dated prompt
+  // (§143), else its template filled with the listener's date, else the
+  // topic's question. One place, so a row's heart saves what a tap plays.
+  function mixItemPrompt(item){
+    var today = new Date().toLocaleDateString("en-US",
+      { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    var daily = item.daily_prompt ? item.daily_prompt.split("{date}").join(today) : "";
+    if(item.prompt && item.daily_prompt) daily = item.prompt;
+    return daily || item.query || "";
+  }
+  // **One story** (§691, the owner's 11.24 mock): its picture with the play
+  // (or pause) on it, "UP NEXT · AI" over today's title and its one line,
+  // and a heart that keeps it in Saved for Later. One already heard is a
+  // single quiet line with a tick; a tap plays it again.
+  function playlistRowHTML(m, t, state){
+    var by = (m.joint && m.people && typeof t.added_by === "number") ? m.people[t.added_by] : null;
+    var sig = t.since && t.signal ? (t.signal.kind === "update" ? "update" : "trending") : "";
+    var id = escapeHtml(String(t.id));
+    var name = t.episode_title || t.title;
+    var word = state === "now" ? "Now playing" : state === "next" ? "Up next" : state === "heard" ? "Heard" : "";
+    // "UP NEXT · AI": the topic, unless the row's title is already it.
+    var kick = [word, t.episode_title ? (t.title || "") : ""].filter(Boolean).join(" \u00b7 ");
+    var act = state === "now" ? "togglePlay()" : "playMixFrom(this.closest('.pl-row').dataset.key)";
+    var glyph = state === "heard"
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
+      : '<span class="pl-row-btn">' + (state === "now" && isPlaying ? PL_PAUSE_SVG : PL_PLAY_SVG) + '</span>';
+    var pic = '<button type="button" class="pl-row-pic" onclick="event.stopPropagation(); ' + act + '"'
+      + ' aria-label="' + (state === "now" ? (isPlaying ? "Pause" : "Play") : "Play " + escapeHtml(name)) + '">'
+      + (t.picture ? '<img src="' + escapeHtml(t.picture) + '" alt="">'
+                   : '<span class="mix-topic-icon">' + catIcon(t.icon) + '</span>')
+      + glyph + '</button>';
+    if(state === "heard"){
+      return '<div class="pl-row heard" data-key="' + id + '" data-flip="t:' + id + '" onclick="playMixFrom(this.dataset.key)">'
+        + pic + '<div class="pl-row-body"><div class="pl-row-kick">' + escapeHtml(kick) + '</div>'
+        + '<div class="pl-row-title">' + escapeHtml(name) + '</div></div></div>';
+    }
+    var hook = t.episode_hook || (t.episode_title ? "" : (t.subtitle || ""));
+    var saved = mixRowSaved(t);
+    return '<div class="pl-row' + (state === "now" ? " now" : "") + (sig ? " has-sig sig-" + sig : "")
+      + '" data-key="' + id + '" data-flip="t:' + id + '"'
+      + (state === "now" ? '' : ' onclick="playMixFrom(this.dataset.key)"') + '>'
+      + pic
+      + '<div class="pl-row-body">'
+      + (sig ? '<div class="mix-sig-tag">' + sigIconSVG(sig, 11) + escapeHtml(t.signal.label)
+               + ' \u00b7 since you last listened</div>' : '')
+      + (kick ? '<div class="pl-row-kick">' + escapeHtml(kick) + '</div>' : '')
+      + '<div class="pl-row-title">' + escapeHtml(name) + '</div>'
+      + (hook ? '<div class="pl-row-hook">' + escapeHtml(hook) + '</div>' : '')
+      + (by ? '<div class="pl-row-by">' + mixFaceHTML(by) + escapeHtml("Added by " + (by.you ? "you" : (by.name || "@" + by.handle))) + '</div>' : '')
+      + '</div>'
+      + (m.sample ? '' : '<button type="button" class="pl-heart' + (saved ? " on" : "") + '" aria-pressed="' + (saved ? "true" : "false") + '"'
+        + ' aria-label="' + (saved ? "Take it off Saved for Later" : "Save for later") + '"'
+        + ' onclick="event.stopPropagation(); toggleMixRowSave(this.closest(\'.pl-row\').dataset.key)">' + PL_HEART_SVG + '</button>')
+      + '</div>';
+  }
+  // The hearts (§691): Saved for Later, the pointer the player's save keeps
+  // (`save-pointer`) - never a like, and nothing anybody else sees. The
+  // shelf is read once when a playlist opens.
+  var mixSavedKeys = null;
+  function mixSaveKey(query, minutes){ return String(query || "").toLowerCase() + "|" + (Number(minutes) || 0); }
+  function mixRowSaved(t){
+    return !!(mixSavedKeys && mixSavedKeys[mixSaveKey(mixItemPrompt(t), t.minutes || BROWSE_MINUTES)]);
+  }
+  // Bumped by every save or un-save made here, so a shelf read that began
+  // before one never draws over it.
+  var mixSavedTouched = 0;
+  // The player's own save (the full player's, the mini player's heart)
+  // reaches the row of the same episode (§691 review).
+  function noteMixSaved(query, minutes, on){
+    if(!mixSavedKeys) return;
+    var key = mixSaveKey(query, minutes);
+    if(!!mixSavedKeys[key] === !!on) return;
+    mixSavedTouched++;
+    if(on) mixSavedKeys[key] = true; else delete mixSavedKeys[key];
+    refreshMixPlaying();
+  }
+  function loadMixSaved(done){
+    if(!AUTH.authenticated){ mixSavedKeys = {}; return; }
+    var began = mixSavedTouched;
+    fetch("/api/saved").then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if(!d || began !== mixSavedTouched) return;
+      mixSavedKeys = {};
+      (d.items || []).forEach(function(i){ mixSavedKeys[mixSaveKey(i.query, i.minutes)] = true; });
+      if(done) done();
+    }).catch(function(){});
+  }
+  var mixRowSaving = false;
+  function toggleMixRowSave(id){
+    var m = mixById(currentMixId);
+    if(!m || mixRowSaving) return;
+    var t = null;
+    (m.items || []).forEach(function(i){ if(String(i.id) === String(id)) t = i; });
+    if(!t) return;
+    if(!AUTH.authenticated){ openAuth("signup"); return; }
+    var query = mixItemPrompt(t), minutes = t.minutes || BROWSE_MINUTES;
+    var key = mixSaveKey(query, minutes), was = mixRowSaved(t);
+    mixSavedKeys = mixSavedKeys || {};
+    var set = function(on){
+      mixSavedTouched++;
+      if(on) mixSavedKeys[key] = true; else delete mixSavedKeys[key];
+      var again = mixById(currentMixId);
+      if(again && again.id === m.id) rerenderMixKeepScroll(again);
+      // The player's own control, when this is the episode playing.
+      var ep = currentEpisode();
+      if(ep && mixSaveKey(ep.query, ep.minutes) === key) setSaved(on);
+    };
+    mixRowSaving = true;
+    set(!was);
+    var ask = was
+      ? fetch("/api/saved?q=" + encodeURIComponent(query) + "&minutes=" + minutes, { method: "DELETE" })
+      : fetch("/api/saved", { method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ query: query, minutes: minutes, title: t.episode_title || t.title, source: "myFAM" }) });
+    ask.then(function(r){ if(!r.ok) throw new Error(); })
+      .then(function(){
+        if(was) snack("Removed from Saved for Later");
+        else snack("Saved for Later", { label: "Open", run: openSaved });
+      })
+      .catch(function(){ set(was); toast(was ? "Could not take that off" : "Could not save that"); })
+      .then(function(){ mixRowSaving = false; });
+  }
+  // The page follows the player (§691): the pill, the row that is playing
+  // and what has been heard are redrawn when the playlist moves on, pauses
+  // or ends. Called from the one place the transport is drawn.
+  function refreshMixPlaying(){
+    var screen = document.getElementById("screen-mixdetail");
+    if(!screen || !screen.classList.contains("active") || mixEditing) return;
+    var m = mixById(currentMixId);
+    if(!m) return;
+    // Never under something in hand (§691 review): a field being typed in
+    // (the listen time) is left alone, and a row still moving is let land.
+    var body = document.getElementById("mixBody"), at = document.activeElement;
+    if(body && at && body.contains(at) && /^(INPUT|SELECT|TEXTAREA)$/.test(at.tagName)) return;
+    if(Date.now() < mixBodyCalmAt){
+      clearTimeout(refreshMixPlaying._t);
+      refreshMixPlaying._t = setTimeout(refreshMixPlaying, mixBodyCalmAt - Date.now() + 20);
+      return;
+    }
+    if(m.sample){
+      var top = body ? body.scrollTop : 0;
+      renderSampleMixBody(m);
+      if(body) body.scrollTop = top;
+    } else rerenderMixKeepScroll(m);
   }
 
   // ---------------- Reordering a mix (10.5 packet #3) ----------------
@@ -17311,7 +17641,7 @@
           if(!c) return "";
           var cat = facetLabel(c.tags);
           return followRowHTML(c, false, "",
-            '<button class="mix-topic-act" aria-label="Add ' + escapeHtml(c.label) + ' to this mix" '
+            '<button class="mix-topic-act" aria-label="Add ' + escapeHtml(c.label) + ' to this playlist" '
             + 'onclick="addRecTopic(\'' + id + '\', this)">+</button>',
             (cat ? cat + " \u00b7 " : "") + "new briefing every day", "r:" + id);
         }).join("") + '</div>';
@@ -17425,7 +17755,7 @@
   function editMixTopics(){
     var m = mixById(currentMixId);
     if(!m || m.sample) return;
-    if(!(m.items || []).length){ toast("Nothing in this mix to remove yet"); return; }
+    if(!(m.items || []).length){ toast("Nothing in this playlist to remove yet"); return; }
     mixEditing = true;
     rerenderMixKeepScroll(m);
     var list = document.getElementById("mixOrder");
@@ -17688,7 +18018,7 @@
   function closeMixDone(toDaily){
     var overlay = document.getElementById("mixDoneOverlay");
     if(overlay) overlay.classList.remove("active");
-    if(toDaily) openPlayFAM();
+    if(toDaily) openPlayFAM("mixes");
   }
 
   // Something other than the playlist started. Its queue is over, and the
@@ -17711,6 +18041,8 @@
       badge.hidden = !QUEUE.length;
       badge.textContent = QUEUE.length ? String(QUEUE.length) : "";
     }
+    paintNowBarMix();
+    refreshMixPlaying();
   }
 
   // Works for both kinds of entry: a bank topic and a typed one both end up
@@ -17732,13 +18064,10 @@
     // The words come from the server (`mixes.daily_prompt`) with the date
     // left open, and are filled with the listener's own date here - prefetch
     // fills the same template, so a warmed brief is found by the tap.
-    var today = new Date().toLocaleDateString("en-US",
-      { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-    var daily = item.daily_prompt ? item.daily_prompt.split("{date}").join(today) : "";
     // The server's own dated prompt wins (§143): it is what the DailyFAM
     // edition wrote, dated by the edition's day rather than this phone's, so
     // a tap is a cache hit. The local fill is only for a server older than it.
-    if(item.prompt && item.daily_prompt) daily = item.prompt;
+    var daily = (item.daily_prompt || item.prompt) ? mixItemPrompt(item) : "";
     TOPICS[key] = {
       // Today's episode by its own name once it is written (§570).
       title: item.episode_title || (daily ? item.title + " \u00b7 today" : item.title),
@@ -17779,10 +18108,10 @@
     // owner's (11.7 packet).
     if(m.role === "member"){
       showActionSheet([
-        { label: "Add topics to mix", action: openAddTopics },
+        { label: "Add topics to playlist", action: openAddTopics },
         { label: "Edit topics", action: editMixTopics },
-        { label: "Who’s in this mix", action: openMixPeople },
-        { label: "Leave this mix", danger: true, action: leaveMix }
+        { label: "Who’s in this playlist", action: openMixPeople },
+        { label: "Leave this playlist", danger: true, action: leaveMix }
       ]);
       return;
     }
@@ -17790,13 +18119,13 @@
       { label: m.public ? "Make private" : "Make public", action: toggleMixVisibility },
       { label: "Rename", action: renameMix },
       { label: m.cover ? "Change cover" : "Add a cover photo", action: function(){ coverTapped(m.id); } },
-      { label: "Add topics to mix", action: openAddTopics },
+      { label: "Add topics to playlist", action: openAddTopics },
       { label: "Edit topics", action: editMixTopics },
       { label: "Invite collaborators", action: inviteCollaborators }
     ];
     if(m.joint) rows.push({ label: "Make it yours alone", action: stopJointMix });
-    rows.push({ label: "Share mix", action: shareMix });
-    rows.push({ label: "Delete mix", danger: true, action: deleteMix });
+    rows.push({ label: "Share playlist", action: shareMix });
+    rows.push({ label: "Delete playlist", danger: true, action: deleteMix });
     showActionSheet(rows);
   }
 
@@ -17909,7 +18238,7 @@
         return d;
       });
     }).then(function(m){
-      setTab("playfam");
+      setTab("playfam"); showPlayfamTab("mixes");
       keepMix(m);
       renderMixList();
       openMix(m.id);
@@ -18169,7 +18498,7 @@
   function renameMix(){
     var m = mixById(currentMixId);
     showModal({
-      title: "Rename mix",
+      title: "Rename playlist",
       placeholder: m.name,
       confirmLabel: "Save",
       onConfirm: function(value){
@@ -18214,7 +18543,7 @@
     if(!res.hidden) return;
     res.hidden = false;
     document.getElementById("mixList").hidden = true;
-    document.getElementById("dailySub").hidden = true;
+    document.getElementById("newMixBtn").classList.add("searching");
     document.getElementById("dailySearchX").hidden = false;
     runDailySearch();
   }
@@ -18228,7 +18557,7 @@
     document.getElementById("dailyResults").hidden = true;
     document.getElementById("dailyResults").innerHTML = "";
     document.getElementById("mixList").hidden = false;
-    document.getElementById("dailySub").hidden = false;
+    document.getElementById("newMixBtn").classList.remove("searching");
     document.getElementById("dailySearchX").hidden = true;
     // A mix added from the results belongs in the list being returned to.
     loadMixes();
@@ -18561,7 +18890,7 @@
         history.replaceState(null, "", u.pathname + u.search + u.hash);
       } catch(e){}
     }
-    if(mixesTab && !listen){ setTab("playfam"); return; }
+    if(mixesTab && !listen){ openPlayFAM("mixes"); return; }
     playNotifiedStory(listen.slice(0, 400), (params.get("title") || listen).slice(0, 200));
   }
   function playNotifiedStory(query, title){
@@ -18580,7 +18909,7 @@
     generate(key);
   }
   function openOwnMix(id){
-    setTab("playfam");
+    setTab("playfam"); showPlayfamTab("mixes");
     fetch(MIXES_URL).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
       if(!d) return;
       mixes = d.mixes || [];
@@ -18836,7 +19165,7 @@
       rerenderMixKeepScroll(m);
       return;
     }
-    if(m) openMix(addTopicsMixId); else openPlayFAM();
+    if(m) openMix(addTopicsMixId); else openPlayFAM("mixes");
   }
 
   function addTopicsRow(c, id, title, sub, on){
@@ -18872,7 +19201,7 @@
         + '<div class="mix-topic-title">' + escapeHtml(typed) + '</div>'
         + '<div class="mix-topic-sub">' + (long ? "Add it · we’ll give it a short name"
                                                : "Add as your own topic") + '</div></div>'
-        + '<button class="mix-topic-act" aria-label="Add it to this mix">+</button></div>';
+        + '<button class="mix-topic-act" aria-label="Add it to this playlist">+</button></div>';
       // People think in teams: "eagles" finds NFL · Eagles.
       var hits = [];
       if(term.length >= 2){
@@ -28355,6 +28684,8 @@
 
   function setSaved(on){
     savedNow = on;
+    // A playlist's row for this episode carries the same heart (§691).
+    if(nowBarState && typeof noteMixSaved === "function") noteMixSaved(nowBarState.query, nowBarState.minutes, on);
     document.querySelectorAll("[data-save]").forEach(function(el){
       el.classList.toggle("saved-on", on);
       var lbl = el.querySelector(".lbl");
@@ -30323,12 +30654,12 @@
           return (mic && !mic.hidden ? "Type, talk or attach a file." : "Type or attach a file.")
             + " FAM looks it up and tells you the story, one to five minutes long.";
         } },
-      { screen: "playfam", target: "#pfTabMixes", kicker: "myFAM",
-        title: "Your mixes",
-        body: "Follow a team, a market, anything, and get new episodes every morning." },
       { screen: "playfam", target: "#pfTabCats", kicker: "myFAM",
-        title: "Categories",
-        body: "Today’s episodes, sorted by subject. Pick one and listen." },
+        title: "Explore",
+        body: "Today’s stories, the trending ones first. Pick a subject, play one, or add it to a playlist." },
+      { screen: "playfam", target: "#pfTabMixes", kicker: "myFAM",
+        title: "Your playlists",
+        body: "Follow a team, a market, anything, and get new episodes every morning." },
       { screen: "profile", target: "#screen-profile .tabbar .tab[data-tab=profile]", kicker: "yourFAM",
         title: "Friends and you",
         body: "Share episodes in Messages. Your profile and Settings are in yourFAM, where you can take this tour again.",
