@@ -60,8 +60,9 @@ PROBLEMS.md §351 (the Agents panel on `/admin`), §405 (Keith's tag check),
 * No pull request unless I ask. When I do, it goes straight to Main, not
   through staging.
 * API keys are for what I ask, not tests at will (decided item 46): spend
-  only on a measurement I have agreed to, and say what it costs first. Use
-  the Anthropic key as `ANTHROPIC_API_KEY="$FAM_ANTHROPIC_KEY"`.
+  only on a measurement I have agreed to, and say what it costs first. The
+  Anthropic key is no longer in the environment (§688): a paid run goes
+  through the Writing run workflow (`.github/workflows/writing.yml`).
 * Postgres 16 is installed; test any new store against it too (`service
   postgresql start`, then
   `DATABASE_URL=postgresql://postgres:fam@localhost:5432/fam_test`; if the

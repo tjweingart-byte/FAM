@@ -82,7 +82,7 @@ when docs and code disagree; never change a signed rule book's meaning and
 never generate, hold or ask for its private key; everything stays off by
 default, `AGENTS=0` changes nothing, and `tests/test_agents_off.py` keeps
 passing and never skips; check other open branches for PROBLEMS section
-numbers before numbering yours. The Anthropic key is `FAM_ANTHROPIC_KEY`:
-pass it as `ANTHROPIC_API_KEY="$FAM_ANTHROPIC_KEY"` for one command. Leave
+numbers before numbering yours. The Anthropic key is no longer in the
+environment (§688): a paid run goes through the Writing run workflow. Leave
 the preview to the other session. Develop and push only on the branch the
 session assigns; no pull request unless I ask.
