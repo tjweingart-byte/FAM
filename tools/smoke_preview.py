@@ -2209,7 +2209,9 @@ def main() -> int:
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
                     .map(e => e.textContent.trim() || e.getAttribute('aria-label'))""")
-            assert order == ["Length", "Voice", "Private search"], f"the bubbles read {order}"
+            # The lock carries its word since §690 ("Private"), which this
+            # check still read as the bare lock's aria-label (§693).
+            assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(

@@ -41598,3 +41598,13 @@ only in a new build, though the server half of 1, 3 and 5 reaches build 12
 as it is. Which ending Tommy heard is unknown: his Report a problem
 playback log (§653) would say whether the stream broke or the script was
 cut.
+
+**The full check (§693).** 8,195 passed, 1 failed:
+`tests/test_push_562.py::test_the_prefs_endpoints` (`KeyError: 'prefs'`
+after a sign-up), which passes alone and touches nothing changed here - an
+order-dependent failure, not looked into further. That failure stopped
+`dev.sh check` before its browser runs, so they were run by hand: landing,
+Opus, activation and reconnect passed; both preview smokes failed one
+check, "Search picks its voice from the bank", which still expected the
+lock's old aria-label ("Private search") where §690 put the word "Private"
+on it. The expectation is corrected; both then end `all checks passed`.
