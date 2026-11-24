@@ -69,6 +69,8 @@ jobs:
           PARALLEL_API_KEY: ${{ secrets.PARALLEL_API_KEY }}
           BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
           SCALEDOWN_API_KEY: ${{ secrets.SCALEDOWN_API_KEY }}
+          GNEWS_KEY: ${{ secrets.GNEWS_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
           RUN_TOOL: ${{ inputs.tool }}
           RUN_ARGS: ${{ inputs.args }}
           RUN_ENV: ${{ inputs.env }}
