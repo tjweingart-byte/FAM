@@ -679,3 +679,4 @@ and `limit` = Lines.
 | 40961 | 94 | 685. "My episode paused 2/3 of the way through and did not continue" (2026-11-19) |
 | 41055 | 36 | 686. "It keeps playing indefinitely" - What's next no longer starts anything itself (2026-11-21) |
 | 41091 | 14 | 687. The Go Deeper popup gets an X (2026-11-21) |
+| 41105 | 53 | 688. The Anthropic key leaves the cloud environment; paid writing runs move to a workflow (2026-11-24) |

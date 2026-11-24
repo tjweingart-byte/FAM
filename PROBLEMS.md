@@ -41101,3 +41101,56 @@ it, and closes it exactly as Cancel does (`closeGoDeeper`). The iPhone's
 `shut()` - the player's modal close or the sheet's dismiss. Cancel and the
 backdrop tap stay. Closing never stops the episode (`[next-is-prediction]`).
 Tests: `tests/test_go_deeper_x_687.py`.
+
+## 688. The Anthropic key leaves the cloud environment; paid writing runs move to a workflow (2026-11-24)
+
+**From Anthropic, forwarded by the owner:** from Monday 14 December 2026,
+Claude API calls made from a cloud sandbox on limited network access
+(Claude Code on the web, at the `None` and `Limited` levels) with another
+organisation's key are refused - HTTP 403, "Access restricted by network
+policy". Those sessions run outside the Console organisation, so a Console
+key counts as another organisation's, the owner's own included. The ways
+round it are to move the calls out of the sandbox, to give the sandbox
+`Full` network access, or an Owner setting that allows foreign keys, which
+the notice calls a last resort.
+
+**What it touched.** The session environment ("Default") is `Limited` and
+held `FAM_ANTHROPIC_KEY` (§527, §625, §634), which is how `write.py`,
+`tools/ei_eval.py`, `tools/editor_eval.py`, `tools/nando_eval.py`,
+`compare_models.py` and `diagnose_api.py` could run in a session. Those
+are what would have started failing. Nothing a listener touches was at
+risk: production and staging run on Render, outside any sandbox; the
+tests, the smoke runs and CI need no key (`[tests-no-key]`); the search
+and sports keys are not Claude calls.
+
+**Decided by the owner:** move the calls out, and the key with them. The
+owner removed `FAM_ANTHROPIC_KEY` from the environment on 2026-11-24
+(checked: the environment lists the BALLDONTLIE, Parallel, Perplexity and
+ScaleDown keys and no other). `Full` network access was not taken: it
+would drop the host allowlist for every session to keep one key working.
+
+**Now.** `.github/workflows/writing.yml`, "Writing run", is started by
+hand and never by a push. It takes a tool (the six above and
+`tools/compare_search.py`), its arguments and any `NAME=value` settings,
+and runs it with the key from the repository secret `FAM_ANTHROPIC_KEY`;
+the search and sports keys are read from secrets of their own names when
+set. The output is in the job log, on the run's summary page and in the
+attached `writing-run` folder. `tools/writing_run.py` builds the command:
+the inputs arrive in the environment and are split in Python, never
+pasted into a shell; a tool not on the list is refused; a setting whose
+name ends in KEY, TOKEN, SECRET or PASSWORD is refused, since a credential
+is a secret and never an input (`[credentials-fetched]`). A missing secret
+fails the run with a sentence saying where to add it.
+
+`[no-api-key]` is brought up to date here and in the core, with the
+`fam-method` skill and the two session prompts that told a reader to pass
+`$FAM_ANTHROPIC_KEY`. Spending is unchanged: each run is the owner's
+decision, asked for with an estimate.
+
+**Not done, and why.** The workflow can only be started once its file is
+on `Main` (GitHub offers a manual workflow from the default branch only),
+and the secret has to be added by the owner. `tools/compare_backends.py`
+still copies `FAM_ANTHROPIC_KEY` into `ANTHROPIC_API_KEY` when it is set;
+that is harmless without the variable and is left alone.
+
+Tests: `tests/test_writing_run_688.py`.
