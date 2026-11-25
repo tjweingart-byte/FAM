@@ -544,27 +544,22 @@ struct SourcesSheet: View {
 
 // MARK: - Playback (`openSpeedLengthModal`)
 
-/// "Playback": Speed - and, for a search, Length - each a white row that
-/// opens its choices as an action sheet; Done. No Voice row (the owner,
-/// 11.24): a voice is picked before a search, on the search page or in
-/// Settings; picked here it threw away the episode playing and voiced it
-/// again from the start.
+/// "Playback": Speed, a white row that opens its choices as an action
+/// sheet; Done. No Length or Voice row (the owner, 11.24 and 11.25, §693):
+/// both are picked before a search, on the search page (the voice in
+/// Settings too); picked here, either threw away the episode playing and
+/// made it again from the start.
 struct PlaybackSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
     let close: () -> Void
-    /// The action sheet a row opens (speed, length).
+    /// The action sheet a row opens (speed).
     let open: (PlayerSheet) -> Void
 
     var body: some View {
         ModalTitle(text: "Playback")
         field("Speed", "\(FAMAPI.minutes(player.rate))x") { open(.speed) }
-        // Length only for a search (§147): everything else is the browse
-        // length.
-        if let ep = now.episode, ep.surface == "search" {
-            field("Length", "\(FAMAPI.minutes(ep.key.minutes)) min") { open(.length) }
-        }
         ModalButton(label: "Done", primary: true, wide: true) { close() }
             .padding(.top, 4)
     }

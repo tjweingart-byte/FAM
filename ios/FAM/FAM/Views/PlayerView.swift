@@ -599,7 +599,6 @@ struct PlayerView: View {
         case .vibe: EmptyView()
         case .share: ShareSheet()
         case .speed: ActionSheetList(items: speedItems)
-        case .length: ActionSheetList(items: lengthItems)
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
         case .problem:
             ProblemReportSheet()
@@ -630,32 +629,10 @@ struct PlayerView: View {
         }))
         return items
     }
-
-    /// `openLengthMenu` (a search only): the search page's Length, ticked
-    /// and moved (`selectedLengthMinutes`); a change made on the player is
-    /// a new episode at that length (`regenerateAtNewLength`).
-    private var lengthItems: [ActionItem] {
-        guard let ep = now.episode else { return [] }
-        var items: [ActionItem] = []
-        let chosen = model.searchLength
-        for m in [1, 1.5, 2, 3, 4, 5.0] {
-            let label = "\(FAMAPI.minutes(m)) min" + (m == chosen ? "  \u{2713}" : "")
-            items.append(ActionItem(label: label, action: {
-                let changed = m != model.searchLength
-                model.searchLength = m
-                guard changed else { return }
-                now.say("Rebuilding at \(FAMAPI.minutes(m)) min")
-                var again = ep
-                again.key.minutes = m
-                model.play(again)
-            }))
-        }
-        return items
-    }
 }
 
 enum PlayerSheet: String, Identifiable {
-    case menu, queue, vibe, share, report, problem, addToMix, speed, length
+    case menu, queue, vibe, share, report, problem, addToMix, speed
     var id: String { rawValue }
 }
 

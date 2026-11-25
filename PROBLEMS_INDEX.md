@@ -683,4 +683,4 @@ and `limit` = Lines.
 | 41159 | 132 | 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24) |
 | 41291 | 128 | 691. myFAM is Explore / Playlists, from the owner's mock (2026-11-24) |
 | 41419 | 104 | 692. iOS build 12: the audit of Main since build 11, Explore / Playlists on the iPhone, and Search friends on dailyFAM (2026-11-24) |
-| 41523 | 89 | 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24) |
+| 41523 | 98 | 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24) |

@@ -129,10 +129,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
  , else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
   derived title first, then swapped; `titleOverridden` never replaced; own column;
   a written live-story tile takes the episode's title, summary, category. [title-from-content]
-- `<<NEXT: ...>>` *predicts* the likeliest follow-up, stored beside the
+- `<<NEXT: ...>>` predicts the likeliest follow-up, stored beside the
   script, free from `/api/next`, offered by Go Deeper, never gestured at, never
-  circling back; a follow-up reads its parent's script (§693). Every Go Deeper: that line, else one from the title, a box,
-  1-5 minutes; opening never stops the episode, one ending under it starts none. [next-is-prediction]
+  circling back; a follow-up reads its parent's script. Every Go Deeper: that line, else one from the title, a box,
+  1-5 min; opening never stops the episode, one ending under it starts none. [next-is-prediction]
 - After an episode: four recommendations, **none starts itself** - a tap
   only (§686); the lead is Go Deeper's own suggestion, played as its follow-up,
   then album next, then `topics.rank_next_up` over both inventories; a search
@@ -177,7 +177,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift. [op-voice]
-- **Voice bank**: searchFAM alone picks, never the player (§693); others draw
+- **Voice bank**: searchFAM alone picks (length too), never the player (§693); others draw
   one each; a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made

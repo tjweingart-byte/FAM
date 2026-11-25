@@ -3773,10 +3773,9 @@ def main() -> int:
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
             assert want == 1.5, f"the search page opened on {want} min, not 1.5"
-            for element_id in ("lengthModalVal",):
-                shown = page.text_content("#" + element_id).strip()
-                assert shown == "%g min" % want, \
-                    f"#{element_id} reads {shown!r}, the setting is {want} min"
+            # The player's Length row went with §693.
+            assert not page.query_selector("#lengthModalVal"), \
+                "the player offers a length again"
             # And the menu ticks the one the chip names, which is the pair
             # that disagreed.
             page.evaluate("openLengthMenu()")

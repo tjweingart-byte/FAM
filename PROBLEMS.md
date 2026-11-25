@@ -41608,3 +41608,12 @@ Opus, activation and reconnect passed; both preview smokes failed one
 check, "Search picks its voice from the bank", which still expected the
 lock's old aria-label ("Private search") where §690 put the word "Private"
 on it. The expectation is corrected; both then end `all checks passed`.
+
+**Length too (the owner, 11.25: "take length off the player too").** The
+Playback modal is Speed alone on the web and the iPhone. Gone:
+`#lengthModalVal`, `regenerateAtNewLength` ("Rebuilding at N min"), the
+length menu's rebuild when opened from the player, the iPhone's
+`lengthItems` and `PlayerSheet.length`. The search page's Length bubble is
+unchanged, and the pill on the player still shows the episode's length.
+Three checks that read the removed row now assert it is gone
+(`test_search_length_and_mix_gate`, `test_packet_1001`, the preview smoke).

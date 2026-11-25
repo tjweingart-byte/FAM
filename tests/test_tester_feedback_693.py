@@ -193,7 +193,27 @@ def test_the_clients_name_the_episode_a_follow_up_follows():
         ROOT / "ios/FAM/FAM/NowPlaying.swift").read_text()
 
 
-# --- the voice is not switched mid-episode ---------------------------------
+# --- neither voice nor length is changed mid-episode -----------------------
+
+def test_the_player_offers_no_length():
+    """The owner, 11.25: "take length off the player too". It rebuilt the
+    episode playing from its start, as the voice row did."""
+    modal = PAGE[PAGE.index('id="speedLengthOverlay"'):PAGE.index('id="goDeeperOverlay"')]
+    shown = re.sub(r"<!--.*?-->", "", modal, flags=re.S)
+    assert ">Length<" not in shown and "openLengthMenu" not in shown
+    assert ">Speed<" in shown
+    assert "regenerateAtNewLength" not in PAGE and "Rebuilding at" not in PAGE
+    menu = PAGE[PAGE.index("function openLengthMenu(){"):PAGE.index("function ackSearchBubble")]
+    assert "generate(" not in menu
+    # The search page still picks one.
+    assert 'id="lengthBubble" onclick="openLengthMenu()"' in PAGE
+    sheets = (ROOT / "ios/FAM/FAM/Views/PlayerSheets.swift").read_text()
+    playback = sheets[sheets.index("struct PlaybackSheet"):sheets.index("// MARK: - The queue")]
+    assert 'field("Length"' not in playback and 'field("Speed"' in playback
+    view = (ROOT / "ios/FAM/FAM/Views/PlayerView.swift").read_text()
+    assert "lengthItems" not in view and "Rebuilding at" not in view
+
+
 
 def test_the_player_offers_no_voice():
     modal = PAGE[PAGE.index('id="speedLengthOverlay"'):PAGE.index('id="goDeeperOverlay"')]

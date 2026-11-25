@@ -5987,14 +5987,10 @@
             <div class="gc-label">Speed</div>
             <div class="gc-val" id="speedModalVal" onclick="openSpeedMenu()">1x</div>
           </div>
-          <div class="gc-field">
-            <div class="gc-label">Length</div>
-            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">1.5 min</div>
-          </div>
-          <!-- No Voice row (the owner, 11.24): a voice is picked before a
-               search, on the search page or in Settings. Picked here it
-               threw away the episode playing and voiced it again from the
-               start. -->
+          <!-- No Length or Voice row (the owner, 11.24 and 11.25): both
+               are picked before a search, on the search page (the voice in
+               Settings too). Picked here, either threw away the episode
+               playing and made it again from the start. -->
           <div class="modal-btns">
             <button class="modal-btn primary" style="flex:1;" onclick="closeSpeedLengthModal()">Done</button>
           </div>
@@ -12100,16 +12096,6 @@
     FamAudio.setRate(parseSpeed(selectedSpeed));
   }
 
-  // Changing length is not a playback setting - it needs a different episode.
-  function regenerateAtNewLength(){
-    var key = currentPlayingTopicKey;
-    if(!key || !TOPICS[key]){ return; }
-    toast("Rebuilding at " + selectedLengthMinutes + " min");
-    // The length just chosen wins over any pinned on the topic (§190).
-    TOPICS[key].exploreMinutes = selectedLengthMinutes;
-    generate(key);
-  }
-
   // ---------------- The thread this episode left open ----------------
   // The script ends pointed at one specific unresolved thing, and names it in
   // a trailing line the server strips before synthesis. Offering that as a
@@ -15036,10 +15022,6 @@
     // A text node beside the chevron SVG, so the text node is what changes -
     // textContent on the span would take the chevron with it.
     if(homeVal && homeVal.firstChild) homeVal.firstChild.textContent = selectedLengthMinutes + " min";
-    ["lengthModalVal"].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = selectedLengthMinutes + " min";
-    });
     updateSpeedLenPillText();
   }
   function updateSpeedLenPillText(){
@@ -15076,11 +15058,9 @@
             // The stopwatch says it took (bubble-ack: B, §643) - on
             // searchFAM, and only for a change.
             if(changed) ackSearchBubble("lengthBubble");
-            // Length is a property of the script, not of playback, so a change
-            // made while listening means a different episode.
-            var onPlayer = document.querySelector(".screen.active")
-                        && document.querySelector(".screen.active").id === "screen-player";
-            if(changed && onPlayer){ regenerateAtNewLength(); }
+            // **Never the episode playing** (the owner, 11.25, §693): a
+            // length is for the next search. A change made on the player
+            // used to rebuild the episode from its start.
           }
         });
       })(m);
@@ -15742,16 +15722,8 @@
 
   function openSpeedLengthModal(){
     document.getElementById("speedModalVal").textContent = selectedSpeed;
-    document.getElementById("lengthModalVal").textContent = selectedLengthMinutes + " min";
-    // Length is a search's to choose (§147). On anything else the episode
-    // is `BROWSE_MINUTES`, so the row is not offered rather than offered and
-    // ignored. The voice is never offered here: it is chosen before a
-    // search, not in the middle of an episode (the owner, 11.24).
-    var searched = currentPlaySurface === "search";
-    ["lengthModalVal"].forEach(function(id){
-      var row = document.getElementById(id);
-      if(row && row.parentNode) row.parentNode.style.display = searched ? "" : "none";
-    });
+    // Speed only. Length and voice are chosen before a search, never in
+    // the middle of an episode (the owner, 11.24 and 11.25, §693).
     document.getElementById("speedLengthOverlay").classList.add("active");
   }
   function closeSpeedLengthModal(){
