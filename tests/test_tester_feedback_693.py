@@ -80,6 +80,11 @@ def test_a_thread_leading_back_to_what_was_heard_is_no_thread():
                            "What the cut means for mortgages")
     assert not sg.circles_back("whether banks pass the cut on to savers", heard)
     assert not sg.circles_back("", heard)
+    # A thread on one subject of a long request is a real thread.
+    long_prompt = ("Today's edition: the Eagles, the Sixers, the Phillies, the Fed, "
+                   "Nvidia earnings, the Senate budget vote, SpaceX launches, "
+                   "injuries and the playoff picture")
+    assert not sg.circles_back("the Eagles injuries and playoff picture", long_prompt)
     assert not sg.circles_back("whether the appeal gets heard", "", "")
 
 

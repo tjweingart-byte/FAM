@@ -1410,8 +1410,13 @@ def circles_back(thread: str, *heard: str) -> bool:
         if not theirs:
             continue
         shared = len(mine & theirs)
-        if (shared / len(mine) >= 0.8
-                or shared / len(mine | theirs) >= 0.6):
+        # "All its words are in there" says little of a long prior - a
+        # mix's edition prompt names a dozen subjects, and a thread on one
+        # of them is a real thread - so that test is for priors of the
+        # thread's own size.
+        contained = (shared / len(mine) >= 0.8
+                     and len(theirs) <= 3 * len(mine))
+        if contained or shared / len(mine | theirs) >= 0.6:
             return True
     return False
 
