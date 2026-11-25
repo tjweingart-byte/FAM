@@ -2469,6 +2469,14 @@ struct CategoryEpisode: Decodable, Identifiable, Hashable {
     let hook: String?
     /// One of the Trending edition's stories (§691); they come first.
     let trending: Bool?
+    /// The heard-episode id (11.25 packet; `X-FAM-Episode`'s form, what a
+    /// history row replays with `?episode=`): the card plays exactly this
+    /// episode, so one the cache has since moved past still plays. Nil or
+    /// "" from an older server - the card then replays by its question.
+    let episode: String?
+    /// How long ago it was made (`made_age_seconds`): the card's "Today",
+    /// "Yesterday", then a date. Nil when the server does not say.
+    let madeAgeSeconds: Double?
 
     var id: String { query + "|" + String(minutes ?? 0) }
 }

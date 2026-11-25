@@ -64,10 +64,10 @@ struct MixView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§691, the
-            // owner's 11.24 mock); the sliders open the playlist's menu, as
-            // the three dots did.
-            PlaylistHead(name: mix?.name ?? "Playlist", count: mix?.items.count ?? 0, back: { back() }) {
+            // "myFAM Playlist" (§691, the owner's 11.24 mock) with nothing
+            // under it (11.25 packet #6); the sliders open the playlist's
+            // menu, as the three dots did.
+            PlaylistHead(back: { back() }) {
                 Button { openMenu() } label: {
                     WebIcon(path: PlaylistIcons.sliders, size: 18, line: 2)
                         .foregroundStyle(FAMColor.text)
@@ -86,12 +86,17 @@ struct MixView: View {
                         // cover, name, who is in it, share and invite - sit
                         // under them.
                         if mix.items.isEmpty {
+                            // Nothing to play yet, so the page opens on the
+                            // playlist itself - its picture, name, people,
+                            // share and invite - with the note and "Add
+                            // topics" under that block, never over it
+                            // (11.25 packet #6).
+                            hero(mix)
+                            actions(mix)
                             EmptyNote(text: "Nothing in this playlist yet. Add the topics you want a fresh briefing on every day.")
                                 .padding(.top, 4)
                                 .padding(.bottom, 16)
                             addTopicsPill
-                            hero(mix)
-                            actions(mix)
                         } else if isEditing(mix) {
                             // Edit topics: the owner's order - what they
                             // drag, what a reorder sends. Nothing plays

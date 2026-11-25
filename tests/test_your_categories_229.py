@@ -272,9 +272,11 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("paintCategoryChips")
-    # All (back since §691: Explore before a category is picked), followed,
-    # then the facets not followed - each chip once - then More.
-    assert draw.index('data-chip="all"') < draw.index("mine.map(") < draw.index("!followed[f.id]") < draw.index("catchip-more")
+    # §693 (the 11.25 packet): All, then the main categories in the
+    # server's order, always - a followed one keeps its star and its place.
+    # The followed sub-categories and More left the row.
+    assert draw.index('data-chip="all"') < draw.index("catData.facets.map(")
+    assert "!!followed[f.id]" in draw and "mine.map(" not in draw and "catchip-more" not in draw
     assert "CAT_STAR" in _fn("catChipHTML")
 
 
@@ -283,9 +285,11 @@ def test_a_chip_filters_the_page_in_place():
     assert "showCategoryPanel()" in pick and "navigate(" not in pick
     shown = _fn("showCategoryPanel")
     assert '"catPanel").hidden = !cats' in shown and '"mixesPane").hidden = cats' in shown
-    # Inside a category the row is an X, the category and the level below.
+    # Inside a category the row is the same row with that chip lit (§693):
+    # no X, no level below. The lit chip, or All, goes back.
     draw = _fn("paintCategoryChips")
-    assert "catPage.subs.map(" in draw and "clearCategory(true)" in draw
+    assert "catPage.subs.map(" not in draw and "on === f.id" in draw
+    assert "id === catPage.root){ clearCategory(true)" in pick
     load = _fn("loadCategoryEpisodes")
     # Trending first since §691; `popular` is still what an older client asks.
     assert "/api/categories/episodes?id=" in load and "&sort=trending" in load
@@ -311,7 +315,8 @@ def test_a_tap_plays_what_is_cached_and_nothing_else():
     # replay only, as the catalogue plays one - and the rest of the page
     # follows in the ordinary queue.
     play = _fn("playCategoryEpisode")
-    assert "playCategoryList(eps.slice(i))" in play
+    # That story alone since §693, so What's next follows it.
+    assert "playCategoryList([eps[i]])" in play
     listed = _fn("playCategoryList")
     assert "cachedOnly: true" in listed and 'generate("_category")' in listed
     assert "QUEUE.push(categoryQueueEntry(ep))" in listed

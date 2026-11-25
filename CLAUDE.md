@@ -94,7 +94,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   lettered (`/api/myfam/catalog`); typing shows the closest; each row
   says the day it was made, then a date past six days. [dailyfam-catalogue]
 - **Explore is a tab**: myFAM is Explore | Playlists (§691); trending
-  first; chips filter; today's cache. [your-categories]
+  first; main chips; kept cache. [your-categories]
 - **A queue**: Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
  . [queue]
@@ -137,7 +137,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
 - After an episode: four recommendations, **none starts itself** - a tap
   only (§686); the lead is Go Deeper's own suggestion, played as its follow-up,
   then album next, then `topics.rank_next_up` over both inventories; a search
-  box above Back; not on Explore / Explore New. [post-episode-grid]
+  box above Back; stays till left (§693). [post-episode-grid]
 - **One episode, one category**: Nando's stored node, else the
   writer's `<<CATEGORY:>>`, via `app._episode_category` for tile, picture,
   ranking and tags; events name the heard episode; a written live story ranks under it;

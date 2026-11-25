@@ -41519,3 +41519,103 @@ layout of the new cards and rows at real sizes and at large text, the
 playlist page following a playing playlist, the hearts, and the mini
 player's two new buttons all want a device. Left for later (PARITY.md):
 Explore's cards rising in, the chips' slide, a guest's example playlist.
+
+## 693. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25)
+
+**The owner's ten notes** (a PDF of annotated screenshots from the iPhone
+app), and what each turned out to be in this repo's terms.
+
+**1. "It's OK that auto play was removed, but I still want that screen to
+display after the episode ... it should only go away if the user taps out
+of it."** §686 removed the countdown, not the card. The card stopped
+appearing for a different reason: since §499 a tap on an Explore card played
+that story *and queued the rest of the page behind it*, and a queued episode
+starts in place of What's next (§190). With Explore the first tab (§691),
+nearly every play ended into the next card's episode. Now a card plays that
+story alone (`playCategoryEpisode`, the iPhone's `AppModel.playExplore`);
+Play all still queues. The card is also shown with one tile (it needed two),
+closes on a tap outside it, and the new-follower popup waits for it instead
+of closing it. Still not over an open Go Deeper, off the full player, or
+while a playlist or the listener's own queue plays.
+
+**2. "Populate the Explorer page with better, more relevant ... Sports
+should be all the top stories in the major sports leagues as well as a
+mixture of interesting stories from the past."** Explore was today's cache
+sorted by plays, so a category's page was whichever league had been played
+most. For `sort=trending` (what Explore asks, the installed iPhone build
+included): the shelf is today's episodes plus those of the previous
+`EXPLORE_PAST_DAYS` (6) that are still *current* - the cache's own word for
+"a new request would still be served this" (`[ttl-from-evidence]`), so a
+settled story stays and Monday's score does not; and `_explore_order` deals
+the page in turn from its strands - `EXPLORE_LEADING` first (NFL, NBA, MLB,
+NHL, college football and basketball, the Premier League, ...), then the
+page's other categories, the busiest first - `EXPLORE_FRESH_RUN` (3) of
+today's, then one from before. The Trending edition still leads. Nothing is
+written, asked of a model, or fetched: this orders and widens what is
+already kept. `popular`, `az`, `recent` and the "today" counts are unchanged.
+
+**3. "Don't display episodes that aren't cached"** ("That episode is no
+longer in the cache"). The rows were all cached; the tap could not find
+them. A card replayed by its words and length, and a Go Deeper's episode is
+kept under a key that also carries the episode it follows - the screenshot's
+card is one: "What's the bigger story behind Why the NBA's Western
+Conference Looks Stronger?". Two fixes: a follow-up is never a card
+(`_is_follow_up`, read off the bucket stored with the row; `recent` now
+returns `bucket`), and every row carries `episode` (`cache.episode_id`), by
+which the web and the iPhone replay it as the history does (§173) - so a
+row plays whatever key it was written under.
+
+**5, 6, 7.** The card says the day it was made (the catalogue's
+`episodeDayLabel`); its play is a round play button with no FAM wordmark;
+the chip row is All and the main categories, the same row always.
+
+**8, 10.** A playlist's header lost "MORNING · NOV 25 · 7 STORIES"; an empty
+playlist's Add topics is under its picture and name.
+
+**9 (messages, iPhone only).** The sent words stayed in the box and the box
+stayed tall after deleting them: SwiftUI's vertical `TextField` not
+following its binding. `ChatModel.clearSent` clears again on the next turn
+and 0.15 s later when the box still holds what was sent; the box's height
+comes from a hidden mirror `Text`. The web's box already cleared.
+
+**Decisions taken without asking, each reversible.** (1) One card plays one
+story; the alternative (keep queueing, show What's next when the queue runs
+out) would not put the screen after *the* episode. (2) More, and chips for
+followed sub-categories, left the row with the sub-categories, as "only the
+main categories" says; Follow on a main category still stars it. The web's
+category-find code is unreachable and left in place. (3) The older episodes
+on Explore are only the still-current ones.
+
+**Not done, and why.**
+- *"It sometimes mixes information"* (Stanford's game told as Cal's; the
+  Lakers trading for Kobe told as Shaq) and *"Golf's biggest story this
+  week" that was a history of golf*: writing faults. Nothing in the repo
+  templates that golf title, so it was typed or written by the model.
+  Diagnosing needs the episodes' briefs and scripts (`[brief-above-script]`),
+  which means a paid run through the Writing run workflow on the owner's
+  yes (`[no-api-key]`); nothing was changed blind.
+- *Writing more for Explore.* Explore still shows only what is kept. "Stories
+  from the past" appear when somebody has played or searched one, or an
+  edition wrote it; writing evergreen stories ahead per category would be
+  new spend and was not built.
+
+**Held against the rules.** `[your-categories]`, `[post-episode-grid]`,
+`[mix-made-by-naming]` amended (Current notes). `[old-clients]`: `episode`
+and `bucket` are new fields; build 12 asks `sort=trending` and gets the new
+shelf and order, and its replay by words finds every row but one written
+under an earlier `MODEL` (which the id now covers on new clients).
+`[player-no-autogen]`: unchanged - every tile waits for a tap.
+`[no-dead-controls]`: no chip or button was left without something behind it.
+
+**A known cost.** `_is_follow_up` compares the stored bucket with a cold
+question's under the *current* `MODEL` and pace, so after either changes,
+rows written before it are off Explore until they age out (a week at most).
+
+**Verified:** `tests/test_packet_1125.py` (server order, shelf, follow-ups,
+the id; the web source), `tests/test_packet_1125_ios.py` (the Swift, read);
+the browser smoke checks walk the chip row, the card and an empty playlist;
+screenshots of Explore, a category and a playlist from the fixture preview.
+**Not verified:** nothing was compiled or run on a phone (no Xcode here;
+`ios.yml` compiles) - above all the composer fix, which is a best reading of
+a UIKit behaviour; the new order against a real deployment's cache; What's
+next after an Explore play end to end with real audio.

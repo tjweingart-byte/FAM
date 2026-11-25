@@ -629,28 +629,33 @@
   }
   .pf-tab:active{ opacity:0.7; }
   /* **Explore's cards** (§691, the owner's 11.24 mock): a story to a card -
-     picture and category, title, one line, then FAM and Add to playlist. */
+     picture and category, title, one line, then play and Add to playlist.
+     The 11.25 packet (§693): the day it was made at the end of the top
+     line, and the play is a round play button, no wordmark in it. */
   .xp-card{ margin:0 0 12px; padding:14px 14px 15px; background:var(--surface);
     border:1px solid var(--border); border-radius:18px; }
   .xp-top{ display:flex; align-items:center; gap:9px; margin-bottom:9px; }
   .xp-thumb{ flex:none; width:34px; height:34px; border-radius:9px; overflow:hidden;
     background-color:var(--surface-2); }
   .xp-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .xp-kick{ min-width:0; font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
+  .xp-kick{ flex:1 1 auto; min-width:0; font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
     text-transform:uppercase; color:var(--text-faint); overflow-wrap:anywhere; }
+  .xp-when{ flex:none; margin-left:auto; padding-left:8px; font-family:'Geist Mono', monospace;
+    font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-faint);
+    white-space:nowrap; }
   .xp-title{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:17px;
     line-height:1.25; color:var(--text); overflow-wrap:anywhere; }
   .xp-hook{ margin-top:7px; font-size:13px; line-height:1.45; color:var(--text-muted);
     overflow-wrap:anywhere; }
   .xp-acts{ display:flex; align-items:center; justify-content:space-between; gap:10px;
     flex-wrap:wrap; margin-top:13px; }
-  .xp-play{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    min-height:40px; min-width:98px; padding:8px 18px; border:0; border-radius:20px;
+  .xp-play{ display:inline-flex; align-items:center; justify-content:center; flex:none;
+    width:44px; height:44px; padding:0; border:0; border-radius:50%;
     background:var(--paper); color:var(--ink); cursor:pointer; }
+  /* A triangle's weight sits left of its box: a nudge centres it by eye. */
+  .xp-play svg{ transform:translateX(1.5px); }
   .xp-play:active, .xp-add:active{ opacity:0.75; }
   html[data-theme="light"] .xp-play{ background:var(--text); color:var(--bg); }
-  .xp-fam{ display:inline-flex; align-items:center; gap:2.5px; }
-  .xp-fam svg{ height:13px; width:auto; display:block; }
   .xp-add{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
     min-height:40px; padding:8px 16px; border-radius:20px; background:transparent;
     color:var(--text); border:1px solid var(--border-strong); font-family:'Geist', sans-serif;
@@ -1197,7 +1202,6 @@
   .catchip .cat-star{ color:var(--copper); }
   .catchip.on .cat-star{ color:inherit; }
   .catchip-x{ padding:6px 10px; }
-  .catchip-more{ color:var(--text-muted); border-style:dashed; }
   .catchip-label{ align-self:center; font-size:12.5px; color:var(--text-muted); white-space:nowrap; }
   #screen-playfam .dm-search.cat-find{ margin:4px 0 12px; }
   .sv-title .cat-star{ vertical-align:-1px; color:var(--copper); }
@@ -2435,9 +2439,6 @@
   .pl-head{ flex:1; min-width:0; }
   .pl-wordmark{ margin:0; font-size:25px; text-align:left; justify-content:flex-start; }
   .pl-word{ margin-left:0.28em; font-family:'Bricolage Grotesque', sans-serif; font-weight:600; }
-  .pl-head-sub{ margin-top:3px; font-family:'Geist Mono', monospace; font-size:9px;
-    letter-spacing:0.16em; text-transform:uppercase; color:var(--text-faint);
-    overflow-wrap:anywhere; }
   .pl-tune{ flex:none; width:40px; height:40px; border-radius:50%; display:flex;
     align-items:center; justify-content:center; background:transparent; color:var(--text);
     border:1px solid var(--border-strong); cursor:pointer; padding:0; }
@@ -5508,12 +5509,13 @@
         <div class="screen-top" aria-hidden="true"></div>
         <div class="back-row">
           <span class="back" onclick="closeMixPage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
-          <!-- "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES" (§691, the
-               owner's 11.24 mock); the sliders open the playlist's menu, as
-               the three dots did. -->
+          <!-- "myFAM Playlist" (§691, the owner's 11.24 mock); the line under
+               it - "MORNING · NOV 25 · 7 STORIES" - went at the owner's
+               direction (the 11.25 packet, §693): the pill under it names
+               the playlist and counts its stories. The sliders open the
+               playlist's menu, as the three dots did. -->
           <div class="pl-head">
             <h2 class="wordmark pl-wordmark" aria-label="myFAM Playlist">my<span class="wm-glyph f" aria-hidden="true"><svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg></span><span class="wm-a" aria-hidden="true"><svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg></span><span class="wm-glyph m" aria-hidden="true"><svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span><span class="pl-word">Playlist</span></h2>
-            <div class="pl-head-sub"><span id="mixTitle">Playlist</span><span id="mixHeadMeta"></span></div>
           </div>
           <button type="button" class="pl-tune" onclick="openMixMenu()" aria-label="Playlist options"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 4v5M6 13v7M12 4v9M12 17v3M18 4v3M18 11v9"/><path d="M3.5 11h5M9.5 15h5M15.5 9h5"/></svg></button>
         </div>
@@ -5913,7 +5915,9 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="nextUpOverlay">
+      <!-- It stays until the listener leaves it (the 11.25 packet, §693):
+           a tile, a search, Back, or a tap outside the card. -->
+      <div class="modal-overlay" id="nextUpOverlay" onclick="if(event.target === this) closeNextUp()">
         <div class="nextup-card">
           <div class="nextup-h">What&rsquo;s next</div>
           <!-- Nothing here starts by itself (§686): every tile waits for a tap. -->
@@ -13804,6 +13808,7 @@
       caption: "Live captions will appear here as this plays—",
       exploreMinutes: entry.minutes || 0, surface: entry.surface || undefined,
       bankTopicId: entry.bankTopicId, cachedOnly: entry.cachedOnly,
+      episode: entry.episode || "",
       parentTopic: entry.parentTopic || undefined,
       thumb: entry.thumb, titleOverridden: entry.titleOverridden
     };
@@ -16470,8 +16475,7 @@
       + ' onclick="' + action + '(this.dataset.cat)">'
       + (followed ? CAT_STAR : '') + escapeHtml(label) + '</button>';
   }
-  // The row: All / followed / facets / More, or - inside a category - X,
-  // the category and what is under it.
+  // The row: All and the main categories, the one picked lit (§693).
   // `anim` (category-chips: B, §642): a tap redrew the row, so the chip
   // tapped slides to its new place and the rest fade out and in; with
   // `together` (the X) the others fade in as it slides back.
@@ -16483,32 +16487,27 @@
     paintCategoryChips(el);
     if(before) Motion.chips(el, before, together);
   }
+  // **Only the main categories, and always all of them** (the 11.25
+  // packet, §693, the owner: "I don't want the sub categories to appear. I
+  // only want the main categories and I don't want them to ever
+  // disappear"). All, then the facets in the server's order - the same row
+  // whether or not one is picked; the one picked is lit, and a followed one
+  // keeps its star where it stands. The X, the level below, the followed
+  // sub-categories and More are gone from the row.
   function paintCategoryChips(el){
-    var x = '<button type="button" class="catchip catchip-x" data-chip="x" onclick="clearCategory(true)" aria-label="All categories">'
-      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
     if(catPage.finding){
-      el.innerHTML = x + '<span class="catchip-label" data-chip="label">Find a category</span>';
+      el.innerHTML = '<button type="button" class="catchip catchip-x" data-chip="x" onclick="clearCategory(true)" aria-label="All categories">'
+        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+        + '<span class="catchip-label" data-chip="label">Find a category</span>';
       return;
     }
-    if(!catPage.root){
-      var mine = catData.saved ? catData.mine : [];
-      var followed = {};
-      mine.forEach(function(c){ followed[c.id] = true; });
-      // "All" is back (§691): Explore before a category is picked, the
-      // trending stories first. It is the chip that is on.
-      el.innerHTML = '<button type="button" class="catchip on" role="tab" aria-selected="true" data-chip="all"'
-        + ' onclick="clearCategory(true)">All</button>'
-        + mine.map(function(c){ return catChipHTML(c.id, c.label, false, true, "pickCategory"); }).join("")
-        + catData.facets.filter(function(f){ return !followed[f.id]; })
-            .map(function(f){ return catChipHTML(f.id, f.label, false, false, "pickCategory"); }).join("")
-        + '<button type="button" class="catchip catchip-more" data-chip="more" onclick="openCategoryFind()">More</button>';
-      return;
-    }
-    el.innerHTML = x
-      + catChipHTML(catPage.root, categoryLabelOf(catPage.root), catPage.node === catPage.root,
-                    isFollowed(catPage.root), "pickCategorySub")
-      + catPage.subs.map(function(s){
-          return catChipHTML(s.id, s.label, catPage.node === s.id, isFollowed(s.id), "pickCategorySub");
+    var followed = {};
+    (catData.saved ? catData.mine : []).forEach(function(c){ followed[c.id] = true; });
+    var on = catPage.root;
+    el.innerHTML = '<button type="button" class="catchip' + (on ? '' : ' on') + '" role="tab" aria-selected="' + (on ? 'false' : 'true') + '" data-chip="all"'
+      + ' onclick="clearCategory(true)">All</button>'
+      + catData.facets.map(function(f){
+          return catChipHTML(f.id, f.label, on === f.id, !!followed[f.id], "pickCategory");
         }).join("");
   }
   // Which of myFAM's two tabs is on (§550): "categories" - shown as
@@ -16570,14 +16569,16 @@
   var CAT_FACET_ICONS = { sports: "ball", business: "briefcase", money: "chart",
     tech: "chip", science: "atom", health: "pulse", culture: "palette", world: "news" };
   function pickCategory(id){
-    if(!id){ clearCategory(); return; }
+    // The lit chip tapped again goes back to All.
+    if(!id || id === catPage.root){ clearCategory(true); return; }
     if(playfamTab !== "categories") showPlayfamTab("categories");
     catPage = { root: id, node: id, episodes: [], subs: [], finding: false };
     showCategoryPanel();
     // A new category: nothing of the last one's list stays under it.
     var panel = document.getElementById("catPanel");
     if(panel) panel.innerHTML = "";
-    renderCategoryChips(true);
+    // The row does not move (§693): only which chip is lit changes.
+    renderCategoryChips();
     var scroller = document.querySelector("#screen-playfam .scroll");
     if(scroller) scroller.scrollTop = 0;
     loadCategoryEpisodes();
@@ -16603,7 +16604,7 @@
     var was = !!(catPage.root || catPage.finding);
     catPage = { root: "", node: "", episodes: [], subs: [], finding: false };
     showCategoryPanel();
-    renderCategoryChips(tapped === true, true);
+    renderCategoryChips();
     // Nothing of the category left stays under the All chip.
     var panel = document.getElementById("catPanel");
     if(panel && was) panel.innerHTML = "";
@@ -16700,9 +16701,8 @@
         landed(function(){
           catPage.loading = false;
           catPage.episodes = d.episodes || [];
-          // The level below comes from the category's own answer, so
-          // narrowing to one of them keeps the row.
-          if(node && node === catPage.root){ catPage.subs = d.subcategories || []; renderCategoryChips(true); }
+          // The level below is not drawn (§693); kept for what reads it.
+          if(node && node === catPage.root) catPage.subs = d.subcategories || [];
           drawCategoryPanel();
         });
       })
@@ -16721,16 +16721,12 @@
     return meta.filter(Boolean).join(" · ");
   }
   // **Explore's cards** (§691, the owner's 11.24 mock): each story is a
-  // card - its picture small beside its category, its title, its one line,
-  // then **FAM** (plays it, replay only, the rest of the page queued after
-  // it as a category always did) and **Add to playlist** (the player's own
-  // sheet, for this story's topic). "All" is every category with the
+  // card - its picture small beside its category and the day it was made,
+  // its title, its one line, then a **play button** (plays that story,
+  // replay only, and nothing after it - §693) and **Add to playlist** (the
+  // player's own sheet, for this story's topic). "All" is every category with the
   // Trending edition's stories first; inside a category the same cards sit
   // under Play all and Follow. The server's order is the order drawn.
-  var FAM_GLYPHS = '<span class="xp-fam" aria-hidden="true">'
-    + '<svg viewBox="4.55 4.55 12.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V9.2A3.2 3.2 0 0 1 9.2 6H16"/><path d="M6 13h8"/></svg>'
-    + '<svg viewBox="3.55 4.55 16.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"/><path d="M5 20l7-7 7 7"/></svg>'
-    + '<svg viewBox="4.55 4.55 14.9 16.9" fill="none" stroke="currentColor" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V6l6 9 6-9v14"/></svg></span>';
   // "SPORT · NBA": the facet, then the category when it is a narrower one.
   function exploreKicker(ep){
     var facet = categoryFacetOf(ep.node);
@@ -16744,13 +16740,15 @@
     return '<div class="xp-card" data-i="' + i + '">'
       + '<div class="xp-top"><span class="xp-thumb ' + categoryTone(categoryFacetOf(ep.node)) + '">'
       + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '')
-      + '</span><span class="xp-kick">' + escapeHtml(exploreKicker(ep)) + '</span></div>'
+      + '</span><span class="xp-kick">' + escapeHtml(exploreKicker(ep)) + '</span>'
+      // The day it was made, as a catalogue row says it (§693).
+      + '<span class="xp-when">' + escapeHtml(episodeDayLabel(ep.made_age_seconds)) + '</span></div>'
       + '<div class="xp-title' + (ep.explicit ? ' is-explicit' : '') + '">' + escapeHtml(name) + '</div>'
       + (ep.hook ? '<div class="xp-hook">' + escapeHtml(ep.hook) + '</div>' : '')
       + '<div class="xp-acts">'
       + '<button type="button" class="xp-play" onclick="playCategoryEpisode(' + i + ')" aria-label="Play ' + escapeHtml(name) + '">'
-      + '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
-      + FAM_GLYPHS + '</button>'
+      + '<svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+      + '</button>'
       + '<button type="button" class="xp-add" onclick="addExploreToPlaylist(' + i + ')">'
       + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
       + 'Add to playlist</button>'
@@ -16828,16 +16826,23 @@
   }
   // **A category plays in the player** (the 11.3 packet, with exploreFAM
   // gone; it opened exploreFAM's reel since §253). A tap plays that episode
-  // the way the catalogue plays one - replay only, never written - and
-  // queues the rest of the category after it in its order; Play all does
-  // the same from the top. Both go through the ordinary queue
-  // (§190), so Go to Queue shows what is coming and every row is removable.
+  // the way the catalogue plays one - replay only, never written - **and
+  // nothing after it** (the 11.25 packet, §693): it used to queue the rest
+  // of the page behind it, so the episode never ended on What's next - the
+  // next card's simply began - and the owner asked for that screen back.
+  // Play all still queues the category from the top through the ordinary
+  // queue (§190), so Go to Queue shows what is coming and every row is
+  // removable.
+  //
+  // Each is replayed by the id of the kept episode (`episode`, §173) when
+  // the server sent one: the page's words alone did not find an episode
+  // kept under another key ("That episode is no longer in the cache").
   function categoryQueueEntry(ep){
     return { title: ep.title || ep.query, prompt: ep.query,
              minutes: ep.minutes || BROWSE_MINUTES,
              source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", surface: "",
              cachedOnly: true, thumb: ep.thumb || "", titleOverridden: true,
-             fromCategory: true };
+             episode: ep.episode || "", fromCategory: true };
   }
   function playCategoryList(list){
     if(!list.length) return;
@@ -16845,7 +16850,7 @@
     TOPICS["_category"] = { title: first.title || first.query, prompt: first.query,
                             source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", caption: "",
                             cachedOnly: true, exploreMinutes: first.minutes || BROWSE_MINUTES,
-                            titleOverridden: true };
+                            episode: first.episode || "", titleOverridden: true };
     generate("_category");
     // A second tap replaces what the first queued rather than piling the
     // page on again; anything the listener queued themselves stays.
@@ -16856,7 +16861,8 @@
   function playCategoryEpisode(i){
     var eps = catPage.episodes;
     if(!eps[i]) return;
-    playCategoryList(eps.slice(i));
+    // That story alone (§693): What's next follows it.
+    playCategoryList([eps[i]]);
   }
   function playCategoryAll(){
     // The panel on screen is the last category's while the next loads (§646).
@@ -17126,8 +17132,15 @@
     } else {
       html += '<div class="mix-empty" data-flip="empty">Nothing in this playlist yet. Add the topics you want a fresh briefing on every day.</div>';
     }
-    html += addTopics;
-    if(!editing) html += details;
+    // A playlist with nothing in it yet opens on its picture and name, and
+    // Add topics comes under them (the 11.25 packet, §693) - it used to sit
+    // above, where today's stories will be.
+    if(!items.length && !editing){
+      html = details + html + addTopics;
+    } else {
+      html += addTopics;
+      if(!editing) html += details;
+    }
     html += recommendedHTML(m);
     if(owner){
       html += mixWhenHTML();
@@ -17197,11 +17210,11 @@
   }
   // "MORNING · NOV 23 · 7 STORIES" under the wordmark.
   function paintMixHead(m){
-    var name = document.getElementById("mixTitle"), meta = document.getElementById("mixHeadMeta");
-    var n = (m.items || []).length;
-    if(name) name.textContent = m.name;
-    if(meta) meta.textContent = " \u00b7 " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
-      + " \u00b7 " + n + (n === 1 ? " story" : " stories");
+    // The header is "myFAM Playlist" and nothing under it (§693): the
+    // name, the date and the count that sat there went at the owner's
+    // direction. The pill and the details block name the playlist.
+    var head = document.querySelector("#screen-mixdetail .pl-wordmark");
+    if(head) head.setAttribute("aria-label", "myFAM Playlist: " + m.name);
   }
   // The words a play of this item asks for: the server's own dated prompt
   // (§143), else its template filled with the listener's date, else the
@@ -24234,9 +24247,12 @@
   var followerNow = null;
 
   function showFollowerPopup(person){
-    // Never two overlays deep. This and the what's-next popup are triggered
-    // from different places and could in principle land together.
-    closeNextUp();
+    // Never two overlays deep, and What's next goes only when the listener
+    // leaves it (§693): this used to close it. It waits its turn instead.
+    if(document.getElementById("nextUpOverlay").classList.contains("active")){
+      setTimeout(function(){ showFollowerPopup(person); }, 3000);
+      return;
+    }
     followerNow = person;
     followerPopupShown[person.user_id] = true;
     // Once, ever: the server is told as the popup goes up, so neither this
@@ -31151,9 +31167,11 @@
     if(!AUTH.authenticated
        && (currentPlaySurface === "myfam" || currentPlaySurface === "dailyfam")) return;
     buildNextUpTiles(query, topicId, function(tiles){
-      // One tile is not a grid, and a popup offering nothing is worse than
-      // the silence it replaced. Below two, the player simply stops.
-      if(tiles.length < 2 || !nextUpAllowedHere() || goDeeperIsOpen()) return;
+      // **Shown after every episode** (the 11.25 packet, §693, the owner:
+      // "I still want that screen to display after the episode"). One tile
+      // used to show nothing; the lead is Go Deeper's suggestion and the
+      // card has its own search, so one is enough. Only none shows nothing.
+      if(!tiles.length || !nextUpAllowedHere() || goDeeperIsOpen()) return;
       showNextUp(tiles);
     });
   }

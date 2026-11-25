@@ -3870,10 +3870,16 @@ def main() -> int:
             page.wait_for_selector("#screen-mixdetail.active", timeout=8000)
             assert page.evaluate("mixes.length") == before + 1, \
                 "Create did not make the mix"
-            assert page.text_content("#mixTitle").strip() == name
+            assert page.text_content("#mixBody .mix-hero-t").strip() == name
             body = page.inner_text("#mixBody")
             assert "Add topics to playlist" in body and "Change" in body, body[:300]
             assert "Nothing in this playlist yet" in body, body[:300]
+            # §693: on an empty playlist Add topics is under the picture and
+            # the name, not above them.
+            assert page.evaluate("""() => {
+              var hero = document.querySelector('#mixBody .mix-hero').getBoundingClientRect();
+              var add = document.querySelector('#mixBody .mix-add-topics').getBoundingClientRect();
+              return add.top >= hero.bottom; }"""), "Add topics is above the playlist's picture and name"
 
             # Add topics: search reaches into the specifics - people think in
             # teams - and the (+) saves at once.
@@ -3896,9 +3902,9 @@ def main() -> int:
                 "#mixBody .pl-rows > .pl-row .pl-row-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL · Eagles"], rows
-            # The date is in the header since §691: "NAME · NOV 24 · 1 STORY".
-            assert re.search(r"· \w{3} \d{1,2} · 1 story", page.inner_text("#screen-mixdetail .pl-head-sub"), re.I), \
-                "the edition is not dated"
+            # §693: the header's "NAME · NOV 24 · 1 STORY" line is gone.
+            assert not page.query_selector("#screen-mixdetail .pl-head-sub"), \
+                "the line under myFAM Playlist is back"
 
             # Recommendations: five subjects, one tap adds, shuffled.
             recs = page.eval_on_selector_all(
@@ -5079,29 +5085,46 @@ def main() -> int:
             page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            # §693: All and the main categories only - no More, no X.
+            assert chips[0] == "All" and "More" not in chips and len(chips) >= 5, f"the chip row reads {chips}"
             assert page.query_selector("#catChips .catchip.on[data-chip=all]"), "All is not the chip that is on"
             page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
             card = page.eval_on_selector("#catPanel .xp-card", """e => ({
                 title: !!e.querySelector('.xp-title').textContent.trim(),
                 kick: !!e.querySelector('.xp-kick').textContent.trim(),
                 play: !!e.querySelector('.xp-play'),
+                playText: e.querySelector('.xp-play').textContent.trim(),
+                playWide: e.querySelector('.xp-play').offsetWidth,
+                playTall: e.querySelector('.xp-play').offsetHeight,
+                when: e.querySelector('.xp-when').textContent.trim(),
                 add: e.querySelector('.xp-add').textContent.trim() })""")
             assert card["title"] and card["kick"] and card["play"] and card["add"] == "Add to playlist", \
                 f"an Explore card is missing a part: {card}"
+            # §693: the play is a round play button with no wordmark in it,
+            # and the card says the day its episode was made.
+            assert card["playText"] == "" and card["playWide"] == card["playTall"] >= 44, \
+                f"the play button is not a round play button: {card}"
+            assert card["when"], "an Explore card does not say when it was made"
             target = page.eval_on_selector(
                 "#catChips .catchip[data-cat]:not([data-cat=''])",
                 "e => e.getAttribute('data-cat')")
             page.click(f'#catChips .catchip[data-cat="{target}"]')
             page.wait_for_selector("#catPanel:not([hidden]) .catp-play, #catPanel:not([hidden]) .sv-empty",
                                    timeout=5000)
-            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            # §693: the row is the same row with that chip lit - every main
+            # category still there, no X and nothing from the level below.
+            inside = page.eval_on_selector_all("#catChips .catchip",
+                                               "e => e.map(x => x.textContent.trim())")
+            assert inside == chips, f"the chip row changed inside a category: {inside}"
+            assert page.query_selector(f'#catChips .catchip.on[data-cat="{target}"]'), \
+                "the category picked is not the chip that is on"
+            assert not page.query_selector("#catChips .catchip-x"), "the X is back on the chip row"
             if page.query_selector("#catPanel .catp-play"):
                 assert page.query_selector("#catPanel .xp-card"), "the category has Play all and no cards"
-            page.click("#catChips .catchip-x")
+            page.click("#catChips .catchip[data-chip=all]")
             page.wait_for_selector("#catChips .catchip.on[data-chip=all]", timeout=3000)
             page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
-            assert not page.query_selector("#catPanel .catp-play"), "the X left the category showing"
+            assert not page.query_selector("#catPanel .catp-play"), "All left the category showing"
             page.click("#pfTabMixes")
             page.wait_for_timeout(300)
             assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
@@ -5123,7 +5146,7 @@ def main() -> int:
                 f"a playlist's card is missing a part: {card}"
             page.evaluate("document.querySelector('#mixList .pl-card[data-mix]').click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
-            assert "STOR" in page.inner_text("#screen-mixdetail .pl-head-sub").upper()
+            assert not page.query_selector("#screen-mixdetail .pl-head-sub")
             assert page.inner_text("#mixBody .pl-pill").startswith(("Play ", "Start with")), \
                 "the pill does not offer to play the playlist"
             assert page.query_selector("#mixBody .pl-row .pl-heart"), "a story has no heart"

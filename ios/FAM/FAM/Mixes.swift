@@ -35,7 +35,6 @@ final class MixesModel: ObservableObject {
     @Published private(set) var categories: CategoriesPage?
     /// Which chip is on; every arrival on the tab opens on All.
     @Published var categoryState = CategoryState()
-    @Published var categorySubs: [CategorySub] = []
     /// Bumped by every arrival on the tab (`load`): Explore asks for its
     /// stories again, so All is never yesterday's list (§691).
     @Published private(set) var exploreAsk = 0
@@ -84,7 +83,6 @@ final class MixesModel: ObservableObject {
         me = nil
         categories = nil
         categoryState = CategoryState()
-        categorySubs = []
         playfamTab = .categories
         // The previous listener's new mix is not this one's.
         freshIDs = []

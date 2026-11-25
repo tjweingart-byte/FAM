@@ -8,10 +8,11 @@ import SwiftUI
 // MARK: - Explore's card
 
 /// **A story on Explore** (`.xp-card`, `exploreCardHTML`): its picture small
-/// beside its category, its title, its one line, then **FAM** (plays it,
-/// replay only, the rest of the page queued after it) and **Add to
-/// playlist** (the player's own sheet, for this story's topic). A story
-/// with no stored summary draws no line (`no-dead-controls`).
+/// beside its category, the day it was made, its title, its one line, then
+/// a round **play** button (plays that one episode, replay only, nothing
+/// queued behind it) and **Add to playlist** (the player's own sheet, for
+/// this story's topic). A story with no stored summary draws no line
+/// (`no-dead-controls`).
 struct ExploreCard: View {
     @EnvironmentObject private var model: AppModel
     let episode: CategoryEpisode
@@ -23,6 +24,14 @@ struct ExploreCard: View {
     let add: () -> Void
 
     private var name: String { episode.title.isEmpty ? episode.query : episode.title }
+
+    /// "Today", "Yesterday", "3 days ago", then a date - the A-Z
+    /// catalogue's own calendar (`episodeDayLabel`), from the row's
+    /// `made_age_seconds`; "" when the server does not say (11.25 packet #3).
+    private var made: String {
+        guard let age = episode.madeAgeSeconds else { return "" }
+        return VibePostPlay.dayLabel(age)
+    }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 18)
@@ -37,6 +46,18 @@ struct ExploreCard: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
+                // When it was made, trailing, in the kicker's own small
+                // mono label; it never wraps or squeezes (`large-text`).
+                if !made.isEmpty {
+                    Text(made)
+                        .font(FAMFont.mono(9.5))
+                        .tracking(1.33)
+                        .textCase(.uppercase)
+                        .foregroundStyle(FAMColor.textFaint)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .accessibilityLabel("Made " + made)
+                }
             }
             .padding(.bottom, 9)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -56,7 +77,7 @@ struct ExploreCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 7)
             }
-            // FAM on the left, Add to playlist on the right; one under the
+            // Play on the left, Add to playlist on the right; one under the
             // other when the row is too narrow for both (`flex-wrap`).
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
@@ -95,21 +116,21 @@ struct ExploreCard: View {
         .accessibilityHidden(true)
     }
 
-    /// `.xp-play`: the play triangle and the wordmark's three letters,
-    /// dark on light in dark mode and light on dark in light.
+    /// `.xp-play`: **just a play button** (11.25 packet #4, the owner:
+    /// "just the play button with no FAM logo") - a filled circle 36 pt
+    /// across in the fill the pill had, the triangle centred and nudged
+    /// 1 pt right so it looks centred, 4 pt more to hit all round (44 pt).
     private var playButton: some View {
         Button(action: play) {
-            HStack(spacing: 8) {
-                PlayTriangle().fill(FAMColor.background).frame(width: 12, height: 12)
-                FAMLetters(capHeight: 13, color: FAMColor.background)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 8)
-            .frame(minWidth: 98, minHeight: 40)
-            .background(FAMColor.text, in: Capsule())
-            .contentShape(Capsule())
+            PlayTriangle().fill(FAMColor.background).frame(width: 16, height: 16)
+                .offset(x: 1)
+                .frame(width: 36, height: 36)
+                .background(FAMColor.text, in: Circle())
+                .padding(4)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.press)
+        .padding(-4)
         .accessibilityLabel("Play \(name)")
     }
 
@@ -316,13 +337,13 @@ enum PlaylistIcons {
     }()
 }
 
-/// The page's header (`.pl-head`, `paintMixHead`): "myFAM Playlist" over
-/// "MORNING · NOV 23 · 7 STORIES", Back before it and the sliders after.
+/// The page's header (`.pl-head`, `paintMixHead`): "myFAM Playlist", Back
+/// before it and the sliders after. The line that sat under it ("MORNING ·
+/// NOV 25 · 7 STORIES") is gone at the owner's direction (11.25 packet
+/// #6): the pill under the header already says the name and the count.
 /// At the accessibility text sizes the heading takes a row of its own, so
 /// nothing on its row can squeeze it (`large-text`).
 struct PlaylistHead<Trailing: View>: View {
-    let name: String
-    let count: Int
     let back: () -> Void
     @ViewBuilder var trailing: () -> Trailing
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -362,36 +383,18 @@ struct PlaylistHead<Trailing: View>: View {
     }
 
     private var heading: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Wordmark(lead: "my", size: 25)
-                Text("Playlist")
-                    .font(FAMFont.heading(25, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("myFAM Playlist")
-            .accessibilityAddTraits(.isHeader)
-            Text(Self.sub(name: name, count: count))
-                .font(FAMFont.mono(9))
-                .tracking(1.44)
-                .textCase(.uppercase)
-                .foregroundStyle(FAMColor.textFaint)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Wordmark(lead: "my", size: 25)
+            Text("Playlist")
+                .font(FAMFont.heading(25, .semibold))
+                .foregroundStyle(FAMColor.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("myFAM Playlist")
+        .accessibilityAddTraits(.isHeader)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// "Morning · Nov 23 · 7 stories", the device's date.
-    static func sub(name: String, count: Int) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.dateFormat = "MMM d"
-        let stories: String = count == 1 ? "1 story" : "\(count) stories"
-        return name + " \u{00B7} " + f.string(from: Date()) + " \u{00B7} " + stories
     }
 }
 
