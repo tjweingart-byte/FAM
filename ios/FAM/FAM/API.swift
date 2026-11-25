@@ -411,7 +411,7 @@ final class FAMAPI: @unchecked Sendable {
                reading: String = "", askReading: Bool = false,
                voice: String = "", voicePicked: Bool = false,
                isPrivate: Bool = false, attach: String = "",
-               mix: String = "") -> URLRequest {
+               mix: String = "", heard: String = "") -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -449,6 +449,9 @@ final class FAMAPI: @unchecked Sendable {
         // The myFAM mix this plays from (§656): a free listener hears half
         // of one, counted on the server.
         if !mix.isEmpty { items.append(URLQueryItem(name: "mix", value: mix)) }
+        // The episode a Go Deeper follows, by its id: the server reads what
+        // it said, so the follow-up goes past it instead of rewording it.
+        if !heard.isEmpty { items.append(URLQueryItem(name: "heard", value: heard)) }
         var audioRequest = request("GET", "api/v1/audio", query: items)
         // A cold voice may be silent longer than URLSession's 60 s: the
         // loading screen's own give-up (§497, `voice_wait` + 15 s) decides,

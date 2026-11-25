@@ -1806,6 +1806,11 @@
      [hidden] means, or the attribute stops working. Deleting CSS from this
      file has broken the app twice; the checker is not optional. */
   .src-panel[hidden]{ display:none; }
+  /* It arrives, never pops (a tester, 11.24). Opacity only, so nothing
+     beside it moves twice. */
+  .src-panel{ animation:srcIn var(--dur-colour) var(--ease-out) backwards; }
+  @keyframes srcIn{ from{ opacity:0; } }
+  @media (prefers-reduced-motion: reduce){ .src-panel{ animation:none; } }
   /* The strip: who this episode drew on, as marks, under the player. Small
      on purpose - it is provenance, not a bibliography, and the list is one
      tap away. */
@@ -5982,14 +5987,10 @@
             <div class="gc-label">Speed</div>
             <div class="gc-val" id="speedModalVal" onclick="openSpeedMenu()">1x</div>
           </div>
-          <div class="gc-field">
-            <div class="gc-label">Length</div>
-            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">1.5 min</div>
-          </div>
-          <div class="gc-field">
-            <div class="gc-label">Voice</div>
-            <div class="gc-val" id="voiceModalVal" onclick="openVoiceMenu()">Default</div>
-          </div>
+          <!-- No Length or Voice row (the owner, 11.24 and 11.25): both
+               are picked before a search, on the search page (the voice in
+               Settings too). Picked here, either threw away the episode
+               playing and made it again from the start. -->
           <div class="modal-btns">
             <button class="modal-btn primary" style="flex:1;" onclick="closeSpeedLengthModal()">Done</button>
           </div>
@@ -12095,16 +12096,6 @@
     FamAudio.setRate(parseSpeed(selectedSpeed));
   }
 
-  // Changing length is not a playback setting - it needs a different episode.
-  function regenerateAtNewLength(){
-    var key = currentPlayingTopicKey;
-    if(!key || !TOPICS[key]){ return; }
-    toast("Rebuilding at " + selectedLengthMinutes + " min");
-    // The length just chosen wins over any pinned on the topic (§190).
-    TOPICS[key].exploreMinutes = selectedLengthMinutes;
-    generate(key);
-  }
-
   // ---------------- The thread this episode left open ----------------
   // The script ends pointed at one specific unresolved thing, and names it in
   // a trailing line the server strips before synthesis. Offering that as a
@@ -14319,10 +14310,16 @@
         // This is why the strip was never on screen: it was fetched in
         // `onEnd` and when Go Deeper opened, and nowhere else - so the one
         // moment it is actually for, somebody listening and wondering where
-        // this came from, was the one moment it was never asked for. Tried
-        // twice, because provenance lands with the finished script and a
-        // 10-minute episode's script takes longer to write than a 2-minute
-        // one's.
+        // this came from, was the one moment it was never asked for.
+        //
+        // **At the first word, not six seconds in** (a tester, 11.24: "the
+        // sources pop up midway through the episode"). The research is done
+        // before a word is written and the server has published who it read
+        // by then (`_publish_sources`), and a replay's are in the cache - so
+        // the strip is on the player as it opens, and the later tries are
+        // only for an episode whose sources really do land late.
+        fetchEpisodeSources();
+        setTimeout(fetchEpisodeSources, 2000);
         setTimeout(fetchEpisodeSources, 6000);
         setTimeout(fetchEpisodeSources, 20000);
         // And on, until there is something to show (§288): a Trending story
@@ -14422,7 +14419,7 @@
         voicePicked: surface === "search" && voicePickedForSearch,
         own: !!opts.own, private: !!opts.private,
         askReading: !!opts.askReading, reading: opts.reading || "",
-        mix: opts.mix || ""
+        mix: opts.mix || "", heard: opts.heard || ""
       });
       // One pick, one search (§447): the next search starts from "left as it was".
       if(surface === "search") voicePickedForSearch = false;
@@ -14515,6 +14512,7 @@
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true,
+                     heard: t.heard || "",
                      // Which thing a shared name means (§426): asked on any
                      // tap that may write an episode - a tile written ahead
                      // was left unwritten for exactly this (review, §432) -
@@ -15024,10 +15022,6 @@
     // A text node beside the chevron SVG, so the text node is what changes -
     // textContent on the span would take the chevron with it.
     if(homeVal && homeVal.firstChild) homeVal.firstChild.textContent = selectedLengthMinutes + " min";
-    ["lengthModalVal"].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = selectedLengthMinutes + " min";
-    });
     updateSpeedLenPillText();
   }
   function updateSpeedLenPillText(){
@@ -15064,11 +15058,9 @@
             // The stopwatch says it took (bubble-ack: B, §643) - on
             // searchFAM, and only for a change.
             if(changed) ackSearchBubble("lengthBubble");
-            // Length is a property of the script, not of playback, so a change
-            // made while listening means a different episode.
-            var onPlayer = document.querySelector(".screen.active")
-                        && document.querySelector(".screen.active").id === "screen-player";
-            if(changed && onPlayer){ regenerateAtNewLength(); }
+            // **Never the episode playing** (the owner, 11.25, §693): a
+            // length is for the next search. A change made on the player
+            // used to rebuild the episode from its start.
           }
         });
       })(m);
@@ -15167,8 +15159,6 @@
   // choice, so this reads it back rather than opening on the default.
   function paintVoiceControls(){
     var name = voiceLabel(selectedVoice);
-    var el = document.getElementById("voiceModalVal");
-    if(el) el.textContent = name;
     var home = document.getElementById("homeVoiceName");
     if(home) home.textContent = name;
     updateSpeedLenPillText();
@@ -15690,7 +15680,7 @@
   // listener picks a voice, and it governs their searches alone: myFAM,
   // DailyFAM and everything else is spoken in a voice drawn from the bank per
   // episode, so the heading says so.
-  // §447: a voice picked on the search page or in the player is a choice for
+  // §447: a voice picked on the search page is a choice for
   // the next search, and only then is a cached episode voiced again in it.
   // Left as it was - the default, or the voice last picked - a cached search
   // plays in the voice its audio is already kept in. A pick in Settings is a
@@ -15721,35 +15711,19 @@
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ voice: v.id })
         }).catch(function(){});
-        // The voice changes the audio but not the script, so re-generating
-        // reuses the cached script: no model call, no cost, near-instant.
-        // A searched episode only - nothing else takes a chosen voice.
-        // After the choice is kept (§294): a listener who never chose hears
-        // whatever voice is already kept, so a switch to the default sent
-        // before the server knew would play the old voice again.
-        var onPlayer = document.querySelector(".screen.active")
-                    && document.querySelector(".screen.active").id === "screen-player";
-        if(onPlayer && currentPlayingTopicKey && currentPlaySurface === "search"){
-          toast("Switching to " + v.label);
-          var key = currentPlayingTopicKey;
-          kept.then(function(){ generate(key); });
-        }
+        // **Never the episode playing** (the owner, 11.24, on a tester's
+        // report): a pick used to start the playing search again in the new
+        // voice - "recreates the whole episode and trashes what you were
+        // just listening to". A voice is for the next search.
+        void kept;
       }
     };
   }
 
   function openSpeedLengthModal(){
     document.getElementById("speedModalVal").textContent = selectedSpeed;
-    document.getElementById("lengthModalVal").textContent = selectedLengthMinutes + " min";
-    document.getElementById("voiceModalVal").textContent = voiceLabel(selectedVoice);
-    // Length and voice are a search's to choose (§147). On anything else the
-    // episode is `BROWSE_MINUTES` in the bank voice it was given, so the rows are
-    // not offered rather than offered and ignored.
-    var searched = currentPlaySurface === "search";
-    ["lengthModalVal", "voiceModalVal"].forEach(function(id){
-      var row = document.getElementById(id);
-      if(row && row.parentNode) row.parentNode.style.display = searched ? "" : "none";
-    });
+    // Speed only. Length and voice are chosen before a search, never in
+    // the middle of an episode (the owner, 11.24 and 11.25, §693).
     document.getElementById("speedLengthOverlay").classList.add("active");
   }
   function closeSpeedLengthModal(){
@@ -15884,7 +15858,12 @@
       exploreMinutes: offeredMinutes(minutes),
       surface: (stack[0] === "home") ? "search" : "other",
       titleOverridden: false,
-      private: hush
+      private: hush,
+      // Which episode this follows, when it is the one on the player: the
+      // server reads what that one said, so this one goes past it instead
+      // of rewording it (a tester, 11.24).
+      heard: (baseKey && baseKey === currentPlayingTopicKey && window.FamAudio
+              && FamAudio.episode) ? (FamAudio.episode() || "") : ""
     };
     // Going deeper on a myFAM playlist's episode is a detour, never the end
     // of the playlist (11.9 packet, §519): the follow-up plays, and when it

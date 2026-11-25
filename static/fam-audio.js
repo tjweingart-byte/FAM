@@ -626,6 +626,9 @@ window.FamAudio = (function () {
               // is a cached episode voiced again in it; otherwise it plays in
               // the voice it is already kept in.
               (listener && listener.voicePicked ? "&voice_picked=1" : "") +
+              // The episode a Go Deeper follows, by its id: the server reads
+              // what it said, so the follow-up goes past it.
+              (listener && listener.heard ? "&heard=" + encodeURIComponent(listener.heard) : "") +
               // One heard episode, replayed exactly (§173): the listening
               // history. Never generates - a 409 if it is no longer kept.
               (listener && listener.episode ? "&episode=" + encodeURIComponent(listener.episode) : "") +

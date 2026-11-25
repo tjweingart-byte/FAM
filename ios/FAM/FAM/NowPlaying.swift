@@ -22,6 +22,9 @@ struct Episode: Equatable {
     /// A kept episode's id (`X-FAM-Episode`): a message's Listen replays the
     /// sender's exact episode (§288); "" asks the question as usual.
     var episodeID: String = ""
+    /// A Go Deeper's base: the id of the episode it follows (`heard=`), so
+    /// the server knows what that one said. "" for anything else.
+    var heardID: String = ""
     /// A myFAM playlist's own episode: the playlist's key while it plays it
     /// (`fromMix`, `mixPlay.key` on the web).
     /// The myFAM mix this episode is played from (§656), sent as `mix` so a
@@ -495,9 +498,19 @@ final class NowPlayingModel: ObservableObject {
     // MARK: - Sources (`fetchEpisodeSources`)
 
     private func askSources(_ mine: Int) async {
-        // +6 s, +20 s, then every 8 s while playing until shown (75 tries).
-        try? await Task.sleep(nanoseconds: 6_000_000_000)
+        // At the first word (a tester, 11.24: "the sources pop up midway
+        // through the episode"): the research is done before a word is
+        // written and the server has published who it read by then, so the
+        // strip is on the player as it opens. Then +2 s, +6 s, +20 s, and
+        // every 8 s while playing until shown (75 tries) for the episode
+        // whose sources really do land late.
         await refreshSourcesOnce(mine)
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        guard mine == run else { return }
+        if !sourcesShown { await refreshSourcesOnce(mine) }
+        try? await Task.sleep(nanoseconds: 4_000_000_000)
+        guard mine == run else { return }
+        if !sourcesShown { await refreshSourcesOnce(mine) }
         try? await Task.sleep(nanoseconds: 14_000_000_000)
         await refreshSourcesOnce(mine)
         var tries = 0
@@ -908,6 +921,7 @@ final class NowPlayingModel: ObservableObject {
                          own: own,
                          picture: nil, titleOverridden: false)
         ep.isPrivate = hush
+        ep.heardID = player.episodeID
         // Going deeper on a playlist's episode is a detour, never the end of
         // the playlist (§519); a Go Deeper on that follow-up is the same one.
         ep.mixDetour = detourFor?(base) ?? ""

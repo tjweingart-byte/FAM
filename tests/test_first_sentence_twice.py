@@ -163,7 +163,8 @@ def test_a_script_of_one_sentence_over_and_over_still_reaches_its_budget():
     sentence 120 times): the guard drops the head's repeats and no more."""
     plan = plan_episode("q", 1)
     reader = sg._ScriptReader(plan, ScriptNotes())
-    out = reader.feed(" ".join(["This is one more full sentence."] * 400) + " ")
+    # A word after the last one: an ending waits for what follows it (§693).
+    out = reader.feed(" ".join(["This is one more full sentence."] * 400) + " Next")
     assert len(out) == 400 - (RepeatGuard.WINDOW - 1)
     assert reader.over_budget
 

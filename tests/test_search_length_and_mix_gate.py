@@ -59,11 +59,8 @@ def test_every_length_placeholder_agrees_with_the_variable():
     check that fails when somebody edits one of the five.
     """
     want = "%g min" % _default_minutes()
-    for element_id in ("lengthModalVal",):
-        m = re.search(r'id="%s"[^>]*>([\d.]+ min)' % element_id, INDEX)
-        assert m, "no length placeholder found for #%s" % element_id
-        assert m.group(1) == want, "#%s says %r, the variable says %r" % (
-            element_id, m.group(1), want)
+    # The player's own Length row went with §693: the pills are what is left.
+    assert 'id="lengthModalVal"' not in INDEX
     for element_id in ("speedLenPill", "paSpeedLenPill"):
         m = re.search(r'id="%s"[^>]*>([^<]+)</div>' % element_id, INDEX)
         assert m, "no pill placeholder found for #%s" % element_id
