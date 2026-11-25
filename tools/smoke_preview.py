@@ -2204,13 +2204,12 @@ def main() -> int:
             assert chip, "the search page has no voice control"
             # §190: bubbles under the bar, Length then Voice, and the
             # choice is not printed on them; Private is the third (§282),
-            # a lock with no word on it since the 11.16 notes.
+            # a lock and its word since the 11.24 packet (§690: "add the
+            # word Private on the lock too"), a bare lock before it.
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
                     .map(e => e.textContent.trim() || e.getAttribute('aria-label'))""")
-            # The lock carries its word since §690 ("Private"), which this
-            # check still read as the bare lock's aria-label (§693).
             assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
