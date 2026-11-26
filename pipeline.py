@@ -1166,11 +1166,14 @@ class PodcastPipeline:
         episode (`_episode_blurb`) wants the kept row and does not pass it.
         """
         empty = {"thread": "", "title": "", "title_final": False, "summary": "",
-                 "sourced_at": 0.0, "explicit": False}
+                 "sourced_at": 0.0, "explicit": False, "subject": ""}
         if not is_shareable(plan.query):
             return empty
         key = await self._cache_key(plan) if self.cache else ""
         out = dict(empty)
+        # Who or what the brief said it is about, while the track lives
+        # (§696). Never stored: a replay offers what the words name.
+        out["subject"] = live_captions.read_subject(key)
         # Whether it swears (§171), from what this generation has said so far
         # when one is in flight, else from the kept script - the same order
         # captions read in. It can only turn on as an episode is written, so

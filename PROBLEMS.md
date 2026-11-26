@@ -41735,3 +41735,217 @@ screenshots of Explore, a category and a playlist from the fixture preview.
 `ios.yml` compiles) - above all the composer fix, which is a best reading of
 a UIKit behaviour; the new order against a real deployment's cache; What's
 next after an Explore play end to end with real audio.
+
+## 695. A chosen interest that reached the ranker as nothing: "Boston sports", and 94 of 208 others (2026-11-26)
+
+**The report** (the owner, relaying a first-week listener): the interest
+step "was just random and poorly laid out", and "the recommended episodes
+have nothing to do with the topics of interest that he put in ... He's a
+diehard Boston sports fan and hasn't gotten a single Boston sports episode
+recommended for him." The owner: Made for you "should feel very personalized
+as soon as someone opens the app", then "investigate how this bug works with
+all topics, not just boston sports", and "the list of topics should also be
+pretty expansive, and people should be able to type in any topic".
+
+**What was happening.** The interests page has stored anything typed since
+§142, and `taste` resolves it on the way out through `tags_for_text` - a
+keyword map and the category tree. Reproduced with the seed applied, an
+account, and a pool holding a Celtics, a Bruins, a Red Sox and a Patriots
+game:
+
+| chosen | what `taste` held | the rail |
+|---|---|---|
+| "Boston sports" (typed) | nothing | the four "Start here" questions, headed as such |
+| "Sports" (listed) | `sports` | one generic sports question; no game (a heading alone never admits a live story, §155) |
+| Celtics, Red Sox, Bruins | three teams | two games - the variety cap dropped the third |
+| "New England Patriots" | nothing | Start here (`LEFT_TO_GROW`) |
+
+**Every topic, measured.** Of the 73 listed interests, 19 resolve to a bare
+heading (Formula 1 and Motorcycles are `sports`, Cars is `tech`, Crime and
+Politics are `world`, Beauty and Design are `culture`). Of 208 typed
+interests a listener plausibly enters, 94 resolve to **nothing** (Taylor
+Swift, Tesla, Nvidia, Bitcoin, Arsenal, Donald Trump, China, running, dogs,
+Netflix, Patriots, Celtics) and 5 to a bare heading; "Kansas City Chiefs"
+is filed under `cities`. An interest that is nothing leaves `taste` empty,
+and an empty `taste` is the cold start - the listener who typed five things
+was treated exactly as one who skipped the step. The list is the
+scratchpad audit's, not a sample of what listeners typed: no deployment's
+stored topics were read.
+
+**Fixed** (`rule:chosen-subjects`, all in `topics.py` but two helpers):
+
+1. `category_seed.teams_of`: a city with "sports", "teams" or "fans" is its
+   major-league teams, through `HOME_OF` (the six teams seeded by nickname)
+   and `METRO` (Boston's football team is New England's). A team
+   `LEFT_TO_GROW` keeps out of the tree stays out of it and is followed by
+   its full name only.
+2. `followed_names` / `FamiliarWords.names`: a tile that says a chosen
+   subject as whole words in order is on subject in any field, and is
+   scored `FOLLOWED_NAME_AFFINITY` on top of its tags.
+3. `interest_topics`: one composed tile per chosen subject ("Boston
+   Celtics: What's New This Week"), built the way `local_startup_topic`
+   is. `lead_with_interests` leads the rail with real stories naming a
+   chosen subject, then composed tiles: the whole rail before a first
+   play, two after; View more leads with all of them.
+4. The variety cap never drops a chosen subject's tile; it still counts
+   them, so nothing unchosen rides in behind.
+5. `app._served_tile_query` knows a listener's own composed tile, so on a
+   metered tier it is a tile and not their weekly search.
+
+After: "Boston sports" with the four games on shows the four games; with
+none on, the four teams' own tiles; "Taylor Swift" leads with a story
+naming her when the pool holds one and her own tile when it does not.
+
+**The interest step itself** is not changed here. Ten designs for it, with
+the current screen beside them, are a slide deck for the owner to choose
+from; every one assumes a list far larger than 73 (the tree's subjects and
+every team) and typing anything.
+
+**For the owner to decide.** (1) Seeding the 31 `LEFT_TO_GROW` teams as
+full-name-only nodes now that nodes match as in-order phrases - today
+"Patriots" alone still follows nothing. (2) A composed tile is free on the
+free tier like any tile, so changing interests is a way to free episodes
+once quotas are on. (3) Writing the composed tiles ahead at the edition,
+most-chosen first, so the first tap is instant.
+
+**Verified:** `tests/test_chosen_subjects_695.py` (20), and the eleven
+Made-for-you, taste, startup and preferences test files; the table above
+is the simulation's output before and after. **Not verified:** nothing was
+run against a real pool - whether a Boston final from last night is still
+held when the fan opens the app the next morning depends on the sports
+sweep's demand rule and was not measured; no episode was written from a
+composed tile's question (no key here), so how "what is the latest news on
+X this week" reads as an episode is unheard; `learned_rank` with a trained
+model was not exercised with followed names.
+
+## 696. "What topics do you want to follow": the follow step rebuilt, and following from inside the app (2026-11-26)
+
+**The owner, choosing from §695's ten designs:** "We like the flow of number
+3 and the instant creation of the made for you sections shown in number 7.
+For the flow, once you select general topics the second screen should act as
+a dropdown that displays larger subtopics (i.e. for sports it goes into
+'american football, baseball, rugby, etc.') that people can click on then
+teams drop down that they can type into or select. Also we want to reword
+this to be like 'what topics do you want to follow' rather than it seeming
+like people entering what their interests are. Also, I like the idea of the
+taylor swift example once people are in the app where they can more easily
+add topics to what they want to follow without having to go to their profile
+page." And of the six further ideas: "These are also all great ideas and we
+want to implement all of them."
+
+**Built** (`rule:follow-topics`):
+
+1. **The step.** Two pages on `screen-intro`. Page one is the eight
+   headings (`topics.FOLLOW_WORLDS`: Sports, News & politics, Technology,
+   Money & markets, Culture & entertainment, Business, Health & mind,
+   Science). Page two is a section per chosen heading; its chips are the
+   category tree's subjects under it, largest first; a subject's first tap
+   follows it and opens a drawer of everything beneath - its own subjects,
+   then what is under those, each level A to Z - with a box that narrows
+   them or follows what is typed. The search box finds across the whole
+   tree and follows anything typed. 677 seeded nodes and the 31 teams the
+   tree leaves out are on offer where the list held 73.
+2. **The row, as it is chosen.** `/api/follow/preview` returns
+   `topics.interest_topics` for what is ticked, drawn in the dock above the
+   button on every change. They are the tiles §695 leads the rail with.
+3. **The wording.** "What topics do you want to follow?", "Get specific",
+   "Following N topics", Settings' "Topics you follow". A profile's line is
+   still labelled Interests - not asked for, and other people read it.
+4. **Follow this?** `/api/follow/suggest` after a search; the card is the
+   first thing on DailyFAM until answered. The subject is a team or the
+   deepest tree subject the words name; for a name the tree has never
+   heard of (the owner's own example, Taylor Swift) it is the brief's
+   `Brief.subject`, which now rides the live track to `/api/next`. A replay
+   of a kept episode has no brief, so there only the tree can name one.
+5. **Why on the card.** `why` on a Made-for-you tile that is there for a
+   followed topic; drawn as its own line, the hook untouched.
+6. **Your teams.** `topics.team_scores`: every held sports story naming a
+   followed major-league team, as `/api/myfam`'s `teams`, drawn above the
+   rails with its score line.
+7. **A first mix.** `/api/follow/mix`, called once the step's choices are
+   saved: "My topics", private, each topic titled by its own name (no
+   naming call), written ahead as a saved mix is.
+8. **The reminder.** `push.message_for(followed=)`.
+
+**Superseded:** the A to Z list (§142) and its ordering (§170, 28/09); the
+smoke checks that pinned them are rewritten for the tree. `renderIntroFacets`
+is gone: a facet chosen on the old wheel is a ticked heading now.
+
+**Not done, and why.** "Write interest tiles ahead" as its own job was the
+one idea not pictured in the owner's message and the one that spends model
+budget on a schedule; the first mix already writes each listener's chosen
+subjects ahead inside the existing ahead budget, so it waits for a yes and a
+cap. The iOS step is not built (no compiler here; `PARITY.md` has the row).
+
+**For the owner.** (1) The first mix is private; say if it should be public
+like every other new mix. (2) A free listener gets it although "no own
+mixes" is the free tier's rule - tiers are off today. (3) The score strip
+shows only games the live pool is holding; a team with no game held shows
+nothing, and whether last night's final is still held the next morning is
+still unmeasured (§695).
+
+**Verified:** `tests/test_follow_696.py` (20), `tests/test_chosen_subjects_695.py`,
+the 35 test files naming what changed, and the browser smoke run on the
+fixture build, including a new check for the card, the reason and the strip;
+screenshots of both pages, a drawer narrowed by typing, the search and the
+preview row. **Not verified:** nothing ran against a live deployment or a
+real search - above all that `Brief.subject` arrives in time and reads as a
+name ("the US Federal Reserve" is trimmed to its tree subject; an odd one
+would be offered as written, scrubbed, if four words or fewer); the first
+mix's morning edition; a push actually sent; the screen at the phone's
+largest text sizes, and on a real phone at all.
+
+## 697. "My topics" is public, and for followers while its owner is private; the branch reviewed for Main (2026-11-26)
+
+**The owner:** "make my topics public (but only visible to someone who
+follows if someone is on private mode in settings), then double check all
+changes made in this branch and get it ready to merge into main."
+
+**The mix.** §696 made it private and asked. It is public now, as every new
+mix is, and carries `mixes.FROM_FOLLOWS` in `source_id` (the column a copy
+keeps its source in; never a mix id). `app._mix_shown_to` is the one gate:
+that mix, of an owner in private mode, is shown to the owner and to the
+people who follow them and to nobody else - on `/api/person`, in
+`/api/mixes/public` and by id, as a copy, a story card, and when a play is
+counted as a browse episode. It answers as a mix that does not exist, and
+fails closed when the store cannot say who is private. It is that one mix
+only: `rule:private-mode` says a private listener's public mixes stay, and
+nothing else of theirs changes. A mix renamed by its owner keeps the mark;
+one they make themselves never has it.
+
+**Found reviewing the branch, and fixed.** The new mix's titles are what
+the listener typed and are now public, so they are scrubbed
+(`content_filter.scrub`); a suspended account's is made private rather than
+published. `category_seed.all_teams()` was rebuilt for every chosen
+interest on every page load; it is built once.
+
+An independent read of the whole diff found ten more things; nine are
+fixed. (1) **The variety cap had a hole**: `diversify(keep=)` waved through
+every tile that said a followed name, so five stories naming one followed
+person were the whole rail. Only the tiles `lead_with_interests` actually
+led (at most `MAX_PER_FACET` a name) and composed tiles are kept now. (2)
+`followed_name` re-split every name for every tile several times a page -
+177 ms for a listener following 135 things over 300 stories; names are
+split once (`FamiliarWords.name_words`), the answer is kept per tile for
+the page, `chosen_subjects` is memoised by (interests, tree), and the pool
+is read once for the rail and the strip. (3) **"Follow this?" was kept on
+the device without whose it was**, so the next account to sign in saw the
+last one's search; it is stored with the listener's id, as the remembered
+feed is, and cleared on sign-out. (4) The 49ers were "san francisco
+niners" to `all_teams` and so matched no fixture (`FULL_NAME`). (5) "new
+teams" followed eleven teams and "the" was a followed name said by nearly
+every tile: a city must be one a team is named for (`cities()`), and a
+subject made only of stop words is not one. (6) `/api/follow/preview`
+answered 500 to an unknown heading; 400 now. (7) A subject unfollowed from
+the tray left its drawer "open", so the next tap did nothing visible. (8)
+The card said "Following X" when the list was full and nothing was kept.
+(9) `/admin` counted "My topics" as a copied mix. **Not changed** (10): a
+composed tile for anything typed is free on the free tier - §695's open
+question for the owner, with tiers off.
+
+**Verified:** `tests/test_follow_696.py` (the mix seen and not seen by a
+stranger, a follower and the owner, in the list and by id; another public
+mix of the same owner untouched; the closed failure). **Not verified:**
+the gate was not exercised through the share landing page in a browser;
+existing public mixes are unaffected by construction (no mark), which was
+read and not run against a deployment's data.

@@ -76,6 +76,14 @@ _COVER_PREFIXES = ("data:image/jpeg;base64,", "data:image/png;base64,",
                    "data:image/webp;base64,")
 
 
+#: What `Mix.source_id` holds for the mix made from a listener's followed
+#: topics at the end of the follow step (§696, §697). Never a mix id, so it
+#: is never mistaken for a copy's source. That mix is the listener's
+#: interests as a list, and while they are in private mode it is shown only
+#: to the people who follow them (`app._mix_shown_to`).
+FROM_FOLLOWS = "follows"
+
+
 class MixError(ValueError):
     """Something the listener did wrong, phrased so it can be shown to them."""
 
@@ -778,7 +786,7 @@ class MixStore:
         return bool(getattr(cur, "rowcount", 0))
 
     def create(self, user_id: str, name: str, topic_ids: Sequence = (),
-               cover: str = "", public: bool = True) -> Mix:
+               cover: str = "", public: bool = True, made_from: str = "") -> Mix:
         """A new mix, public unless asked otherwise - a mix is found and
         added by other listeners in DailyFAM search, and one that starts
         private is one nobody else ever sees."""
@@ -794,13 +802,17 @@ class MixStore:
             raise MixError(f"You already have a mix called {name}.")
         cover = image_store.keep("cover", cover)
         now = time.time()
+        # `made_from` is kept where a copy keeps the mix it came from: the
+        # one other thing a mix can be made from is the listener's followed
+        # topics (`FROM_FOLLOWS`, §697).
         mix = Mix(uuid.uuid4().hex[:12], user_id, name, items, now, now,
-                  public=bool(public), cover=cover)
+                  public=bool(public), cover=cover, source_id=str(made_from or ""))
         self._conn().execute(
             "INSERT INTO mixes (id, user_id, name, topic_ids, created_at, updated_at, items,"
-            " cover, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " cover, public, source_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (mix.id, user_id, name, ",".join(mix.topic_ids), now, now,
-             json.dumps([i.stored_dict() for i in items]), cover, int(mix.public)),
+             json.dumps([i.stored_dict() for i in items]), cover, int(mix.public),
+             mix.source_id),
         )
         return mix
 

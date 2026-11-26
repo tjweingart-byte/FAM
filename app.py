@@ -892,7 +892,7 @@ async def lifespan(_: FastAPI):
         # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
             MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
-            stories=_push_stories_pass)))
+            followed=_followed_labels, stories=_push_stories_pass)))
     else:
         log.info("notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
@@ -3650,6 +3650,45 @@ def _follows(me: str, other: str) -> bool:
     return bool(me and other and me != other and SOCIAL.is_following(me, other))
 
 
+def _mix_shown_to(mix, viewer: str, private: Optional[set] = None) -> bool:
+    """Whether a public mix may be shown to `viewer` (§697, the owner
+    11.26: "make my topics public (but only visible to someone who follows
+    if someone is on private mode in settings)").
+
+    Every public mix is, but one: the mix made from a listener's followed
+    topics (`mixes.FROM_FOLLOWS`) is what they follow, written down, and
+    while its owner is in private mode it is for the people who follow them
+    - the door a profile's interests already have (`rule:private-mode`).
+    `private` is `PREFS.private_among` already read for a page of mixes;
+    without it the one owner is asked. **Fails closed**, as that read does.
+    """
+    if mix is None:
+        return False
+    if getattr(mix, "source_id", "") != mixes_mod.FROM_FOLLOWS:
+        return True
+    if viewer and viewer == mix.user_id:
+        return True
+    if private is None:
+        private = PREFS.private_among([mix.user_id])
+    return mix.user_id not in private or _follows(viewer, mix.user_id)
+
+
+def _mixes_shown_to(found, viewer: str) -> list:
+    """`found` without the mixes `viewer` may not see, in one read."""
+    found = list(found)
+    owners = [m.user_id for m in found
+              if getattr(m, "source_id", "") == mixes_mod.FROM_FOLLOWS]
+    private = PREFS.private_among(owners) if owners else set()
+    return [m for m in found if _mix_shown_to(m, viewer, private)]
+
+
+def _public_mix_for(mix_id: str, viewer: str = ""):
+    """`MIXES.get_public` for somebody: None for a mix they may not see,
+    which is the answer for one that does not exist."""
+    mix = MIXES.get_public(mix_id, viewer=viewer)
+    return mix if _mix_shown_to(mix, viewer) else None
+
+
 def _listening_shown(user_ids) -> list[str]:
     """These listeners, without anybody in private mode (§638): the ones
     whose plays may be shown to another person - a face on a card, a place
@@ -3915,7 +3954,7 @@ async def person_profile(request: Request,
         # Each mix and vibe wears the picture the player would draw, so a
         # friend's page is the same grid of tiles as your own (§345).
         "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
-                  for m in MIXES.public_for_user(target)],
+                  for m in _mixes_shown_to(MIXES.public_for_user(target), me)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
         # Every vibe, for good (the owner's direction after §161): the 24
@@ -8093,7 +8132,7 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
-def _served_tile_query(topic_id: str) -> str:
+def _served_tile_query(topic_id: str, user: str = "") -> str:
     """The question a DailyFAM tile with this id asks, if the server serves
     one (§656 review): the evergreen bank, Start here, the live story pool or
     the Trending edition - so a tile is free whether or not its episode is
@@ -8105,6 +8144,14 @@ def _served_tile_query(topic_id: str) -> str:
             return tile.query
     now = time.time()
     try:
+        if user and topic_id.startswith(topics_mod.INTEREST_TILE_PREFIX):
+            # A tile composed from this listener's own chosen interests
+            # (§695) - theirs only, so a made-up id still buys nothing.
+            prefs = PREFS.get(user)
+            for tile in topics_mod.interest_topics(
+                    tuple(prefs.interests) + tuple(prefs.topics)):
+                if tile.id == topic_id:
+                    return tile.query
         for tile in topics_mod.live_topics(now):
             if tile.id == topic_id:
                 return tile.query
@@ -8139,9 +8186,9 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
         return "godeeper"
     query = plan.query
     if mix and _mix_plays(MIXES.get_editable(user, mix)
-                          or MIXES.get_public(mix, viewer=user), query):
+                          or _public_mix_for(mix, user), query):
         return "myfam"
-    served = _served_tile_query(topic_id) if topic_id else ""
+    served = _served_tile_query(topic_id, user) if topic_id else ""
     if served and mixes_mod._plain(served) == mixes_mod._plain(query):
         return "myfam"
     # A shared link, a history replay, a tile: off the search bar, an
@@ -8169,7 +8216,7 @@ def _take_half_a_mix(request: Request, user: str, mix_id: str,
     tier_name = _tier(request)
     if entitlements.at_least(tier_name, billing.PAID_TIER):
         return
-    found = MIXES.get_editable(user, mix_id) or MIXES.get_public(mix_id, viewer=user)
+    found = MIXES.get_editable(user, mix_id) or _public_mix_for(mix_id, user)
     if found is None:
         return
     episodes = len([i for i in found.items if not getattr(i, "pending", False)])
@@ -9287,6 +9334,61 @@ def _push_plays(user_id: str) -> list:
             if e.kind in ("play", "complete")]
 
 
+def _followed_labels(user_id: str) -> list:
+    """What this person chose to follow, as it is said (§696): the names the
+    daily reminder may lead with."""
+    prefs = PREFS.get(user_id)
+    return [s.label for s in topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))]
+
+
+#: The mix a listener's chosen topics become at the end of sign-up (§696).
+FOLLOW_MIX_NAME = "My topics"
+
+
+@app.post("/api/follow/mix")
+async def follow_mix(request: Request) -> dict:
+    """Make the listener's chosen topics their first mix (§696, the owner:
+    "sign-up interests become a first personal mix in myFAM, ready to play
+    daily"). Once: a listener who already has any mix keeps what they have.
+    Public, as every new mix is (§697) - but marked as made from what they
+    follow, so while they are in private mode only their followers see it
+    (`_mix_shown_to`). Each topic is titled by its own name, so no naming
+    call is made. Its subjects are
+    written ahead as any saved mix's are (`_write_mix_ahead`)."""
+    _read_limit(request)
+    account = _require_account(request)
+    if MIXES.list_for_user(account):
+        return {"mix": None, "made": False}
+    prefs = PREFS.get(account)
+    subjects = topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))[:mixes_mod.MAX_TOPICS]
+    if not subjects:
+        return {"mix": None, "made": False}
+    tiles = {t.id: t for t in topics_mod.interest_topics(
+        tuple(prefs.interests) + tuple(prefs.topics))}
+    entries = []
+    for subject in subjects:
+        tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
+                         + "-".join(subject.name.split()))
+        if tile is not None:
+            # A public mix shows its titles to other people (§697).
+            entries.append({"query": tile.query,
+                            "title": content_filter.scrub(subject.label)})
+    try:
+        # A suspended account posts nothing that reaches anybody: theirs is
+        # made private (`_require_can_post`'s rule, without refusing a mix
+        # nobody but them will see).
+        mix = MIXES.create(account, FOLLOW_MIX_NAME, entries, "",
+                           public=not MODERATION.is_suspended(account),
+                           made_from=mixes_mod.FROM_FOLLOWS)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix)
+    _write_mix_ahead(mix)
+    return {"mix": _mix_out(mix, account, {}, False), "made": True}
+
+
 def _push_follows(user_id: str) -> list:
     """What this person chose to follow (§562): the subjects in their mixes
     and their chosen interests that name one. Never what they were inferred
@@ -9564,7 +9666,8 @@ async def public_mixes(request: Request, q: str = Query("", max_length=80)) -> d
     # With nothing typed only the newest are shown, so only a few more than
     # that are read (an empty mix is skipped); a search reads the lot.
     scan = mixes_mod.PUBLIC_SCAN if q.strip() else mixes_mod.MAX_PUBLIC_RESULTS * 3
-    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer, limit=scan)):
+    for position, mix in enumerate(_mixes_shown_to(
+            MIXES.all_public(exclude_user=viewer, limit=scan), viewer)):
         if not mix.items:
             continue
         if q.strip():
@@ -9592,7 +9695,7 @@ async def public_mix(mix_id: str, request: Request) -> dict:
     A private mix answers exactly like one that does not exist."""
     _read_limit(request)
     viewer = _listener(request)
-    mix = MIXES.get_public(mix_id, viewer=viewer)
+    mix = _public_mix_for(mix_id, viewer)
     if not mix:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9615,7 +9718,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_feature(request, "mixes")
-    source = MIXES.get_public(mix_id)
+    source = _public_mix_for(mix_id, user)
     if not source:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9681,7 +9784,7 @@ async def share_mix(mix_id: str, request: Request) -> dict:
 async def mix_card(mix_id: str, request: Request) -> Response:
     """The story image for a shared mix, as SVG - see `share_card`."""
     _read_limit(request)
-    mix = MIXES.get_public(mix_id)
+    mix = _public_mix_for(mix_id, _listener(request))
     if not mix:
         raise HTTPException(status_code=404, detail="That mix is private or no longer exists.")
     owner = SOCIAL.person(mix.user_id) or {}
@@ -10162,6 +10265,83 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                 user, "pick", topic, "",
                 topics_mod.tags_for_id(topic, topic)))
     return prefs.as_dict()
+
+
+class FollowPreviewRequest(BaseModel):
+    """What is ticked on the follow screen, not yet saved."""
+    interests: list[str] = Field(default_factory=list, max_length=20)
+    topics: list[str] = Field(default_factory=list, max_length=200)
+
+
+class FollowRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=prefs_mod.MAX_TOPIC)
+
+
+@app.get("/api/follow/tree")
+async def follow_tree(request: Request) -> dict:
+    """What the follow screen offers (§696): the general topics, the larger
+    subjects under each, and what is under those. The shared vocabulary -
+    nothing of the listener in it, no model, no network."""
+    _read_limit(request)
+    return topics_mod.follow_tree()
+
+
+@app.post("/api/follow/preview")
+async def follow_preview(req: FollowPreviewRequest, request: Request) -> dict:
+    """The Made for you tiles these choices would lead with, before they
+    are saved (§696): `topics.interest_topics`, the same tiles the rail
+    draws. Composed in code; nothing is written, logged or generated."""
+    _read_limit(request)
+    try:
+        chosen = (prefs_mod.clean_interests(req.interests)
+                  + prefs_mod.clean_topics(req.topics))
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    tiles = [t.as_dict() for t in topics_mod.interest_topics(chosen)]
+    return {"topics": tiles[:topics_mod.VIEW_MORE_PAGE]}
+
+
+@app.get("/api/follow/suggest")
+async def follow_suggest(
+    request: Request,
+    q: str = Query("", max_length=300, description="What was just searched"),
+    subject: str = Query("", max_length=80,
+                         description="The episode's subject, from /api/next"),
+) -> dict:
+    """The one subject worth offering to follow after a search, or none
+    (§696). Never one already followed; nothing for a guest, whose choices
+    are not kept. No model call."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated or not q.strip():
+        return {"topic": ""}
+    prefs = PREFS.get(listener.user_id)
+    label = topics_mod.follow_suggestion(
+        q, tuple(prefs.interests) + tuple(prefs.topics),
+        subject=content_filter.scrub(subject))
+    if label and content_filter.scrub(label) != label:
+        label = ""
+    return {"topic": label}
+
+
+@app.post("/api/follow")
+async def follow_topic(req: FollowRequest, request: Request) -> dict:
+    """Follow one more topic, from anywhere in the app (§696): added to the
+    listener's chosen topics, which never fade (`rule:interests-constant`),
+    and logged as a pick as a save from the follow screen is."""
+    _read_limit(request)
+    user = _require_account(request)
+    current = PREFS.get(user)
+    try:
+        prefs = PREFS.save(user, topics=list(current.topics) + [req.topic])
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    added = [t for t in prefs.topics if t not in current.topics]
+    for topic in added:
+        EVENTS.record(topics_mod.Event(
+            user, "pick", topic, "", topics_mod.tags_for_id(topic, topic)))
+    return {"topics": list(prefs.topics), "following": bool(added) or
+            req.topic.strip().lower() in {t.lower() for t in prefs.topics}}
 
 
 @app.get("/api/nextup")
@@ -14002,7 +14182,7 @@ async def next_thread(
         pipeline = _make_pipeline()
     except TTSUnavailable:
         return {"thread": "", "title": "", "title_final": False, "summary": "",
-                "explicit": False}
+                "explicit": False, "subject": ""}
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.

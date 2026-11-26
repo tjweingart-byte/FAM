@@ -462,7 +462,7 @@ METRICS: list[tuple[str, tuple[str, ...], str]] = [
     ("ratings", ("social",), "SELECT COUNT(*) FROM social.ratings"),
     ("mixes_total", ("mixes",), "SELECT COUNT(*) FROM mixes.mixes"),
     ("mixes_public", ("mixes",), "SELECT COUNT(*) FROM mixes.mixes WHERE public = 1"),
-    ("mixes_copied", ("mixes",), "SELECT COUNT(*) FROM mixes.mixes WHERE source_id != ''"),
+    ("mixes_copied", ("mixes",), "SELECT COUNT(*) FROM mixes.mixes WHERE source_id != '' AND source_id != 'follows'"),
     ("accounts_public_mix", ("mixes", "accounts"),
      "SELECT COUNT(DISTINCT m.user_id) FROM mixes.mixes m "
      "JOIN accounts.accounts ac ON ac.user_id = m.user_id WHERE m.public = 1"),

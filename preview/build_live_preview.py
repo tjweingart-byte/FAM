@@ -53,6 +53,8 @@ STATIC_PATHS = ("/api/voices", "/api/health", "/api/attach",
                 # The tier table. Reference data: it is the same for every
                 # viewer, and nothing in the database changes it.
                 "/api/plans",
+                # What the follow screen offers (§696): the shared tree.
+                "/api/follow/tree",
                 # Provenance and the transcript. Both are read off a script
                 # that a published page never writes - there is no Claude here
                 # and no cache to write into - so they come from the fixtures,
@@ -2135,6 +2137,15 @@ __WRITING_SIM__
         location: locationBody(EMAIL ? stored : null)
       });
     }
+    // Following one more topic from inside the app (§696) is a save of the
+    // chosen topics with one added.
+    if (path === "/api/follow" && method === "POST") {
+      if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
+      body = { topics: (myPrefs().topics || []).concat([String(body.topic || "")]) };
+      path = "/api/preferences";
+    }
+    var init = { body: JSON.stringify(body) };
+__FOLLOW_JS__
     if (path === "/api/preferences" && method === "POST") {
       if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
       var was = myPrefs();
@@ -3178,6 +3189,7 @@ def build() -> pathlib.Path:
 
     shim = (LIVE_SHIM
             .replace("__WRITING_SIM__", bp.WRITING_SIM_JS)
+            .replace("__FOLLOW_JS__", bp.FOLLOW_JS)
             .replace("__FIXTURES__", json.dumps(bp.load_fixtures()))
             .replace("__ALGO__", json.dumps(topics.ALGO_VERSION))
             .replace("__MIX_ITEMS__", bp.mix_items_js())
