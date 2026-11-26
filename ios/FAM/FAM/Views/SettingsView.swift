@@ -130,7 +130,9 @@ struct SettingsView: View {
     private var listeningGroup: some View {
         VStack(alignment: .leading, spacing: 0) {
             SetGroup(text: "Listening")
-            SetRow(label: "Your interests", value: you.interestsSummary) { interestsOpen = true }
+            // "Topics you follow" (§696): the wording is following, on the
+            // row and the step it opens; a profile's line is still Interests.
+            SetRow(label: "Topics you follow", value: you.interestsSummary) { interestsOpen = true }
             SetRow(label: "Listening history", value: "Last 2 weeks") { model.youPath.append(.history) }
             SetRow(label: "My Vibes") { model.youPath.append(.myVibe) }
             SetRow(label: "Save for Later") { model.youPath.append(.saved) }

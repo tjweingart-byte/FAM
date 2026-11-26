@@ -65,6 +65,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var tasteSource = "taste"
     /// The face book the cards' friends pills point into.
     @Published private(set) var friendFaces: [FriendFace] = []
+    /// The followed teams' held games (`/api/myfam`'s `teams`, §696):
+    /// the "Your teams" strip above the rails. Empty draws nothing.
+    @Published private(set) var teams: [Tile] = []
+    /// "Follow this?" (§696): the subject a search named, waiting on this
+    /// phone until it is answered. Drawn first on DailyFAM (`FollowAskCard`).
+    @Published private(set) var followAsk: FollowAsk?
+    /// How often each search has asked `/api/follow/suggest`, by its
+    /// lower-cased question (`followAskTried`): once, then once more when
+    /// the brief's subject arrives.
+    private var followAskTried: [String: Int] = [:]
     /// `query|minutes` of every saved episode, so bookmarks are lit.
     @Published private(set) var savedTiles: Set<String> = []
     @Published private(set) var pickUp: PickUpPage?
@@ -458,6 +468,7 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        nowPlaying.askFollow = { [weak self] ep, subject in self?.maybeAskFollow(ep, subject: subject) }
         // The player's save and a playlist row's heart are one shelf (§691).
         nowPlaying.savedChanged = { [weak self] query, minutes, on in
             guard let self else { return }
@@ -465,6 +476,7 @@ final class AppModel: ObservableObject {
             if on { self.savedTiles.insert(key) } else { self.savedTiles.remove(key) }
         }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
+        nowPlaying.offline = { [weak self] in self?.isOffline ?? false }
         // The myFAM screen on show is the dot looked at (§550,
         // `#screen-playfam.active`): its tab, with no mix pushed over it.
         mixes.screenShowing = { [weak self] in
@@ -1011,6 +1023,9 @@ final class AppModel: ObservableObject {
         notInterestedIDs = []
         emptiedRails = []
         tasteSource = "taste"
+        teams = []
+        // "Follow this?" names a search: never the next account's (§697).
+        forgetFollowAsk()
         forgetDevicePrefs()
         // The tour as this phone knew it was theirs (§595).
         tour.forget()
@@ -1092,8 +1107,12 @@ final class AppModel: ObservableObject {
             }
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
+            // Only ever from a fresh answer (`myFamTeams = data.teams || []`):
+            // a remembered page's score is never drawn as today's.
+            teams = page.teams ?? []
             railsProblem = ""
             if requestFailed { setOffline(false) }
+            paintFollowAsk()
             // Remembered only once it has drawn, so a page that fails to
             // draw is never the one an offline open falls back to.
             shelf.rememberFeed(data)
@@ -2537,5 +2556,133 @@ extension AppModel {
         pending = ep
         playFromShelf(ep, glide: lastGlide, dial: lastDial)
         return true
+    }
+}
+
+// MARK: - "Follow this?" (§696, `rule:follow-topics`)
+
+/// The subject a search named, and the search it came from.
+struct FollowAsk: Codable, Equatable {
+    let topic: String
+    let q: String
+}
+
+/// What this phone keeps about "Follow this?": the question waiting, and
+/// the subjects answered "Not now" (lower-cased, the last fifty).
+struct FollowAskState: Codable, Equatable {
+    var ask: FollowAsk?
+    var no: [String]?
+}
+
+/// The state with whose it is (`{who, data}`, §697): a second account on
+/// this phone never sees the first one's search.
+struct FollowAskKept: Codable {
+    var who: String
+    var data: FollowAskState
+}
+
+extension AppModel {
+    /// Where "Follow this?" is kept on this phone (the web's `fam.followAsk`).
+    static let followAskKey = "fam.followAsk"
+    /// "The list is full" (§697, review fix 8): the server kept nothing,
+    /// so the card never says "Following X".
+    static let followFullLine = "You follow as many topics as FAM keeps. Remove one in Settings first."
+
+    /// `followAskState`: what is kept, only if it is this listener's.
+    private func followAskState() -> FollowAskState {
+        guard let data = UserDefaults.standard.data(forKey: Self.followAskKey),
+              let kept = try? JSONDecoder().decode(FollowAskKept.self, from: data),
+              kept.who == (listener?.userId ?? "") else { return FollowAskState() }
+        return kept.data
+    }
+
+    /// `saveFollowAsk`: kept with the listener's id, as the remembered
+    /// feed is the listener's (§697).
+    private func saveFollowAsk(_ state: FollowAskState) {
+        let kept = FollowAskKept(who: listener?.userId ?? "", data: state)
+        guard let data = try? JSONEncoder().encode(kept) else { return }
+        UserDefaults.standard.set(data, forKey: Self.followAskKey)
+    }
+
+    /// Signing out (`forgetOfflineCopies`): the question, the "Not now"s
+    /// and what was already asked all go.
+    fileprivate func forgetFollowAsk() {
+        UserDefaults.standard.removeObject(forKey: Self.followAskKey)
+        followAsk = nil
+        followAskTried = [:]
+    }
+
+    /// `paintFollowAsk`: the card shows what is kept for this listener.
+    func paintFollowAsk() {
+        let ask = listener?.authenticated == true ? followAskState().ask : nil
+        let shown = (ask?.topic.isEmpty ?? true) ? nil : ask
+        if shown != followAsk { followAsk = shown }
+    }
+
+    /// After a search (`maybeAskFollow`): the server names the one subject
+    /// worth following. Never for a private search or a guest, never one
+    /// already followed, never one they said "Not now" to. Asked once per
+    /// question, then once more when the brief's subject arrives.
+    func maybeAskFollow(_ ep: Episode, subject: String) {
+        guard listener?.authenticated == true, !privateSearch, !ep.isPrivate,
+              ep.surface == "search" else { return }
+        let query = ep.key.query
+        let key = query.lowercased()
+        let tries = followAskTried[key] ?? 0
+        if key.isEmpty || tries >= 2 || (tries == 1 && subject.isEmpty) { return }
+        followAskTried[key] = subject.isEmpty ? 1 : 2
+        let who = listener?.userId
+        Task { [weak self] in
+            guard let self else { return }
+            guard let topic = try? await self.api.followSuggest(query: query, subject: subject),
+                  !topic.isEmpty else { return }
+            // Signed out, or another account, while it was asked.
+            guard self.listener?.authenticated == true, self.listener?.userId == who else { return }
+            var state = self.followAskState()
+            if (state.no ?? []).contains(topic.lowercased()) { return }
+            state.ask = FollowAsk(topic: topic, q: query)
+            self.saveFollowAsk(state)
+            self.paintFollowAsk()
+        }
+    }
+
+    /// `answerFollowAsk`: "Not now" is remembered on this phone; Follow
+    /// adds the topic (`POST /api/follow`) and the page is drawn around it.
+    func answerFollowAsk(_ yes: Bool) {
+        var state = followAskState()
+        guard let ask = state.ask else { return }
+        state.ask = nil
+        if !yes {
+            state.no = Array(((state.no ?? []) + [ask.topic.lowercased()]).suffix(50))
+            saveFollowAsk(state)
+            paintFollowAsk()
+            return
+        }
+        saveFollowAsk(state)
+        paintFollowAsk()
+        let who = listener?.userId
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let answer = try await self.api.followTopic(ask.topic)
+                // The server says whether it was kept: a full list keeps nothing.
+                guard answer.following == true else {
+                    self.nowPlaying.say(AppModel.followFullLine)
+                    return
+                }
+                self.nowPlaying.say("Following " + ask.topic)
+                // Settings' row and the rails are rebuilt around it at once.
+                await self.you.loadPrefs()
+                await self.loadRails()
+            } catch {
+                // Not followed: the question comes back rather than vanishing.
+                guard self.listener?.authenticated == true, self.listener?.userId == who else { return }
+                var again = self.followAskState()
+                again.ask = ask
+                self.saveFollowAsk(again)
+                self.paintFollowAsk()
+                self.nowPlaying.say("Could not follow that just now.")
+            }
+        }
     }
 }

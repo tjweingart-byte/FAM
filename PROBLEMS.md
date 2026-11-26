@@ -42049,3 +42049,101 @@ video's picture did not load here (no access to YouTube's image host), so
 that section was seen empty; the four people have not been asked.
 **For the owner:** the profile's counts, interests and vibes and the two
 messages are the demo account's, under real names and faces.
+
+## 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26)
+
+**What failed.** CI on the last commit of §697's branch: "Follow this? after
+a search, a reason on a card, the teams strip" timed out on the live-database
+preview (`preview/fam-live.html`), after the branch had been merged (PR 344
+was merged while its run was still going).
+
+**Why.** §697's review made the card read `following` from `POST /api/follow`
+before saying "Following X". The fixture preview's stand-in returned it; the
+live preview's stand-in turned the request into a preferences save and
+answered with the preferences body, which has no `following`. So in that
+build the card said the list was full and followed nothing. The server
+itself always returned it (`tests/test_follow_696.py`); only the preview's
+copy of the endpoint was wrong.
+
+**Why it was not caught.** After the review fixes the smoke run was started
+by hand on the fixture build only; `dev.sh check` drives both, and the full
+check was not re-run on the final commit. The earlier runs on that build
+passed because the card did not yet read the field.
+
+**Fixed.** The live preview answers `/api/follow` with `{topics, following}`.
+
+**Verified:** `tools/smoke_preview.py` on both builds, all checks passed.
+**Not verified:** the full `./dev.sh check` on this commit - CI is that run.
+
+## 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26)
+
+**Asked.** The owner, with the session list open (Familiarize.net website
+redesign, Interest selection and personalization, App Store review delay, New
+session, Bug fixes, New packet of updates, Impact and context assessment,
+myFAM page redesign, Episode autoplay behavior, Admin page feedback): "Make
+the new iOS build (build 13). Run a full audit to include everything that
+has changed since the last build ... double check everything that is built
+with another audit, then get the branch ready to merge into main."
+
+**Is everything on Main?** Build 12 was cut at #340. Every branch pushed
+since was compared with Main: one held a commit Main lacks - §699's
+live-preview stand-in for `/api/follow`, pushed to its branch after #344
+merged - and it is in this branch. Nothing else is unmerged.
+
+**The first audit** (a reader given only the range and told not to trust a
+log entry's claim: open the Swift). Everything merged after build 12:
+
+| Change | What | On the iPhone |
+|---|---|---|
+| #342 (§693, the Bug fixes session) | A tester's five reports: Go Deeper sends `heard=`; sources asked at the first word and faded in; the Voice and Length rows off the player | In the PR, confirmed in the Swift |
+| #343 (§694, this session's 11.25 packet) | What's next back after an episode; an Explore card plays one story by its episode id; the day on the card, the round play button, the main-category chips; the playlist page; the message box | In the PR. **First compiled on Main after the merge: `ios.yml` green** |
+| §694's review | What's next not offered offline | **Missing: added here** (`NowPlayingModel.offline`) - with one tile enough to show it, an offline phone's only tile was a Go Deeper that cannot run |
+| #344 (§695, the Interest selection session) | A chosen interest reaches Made for you | Server only; the composed tiles are ordinary tiles |
+| #344 (§696, §697) | "What topics do you want to follow?", the row as it is chosen, Follow this?, Because you follow X, Your teams, the first mix, My topics public | **Missing: built here.** §696 said so and PARITY.md's row read "Not built" |
+| #345 (§698, the website session) | The waitlist homepage | Web only; `/waitlist#about`, which the app links to, is still on the page |
+| §699 | The live preview's stand-in | Tooling |
+| App Store review delay, Impact, Admin page feedback | A conversation; §688's key move; nothing since build 12 | No app code |
+
+**Following topics on the iPhone** (PARITY.md's row has every detail):
+`InterestsView` is the web's two pages, at sign-up and from Settings' row,
+now "Topics you follow" - the eight general topics, then "Get specific" with
+a section per chosen one, a subject's first tap following it and opening its
+drawer, the box that narrows or follows what is typed, the search across the
+tree, and the tray. The Made for you row is drawn in the dock as topics are
+chosen. `FollowAskCard` is on dailyFAM after a search, kept on the device
+with whose it is and cleared on sign-out (§697's fix). A Made-for-you card
+says "Because you follow X"; `TeamStrip` is above the rails; the first mix is
+asked for once, on the first run's save. Every new field is optional, so an
+older server still decodes.
+
+**The second audit** (another reader, given the new Swift and the eight
+constructs its author was least sure of). Compile: `ios.yml` built the
+commit - `BUILD SUCCEEDED`, no warnings - and the reader agreed with it on
+all eight. Behaviour, three defects, fixed: (1) "Culture & entertainment"
+broke by the letter on the general-topics grid at the default text size on
+every phone under 430 pt - the web's 34 px beside the tick is room a
+browser lets a long word run into, and `Text` does not; (2) "Skip for now"
+stayed live while "Start listening" saved, so its empty save could land
+second and undo the follow; (3) a topic typed before the stored list
+arrived was overwritten by it.
+
+**The build.** `CURRENT_PROJECT_VERSION` 13. **The contract is recut**
+(`tools/cut_release.py --build 13 --force`), the first recut since build 9:
+the app names `/api/follow`, `/api/follow/tree`, `/api/follow/preview`,
+`/api/follow/suggest` and `/api/follow/mix`. The cut only added - every
+route and shape build 12 was promised is still there (`old-clients`).
+
+**Left as it is, knowingly.** The preview tiles do not rise in and the
+chips do not cross-fade (motion, PARITY.md). A failed save from Settings
+keeps the screen open with "Could not save that", where the web closes. A
+guest's note under the step still says "Saved to your account". With one
+tile, What's next draws it at half width.
+
+Tests: `tests/test_build13_ios.py`, `tests/test_follow_ios_700.py`.
+
+**Not verified here:** nothing has run on a phone. The compile is real;
+the layout of the step at large text and on a small phone with the keyboard
+up, the dock's height with the preview row in it, VoiceOver, and §694's
+message box all want a device. The fixes made after the green compile
+(three small edits in `ProfileEdit.swift`) are compiled by `ios.yml` on the
+push that carries them.

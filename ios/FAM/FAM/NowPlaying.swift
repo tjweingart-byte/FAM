@@ -180,6 +180,11 @@ final class NowPlayingModel: ObservableObject {
     /// Whether the full player is on screen: What's next is offered there
     /// only, never under the mini bar (`post-episode-grid`).
     var playerShowing: () -> Bool = { true }
+    /// Whether the phone is offline (`AppModel.isOffline`). What's next is
+    /// not offered then (build 13's audit, the web's §694 review): with one
+    /// tile enough to show it, its only tile would be a Go Deeper that
+    /// cannot run.
+    var offline: () -> Bool = { false }
     /// Private search is on (`privateSearch`): a Go Deeper started now is
     /// private too (§285).
     var privateOn: () -> Bool = { false }
@@ -194,6 +199,10 @@ final class NowPlayingModel: ObservableObject {
     /// The search page's Length (`selectedLengthMinutes`), for a tile that
     /// is not a browse surface's (`episodeMinutes`).
     var searchLength: () -> Double = { FAMAPI.browseMinutes }
+    /// `/api/next` answered for the episode playing: the app model asks
+    /// whether its subject is worth following (§696, `maybeAskFollow`) -
+    /// the episode, and the brief's subject when the answer carried one.
+    var askFollow: (Episode, String) -> Void = { _, _ in }
     /// Something was queued: its picture flies to the Queue (`Motion.toQueue`).
     @Published var queueFlight: QueueFlight?
 
@@ -459,6 +468,9 @@ final class NowPlayingModel: ObservableObject {
               mine == run else { return }
         if thread.isEmpty, let t = answer.thread, !t.isEmpty { thread = t }
         if answer.explicit == true { explicit = true }
+        // "Follow this?" (§696): never off a replay, which has no brief
+        // (`if(!episodeReplay) maybeAskFollow(...)`).
+        if !ep.cachedOnly { askFollow(ep, answer.subject ?? "") }
         if let t = answer.title, !t.isEmpty, (answer.titleFinal == true || !titleFinal) {
             let becameFinal = answer.titleFinal == true && !titleFinal
             titleFinal = answer.titleFinal == true
@@ -839,7 +851,7 @@ final class NowPlayingModel: ObservableObject {
     // Go Deeper (`ended`), or off the full player.
 
     private func offerNextUp(_ mine: Int) async {
-        guard let ep = episode else { return }
+        guard let ep = episode, !offline() else { return }
         let topics = (try? await api.nextUp(topicID: ep.topicID, query: ep.key.query)) ?? []
         guard mine == run else { return }
         // The lead is read after the round trip (`buildNextUpTiles`), so a

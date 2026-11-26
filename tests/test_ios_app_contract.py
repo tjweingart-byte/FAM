@@ -124,6 +124,10 @@ def test_rails_and_tiles_decode():
     for name in added:
         assert f'"{name}"' in source, name
     tile = topics_mod.TOPIC_BANK[0].as_dict()
+    # `why` is the feed's own (§696, `topics.feed`): only on a Made-for-you
+    # tile that is there for a followed topic; the app decodes it leniently.
+    assert 'tile["why"] = label' in inspect.getsource(topics_mod)
+    added = added | {"why"}
     assert _fields("Tile") - added <= set(tile), sorted(_fields("Tile") - added - set(tile))
     assert _fields("Rail") <= {"key", "title", "topics", "empty_reason", "has_circle"}
 
