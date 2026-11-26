@@ -232,9 +232,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
   phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
-- **Chosen interests never fade**: `INTEREST_WEIGHT` (2.0) after
-  normalisation, never decayed or skip-lowered. [interests-constant]
-- **Anything chosen leads** (§695). [chosen-subjects]
+- **Chosen interests never fade**: `INTEREST_WEIGHT` 2.0, never
+  decayed or skip-lowered. [interests-constant]
+- **Anything chosen leads** §695; follow §696. [chosen-subjects] [follow-topics]
 - **"Not interested" only in a tile's ⋯** (§499, reversing §171 there):
   `not_interested` (-1.5) keeps that tile off every rail, Trending and the
   post-episode grid; no card button; `hide` stays retired. [no-not-interested]

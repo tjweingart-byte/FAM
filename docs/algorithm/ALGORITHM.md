@@ -161,4 +161,4 @@ How six tiles score (affinity, before the multipliers):
 | `READY_REACH` | 24 | How deep the rail looks for already-written episodes |
 | `STARTUP_PRIOR_STEP` | 0.08 | Cold start: drop per rank of a heading's popularity |
 
-Fingerprint `31c3b570774782e7`.
+Fingerprint `e3ef43c8d7afd3bf`.

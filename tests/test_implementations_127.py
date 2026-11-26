@@ -395,5 +395,7 @@ def test_episode_meta_computes_the_key_once(monkeypatch):
     sourced = meta.pop("sourced_at")
     assert sourced > 0, "a cached episode says when it was sourced (§143)"
     assert meta == {"thread": "next", "title": "Bonds", "title_final": True,
-                    "summary": "What moves them.", "explicit": False}
+                    "summary": "What moves them.", "explicit": False,
+                    # §696: the brief's subject, while its live track lasts.
+                    "subject": ""}
     assert len(calls) == 1

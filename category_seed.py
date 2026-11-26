@@ -161,6 +161,24 @@ METRO = {
 }
 
 
+#: The league each `LEFT_TO_GROW` team plays in, so the follow tree can
+#: offer it beside the teams the tree holds (PROBLEMS.md §696). A test
+#: holds this to exactly the `LEFT_TO_GROW` names.
+LEFT_LEAGUE = {
+    "nhl": ("carolina hurricanes", "tampa bay lightning", "colorado avalanche",
+            "minnesota wild", "calgary flames", "dallas stars",
+            "florida panthers", "ottawa senators", "winnipeg jets"),
+    "nba": ("oklahoma city thunder", "miami heat", "houston rockets",
+            "detroit pistons", "chicago bulls", "orlando magic"),
+    "mlb": ("colorado rockies", "tampa bay rays", "washington nationals",
+            "texas rangers", "san francisco giants", "milwaukee brewers"),
+    "nfl": ("miami dolphins", "washington commanders", "kansas city chiefs",
+            "houston texans", "new england patriots", "new york giants",
+            "new york jets", "los angeles chargers", "chicago bears",
+            "buffalo bills"),
+}
+
+
 def all_teams() -> dict:
     """Every major-league team by its full name -> the tree node that holds
     it, or "" for one `LEFT_TO_GROW` keeps out of the tree."""

@@ -41817,3 +41817,80 @@ sweep's demand rule and was not measured; no episode was written from a
 composed tile's question (no key here), so how "what is the latest news on
 X this week" reads as an episode is unheard; `learned_rank` with a trained
 model was not exercised with followed names.
+
+## 696. "What topics do you want to follow": the follow step rebuilt, and following from inside the app (2026-11-26)
+
+**The owner, choosing from §695's ten designs:** "We like the flow of number
+3 and the instant creation of the made for you sections shown in number 7.
+For the flow, once you select general topics the second screen should act as
+a dropdown that displays larger subtopics (i.e. for sports it goes into
+'american football, baseball, rugby, etc.') that people can click on then
+teams drop down that they can type into or select. Also we want to reword
+this to be like 'what topics do you want to follow' rather than it seeming
+like people entering what their interests are. Also, I like the idea of the
+taylor swift example once people are in the app where they can more easily
+add topics to what they want to follow without having to go to their profile
+page." And of the six further ideas: "These are also all great ideas and we
+want to implement all of them."
+
+**Built** (`rule:follow-topics`):
+
+1. **The step.** Two pages on `screen-intro`. Page one is the eight
+   headings (`topics.FOLLOW_WORLDS`: Sports, News & politics, Technology,
+   Money & markets, Culture & entertainment, Business, Health & mind,
+   Science). Page two is a section per chosen heading; its chips are the
+   category tree's subjects under it, largest first; a subject's first tap
+   follows it and opens a drawer of everything beneath - its own subjects,
+   then what is under those, each level A to Z - with a box that narrows
+   them or follows what is typed. The search box finds across the whole
+   tree and follows anything typed. 677 seeded nodes and the 31 teams the
+   tree leaves out are on offer where the list held 73.
+2. **The row, as it is chosen.** `/api/follow/preview` returns
+   `topics.interest_topics` for what is ticked, drawn in the dock above the
+   button on every change. They are the tiles §695 leads the rail with.
+3. **The wording.** "What topics do you want to follow?", "Get specific",
+   "Following N topics", Settings' "Topics you follow". A profile's line is
+   still labelled Interests - not asked for, and other people read it.
+4. **Follow this?** `/api/follow/suggest` after a search; the card is the
+   first thing on DailyFAM until answered. The subject is a team or the
+   deepest tree subject the words name; for a name the tree has never
+   heard of (the owner's own example, Taylor Swift) it is the brief's
+   `Brief.subject`, which now rides the live track to `/api/next`. A replay
+   of a kept episode has no brief, so there only the tree can name one.
+5. **Why on the card.** `why` on a Made-for-you tile that is there for a
+   followed topic; drawn as its own line, the hook untouched.
+6. **Your teams.** `topics.team_scores`: every held sports story naming a
+   followed major-league team, as `/api/myfam`'s `teams`, drawn above the
+   rails with its score line.
+7. **A first mix.** `/api/follow/mix`, called once the step's choices are
+   saved: "My topics", private, each topic titled by its own name (no
+   naming call), written ahead as a saved mix is.
+8. **The reminder.** `push.message_for(followed=)`.
+
+**Superseded:** the A to Z list (§142) and its ordering (§170, 28/09); the
+smoke checks that pinned them are rewritten for the tree. `renderIntroFacets`
+is gone: a facet chosen on the old wheel is a ticked heading now.
+
+**Not done, and why.** "Write interest tiles ahead" as its own job was the
+one idea not pictured in the owner's message and the one that spends model
+budget on a schedule; the first mix already writes each listener's chosen
+subjects ahead inside the existing ahead budget, so it waits for a yes and a
+cap. The iOS step is not built (no compiler here; `PARITY.md` has the row).
+
+**For the owner.** (1) The first mix is private; say if it should be public
+like every other new mix. (2) A free listener gets it although "no own
+mixes" is the free tier's rule - tiers are off today. (3) The score strip
+shows only games the live pool is holding; a team with no game held shows
+nothing, and whether last night's final is still held the next morning is
+still unmeasured (§695).
+
+**Verified:** `tests/test_follow_696.py` (20), `tests/test_chosen_subjects_695.py`,
+the 35 test files naming what changed, and the browser smoke run on the
+fixture build, including a new check for the card, the reason and the strip;
+screenshots of both pages, a drawer narrowed by typing, the search and the
+preview row. **Not verified:** nothing ran against a live deployment or a
+real search - above all that `Brief.subject` arrives in time and reads as a
+name ("the US Federal Reserve" is trimmed to its tree subject; an odd one
+would be offered as written, scrubbed, if four words or fewer); the first
+mix's morning edition; a push actually sent; the screen at the phone's
+largest text sizes, and on a real phone at all.

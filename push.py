@@ -56,6 +56,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 
 import db as store_db
@@ -604,8 +605,31 @@ def _count(n: int, one: str, many: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def message_for(user_id: str, mix_store, now: Optional[float] = None) -> dict:
+#: The longest followed subject the reminder's title names; a longer one
+#: would be cut off on a lock screen, so the title stays as it was.
+MAX_TITLE_SUBJECT = 26
+
+
+def _named_subject(followed, mixes) -> str:
+    """The first followed subject one of these mixes holds, by its words in
+    an item's title or question (§696), or ""."""
+    said = " ".join(f"{i.title} {i.query}" for m in mixes for i in m.items).lower()
+    said = " " + " ".join(re.findall(r"[a-z0-9]+", said)) + " "
+    for label in followed or ():
+        name = " ".join(re.findall(r"[a-z0-9]+", str(label).lower()))
+        if name and len(str(label)) <= MAX_TITLE_SUBJECT and f" {name} " in said:
+            return str(label)
+    return ""
+
+
+def message_for(user_id: str, mix_store, now: Optional[float] = None,
+                followed=()) -> dict:
     """What the daily reminder says, and where a tap on it opens.
+
+    `followed` is the listener's chosen subjects, in the order chosen
+    (§696): when one of their active mixes holds one, the title names it -
+    "Boston Celtics: your myFAM is ready" - where it said only that
+    something was.
 
     Headline first (§562): the title of an episode the edition wrote for
     their most recently played mix, then how many more across how many mixes.
@@ -640,7 +664,9 @@ def message_for(user_id: str, mix_store, now: Optional[float] = None) -> dict:
                 else f"{headline}.")
     else:
         body = f"{_count(count, 'episode', 'episodes')} {where}."
-    return {"title": "Your myFAM is ready", "body": body,
+    subject = _named_subject(followed, active)
+    return {"title": (f"{subject}: your myFAM is ready" if subject
+                      else "Your myFAM is ready"), "body": body,
             "url": "/?mixes=1", "tag": "fam-daily"}
 
 
@@ -692,7 +718,7 @@ def deliver(user_id: str, kind: str, ref: str, payload: dict,
 
 
 def tick(mix_store, push_store: PushStore, now: Optional[float] = None,
-         allowed=None, plays=None) -> list:
+         allowed=None, plays=None, followed=None) -> list:
     """One pass: send every due daily reminder. Returns what it sent, for
     the log and the tests: [(user id, local day, delivered count)].
 
@@ -707,7 +733,12 @@ def tick(mix_store, push_store: PushStore, now: Optional[float] = None,
     for user_id, day in due(mix_store, push_store, now, plays=plays, users=reachable):
         if allowed is not None and not allowed(user_id):
             continue
-        delivered = deliver(user_id, DAILY, day, message_for(user_id, mix_store, now),
+        try:
+            subjects = tuple(followed(user_id)) if followed is not None else ()
+        except Exception:  # noqa: BLE001 - a reminder never fails on a name
+            subjects = ()
+        delivered = deliver(user_id, DAILY, day,
+                            message_for(user_id, mix_store, now, subjects),
                             push_store)
         if delivered is not None:
             sent.append((user_id, day, delivered))
@@ -717,13 +748,15 @@ def tick(mix_store, push_store: PushStore, now: Optional[float] = None,
 
 
 async def run_forever(mix_store, push_store: PushStore, allowed=None, plays=None,
+                      followed=None,
                       stories=None) -> None:
     """The daily reminders every `TICK_SECONDS`; `stories`, when given, is an
     async callable for `push_stories` run on the same clock."""
     import asyncio
     while True:
         try:
-            await asyncio.to_thread(tick, mix_store, push_store, None, allowed, plays)
+            await asyncio.to_thread(tick, mix_store, push_store, None, allowed, plays,
+                                    followed)
         except Exception:
             log.exception("push: reminder pass failed")
         if stories is not None:

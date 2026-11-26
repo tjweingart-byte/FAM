@@ -3346,6 +3346,93 @@
     padding:0 11px 0 13px; border-radius:15px; background:var(--copper);
     border:1px solid var(--copper); color:var(--ink); font-size:12px;
     font-weight:600; font-family:inherit; cursor:pointer; }
+  /* The follow screen (§696). General topics as a grid of tiles; then each
+     chosen one as a section of chips, and a chip's own drawer under it.
+     Heights are floors and every row wraps (`rule:large-text`). */
+  .fw-worlds{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .fw-world{ position:relative; min-height:78px; padding:12px 34px 12px 13px; border-radius:16px;
+    border:0; text-align:left; display:flex; align-items:flex-end; cursor:pointer;
+    font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:16px;
+    line-height:1.15; color:#FBF8F1; background:var(--fw-hue, #5E5770);
+    transition:transform var(--dur-press-up) var(--ease-out), box-shadow var(--dur-colour) var(--ease-out); }
+  .fw-world:active{ transform:scale(.97); transition-duration:var(--dur-press-down); }
+  .fw-world[aria-pressed="true"]{ box-shadow:0 0 0 3px var(--bg), 0 0 0 5px var(--copper); }
+  .fw-world .fw-tick{ position:absolute; top:9px; right:9px; width:22px; height:22px; border-radius:50%;
+    background:#FBF8F1; color:#1E1B27; display:none; align-items:center; justify-content:center; }
+  .fw-world[aria-pressed="true"] .fw-tick{ display:flex; }
+  .fw-sec{ margin-top:18px; }
+  .fw-sec-h{ font-family:'Geist Mono', monospace; font-size:10px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--copper); margin:0 2px 9px; }
+  .fw-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .fw-chip{ min-height:36px; padding:7px 13px; border-radius:18px; cursor:pointer;
+    background:var(--surface); border:1px solid var(--border-strong); color:var(--text);
+    font-family:'Geist', sans-serif; font-size:13px; font-weight:600; line-height:1.2;
+    display:inline-flex; align-items:center; gap:6px; text-align:left;
+    transition:background var(--dur-colour) var(--ease-out), border-color var(--dur-colour) var(--ease-out); }
+  .fw-chip:active{ opacity:0.75; }
+  .fw-chip.on{ background:var(--copper); border-color:var(--copper); color:var(--ink); }
+  .fw-chip.open{ box-shadow:0 0 0 2px var(--bg), 0 0 0 3.5px var(--copper); }
+  .fw-chip.ghost{ border-style:dashed; color:var(--text-muted); background:transparent; }
+  .fw-chip svg{ flex:none; }
+  .fw-drop{ margin:10px 0 2px; padding:12px; border-radius:16px; background:var(--surface);
+    border:1px solid var(--border); }
+  .fw-drop-h{ font-size:12px; font-weight:600; color:var(--text-muted); margin:0 2px 8px; }
+  .fw-drop .modal-input{ margin:0 0 10px; }
+  .fw-drop .fw-chip{ background:var(--bg); }
+  .fw-drop .fw-chip.on{ background:var(--copper); }
+  .fw-drop-empty{ font-size:12px; color:var(--text-muted); padding:2px; }
+  .fw-filter{ width:100%; }
+  .fw-leaves{ min-height:36px; align-items:center; }
+  .fw-leaf{ font-weight:500; }
+  .fw-add{ font-weight:600; }
+  .fw-following{ display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+  .fw-following:empty{ display:none; }
+  .fw-preview{ margin:0 -4px 12px; }
+  .fw-preview[hidden]{ display:none; }
+  .fw-preview-h{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--copper); margin:0 4px 7px; }
+  .fw-rail{ display:flex; gap:9px; overflow-x:auto; padding:0 4px 2px; scrollbar-width:none; }
+  .fw-rail::-webkit-scrollbar{ display:none; }
+  .fw-tile{ flex:0 0 172px; display:flex; align-items:center; gap:9px; padding:8px 10px 8px 8px;
+    border-radius:13px; background:var(--surface); border:1px solid var(--border);
+    animation:fwTileIn var(--dur-card-in) var(--ease-out) both; }
+  .fw-tile-art{ flex:none; width:34px; height:34px; border-radius:10px; display:flex;
+    align-items:center; justify-content:center; background:var(--fw-hue, #8A5A12);
+    color:#FBF8F1; }
+  .fw-tile-art svg{ width:18px; height:18px; }
+  .fw-tile b{ font-size:11.5px; line-height:1.25; font-weight:600; color:var(--text);
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .fw-preview-note{ font-size:11.5px; color:var(--text-muted); margin:0 4px; line-height:1.4; }
+  @keyframes fwTileIn{ from{ opacity:0; transform:translateY(8px); } }
+  @media (prefers-reduced-motion: reduce){
+    .fw-tile{ animation:none; } .fw-world, .fw-chip{ transition:none; }
+  }
+  /* "Follow this?" on DailyFAM after a search, and the reason on a card
+     that is there because of a followed topic (§696). */
+  .follow-ask{ margin:0 0 14px; padding:13px 15px 14px; border-radius:14px;
+    background:var(--surface); border:1px solid var(--border-strong); }
+  .follow-ask[hidden]{ display:none; }
+  .follow-ask-from{ font-size:12px; color:var(--text-muted); line-height:1.4; overflow-wrap:anywhere; }
+  .follow-ask-from b{ color:var(--text); font-weight:600; }
+  .follow-ask-q{ font-family:'Bricolage Grotesque', sans-serif; font-weight:600; font-size:17px;
+    line-height:1.2; margin:3px 0 10px; color:var(--text); overflow-wrap:anywhere; }
+  .follow-ask .fw-chips{ gap:8px; }
+  .seed-because{ font-family:'Geist Mono', monospace; font-size:8.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--copper); margin-top:5px; line-height:1.35;
+    overflow-wrap:anywhere; }
+  /* The followed teams' games, above the rails (§696). */
+  .team-strip{ margin:0 0 16px; }
+  .team-strip-h{ font-family:'Geist Mono', monospace; font-size:9.5px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--text-muted); margin:0 2px 8px; }
+  .team-rail{ display:flex; gap:9px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+  .team-rail::-webkit-scrollbar{ display:none; }
+  .team-game{ flex:0 0 auto; max-width:230px; min-height:52px; padding:9px 13px; border-radius:14px;
+    background:var(--surface); border:1px solid var(--border); color:var(--text); cursor:pointer;
+    text-align:left; font-family:'Geist', sans-serif; display:flex; flex-direction:column;
+    justify-content:center; gap:3px; }
+  .team-game:active{ background:rgba(var(--fg-rgb),0.06); }
+  .team-game b{ font-size:12.5px; font-weight:600; line-height:1.25; }
+  .team-game span{ font-family:'Geist Mono', monospace; font-size:10.5px; color:var(--copper); }
   .intro-picked{ font-family:'Geist Mono', monospace; font-size:9.5px;
     letter-spacing:0.05em; color:var(--copper); margin:6px 0 2px;
     min-height:12px; }
@@ -4806,21 +4893,26 @@
         <div class="scroll">
           <div class="entry-wrap" style="min-height:0; padding-bottom:6px;">
             <div id="introPageInterests">
-              <div class="entry-h">Your interests</div>
-              <p class="intro-sub" id="introSub" hidden></p>
-              <!-- The long list, straight away (§142). There used to be a
-                   wheel here - six facets turning round a "View more" hub
-                   that opened this list on a screen of its own - and the
-                   owner asked for it to go: the list is the page now, on the
-                   first run and from Settings alike. Anything typed that is
-                   not on it can be added as it is. -->
-              <div class="intro-facets" id="introFacets" hidden></div>
+              <!-- **What topics do you want to follow** (§696, the owner
+                   11.26: the wording is following topics, never "entering
+                   your interests"). Two pages on one screen: the general
+                   topics, then each chosen one opened into its larger
+                   subjects, and each of those into what is under it -
+                   leagues, then teams - with a box to type one. Whatever is
+                   followed builds the Made for you row in the dock as it is
+                   chosen (`paintFollowPreview`). It replaced the A to Z list
+                   of 73 (§142), which a first listener called random. -->
+              <div class="entry-h" id="introHeading">What topics do you want to follow?</div>
+              <p class="intro-sub" id="introSub"></p>
               <input class="modal-input" id="catalogSearch" type="search"
                      autocomplete="off" autocorrect="on" autocapitalize="off" spellcheck="true"
-                     placeholder="Search topics, or type your own"
+                     placeholder="Search, or type any topic"
+                     aria-label="Search, or type any topic to follow"
                      oninput="renderTopicCatalog()"
                      onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addTypedInterest(); }"
                      style="margin:14px 0 4px;">
+              <div id="followFound"></div>
+              <div class="fw-following" id="followFollowing"></div>
               <div class="intro-picked" id="introPicked"></div>
               <div id="catalogBody"></div>
               <p class="entry-note" id="introSaveNote"></p>
@@ -4828,18 +4920,16 @@
           </div>
         </div>
         <div class="entry-dock" id="introDockInterests">
-          <!-- The last step of the first run, now that the language page is
-               gone. It never did anything - every episode was written and
-               spoken in English either way - so it was a question asked in
-               front of the product whose only honest answer was a note saying
-               it would not be acted on. -->
+          <!-- The Made for you row these choices lead with, drawn as they
+               are made (§696): the server's own tiles, never a mock-up. -->
+          <div class="fw-preview" id="followPreview" hidden></div>
           <button class="entry-btn primary" id="introNextBtn"
                   onclick="introPrimary()">Start listening</button>
-          <!-- Underneath, as the packet asks. Choosing nothing is a real
-               answer: the feed is ranked from what gets played either way.
-               Hidden when Settings opened this: there is nothing to skip past,
-               and "skip" over an existing choice would read as discarding it. -->
-          <div class="entry-skip" id="introSkip" onclick="skipInterests()">Skip for now</div>
+          <!-- "Skip for now" on the first page of the first run; "Back" on
+               the second page. Hidden on the first page from Settings:
+               there is nothing to skip past in an editor. -->
+          <div class="entry-skip" id="introSkip" role="button" tabindex="0"
+               onclick="introSecondary()">Skip for now</div>
         </div>
       </section>
 
@@ -5391,6 +5481,8 @@
           <!-- The friends row from YourFAM, first thing on the page (10.2
                packet #1): faces with a VIBE badge play as stories. -->
           <div class="fm-card" id="freeMonthCard" hidden></div>
+          <!-- "Follow this?", after a search (§696). -->
+          <div class="follow-ask" id="followAsk" hidden></div>
           <div class="myfam-circle" id="myfamCircle" hidden></div>
           <div id="goDeeperBlock"></div>
           <div class="offline-bar" id="offlineBar" hidden>You&rsquo;re offline. Episodes you&rsquo;ve finished on this device still play.</div>
@@ -12178,6 +12270,7 @@
           episodeTitleFinal = !!data.title_final;
         }
         if(data.sourced_at) applySourcedStamp(data.sourced_at);
+        if(!episodeReplay) maybeAskFollow(parts[0], data.subject || "");
         if(data.explicit && !episodeExplicit){
           episodeExplicit = true;
           paintExplicit();
@@ -19852,6 +19945,13 @@
   // inventory rather than a state anything reaches, and it stays sectioned
   // per rail so that if one ever does arrive the card says something true
   // instead of an empty line.
+  // Why a card is here, when the answer is "you follow it" (§696): a line
+  // of its own above the hook, which stays the episode's.
+  function seedBecauseHTML(topic){
+    if(!topic || !topic.why) return "";
+    return '<div class="seed-because">Because you follow ' + escapeHtml(topic.why) + '</div>';
+  }
+
   function seedHook(sectionKey, topic){
     if(topic && topic.angle)    return escapeHtml(topic.angle);
     if(topic && topic.subtitle) return escapeHtml(topic.subtitle);
@@ -20051,6 +20151,101 @@
     Object.keys(now).forEach(function(id){ liveLinesShown[id] = now[id]; });
   }
   var feedSectionsLast = null;
+  //: The followed teams' held games (`/api/myfam`'s `teams`, §696), drawn
+  //: as a strip above the rails. Empty when none of them has a game held.
+  var myFamTeams = [];
+  function teamStripHTML(){
+    var games = (myFamTeams || []).filter(function(t){ return t && t.title; });
+    if(!games.length) return "";
+    return '<div class="team-strip"><div class="team-strip-h">Your teams</div><div class="team-rail">'
+      + games.map(function(t){
+          myFamTopics[t.id] = t;
+          return '<button type="button" class="team-game" data-topic="' + escapeHtml(t.id) + '"'
+            + ' onclick="startBankTopic(this.dataset.topic)">'
+            + '<b>' + escapeHtml(t.title) + '</b>'
+            + (t.live_line ? '<span>' + escapeHtml(t.live_line) + '</span>' : '')
+            + '</button>';
+        }).join("") + '</div></div>';
+  }
+
+  // **"Follow this?"** (§696, the owner: "more easily add topics to what
+  // they want to follow without having to go to their profile page"). After
+  // a search the server names the one subject worth following
+  // (`/api/follow/suggest`); it waits here, on this device, until it is
+  // answered. Never for a private search or a guest, never one already
+  // followed, never one they said "Not now" to.
+  function followAskState(){
+    try{ return JSON.parse(localStorage.getItem("fam.followAsk") || "{}") || {}; }
+    catch(e){ return {}; }
+  }
+  function saveFollowAsk(state){
+    try{ localStorage.setItem("fam.followAsk", JSON.stringify(state)); }catch(e){}
+  }
+  var followAskTried = {};
+  function maybeAskFollow(query, subject){
+    if(!AUTH.authenticated || privateSearch || currentPlaySurface !== "search") return;
+    var key = String(query || "").toLowerCase();
+    // Asked again when the brief's subject arrives, then no more.
+    var tries = followAskTried[key] || 0;
+    if(!key || tries >= 2 || (tries === 1 && !subject)) return;
+    followAskTried[key] = subject ? 2 : 1;
+    fetch("/api/follow/suggest?q=" + encodeURIComponent(query)
+          + "&subject=" + encodeURIComponent(subject || ""))
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        var topic = d && d.topic;
+        if(!topic) return;
+        var state = followAskState();
+        if((state.no || []).indexOf(topic.toLowerCase()) !== -1) return;
+        state.ask = { topic: topic, q: query };
+        saveFollowAsk(state);
+        paintFollowAsk();
+      })
+      .catch(function(){});
+  }
+  function paintFollowAsk(){
+    var el = document.getElementById("followAsk");
+    if(!el) return;
+    var ask = AUTH.authenticated ? followAskState().ask : null;
+    if(!ask || !ask.topic){ el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    el.innerHTML = '<div class="follow-ask-from">After you searched <b>“' + escapeHtml(ask.q) + '”</b></div>'
+      + '<div class="follow-ask-q">Follow ' + escapeHtml(ask.topic) + '?</div>'
+      + '<div class="fw-chips"><button type="button" class="fw-chip on" onclick="answerFollowAsk(true)">Follow</button>'
+      + '<button type="button" class="fw-chip" onclick="answerFollowAsk(false)">Not now</button></div>';
+  }
+  function answerFollowAsk(yes){
+    var state = followAskState();
+    var ask = state.ask;
+    if(!ask) return;
+    delete state.ask;
+    if(!yes){
+      state.no = (state.no || []).concat([ask.topic.toLowerCase()]).slice(-50);
+      saveFollowAsk(state);
+      paintFollowAsk();
+      return;
+    }
+    saveFollowAsk(state);
+    paintFollowAsk();
+    fetch("/api/follow", { method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ topic: ask.topic }) })
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(){
+        if(!hasChosenTopic(ask.topic)) chosenTopics.push({ id: ask.topic, label: ask.topic, typed: true });
+        toast("Following " + ask.topic);
+        // The row is rebuilt around it at once.
+        loadMyFamFeed();
+      })
+      .catch(function(){
+        // Not followed: the question comes back rather than vanishing.
+        var again = followAskState();
+        again.ask = ask;
+        saveFollowAsk(again);
+        paintFollowAsk();
+        toast("Could not follow that just now.");
+      });
+  }
+
   function renderMyFamFeed(sections){
     // What it was asked to draw, before the filter below, so an Undo after
     // a redraw can draw it again with the tile back in (§646).
@@ -20120,6 +20315,7 @@
           + '<div class="seed-card-body">'
           + seedTitleHTML(t.title)
           + seedLiveHtml(t)
+          + seedBecauseHTML(t)
           + '<div class="seed-why">' + seedHook(sec.key, t) + '</div>'
           + '</div></div>';
       }).join("")
@@ -20145,6 +20341,7 @@
         + '<button class="sample-note-btn" onclick="openAuth(\'signup\')">Sign up</button></div>'
         + html;
     }
+    html = teamStripHTML() + html;
     var feed = document.getElementById("myfamFeed");
     // Every open of the tab redraws the page. One that would draw exactly
     // what is there leaves it alone, and one that changes keeps each rail
@@ -21036,7 +21233,9 @@
         myfamSampleNote = data.sample ? (data.sample_note || "") : "";
         if(famOffline) setOffline(false);
         attachFriendFaces(data);
+        myFamTeams = data.teams || [];
         renderMyFamFeed(data.sections);
+        paintFollowAsk();
         // Remembered only once it has drawn, so a page that fails to draw
         // is never the one an offline open falls back to.
         rememberFeed(data);
@@ -23694,7 +23893,7 @@
       + settingsSwitch("Dark mode", currentTheme() === "dark",
           "setTheme('" + (currentTheme() === "dark" ? "light" : "dark") + "')");
     html += '<div class="set-group">Listening</div>'
-      + settingsRow("Your interests",
+      + settingsRow("Topics you follow",
           chosenSummary(chosen, labels),
           "openInterestsFromSettings()")
       // Everything heard in the last two weeks, by where it was heard (§142).
@@ -23968,6 +24167,7 @@
 
   function openInterestsFromSettings(){
     introMode = "settings";
+    followPage = 1;
     introSnapshot = null;
     var here = document.querySelector(".screen.active");
     var from = here ? here.id.replace(/^screen-/, "") : "";
@@ -30184,92 +30384,328 @@
     return chosenTopics.some(function(t){ return t.id === id; });
   }
 
+  //: Which of the follow screen's two pages is up: 1 the general topics,
+  //: 2 each chosen one opened into its subjects (§696).
+  var followPage = 1;
+  //: The offered tree (`/api/follow/tree`), or null until it has arrived.
+  var FOLLOW_TREE = null;
+  //: Which subject's drawer is open in each general topic: world id -> label.
+  var followOpen = {};
+  //: A section showing all its subjects rather than the first few.
+  var followAll = {};
+  var FOLLOW_FIRST = 9, FOLLOW_LEAVES = 16;
+  var FOLLOW_HUES = { sports:"#8A5A12", world:"#5E5770", tech:"#3B3F6B", money:"#3F5E4C",
+    culture:"#7A3B2A", business:"#4A4A3A", health:"#6B4A63", science:"#2F5B66" };
+
+  function introFinalLabel(){
+    return introMode === "settings" ? "Save" : "Start listening";
+  }
+
   function renderIntro(){
     var fromSettings = introMode === "settings";
     document.getElementById("introTop").hidden = !fromSettings;
-    document.getElementById("introSkip").hidden = fromSettings;
-    document.getElementById("introNextBtn").textContent =
-      fromSettings ? "Save" : "Start listening";
     document.getElementById("introPageInterests").hidden = false;
     document.getElementById("introDockInterests").hidden = false;
+    document.getElementById("introHeading").textContent = followPage === 2
+      ? "Get specific" : "What topics do you want to follow?";
     var sub = document.getElementById("introSub");
-    sub.hidden = !fromSettings;
-    sub.textContent = fromSettings
-      ? "Tap a topic to add or remove it, or type your own."
-      : "";
-    // The list's ticks are drawn from `catalogPicked`, so it is rebuilt from
-    // what is chosen every time the screen is drawn - an X that discarded a
+    sub.hidden = false;
+    sub.textContent = followPage === 2
+      ? "Tap a subject to follow it and see what is under it."
+      : (fromSettings ? "Tap a topic to follow or unfollow it, or type your own."
+                      : "Pick a few to start. Next, you make each one yours.");
+    // "Next" while there is a second page to go to; otherwise the button
+    // finishes with whatever is followed.
+    var onward = followPage === 1 && introSelection.length > 0;
+    document.getElementById("introNextBtn").textContent = onward ? "Next" : introFinalLabel();
+    var skip = document.getElementById("introSkip");
+    skip.hidden = followPage === 1 && fromSettings;
+    skip.textContent = followPage === 2 ? "Back" : "Skip for now";
+    // The ticks are drawn from `catalogPicked`, so it is rebuilt from what
+    // is followed every time the screen is drawn - an X that discarded a
     // change must not leave its tick behind.
     catalogPicked = {};
     chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
     var box = document.getElementById("catalogSearch");
     if(box) box.value = "";
-    renderIntroFacets();
+    renderTopicCatalog();
     renderPickedSummary();
     loadIntroCatalog();
+    paintFollowPreview();
     var note = document.getElementById("introSaveNote");
     note.textContent = AUTH.authenticated
       ? "Saved to your account, so they follow you to any device."
       : "Kept on this device only. Create an account and they follow you.";
   }
 
+  // "Skip for now" on the first page, "Back" on the second.
+  function introSecondary(){
+    if(followPage === 2){ followPage = 1; renderIntro(); return; }
+    skipInterests();
+  }
+
   // The list comes with `/api/preferences`, which the first run has already
   // fetched; asked for again only when it has not arrived yet.
   function loadIntroCatalog(){
+    if(FOLLOW_TREE){ renderFollowBody(); return; }
     var body = document.getElementById("catalogBody");
-    if((PREF_CHOICES.catalogue || []).length){
-      catalogTopics = PREF_CHOICES.catalogue;
-      renderTopicCatalog();
+    if(body) body.innerHTML = '<div class="cat-empty">Loading topics…</div>';
+    fetch("/api/follow/tree")
+      .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
+      .then(function(d){
+        FOLLOW_TREE = (d && d.worlds && d.worlds.length) ? d : null;
+        if(!FOLLOW_TREE) throw new Error();
+        renderFollowBody();
+      })
+      .catch(function(){
+        if(body) body.innerHTML = '<div class="cat-empty">Topics could not load. You can still type your own above.</div>';
+      });
+  }
+
+  function followWorld(id){
+    return ((FOLLOW_TREE && FOLLOW_TREE.worlds) || []).filter(function(w){ return w.id === id; })[0];
+  }
+
+  // Whether this label is followed, whatever its capitals.
+  function followsLabel(label){
+    var want = String(label || "").toLowerCase();
+    return chosenTopics.some(function(t){
+      return String(t.label || t.id).toLowerCase() === want
+          || String(t.id).toLowerCase() === want;
+    });
+  }
+
+  function setFollowLabel(label, on){
+    var want = String(label || "").toLowerCase();
+    chosenTopics = chosenTopics.filter(function(t){
+      return String(t.label || t.id).toLowerCase() !== want
+          && String(t.id).toLowerCase() !== want;
+    });
+    if(on) chosenTopics.push({ id: label, label: label, typed: false });
+    catalogPicked = {};
+    chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
+  }
+
+  function followChipHTML(label, cls, attrs){
+    var on = followsLabel(label);
+    return '<button type="button" class="fw-chip' + (on ? " on" : "") + (cls ? " " + cls : "")
+      + '" aria-pressed="' + (on ? "true" : "false") + '" data-label="' + escapeHtml(label) + '" '
+      + attrs + '>' + escapeHtml(label) + '</button>';
+  }
+
+  // The page under the search box: the general topics, or each chosen one
+  // opened into its subjects.
+  function renderFollowBody(){
+    var body = document.getElementById("catalogBody");
+    if(!body || !FOLLOW_TREE) return;
+    if(followPage !== 2){
+      body.innerHTML = '<div class="fw-worlds">' + FOLLOW_TREE.worlds.map(function(w){
+        var on = introSelection.indexOf(w.id) !== -1;
+        return '<button type="button" class="fw-world" data-world="' + escapeHtml(w.id) + '"'
+          + ' aria-pressed="' + (on ? "true" : "false") + '"'
+          + ' style="--fw-hue:' + (FOLLOW_HUES[w.id] || "#5E5770") + '"'
+          + ' onclick="toggleFollowWorld(this.dataset.world)">' + escapeHtml(w.label)
+          + '<span class="fw-tick" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>'
+          + '</button>';
+      }).join("") + '</div>';
       return;
     }
-    if(body) body.innerHTML = '<div class="cat-empty">Loading topics…</div>';
-    // `loadPrefChoices` rewrites both lists from the server; anything ticked
-    // or typed while this was loading is put back rather than lost.
-    var keepFacets = introSelection.slice(), keepTopics = chosenTopics.slice();
-    loadPrefChoices().then(function(){
-      introSelection = keepFacets;
-      chosenTopics = keepTopics;
-      catalogPicked = {};
-      chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
-      renderIntroFacets();
-      renderPickedSummary();
-      catalogTopics = PREF_CHOICES.catalogue || [];
-      if(!catalogTopics.length){
-        if(body) body.innerHTML = '<div class="cat-empty">Topics could not load. You can still type your own above.</div>';
-        return;
+    var worlds = FOLLOW_TREE.worlds.filter(function(w){ return introSelection.indexOf(w.id) !== -1; });
+    body.innerHTML = worlds.map(function(w){
+      var subs = w.subtopics || [];
+      var open = followOpen[w.id];
+      var shown = followAll[w.id] ? subs : subs.slice(0, FOLLOW_FIRST);
+      // An open or followed subject past the first few is still drawn.
+      subs.slice(FOLLOW_FIRST).forEach(function(sub){
+        if(!followAll[w.id] && (sub.label === open || followsLabel(sub.label))) shown.push(sub);
+      });
+      var chips = shown.map(function(sub){
+        return followChipHTML(sub.label, sub.label === open ? "open" : "",
+          'data-world="' + escapeHtml(w.id) + '" aria-expanded="' + (sub.label === open ? "true" : "false")
+          + '" onclick="tapFollowSubject(this.dataset.world, this.dataset.label)"');
+      }).join("");
+      if(!followAll[w.id] && subs.length > shown.length){
+        chips += '<button type="button" class="fw-chip ghost" data-world="' + escapeHtml(w.id)
+          + '" onclick="followAll[this.dataset.world] = true; renderFollowBody()">More ›</button>';
       }
-      renderTopicCatalog();
+      var sub = subs.filter(function(x){ return x.label === open; })[0];
+      var drop = "";
+      if(sub){
+        drop = '<div class="fw-drop" data-world="' + escapeHtml(w.id) + '">'
+          + '<div class="fw-drop-h">Under ' + escapeHtml(sub.label) + '</div>'
+          + '<input class="modal-input fw-filter" type="search" autocomplete="off" autocapitalize="off"'
+          + ' placeholder="Type a team or topic" aria-label="Type a team or topic under ' + escapeHtml(sub.label) + '"'
+          + ' data-world="' + escapeHtml(w.id) + '"'
+          + ' oninput="paintFollowLeaves(this.dataset.world)"'
+          + ' onkeydown="if(event.key === \'Enter\'){ event.preventDefault(); addFollowTyped(this.dataset.world); }">'
+          + '<div class="fw-chips fw-leaves"></div></div>';
+      }
+      return '<div class="fw-sec" data-world="' + escapeHtml(w.id) + '">'
+        + '<div class="fw-sec-h">' + escapeHtml(w.label) + '</div>'
+        + '<div class="fw-chips">' + chips + '</div>' + drop + '</div>';
+    }).join("") || '<div class="cat-empty">Pick a general topic first, or type any topic above.</div>';
+    worlds.forEach(function(w){ if(followOpen[w.id]) paintFollowLeaves(w.id); });
+  }
+
+  // What is under the open subject, narrowed by what is typed in its box.
+  // Only the chips are redrawn, so the box keeps its caret.
+  function paintFollowLeaves(worldId){
+    var drop = document.querySelector('.fw-drop[data-world="' + worldId + '"]');
+    var w = followWorld(worldId);
+    if(!drop || !w) return;
+    var sub = (w.subtopics || []).filter(function(x){ return x.label === followOpen[worldId]; })[0];
+    if(!sub) return;
+    var raw = (drop.querySelector(".fw-filter").value || "").trim();
+    var term = raw.toLowerCase();
+    var all = sub.more || [];
+    var found = all.filter(function(m){
+      return !term || m.label.toLowerCase().indexOf(term) !== -1;
     });
+    // Followed ones first, so what was picked is seen without scrolling.
+    var shown = found.filter(function(m){ return followsLabel(m.label); })
+      .concat(found.filter(function(m){ return !followsLabel(m.label); }))
+      .slice(0, term ? 40 : FOLLOW_LEAVES);
+    var html = shown.map(function(m){
+      return followChipHTML(m.label, "fw-leaf", 'data-world="' + escapeHtml(worldId)
+        + '" onclick="tapFollowLeaf(this.dataset.world, this.dataset.label)"');
+    }).join("");
+    var exact = all.some(function(m){ return m.label.toLowerCase() === term; });
+    if(raw && !exact && !followsLabel(raw)){
+      html += '<button type="button" class="fw-chip ghost fw-add" data-world="' + escapeHtml(worldId)
+        + '" onclick="addFollowTyped(this.dataset.world)">Follow “' + escapeHtml(raw) + '” +</button>';
+    } else if(!term && found.length > shown.length){
+      html += '<span class="fw-drop-empty">' + (found.length - shown.length) + ' more. Type to find one.</span>';
+    }
+    if(!html) html = '<span class="fw-drop-empty">Nothing listed under it yet. Type one to follow it.</span>';
+    drop.querySelector(".fw-leaves").innerHTML = html;
+  }
+
+  function toggleFollowWorld(id){
+    if(introSelection.indexOf(id) === -1) introSelection.push(id);
+    else introSelection = introSelection.filter(function(t){ return t !== id; });
+    document.getElementById("introNextBtn").textContent =
+      introSelection.length ? "Next" : introFinalLabel();
+    renderFollowBody();
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  // A subject's chip: the first tap follows it and opens what is under it;
+  // a tap on the open one unfollows it and closes; a tap on a followed one
+  // that is closed only opens it.
+  function tapFollowSubject(worldId, label){
+    var open = followOpen[worldId] === label;
+    if(open){ setFollowLabel(label, false); delete followOpen[worldId]; }
+    else { if(!followsLabel(label)) setFollowLabel(label, true); followOpen[worldId] = label; }
+    renderFollowBody();
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  function tapFollowLeaf(worldId, label){
+    setFollowLabel(label, !followsLabel(label));
+    paintFollowLeaves(worldId);
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  // Whatever is typed in a drawer's box, followed as it is - or as the
+  // listed subject of that name, when there is one.
+  function addFollowTyped(worldId){
+    var drop = document.querySelector('.fw-drop[data-world="' + worldId + '"]');
+    var box = drop && drop.querySelector(".fw-filter");
+    var raw = ((box && box.value) || "").trim();
+    if(!raw) return;
+    followTyped(raw);
+    box.value = "";
+    paintFollowLeaves(worldId);
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  // Every label the tree offers, for the search box and for folding what is
+  // typed into the listed subject of the same name.
+  function followLabels(){
+    var out = [], seen = {};
+    ((FOLLOW_TREE && FOLLOW_TREE.worlds) || []).forEach(function(w){
+      (w.subtopics || []).forEach(function(sub){
+        [sub].concat(sub.more || []).forEach(function(m){
+          var key = m.label.toLowerCase();
+          if(seen[key]) return;
+          seen[key] = true;
+          out.push({ label: m.label, under: m === sub ? w.label : sub.label });
+        });
+      });
+    });
+    return out;
+  }
+
+  function followTyped(raw){
+    var listed = followLabels().filter(function(m){
+      return m.label.toLowerCase() === raw.toLowerCase(); })[0];
+    if(followsLabel(listed ? listed.label : raw)) return;
+    if(listed) setFollowLabel(listed.label, true);
+    else {
+      chosenTopics.push({ id: raw, label: raw, typed: true });
+      catalogPicked[raw] = true;
+    }
+  }
+
+  // The Made for you row these choices lead with (§696), asked of the
+  // server as they are made: its own tiles, so the row drawn here is the
+  // row waiting inside. Later answers never overwrite newer ones.
+  var followPreviewSeq = 0, followPreviewTimer = null;
+  function paintFollowPreview(){
+    var el = document.getElementById("followPreview");
+    if(!el) return;
+    var topics = chosenTopics.map(function(t){ return t.id; });
+    if(!topics.length && !introSelection.length){ el.hidden = true; el.innerHTML = ""; return; }
+    clearTimeout(followPreviewTimer);
+    var seq = ++followPreviewSeq;
+    followPreviewTimer = setTimeout(function(){
+      fetch("/api/follow/preview", { method: "POST", headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ interests: introSelection, topics: topics }) })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(d){
+          if(seq !== followPreviewSeq) return;
+          var tiles = (d && d.topics) || [];
+          var had = {};
+          el.querySelectorAll(".fw-tile").forEach(function(n){ had[n.dataset.id] = true; });
+          el.hidden = false;
+          el.innerHTML = '<div class="fw-preview-h">Made for you · preview</div>'
+            + (tiles.length
+              ? '<div class="fw-rail">' + tiles.map(function(t){
+                  var hue = FOLLOW_HUES[(t.tags || []).filter(function(g){ return FOLLOW_HUES[g]; })[0]] || "";
+                  return '<div class="fw-tile" data-id="' + escapeHtml(t.id) + '"'
+                    + (had[t.id] ? ' style="animation:none"' : '') + '>'
+                    + '<span class="fw-tile-art"' + (hue ? ' style="--fw-hue:' + hue + '"' : '') + '>'
+                    + catIcon(t.icon) + '</span><b>' + escapeHtml(t.title) + '</b></div>';
+                }).join("") + '</div>'
+              : '<p class="fw-preview-note">Follow something specific and its episode shows up here.</p>');
+          var rail = el.querySelector(".fw-rail");
+          if(rail) rail.scrollLeft = rail.scrollWidth;
+        })
+        .catch(function(){ /* the preview is a picture of the row, never a step */ });
+    }, 120);
   }
 
   // Whole facets - "Sport", "Technology" - chosen on the wheel before the list
   // replaced it (§142). Nothing on the list adds one any more, but a listener
   // who picked one still has it, so it is shown where it can be taken off.
-  function renderIntroFacets(){
-    var el = document.getElementById("introFacets");
-    if(!el) return;
-    var labels = {};
-    (PREF_CHOICES.interests_all || PREF_CHOICES.interests_available || [])
-      .forEach(function(i){ labels[i.id] = i.label; });
-    el.hidden = !introSelection.length;
-    el.innerHTML = sortByLabel(introSelection, function(tag){ return labels[tag] || tag; })
-      .map(function(tag){
-      return '<button class="intro-facet" onclick="removeIntroFacet(\'' + tag + '\')"'
-        + ' aria-label="Remove ' + escapeHtml(labels[tag] || tag) + '">'
-        + escapeHtml(labels[tag] || tag)
-        + ' <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
-    }).join("");
-  }
 
-  function removeIntroFacet(tag){
-    introSelection = introSelection.filter(function(t){ return t !== tag; });
-    renderIntroFacets();
-    renderPickedSummary();
-  }
 
   // The one docked button: "Start listening" on the first run, "Save" from
   // Settings. There is no second page any more.
   function introPrimary(){
+    // The first page leads to the second while a general topic is chosen.
+    if(followPage === 1 && introSelection.length){
+      followPage = 2;
+      renderIntro();
+      var scroller = document.querySelector("#screen-intro .scroll");
+      if(scroller) scroller.scrollTop = 0;
+      return;
+    }
+    followPage = 1;
     if(introMode === "settings"){ saveIntroFromSettings(); return; }
     finishIntro();
   }
@@ -30301,6 +30737,7 @@
       chosenTopics = introSnapshot.topics.slice();
     }
     introSnapshot = null;
+    followPage = 1;
     closeIntroToSettings();
   }
 
@@ -30418,62 +30855,89 @@
   }
 
   function renderTopicCatalog(){
-    var body = document.getElementById("catalogBody");
-    if(!body) return;
+    var found = document.getElementById("followFound");
+    if(!found) return;
     var raw = (document.getElementById("catalogSearch").value || "").trim();
     var term = raw.toLowerCase();
-    var shown = catalogTopics.filter(function(t){
-      if(!term) return true;
-      return String(t.label || "").toLowerCase().indexOf(term) !== -1;
-    });
-    // A to Z, on the first run and from Settings alike - a long list read
-    // top to bottom is found by its first letter, not by the order the
-    // catalogue happened to be written in.
-    shown = sortByLabel(shown, function(t){ return t.label; });
-
-    // "Add <what they typed>", when what they typed is not already on the
-    // list or already chosen.
-    //
-    // The search used to filter the catalogue and nothing else, so searching
-    // for something absent produced an empty screen and a sentence telling
-    // the listener to go and ask for it somewhere else - a search that can
-    // only fail, on the one screen whose whole job is collecting what
-    // somebody is interested in. Seventy-three strings somebody wrote down is
-    // not the set of things a person can be interested in, and refusing
-    // anything outside it is the app telling them their interest is invalid.
-    var exact = catalogTopics.some(function(t){
-      return String(t.label || "").toLowerCase() === term;
-    });
+    if(!term){ found.innerHTML = ""; return; }
+    var all = followLabels();
+    // What starts with the words first, then what holds them.
+    var shown = all.filter(function(m){ return m.label.toLowerCase().indexOf(term) === 0; })
+      .concat(all.filter(function(m){ return m.label.toLowerCase().indexOf(term) > 0; }))
+      .slice(0, 8);
+    var exact = all.some(function(m){ return m.label.toLowerCase() === term; });
     var head = "";
-    if(raw && !exact && !hasChosenTopic(raw)){
+    // "Follow <what they typed>", when it is not listed or followed already:
+    // what a person can follow is not limited to what somebody wrote down.
+    if(!exact && !followsLabel(raw)){
       head = '<div class="cat-add-typed" onclick="addTypedInterest()">'
         + '<div class="cat-art">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" '
         + 'stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
-        + '</div><div class="cat-add-lab">Add <b>' + escapeHtml(raw)
-        + '</b> as a topic</div></div>';
+        + '</div><div class="cat-add-lab">Follow <b>' + escapeHtml(raw)
+        + '</b></div></div>';
     }
-
-    if(!shown.length){
-      body.innerHTML = head + '<div class="cat-empty">Nothing on the list matches “'
-        + escapeHtml(term) + '”'
-        + (head ? ' — add it above and it becomes one of yours.'
-                : '.') + '</div>';
-      return;
-    }
-    body.innerHTML = head + shown.map(function(t){
-      var on = !!catalogPicked[t.id];
-      return '<div class="cat-row" onclick="toggleCatalogTopic(\'' + t.id + '\')">'
-        + '<div class="cat-art">' + catIcon(t.icon) + '</div>'
-        + '<div class="cat-name">' + escapeHtml(t.label) + '</div>'
+    found.innerHTML = head + shown.map(function(m){
+      var on = followsLabel(m.label);
+      return '<div class="cat-row" data-label="' + escapeHtml(m.label) + '" onclick="toggleCatalogTopic(this.dataset.label)">'
+        + '<div class="cat-name">' + escapeHtml(m.label) + '<em>' + escapeHtml(m.under) + '</em></div>'
         + '<button class="cat-add' + (on ? " on" : "") + '" aria-label="'
-        + (on ? "Added" : "Add") + '" aria-pressed="' + (on ? "true" : "false") + '">'
+        + (on ? "Following" : "Follow") + '" aria-pressed="' + (on ? "true" : "false") + '">'
         + (on
             ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
             : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>')
         + '</button></div>';
-    }).join("")
-      + '<div class="cat-note">Pick a few to start. DailyFAM learns the rest from what you play.</div>';
+    }).join("");
+  }
+
+  // Followed, and not yet saved: a tap changes this screen and nothing else
+  // until the docked button (§142).
+  function toggleCatalogTopic(label){
+    setFollowLabel(label, !followsLabel(label));
+    renderTopicCatalog();
+    renderFollowBody();
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  // Whatever is in the search box, followed as a topic of its own. Reached
+  // by the row above the results and by Enter.
+  function addTypedInterest(){
+    var box = document.getElementById("catalogSearch");
+    var raw = ((box && box.value) || "").trim();
+    if(!raw) return;
+    followTyped(raw);
+    if(box) box.value = "";
+    renderTopicCatalog();
+    renderFollowBody();
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  function removeFollowed(id){
+    chosenTopics = chosenTopics.filter(function(t){ return t.id !== id; });
+    delete catalogPicked[id];
+    renderTopicCatalog();
+    renderFollowBody();
+    renderPickedSummary();
+    paintFollowPreview();
+  }
+
+  // Everything followed, as chips that take it off, and how many.
+  function renderPickedSummary(){
+    var tray = document.getElementById("followFollowing");
+    if(tray){
+      tray.innerHTML = chosenTopics.map(function(t){
+        return '<button type="button" class="intro-facet" data-id="' + escapeHtml(t.id) + '"'
+          + ' onclick="removeFollowed(this.dataset.id)" aria-label="Unfollow ' + escapeHtml(t.label || t.id) + '">'
+          + escapeHtml(t.label || t.id)
+          + ' <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+      }).join("");
+    }
+    var el = document.getElementById("introPicked");
+    if(!el) return;
+    var n = chosenTopics.length;
+    el.textContent = n ? "Following " + n + (n === 1 ? " topic" : " topics") : "";
   }
 
   // Chosen, and not yet saved.
@@ -30482,53 +30946,13 @@
   // that was the whole of it - so the screen could not tell a listener which
   // of their taps had counted, and there was no way to change their mind
   // about one. Now it changes this screen and nothing else until Save.
-  function toggleCatalogTopic(id){
-    if(catalogPicked[id]){
-      delete catalogPicked[id];
-      chosenTopics = chosenTopics.filter(function(t){ return t.id !== id; });
-    } else {
-      catalogPicked[id] = true;
-      var known = catalogTopics.filter(function(t){ return t.id === id; })[0];
-      chosenTopics.push({ id: id, label: (known && known.label) || id,
-                          typed: !known });
-    }
-    renderTopicCatalog();
-    renderPickedSummary();
-  }
 
   // Whatever is in the search field, added as a topic of its own.
   //
   // Reached by the row above the results and by Enter, because a search field
   // with a visible "add this" row that ignores the return key is a control
   // that works one of the two ways a thumb will try it.
-  function addTypedInterest(){
-    var box = document.getElementById("catalogSearch");
-    var raw = ((box && box.value) || "").trim();
-    if(!raw) return;
-    // Typing the name of something that *is* on the list adds the list's
-    // entry, which carries the catalogue's own tags. The server folds these
-    // together too - this is here so the screen agrees with what gets stored
-    // rather than briefly showing a second row that then vanishes on save.
-    var listed = catalogTopics.filter(function(t){
-      return String(t.label || "").toLowerCase() === raw.toLowerCase();
-    })[0];
-    var id = listed ? listed.id : raw;
-    if(!hasChosenTopic(id)){
-      catalogPicked[id] = true;
-      chosenTopics.push({ id: id, label: listed ? listed.label : raw,
-                          typed: !listed });
-    }
-    if(box) box.value = "";
-    renderTopicCatalog();
-    renderPickedSummary();
-  }
 
-  function renderPickedSummary(){
-    var el = document.getElementById("introPicked");
-    if(!el) return;
-    var n = chosenTopics.length + introSelection.length;
-    el.textContent = n ? n + (n === 1 ? " topic chosen" : " topics chosen") : "";
-  }
 
   function savePreferences(patch){
     return fetch("/api/preferences", {
@@ -30542,9 +30966,15 @@
     var topicIds = chosenTopics.map(function(t){ return t.id; });
     saveLocalPrefs({ interests: introSelection.slice(),
                      topics: chosenTopics.slice(), intro: "done" });
+    followPage = 1;
     if(AUTH.authenticated){
       savePreferences({ interests: introSelection, topics: topicIds,
-                        intro_done: true });
+                        intro_done: true }).then(function(){
+        // What they chose becomes their first mix (§696), once the choice
+        // is saved: the server reads the saved list, never this screen's.
+        if(!topicIds.length) return;
+        fetch("/api/follow/mix", { method: "POST" }).catch(function(){});
+      });
     }
     // The tour is owed from here, the end of sign-up's own steps (§594), and
     // starts once the hand-off and the activation step are out of the way.

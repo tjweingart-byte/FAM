@@ -83,7 +83,7 @@ KEEP_SECONDS = 900.0
 class _Track:
     __slots__ = ("sentences", "starts", "sources", "title", "title_final",
                  "category", "done", "touched", "marks", "cached", "readings",
-                 "likeliest")
+                 "likeliest", "subject")
 
     def __init__(self) -> None:
         self.sentences: list[str] = []
@@ -103,6 +103,9 @@ class _Track:
         #: (`Brief.category`), before the first word: the player's picture
         #: is chosen from it until the writer's own category is cached.
         self.category: str = ""
+        #: Who or what the episode is about, as its brief resolved it
+        #: (`Brief.subject`, §696): what "Follow this?" offers after a search.
+        self.subject: str = ""
         #: Provenance JSON for this episode, as soon as it is known.
         #:
         #: Here rather than in a module of its own because it is the same fact
@@ -161,6 +164,8 @@ def open_track(key: str) -> None:
             track.title, track.title_final = old.title, old.title_final
         if old is not None and old.category and not old.done:
             track.category = old.category
+        if old is not None and old.subject and not old.done:
+            track.subject = old.subject
         _evict()
 
 
@@ -262,6 +267,30 @@ def publish_category(key: str, words: str) -> None:
             return
         track.category = words
         track.touched = time.time()
+
+
+def publish_subject(key: str, subject: str) -> None:
+    """Record who or what this episode is about, from its brief (§696).
+    Never opens a track; never raises."""
+    subject = " ".join(str(subject or "").split())[:80]
+    if not key or not subject:
+        return
+    with _LOCK:
+        track = _TRACKS.get(key)
+        if track is None:
+            return
+        track.subject = subject
+        track.touched = time.time()
+
+
+def read_subject(key: str) -> str:
+    """The brief's subject for an episode in flight, or ""."""
+    if not key:
+        return ""
+    with _LOCK:
+        _expire()
+        track = _TRACKS.get(key)
+        return track.subject if track is not None else ""
 
 
 def read_category(key: str) -> str:

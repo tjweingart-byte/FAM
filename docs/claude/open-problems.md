@@ -505,6 +505,52 @@
   and they stand ahead of `ready_first`. A whole heading names no subject.
   A listener's own composed tile is a served tile (`_served_tile_query`).
 
+<!-- rule:follow-topics -->
+- **"What topics do you want to follow", and following from inside the
+  app** *(PROBLEMS.md §696, the owner 11.26, choosing from the ten designs:
+  "We like the flow of number 3 and the instant creation of the made for you
+  sections shown in number 7 ... the second screen should act as a dropdown
+  that displays larger subtopics ... then teams drop down that they can type
+  into or select ... reword this to be like 'what topics do you want to
+  follow' rather than it seeming like people entering what their interests
+  are", then of the six further ideas: "we want to implement all of
+  them")*. The step is two pages on `screen-intro`: the eight headings as
+  the listener names them (`topics.FOLLOW_WORLDS`), then one section per
+  chosen heading whose chips are the tree's subjects under it; a subject's
+  first tap follows it and opens a drawer of everything beneath it (its own
+  subjects, then theirs - leagues, then teams, the `LEFT_TO_GROW` ones by
+  name) with a box that narrows them or follows what is typed. The search
+  box above both pages finds across all of it and follows anything typed.
+  `/api/follow/tree` is built from the category tree (`topics.follow_tree`),
+  so it grows with it; a followed label is stored as the topic and read
+  back by `follow_node`. **This supersedes the A to Z list** (§142, §170)
+  and the 73-entry catalogue on this screen; `/api/preferences` still
+  serves the catalogue for installed clients. The wording is *follow* on
+  the step and its Settings row ("Topics you follow"); a profile's line is
+  still labelled Interests. **The Made for you row is drawn as topics are
+  chosen** (`/api/follow/preview` = `topics.interest_topics`, the rail's own
+  tiles - never a mock-up). **Inside the app**: after a search that is not
+  private, `/api/follow/suggest` names the one subject worth following - a
+  team or the deepest tree subject the words name, else the brief's own
+  `Brief.subject` (`live_captions.publish_subject`, served by `/api/next`
+  while the track lives, never stored) when it is a short name - and
+  DailyFAM asks "Follow X?" until answered; "Not now" is remembered on the
+  device; `POST /api/follow` adds one topic. Never a guest, never one
+  already followed, no model call. **On the page**: a Made-for-you card
+  that is there for a followed topic carries `why` and draws "Because you
+  follow X" on a line of its own above the hook, which stays the episode's
+  (`rule:card-hook-startup`); `team_scores` reports every held game naming
+  a followed major-league team as a strip above the rails - whatever a
+  rail took or was heard, empty when none is held, never a made-up line.
+  **A first mix**: finishing the step makes the chosen subjects a private
+  mix, "My topics" (`/api/follow/mix`), once and only for a listener with
+  no mix - the one mix made for a listener rather than by them
+  (`rule:mix-made-by-naming`); its subjects are written ahead as any saved
+  mix's are, inside the existing ahead budget. **The daily reminder** names
+  the first followed subject an active mix holds ("Boston Celtics: your
+  myFAM is ready", `push.message_for(followed=)`), else says what it did.
+  Not built: the native iOS step (`ios/FAM/PARITY.md`).
+
 <!-- rule:interests-constant -->
 - **Chosen interests never fade** *(PROBLEMS.md §202, at the owner's
   direction: "A person's selected interests SHOULD NOT fade in weight at any
@@ -718,6 +764,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
+> **Current (PROBLEMS.md §696, the owner 11.26):** one mix is made *for* a listener: finishing the follow step makes their chosen topics a private mix, "My topics" (`/api/follow/mix`), once, and only when they have no mix - see `follow-topics`.
 > **Current (PROBLEMS.md §694, the owner's 11.25 packet):** a playlist's header is "myFAM Playlist" with no line under it (the name, date and story count went); a playlist with no topics yet opens on its picture and name, with the empty note and **Add topics** under them, not above.
 > **Current (PROBLEMS.md §691, the owner's 11.24 mock):** the listener reads **playlist** for a mix on these screens (the tab, "New playlist", "Add topics to playlist", "myFAM Playlist"); code, ids and these docs keep "mix". **A playlist's card** is one row - today's lead picture or its own photo, its name, "7 BRIEFINGS · DAILY" (then "Trending" / "Major update" when §545 has one), its topics in today's order ("Startups, AI, NBA and 4 more") and a play button that starts it from the top - replacing §616's stacked deck and reversing §544's "no briefing count, no topic line". Making one is a dashed **+ New playlist** under the cards (still hidden without an account); the public search sits under that. **A playlist's page** opens on what plays: "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES", sliders top right for the menu the three dots opened, one outlined pill ("Play Morning · 7 stories", "Start with what changed", or - while it plays - "Playing Morning · 2 of 7", which pauses), then today's stories in the order they play: **heard** (one quiet line with a tick), **now playing** (a card, pause on its picture), **up next**, each today's title over its one line (`episode_hook`, the stored summary) with a **heart that is Saved for Later** (`save-pointer`; never a like, shown to nobody). The page follows the player (`refreshMixPlaying`). Add topics, the cover and name, share and invite, Recommended topics, the listen time and Public/Private follow under the stories; **dragging to reorder moved into Edit topics**, with the X. The page carries the tab bar, so the mini player is on it; in a playlist the mini player says "2 of 7 · NBA" and adds the heart and a next - **its X stays** (`[transport]`).
 > **Current (PROBLEMS.md §637, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
@@ -1107,6 +1154,7 @@ the door. `private` tells the page to say the account is private.
   active again. The edition's ceilings are lifted (0, settable), and its
   report counts `dormant_mixes`. `0` hours writes every mix, as before.
 <!-- rule:mix-listen-time -->
+> **Current (PROBLEMS.md §696, the owner 11.26):** the daily reminder's title names the first followed subject an active mix holds ("Boston Celtics: your myFAM is ready"); with none it is "Your myFAM is ready" as before - see `follow-topics`.
 > **Current (PROBLEMS.md §562, at the owner's direction, 11.12):** the phone
 > is told three things, each once, and each only once what it opens is
 > written (`push.py`, `push_stories.py`):

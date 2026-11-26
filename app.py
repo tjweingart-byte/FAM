@@ -892,7 +892,7 @@ async def lifespan(_: FastAPI):
         # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
             MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
-            stories=_push_stories_pass)))
+            followed=_followed_labels, stories=_push_stories_pass)))
     else:
         log.info("notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
@@ -9295,6 +9295,52 @@ def _push_plays(user_id: str) -> list:
             if e.kind in ("play", "complete")]
 
 
+def _followed_labels(user_id: str) -> list:
+    """What this person chose to follow, as it is said (§696): the names the
+    daily reminder may lead with."""
+    prefs = PREFS.get(user_id)
+    return [s.label for s in topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))]
+
+
+#: The mix a listener's chosen topics become at the end of sign-up (§696).
+FOLLOW_MIX_NAME = "My topics"
+
+
+@app.post("/api/follow/mix")
+async def follow_mix(request: Request) -> dict:
+    """Make the listener's chosen topics their first mix (§696, the owner:
+    "sign-up interests become a first personal mix in myFAM, ready to play
+    daily"). Once: a listener who already has any mix keeps what they have.
+    Private - they chose topics, not to publish a list - and each topic is
+    titled by its own name, so no naming call is made. Its subjects are
+    written ahead as any saved mix's are (`_write_mix_ahead`)."""
+    _read_limit(request)
+    account = _require_account(request)
+    if MIXES.list_for_user(account):
+        return {"mix": None, "made": False}
+    prefs = PREFS.get(account)
+    subjects = topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))[:mixes_mod.MAX_TOPICS]
+    if not subjects:
+        return {"mix": None, "made": False}
+    tiles = {t.id: t for t in topics_mod.interest_topics(
+        tuple(prefs.interests) + tuple(prefs.topics))}
+    entries = []
+    for subject in subjects:
+        tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
+                         + "-".join(subject.name.split()))
+        if tile is not None:
+            entries.append({"query": tile.query, "title": subject.label})
+    try:
+        mix = MIXES.create(account, FOLLOW_MIX_NAME, entries, "", public=False)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix)
+    _write_mix_ahead(mix)
+    return {"mix": _mix_out(mix, account, {}, False), "made": True}
+
+
 def _push_follows(user_id: str) -> list:
     """What this person chose to follow (§562): the subjects in their mixes
     and their chosen interests that name one. Never what they were inferred
@@ -10170,6 +10216,80 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                 user, "pick", topic, "",
                 topics_mod.tags_for_id(topic, topic)))
     return prefs.as_dict()
+
+
+class FollowPreviewRequest(BaseModel):
+    """What is ticked on the follow screen, not yet saved."""
+    interests: list[str] = Field(default_factory=list, max_length=20)
+    topics: list[str] = Field(default_factory=list, max_length=200)
+
+
+class FollowRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=prefs_mod.MAX_TOPIC)
+
+
+@app.get("/api/follow/tree")
+async def follow_tree(request: Request) -> dict:
+    """What the follow screen offers (§696): the general topics, the larger
+    subjects under each, and what is under those. The shared vocabulary -
+    nothing of the listener in it, no model, no network."""
+    _read_limit(request)
+    return topics_mod.follow_tree()
+
+
+@app.post("/api/follow/preview")
+async def follow_preview(req: FollowPreviewRequest, request: Request) -> dict:
+    """The Made for you tiles these choices would lead with, before they
+    are saved (§696): `topics.interest_topics`, the same tiles the rail
+    draws. Composed in code; nothing is written, logged or generated."""
+    _read_limit(request)
+    chosen = (prefs_mod.clean_interests(req.interests)
+              + prefs_mod.clean_topics(req.topics))
+    tiles = [t.as_dict() for t in topics_mod.interest_topics(chosen)]
+    return {"topics": tiles[:topics_mod.VIEW_MORE_PAGE]}
+
+
+@app.get("/api/follow/suggest")
+async def follow_suggest(
+    request: Request,
+    q: str = Query("", max_length=300, description="What was just searched"),
+    subject: str = Query("", max_length=80,
+                         description="The episode's subject, from /api/next"),
+) -> dict:
+    """The one subject worth offering to follow after a search, or none
+    (§696). Never one already followed; nothing for a guest, whose choices
+    are not kept. No model call."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated or not q.strip():
+        return {"topic": ""}
+    prefs = PREFS.get(listener.user_id)
+    label = topics_mod.follow_suggestion(
+        q, tuple(prefs.interests) + tuple(prefs.topics),
+        subject=content_filter.scrub(subject))
+    if label and content_filter.scrub(label) != label:
+        label = ""
+    return {"topic": label}
+
+
+@app.post("/api/follow")
+async def follow_topic(req: FollowRequest, request: Request) -> dict:
+    """Follow one more topic, from anywhere in the app (§696): added to the
+    listener's chosen topics, which never fade (`rule:interests-constant`),
+    and logged as a pick as a save from the follow screen is."""
+    _read_limit(request)
+    user = _require_account(request)
+    current = PREFS.get(user)
+    try:
+        prefs = PREFS.save(user, topics=list(current.topics) + [req.topic])
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    added = [t for t in prefs.topics if t not in current.topics]
+    for topic in added:
+        EVENTS.record(topics_mod.Event(
+            user, "pick", topic, "", topics_mod.tags_for_id(topic, topic)))
+    return {"topics": list(prefs.topics), "following": bool(added) or
+            req.topic.strip().lower() in {t.lower() for t in prefs.topics}}
 
 
 @app.get("/api/nextup")
@@ -14010,7 +14130,7 @@ async def next_thread(
         pipeline = _make_pipeline()
     except TTSUnavailable:
         return {"thread": "", "title": "", "title_final": False, "summary": "",
-                "explicit": False}
+                "explicit": False, "subject": ""}
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.

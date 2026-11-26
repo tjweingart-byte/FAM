@@ -52,6 +52,56 @@ def _catalog(episodes: list) -> list:
     return out
 
 
+def _follow_tree() -> dict:
+    """`topics.follow_tree()` over a freshly seeded category tree, so the
+    preview offers what a deployment does on its first day whatever this
+    machine's own tree has grown."""
+    import tempfile
+
+    sys.path.insert(0, str(ROOT))
+    import categories
+    import topics as topics_mod
+
+    was = topics_mod._CATEGORIES
+    with tempfile.TemporaryDirectory() as folder:
+        store = categories.CategoryStore(str(pathlib.Path(folder) / "tree.db"))
+        categories.apply_seed(store)
+        topics_mod._CATEGORIES = store
+        topics_mod.reset_topic_tags()
+        try:
+            return json.loads(json.dumps(topics_mod.follow_tree()))
+        finally:
+            topics_mod._CATEGORIES = was
+            topics_mod.reset_topic_tags()
+
+
+#: The follow endpoints both preview builds answer in the page (§696). The
+#: tiles mirror `topics.interest_topics`: one per followed topic, titled by
+#: its name. A fixture - the server's are the real ones.
+FOLLOW_JS = """
+    if (path === "/api/follow/preview" && method === "POST") {
+      var fpBody = JSON.parse((init && init.body) || "{}");
+      var fpSeen = {}, fpTiles = [];
+      (fpBody.topics || []).forEach(function (t) {
+        var name = String(t || "").trim();
+        var key = name.toLowerCase();
+        if (!name || fpSeen[key]) return;
+        fpSeen[key] = 1;
+        fpTiles.push({ id: "int-" + key.split(/[^a-z0-9]+/).join("-"),
+                       title: name.charAt(0).toUpperCase() + name.slice(1)
+                              + ": What's New This Week",
+                       subtitle: "The latest, and why it matters",
+                       tags: [], icon: "news" });
+      });
+      return json({ topics: fpTiles.slice(0, 16) });
+    }
+    if (path === "/api/follow/suggest") return json({ topic: "" });
+    if (path === "/api/follow/mix" && method === "POST") {
+      return json({ mix: null, made: false });
+    }
+"""
+
+
 def load_fixtures() -> dict:
     """Canned API responses, built from the real bank so the preview shows the
     same topics the app would. Imported rather than duplicated - a fixture that
@@ -643,6 +693,8 @@ def load_fixtures() -> dict:
         # is a preview of a different product. `current` is "free" because a
         # preview has no session to read one from.
         "/api/plans": {**entitlements.catalogue(), "current": "free"},
+        # What the follow screen offers (§696), from the real tree.
+        "/api/follow/tree": _follow_tree(),
         # The intro's two pages. Built from the real vocabulary rather than a
         # list typed out here: a picker offering a facet the ranker does not
         # score is the exact drift this module refuses to introduce.
@@ -2362,6 +2414,13 @@ __PREVIEW_PICTURE__
       });
       return json(catPageFixture);
     }
+    if (path === "/api/follow" && method === "POST") {
+      var fwBody = JSON.parse((init && init.body) || "{}");
+      var fwPrefs = FIXTURES["/api/preferences"];
+      fwPrefs.topics = (fwPrefs.topics || []).concat([String(fwBody.topic || "")]);
+      return json({ topics: fwPrefs.topics, following: true });
+    }
+__FOLLOW_JS__
     if (FIXTURES[path]) return json(FIXTURES[path]);
     return json({ error: "Not available in the preview build." }, 404);
   };
@@ -2440,6 +2499,7 @@ def build() -> pathlib.Path:
         at += len(line) / 15.0 + 0.35
     transcript["starts"] = starts
     shim = (SHIM.replace("__WRITING_SIM__", WRITING_SIM_JS)
+               .replace("__FOLLOW_JS__", FOLLOW_JS)
                .replace("__FIXTURES__", json.dumps(fixtures))
                .replace("__MIX_ITEMS__", mix_items_js())
                .replace("__PREVIEW_PICTURE__", PREVIEW_PICTURE_JS)

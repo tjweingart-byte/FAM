@@ -686,3 +686,4 @@ and `limit` = Lines.
 | 41523 | 97 | 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24) |
 | 41620 | 119 | 694. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25) |
 | 41739 | 82 | 695. A chosen interest that reached the ranker as nothing: "Boston sports", and 94 of 208 others (2026-11-26) |
+| 41821 | 77 | 696. "What topics do you want to follow": the follow step rebuilt, and following from inside the app (2026-11-26) |

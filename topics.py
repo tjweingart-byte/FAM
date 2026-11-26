@@ -3523,6 +3523,10 @@ def _tags_for_interest(value: str) -> tuple[str, ...]:
         except Exception:  # noqa: BLE001
             found = ()
         return tuple(entry.tags) + found
+    node = follow_node(value)
+    if node:
+        # A subject followed off the follow screen, stored as its label.
+        return (node,)
     teams = _teams_named(value)
     if teams:
         # §695: "Boston sports" is the Celtics, Bruins, Red Sox and Patriots.
@@ -3553,6 +3557,164 @@ def _teams_named(value: str) -> dict:
         return {}
     place = " ".join(w for w in words if w not in _FAN_WORDS)
     return category_seed.teams_of(place)
+
+
+#: The eight headings as the follow screen names them, in the order it
+#: draws them (§696). `TAG_LABELS` is the ranker's wording; this is the
+#: listener's.
+FOLLOW_WORLDS = (
+    ("sports", "Sports"), ("world", "News & politics"),
+    ("tech", "Technology"), ("money", "Money & markets"),
+    ("culture", "Culture & entertainment"), ("business", "Business"),
+    ("health", "Health & mind"), ("science", "Science"),
+)
+
+#: A node whose id does not read as its name. "football" is the world's
+#: game and sits beside "american football", so it is said as Soccer.
+FOLLOW_LABELS = {
+    "football": "Soccer", "nfl": "NFL", "nba": "NBA", "mlb": "MLB",
+    "nhl": "NHL", "wnba": "WNBA", "ufc": "UFC", "ncaa": "NCAA",
+    "kpop": "K-pop", "ipos": "IPOs", "adhd": "ADHD", "ufos": "UFOs",
+    "nato": "NATO", "nascar": "NASCAR", "indycar": "IndyCar",
+    "lgbtq rights": "LGBTQ rights", "tour france": "Tour de France",
+    "mens health": "Men's health", "womens health": "Women's health",
+    "womens rights": "Women's rights", "childrens books": "Children's books",
+    "niners": "San Francisco 49ers",
+}
+
+#: Words said in capitals inside a longer label ("NFL Draft").
+_FOLLOW_UPPER = frozenset({"nfl", "nba", "mlb", "nhl", "ufc", "ncaa", "wnba",
+                           "ai", "uk", "us", "eu", "un", "tv"})
+
+_FOLLOW_MEMO: Optional[tuple] = None
+
+
+def follow_label(node_id: str) -> str:
+    """What the follow screen calls one tree node."""
+    import category_seed
+
+    if node_id in FOLLOW_LABELS:
+        return FOLLOW_LABELS[node_id]
+    home = category_seed.HOME_OF.get(node_id)
+    words = (f"{home} {node_id}" if home else node_id).split()
+    return " ".join(w.upper() if w in _FOLLOW_UPPER else w.capitalize()
+                    for w in words)
+
+
+def _follow_build() -> tuple:
+    """`(tree, label -> node)`, rebuilt when the category tree is."""
+    global _FOLLOW_MEMO
+    import category_seed
+
+    store = category_tree()
+    stamp = getattr(store, "_loaded_at", 0.0)
+    if _FOLLOW_MEMO is not None and _FOLLOW_MEMO[0] == stamp:
+        return _FOLLOW_MEMO[1], _FOLLOW_MEMO[2]
+    try:
+        nodes = store.nodes()
+    except Exception:  # noqa: BLE001 - a vocabulary never takes a page away
+        nodes = {}
+    kids: dict = {}
+    for node_id, node in nodes.items():
+        kids.setdefault(getattr(node, "parent_id", "") or "", []).append(node_id)
+    by_label: dict = {}
+
+    def entry(node_id: str) -> dict:
+        label = follow_label(node_id)
+        by_label.setdefault(label.lower(), node_id)
+        return {"label": label}
+
+    def below(node_id: str) -> list:
+        """Everything under one subtopic: its own children first, then what
+        is under them, each level A to Z."""
+        out, level, seen = [], [node_id], {node_id}
+        while level:
+            found, named = [], []
+            for parent in level:
+                found += [k for k in kids.get(parent, []) if k not in seen]
+                named += [{"label": name.title()} for name in
+                          category_seed.LEFT_LEAGUE.get(parent, ())]
+            seen.update(found)
+            out += sorted([entry(k) for k in found] + named,
+                          key=lambda e: e["label"])
+            level = found
+        return out
+
+    worlds = []
+    for facet, label in FOLLOW_WORLDS:
+        subs = []
+        for node_id in kids.get(facet, []):
+            more = below(node_id)
+            subs.append({**entry(node_id), "more": more})
+        subs.sort(key=lambda sub: (-len(sub["more"]), sub["label"]))
+        worlds.append({"id": facet, "label": label, "subtopics": subs})
+    tree = {"worlds": worlds}
+    _FOLLOW_MEMO = (stamp, tree, by_label)
+    return tree, by_label
+
+
+def follow_tree() -> dict:
+    """What the follow screen offers (§696): the eight headings, the larger
+    subjects under each, and everything under those - leagues, then teams.
+
+    `{"worlds": [{"id", "label", "subtopics": [{"label", "more": [{"label"}]}]}]}`.
+    A label is what gets followed: it is stored as the listener's topic and
+    read back by `follow_node`. Built from the category tree, so a subject
+    the tree grows is offered without anybody adding it here; the teams the
+    tree leaves out (`category_seed.LEFT_TO_GROW`) are listed under their
+    leagues and followed by name.
+    """
+    return _follow_build()[0]
+
+
+def follow_node(label: str) -> str:
+    """The tree node a follow-screen label names, or ""."""
+    return _follow_build()[1].get(" ".join(str(label or "").lower().split()), "")
+
+
+#: The longest subject the in-app "Follow this?" card offers, in words.
+SUGGEST_MAX_WORDS = 4
+
+
+def follow_suggestion(query: str, interests: Iterable[str] = (),
+                      subject: str = "") -> str:
+    """The one subject worth offering to follow after a search, or "".
+
+    A team the words name first, then the most specific subject the tree
+    finds in them (never a bare field: "sport" is not something to follow
+    off one question), then the subject the episode's own brief resolved
+    (`Brief.subject`, handed back by `/api/next`) when it is a short name.
+    Nothing already followed is offered again. No model, no network.
+    """
+    import category_seed
+
+    following = {s.name for s in chosen_subjects(interests)}
+    following |= {" ".join(_WORD.findall(str(i).lower())) for i in interests or ()}
+
+    def fresh(label: str) -> str:
+        name = " ".join(_WORD.findall(label.lower()))
+        return label if name and name not in following else ""
+
+    subject = " ".join(str(subject or "").split()).strip(" .,:;!?\"'")
+    said = f"{query or ''} {subject}"
+    text = " ".join(_WORD.findall(said.lower()))
+    for full, node in category_seed.all_teams().items():
+        if f" {full} " in f" {text} ":
+            return fresh(follow_label(node) if node else full.title())
+    tree = category_tree()
+    try:
+        found = [t for t in tree.match(said) if _names_a_subject(t)]
+        found.sort(key=lambda t: -tree.depth_of(t))
+    except Exception:  # noqa: BLE001
+        found = []
+    if found:
+        return fresh(follow_label(found[0]))
+    if subject.lower().startswith("the "):
+        subject = subject[4:]
+    if subject and len(subject.split()) <= SUGGEST_MAX_WORDS \
+            and len(subject) <= 40 and not any(c.isdigit() for c in subject):
+        return fresh(subject[:1].upper() + subject[1:])
+    return ""
 
 
 @dataclass(frozen=True)
@@ -3657,6 +3819,48 @@ def interest_topics(interests: Iterable[str]) -> list:
             query=f"what is the latest news on {subject.label} this week",
             tags=tags, icon=_icon_for_tags(tags)))
     return tiles
+
+
+def follow_reasons(interests: Iterable[str]) -> dict:
+    """What each chosen subject is called, by the phrase a tile says and by
+    its own composed tile's id: the words after "Because you follow" on a
+    card (§696)."""
+    out: dict = {}
+    for subject in chosen_subjects(interests):
+        out[subject.name] = subject.label
+        out[INTEREST_TILE_PREFIX + "-".join(subject.name.split())] = subject.label
+    return out
+
+
+def followed_teams(interests: Iterable[str]) -> tuple:
+    """The chosen subjects that are major-league teams, as the phrases a
+    fixture says (§696): whose games the score strip shows."""
+    import category_seed
+
+    teams = {name for name in category_seed.all_teams()}
+    return tuple(s.name for s in chosen_subjects(interests) if s.name in teams)
+
+
+def team_scores(interests: Iterable[str], now: Optional[float] = None) -> list:
+    """The followed teams' games the live pool is holding, as tiles with
+    their score lines (§696, the owner: "see updates of all boston sports
+    scores consistently"). Every held game, whatever the pool's variety cap
+    or a rail took, and whether or not it was heard: a score strip reports,
+    it does not recommend. Empty when no followed team has a game held -
+    never a made-up line (`rule:live-facts`). Reads the pool in memory."""
+    names = followed_teams(interests)
+    if not names:
+        return []
+    now = time.time() if now is None else now
+    watch = FamiliarWords().naming(names)
+    try:
+        held = topics_from_stories(stories.pool().held(now), now=now)
+    except Exception:  # noqa: BLE001 - a strip never takes the page away
+        log.exception("could not read the pool for the score strip")
+        return []
+    return [t for t in held
+            if getattr(t, "domain", "") == stories.SPORTS
+            and names_followed(t, watch)]
 
 
 def lead_with_interests(picks: list, own: list, familiar, damp: dict,
@@ -3988,7 +4192,8 @@ def topic_tags(topic: Topic) -> tuple[str, ...]:
 
 def reset_topic_tags() -> None:
     """Drop the memo. For tests, and after a tree is cleared under us."""
-    global _TAG_MEMO, _TAG_MEMO_GEN, _FIELD_MEMO, _FIELD_MEMO_KEY
+    global _TAG_MEMO, _TAG_MEMO_GEN, _FIELD_MEMO, _FIELD_MEMO_KEY, _FOLLOW_MEMO
+    _FOLLOW_MEMO = None
     _TAG_MEMO = {}
     _TAG_MEMO_GEN = -1.0
     _FIELD_MEMO = {}
@@ -5631,11 +5836,23 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # history and no friends, and a deployment with no live source genuinely
     # has no stories. The interface says which, rather than padding the row
     # with picks that pretend to be personal or current.
+    reasons = follow_reasons(interests)
+
+    def drawn(key: str, topic: Topic) -> dict:
+        tile = topic.as_dict()
+        if key == "from_history" and reasons:
+            # Why this one is here, when the answer is "you chose it" (§696).
+            label = (reasons.get(topic.id)
+                     or reasons.get(followed_name(topic, familiar)))
+            if label:
+                tile["why"] = label
+        return tile
+
     sections = [
         {
             "key": key,
             "title": title,
-            "topics": [t.as_dict() for t in picked[key]],
+            "topics": [drawn(key, t) for t in picked[key]],
             "empty_reason": (world_reason if key == "world_trending"
                              else _empty_reason(key, bool(circle))
                              if not picked[key] else ""),
@@ -5654,6 +5871,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # distinction exists for the reason `popular_facets` already draws it: a
     # declared order and a measured one look identical on a screen.
     return {"sections": sections, "personalised": bool(profile),
+            # The followed teams' held games, for the strip above the rails.
+            "teams": [t.as_dict() for t in team_scores(interests, now)],
             "live_stories": len(live),
             "taste_source": "startup" if cold else "taste",
             "startup_order": startup_source}

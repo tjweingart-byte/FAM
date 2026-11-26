@@ -4237,6 +4237,11 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
         category = getattr(brief, "category", "") if brief is not None else ""
         if notes is not None and notes.caption_key and category:
             live_captions.publish_category(notes.caption_key, category)
+        # Who or what it is about, for "Follow this?" after a search (§696).
+        subject = getattr(brief, "subject", "") if brief is not None else ""
+        if notes is not None and notes.caption_key and subject:
+            live_captions.publish_subject(notes.caption_key,
+                                          content_filter.scrub(subject))
     except Exception:
         log.exception("could not publish a title; the episode is unaffected")
 
