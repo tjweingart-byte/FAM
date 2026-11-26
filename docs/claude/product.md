@@ -33,8 +33,10 @@ FAM" section tells it in full (`static/waitlist.html`).
 > shaped by what you're shown; information is built for eyes, not ears; the
 > interests of the people around you are invisible - compound into one,
 > **information isolation**, and social information is its cure. The
-> waitlist's "What is FAM" now tells the doctrine in its own words; judge
-> copy against it.
+> waitlist's "What is FAM" told the doctrine in its own words until §698;
+> the homepage now states each problem in a line with its answer under it
+> (the owner, 11.26: the long telling "is wordy and doesn't pop enough").
+> Still judge copy against the doctrine.
 
 <!-- rule:three-surfaces -->
 > **Current (PROBLEMS.md §499, the owner's 11.3 packet):** Explore is out of the app: "it is a complete afterthought and not one of the main value adds of the platform. It just doesn't add anything and operates completely differently from the rest of the platform." The surfaces are searchFAM, myFAM and DailyFAM. Everything below about Explore's feeds is history; `/api/explore?feed=` still answers an installed client (`old-clients`).

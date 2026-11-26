@@ -41949,3 +41949,103 @@ mix of the same owner untouched; the closed failure). **Not verified:**
 the gate was not exercised through the share landing page in a browser;
 existing public mixes are unaffected by construction (no mark), which was
 read and not run against a deployment's data.
+
+
+## 698. The homepage: the waitlist page opens on the app in pictures (2026-11-26)
+
+**The owner:** "I want to greatly improve our website, right now we haven't
+built out an official website and it looks terrible when you go to
+familiarize.net." Then, over a day of rounds on a design canvas: "a website
+with a similar enough product to ours is pinterest ... use less colors so
+the product is clearly highlighted"; one design chosen; the six screens "in
+the order of dailyFAM, myFAM explore, myFAM mixes, searchFAM, messages,
+yourFAM" with "where each screen is located on the app (on the bottom)";
+callouts "changing every 2.5 seconds with a smooth animation ... a bubble
+around the words and an arrow pointing to where it is on the screen"; "the
+problem and solution statements are wordy and don't pop enough"; on a phone
+the three "rotate every 3 seconds from right to left"; and, asked where it
+goes and about the photographs: "Go with 1, keep the photos" - 1 being to
+replace the top of the existing waitlist page and keep its sign-up.
+
+**What a visitor gets.** `/waitlist` (`static/waitlist.html`) now opens on a
+light homepage: a header with **Join the waitlist** and **Sign in**; the
+headline beside a collage of the player and three episode cards; **Take a
+look around**, six tabs (DailyFAM, Explore, Mixes, searchFAM, Messages,
+Profile) each showing a real screen, with a gold outline on the bottom-bar
+tab it lives under and a line saying so; **Tap any card and it plays**, the
+player; the mixes; and three dark cards, each a problem in a line with its
+answer under it. Under those the page is what it was: the video (§284), the
+founders (§282), the last call, and the sign-up - which moved from the top
+of the page to its foot, unchanged, with its samples, ambassador code, sign
+in and reset. The header's and the headline's buttons scroll to it, one of
+them opening its sign-in (`homeDoors`). The status page's "Learn more about
+FAM" shows the same sections (they are inside `#about`).
+
+**The callouts** (`homeStage`). A callout is a name, a line and a point on
+the picture. On a wide page they stand either side of the phone and the lit
+one grows a bubble and an arrow; the arrow is computed from where the bubble
+and the point really are (`getBoundingClientRect`), so it holds at any
+width and is redrawn on resize and when the picture loads. On a phone
+(760px and under) there is no room beside the screen: one callout shows
+above it, crossfading, and a small gold dot moves to its point; the tabs
+become a three-by-two grid with the picture over the word; arrows either
+side of the phone turn the screens; the mixes sit two across; and the three
+cards slide one at a time with dots and a swipe (`homeCards`, a copy of the
+first card after the third so the turn from three to one goes the same way).
+
+**Decisions this reverses, each on the owner's word above.**
+1. **The doctrine's long telling (§246) is off the page.** Its three
+   problems are three lines now, each with an answer. `docs/doctrine/` and
+   `rule:social-information` are untouched; `product.md` says where the
+   page's wording went.
+2. **Things on this page move on a timer.** §250's carousels turned only by
+   hand ("a slide must not move while someone is reading it") and are gone
+   with their sections, their script (`turnCarousel`) and their styles. The
+   callouts step every 2.5s and the phone's cards every 3s. Bounded: a tap,
+   a swipe or a tab restarts the wait, and `prefers-reduced-motion` gets no
+   timer at all.
+3. **The friends in the pictures are real people** - Brady (the account
+   shown), Beth, Elizabeth and Ian, by first name with their photos
+   (`tools/landing/home/people/`). §198 gave the fixtures' people names
+   nobody has, because the fixtures are named after real people; the owner
+   chose these four. A fifth supplied photo that looks like a child's was
+   left out.
+4. **All six screens are dark.** §250 wanted some light and some dark; that
+   was for the section this replaces.
+5. **The sign-up is at the foot, not the top**, so the "What is FAM?" link
+   under it is hidden and its scroll targets the form, not the top.
+
+**The pictures** (`static/landing/home/`, 16 files, under 1 MB). Four
+screens are photographed by `tools/landing_shots.py`, rewritten for this:
+dark theme, Explore's thumbnails and the profile's vibes painted from
+`tools/landing/home/art/`, the four faces, and `SKIP_TILES` leaving three
+cards (a death, an execution, a strike) off DailyFAM. The two myFAM tabs
+are the owner's own screenshots with the status bar painted out, because
+the deployed app's Explore ("▶ FAM", starred chips) is ahead of the preview
+build's. The episode cards, mix covers and `art-` paintings are cut from
+the owner's screenshots. The five old `static/landing/*.jpg` screens are
+deleted; `player.jpg` stays.
+
+**Removed with the old sections:** 99 style rules that no element on the
+page can match any more (found mechanically: a rule goes only if one of
+its classes or ids appears nowhere outside the stylesheet) and
+`turnCarousel`. `tools/check_css.py` and `tools/check_js.py` pass.
+
+**Tests.** Six in `tests/test_waitlist.py` described the old page and were
+rewritten to describe this one, keeping what each was for: the page's
+order; every shipped picture is on the page and the reverse, each with a
+description, each screen's height matching its file; the six tabs and their
+35 callouts inside the picture; where motion is allowed and how it stops;
+the video still asks YouTube only on a tap.
+
+**Verified:** the page was served by the app here and photographed at 1280
+and 390 wide with no script errors and no sideways scroll; the 302 tests
+that read this page pass; `python tools/landing_shots.py` was run and wrote
+its four screens. **Not verified:** the join, sign-in and reset forms were
+not submitted in a browser after the move (their markup and script are
+unchanged, and their tests pass); "Learn more about FAM" on the status page
+was not opened in a browser; Safari and a real phone were not tried; the
+video's picture did not load here (no access to YouTube's image host), so
+that section was seen empty; the four people have not been asked.
+**For the owner:** the profile's counts, interests and vibes and the two
+messages are the demo account's, under real names and faces.
