@@ -859,12 +859,13 @@ def test_the_apps_sign_up_goes_to_the_waitlist():
     assert 'location.href = "/waitlist"' in body
 
 
-def test_the_landing_page_says_what_fam_is_under_the_sign_up():
+def test_the_landing_page_says_what_fam_is_above_the_sign_up():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # Under the form, in the landing's markup; the status page's "Learn more
-    # about FAM" moves this same section into its own view (§215).
-    assert landing.index('id="joinForm"') < landing.index('id="about"')
+    # In the landing's markup; the status page's "Learn more about FAM" moves
+    # this same section into its own view (§215). Since §698 it stands above
+    # the form: the homepage leads, and the sign-up is the foot of the page.
+    assert landing.index('id="home"') < landing.index('id="about"') < landing.index('id="joinForm"')
     assert "Brady Weingart, Ian Solomon &amp; TJ Weingart" in landing
     # The founders' photo is optional: a missing file draws their initials.
     assert 'src="/founders.jpg"' in landing and "classList.add('empty')" in landing
@@ -881,92 +882,91 @@ def test_the_landing_page_says_what_fam_is_under_the_sign_up():
     assert 'classList.add("can-reveal")' in page
 
 
-def test_the_what_is_fam_pictures_are_real_screens_that_ship():
+def test_the_homepage_pictures_are_real_screens_that_ship():
+    """§698: the homepage shows the app in its own pictures. Every file in
+    `static/landing/` is on the page, and everything the page names ships."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
-    pictures = re.findall(r'src="/landing/([\w-]+\.jpg)"', about)
-    assert pictures == ["dailyfam.jpg", "search.jpg", "myfam-mix.jpg",
-                        # The features carousel (§282): two phones a slide.
-                        "player.jpg", "search.jpg", "dailyfam-rails.jpg",
-                        "dailyfam.jpg", "myfam-mixes.jpg", "myfam-mix.jpg"]
-    for name in pictures:
+    landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
+    named = set(re.findall(r'src="/landing/([\w/-]+\.jpg)"', landing))
+    # The six screens are named by the script that turns the tabs.
+    screens = re.findall(r'shot: "(\w+)", h: (\d+)', page.split("var HOME_SCREENS = [", 1)[1].split("];", 1)[0])
+    assert [s for s, _ in screens] == ["dailyfam", "explore", "mixes", "search", "messages", "profile"]
+    named |= {f"home/{s}.jpg" for s, _ in screens}
+    shipped = {str(f.relative_to(ROOT / "static" / "landing")) for f in (ROOT / "static" / "landing").rglob("*.jpg")}
+    # Nothing ships that the page no longer shows, and nothing it shows is missing.
+    assert shipped == named
+    from PIL import Image
+    for name in named:
         assert (ROOT / "static" / "landing" / name).stat().st_size > 10_000, name
-    # Nothing ships that the page no longer shows.
-    assert sorted(p.name for p in (ROOT / "static" / "landing").glob("*.jpg")) == sorted(set(pictures))
-    # Retaken by one script, which writes exactly the files the page names,
-    # some in light and some in dark (§250).
+    # A screen's callouts are placed by its height, so the height is the file's.
+    for shot, tall in screens:
+        with Image.open(ROOT / "static" / "landing" / "home" / f"{shot}.jpg") as im:
+            assert im.size == (780, int(tall)), shot
+    # Four screens are retaken by one script, in the app's dark look; the
+    # player is cut from the owner's still, as before.
     tool = (ROOT / "tools" / "landing_shots.py").read_text(encoding="utf-8")
-    shots = dict((n, t) for n, t in re.findall(r'\("([\w-]+)", .*?, "(light|dark)"\)', tool, re.S))
-    # The player is cut from the owner's still, not photographed.
-    assert set(shots) | {"player"} == {n[:-4] for n in pictures}
+    shots = dict((n, th) for n, th in re.findall(r'\("([\w-]+)", .*?, "(light|dark)"\)', tool, re.S))
+    assert set(shots) == {"dailyfam", "search", "messages", "profile"}
+    assert set(shots.values()) == {"dark"}
+    assert 'OUT = ROOT / "static" / "landing" / "home"' in tool
     assert (ROOT / "tools" / "landing" / "stills" / "player.jpg").stat().st_size > 10_000
-    assert set(shots.values()) == {"light", "dark"}
     assert 'setTheme(t)", theme)' in tool
-    # Only painted tiles, made-up friends, a cover on the Morning mix.
+    # Only painted tiles; the friends are the four the owner chose, by first
+    # name, each with a photo; a cover on the Morning mix.
     assert "if(!c.querySelector('.seed-img')) c.remove();" in tool
-    assert '"Beth Solomon": "Maya Brooks"' in tool
+    assert '"Rachel Solomon": "Elizabeth"' in tool and '"Mike Solomon": "Ian"' in tool
+    assert {f.stem for f in (ROOT / "tools" / "landing" / "home" / "people").glob("*.jpg")} \
+        == {"beth", "brady", "elizabeth", "ian"}
     assert "await page.evaluate(DESIGNED_TILES_ONLY)" in tool
+    assert "await page.evaluate(DRESS, dress)" in tool
     assert "await page.evaluate(RENAME, names)" in tool
     assert (ROOT / "tools" / "landing" / "morning-cover.jpg").stat().st_size > 10_000
-    # The painted cards, one set per rail they were cut from.
+    # The painted cards, one set per rail they were cut from; three are
+    # left off the homepage.
     tiles = {p.stem.split("-")[0] for p in (ROOT / "tools" / "landing" / "tiles").glob("*.jpg")}
     assert tiles == {"foryou", "trending", "friends"}
+    assert 'SKIP_TILES = {"foryou-2", "trending-1", "trending-3"}' in tool
     assert "await page.evaluate(PAINT_TILES, cards)" in tool
     # Every picture says what it shows.
-    assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", about))
+    assert all('alt=""' not in tag for tag in re.findall(r"<img[^>]*>", landing))
 
 
 def test_the_landing_page_tells_why_fam_exists():
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     landing = page.split('id="landing"', 1)[1].split('id="status"', 1)[0]
-    # The sign-up screen names it and the intro says it; the meta description
-    # spells it out.
+    # The sign-up names it; the meta description spells it out.
     assert '<p class="tagline label">The social information network</p>' in landing
     # Right under the wordmark, above the headline.
-    assert landing.index('class="wordmark"') < landing.index('class="tagline') < landing.index('class="headline"')
-    # Drawn as the cure's heading is (§250), not in capitals.
-    assert '<h2 class="cure-h">Social <span>information.</span></h2>' in landing
+    form = landing.split('<div class="hero">', 1)[1]
+    assert form.index('class="wordmark"') < form.index('class="tagline') < form.index('class="headline"')
     assert "SOCIAL INFORMATION" not in landing
     assert "social information, not social media" in page.split("</head>", 1)[0]
     foot = landing.split('class="ab-foot"', 1)[1]
     assert foot.index('class="wordmark"') < foot.index("The social information network")
     # The copyright is the last line on the page.
     assert foot.index("The social information network") < foot.index("&copy; 2026 APALI. All rights reserved.") < foot.index("</footer>")
-    # The FAM Doctrine (PROBLEMS.md §246, docs/doctrine/), in its order:
-    # the problem, its three parts, what they add up to, the cure, the chat.
-    order = ["The problem with how information reaches us",
-             "What you know is shaped by what you’re shown.",
-             "The audio problem you don’t realize you have.",
-             "The interests of the people around you are invisible.",
-             "Information isolation.", "Social information connects what they know.",
-             "Learn more. Go deeper.",
-             "Brady Weingart, Ian Solomon &amp; TJ Weingart", "actually being part of the conversation"]
+    # §698 (the owner, 11.26): the page shows the app first and says why
+    # after, in a line each - the doctrine's long telling (§246) "is wordy
+    # and doesn't pop enough". In order: the headline, the screens, the
+    # player, the mixes, the idea and its three answers, the video, the
+    # founders, the way in.
+    order = ["Listen to everything you want to know about</h1>",
+             "Take a look around", "Tap any card and it plays", "Mixes, new every morning",
+             "Social media connects people. Social information connects what they know.",
+             "Hear what you care about.", "Built for your ears.", "See what your friends play.",
+             'class="ab-wrap ab-video', "Brady Weingart, Ian Solomon &amp; TJ Weingart",
+             "actually being part of the conversation", 'id="joinForm"']
     at = [landing.index(text) for text in order]
-    assert at == sorted(at), "the story is told out of order"
-    # The intro is the doctrine's last sentence.
-    intro = landing.split('class="ab-wrap ab-intro', 1)[1].split("</section>", 1)[0]
-    assert "FAM puts everything you care about in one place" in intro
-    assert "so you are never left out of the conversation." in intro
-    # The heading and the one problem stay put; the three take turns under it.
-    problem = landing.split('class="ab-wrap ab-problem', 1)[1].split("</section>", 1)[0]
-    assert (problem.index("Three problems compound into one: <b>information isolation.</b>")
-            < problem.index("data-carousel"))
-    slides = re.findall(r'<div class="car-slide prob ([\w-]+)"', problem)
-    assert slides == ["prob-shown", "prob-audio", "prob-friends"]
-    assert [problem.index(f">0{n}<") for n in (1, 2, 3)] == sorted(problem.index(f">0{n}<") for n in (1, 2, 3))
-    # Four systems that decide for you; six moments your ears are free.
-    assert problem.count('<li><span class="sys-ic">') == 4
-    assert problem.split('class="moments"', 1)[1].split("</ul>", 1)[0].count("<li>") == 6
-    assert "They share the same lunch table, but\n              not the same information." in problem
-    # What they add up to, then the cure, each on its own.
-    iso = landing.split('class="ab-wrap ab-isolation', 1)[1].split("</section>", 1)[0]
-    assert iso.index("Information isolation.") < iso.index("It doesn’t connect what they know.")
-    cure = landing.split('class="ab-wrap ab-cure', 1)[1].split("</section>", 1)[0]
-    assert "The cure for information isolation." in cure
-    assert cure.index("A new category") < cure.index("Social <span>information.</span>")
-    # The old telling is gone: the doctrine replaced it, it did not join it.
+    assert at == sorted(at), "the page is told out of order"
+    # Each answer stands under the problem it answers.
+    cards = re.findall(r'<div class="hm-card"><p>(.*?)</p><h3>(.*?)</h3></div>', landing)
+    assert cards == [("You’re shown what keeps you watching.", "Hear what you care about."),
+                     ("It’s all built for your eyes.", "Built for your ears."),
+                     ("Your friends’ interests are invisible.", "See what your friends play.")]
+    # The older tellings are gone: each replaced the last, none joined it.
     for gone in ("full-time job", 'class="condense"', 'class="pass-card"', "ab-why", "ab-origin",
-                 "Venn", "That’s why we built FAM."):
+                 "Venn", "That’s why we built FAM.", 'class="ab-wrap ab-intro', 'class="ab-wrap ab-problem',
+                 'class="ab-wrap ab-isolation', 'class="ab-wrap ab-cure', "The problem with how information reaches us"):
         assert gone not in page, gone
 
 
@@ -984,48 +984,51 @@ def test_two_sections_are_off_the_page_for_a_video():
         assert gone not in page, gone
 
 
-def test_the_features_carousel_is_back_as_learn_more_go_deeper():
-    """§282 (the 10.15 packet): Search, DailyFAM and myFAM, one slide each,
-    under where the video will go, titled "Learn more. Go deeper." """
+def test_the_six_screens_stand_behind_six_tabs():
+    """§698: the features carousel (§282) is replaced by the app's own
+    screens - six tabs in the owner's order, each a real screen with its
+    callouts, the arrows either side, and where the screen lives in the
+    app's bottom bar."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    how = page.split('<section class="ab-wrap ab-how">', 1)[1].split("</section>", 1)[0]
-    assert '<h2 class="ab-h">Learn more. Go deeper.</h2>' in how
-    assert re.findall(r'aria-label="\d of 3: (\w+)"', how) == ["Search", "DailyFAM", "myFAM"]
-    # After the cure, before the founders: where the video goes.
-    assert page.index("Social <span>information.</span>") < page.index('class="ab-wrap ab-how"') \
-        < page.index('class="ab-wrap ab-founders')
+    assert 'class="ab-wrap ab-how"' not in page and "Learn more. Go deeper." not in page
+    screens = page.split("var HOME_SCREENS = [", 1)[1].split("];", 1)[0]
+    assert re.findall(r'\{ name: "([\w ]+)", where:', screens) \
+        == ["DailyFAM", "Explore", "Mixes", "searchFAM", "Messages", "Profile"]
+    # Every callout is on its screen: a side, a name, a line, and a point
+    # inside a 390-point-wide picture.
+    points = re.findall(r'\["([LR])", "[^"]+", "[^"]+", (\d+), (\d+)\]', screens)
+    assert len(points) == 35
+    assert all(0 <= int(x) <= 390 and 0 <= int(y) <= 848 for _, x, y in points)
+    stage = page.split('id="hmScreenStage"', 1)[1].split("</section>", 1)[0]
+    assert 'id="hmMark"' in stage and 'id="hmWhere"' in stage
+    assert page.count('aria-label="Previous screen"') == 2 and page.count('aria-label="Next screen"') == 2
+    # The player has its own six.
+    assert len(re.findall(r'\["[LR]", "[^"]+", "[^"]+", [\d.]+, [\d.]+\]',
+                          page.split("var HOME_PLAYER = [", 1)[1].split("];", 1)[0])) == 6
 
 
-def test_the_carousels_turn_only_by_hand():
+def test_the_homepage_moves_only_where_the_owner_asked():
+    """The page's carousels turned only by hand (§250: "a slide must not move
+    while someone is reading it") and went with their sections in §698. What
+    replaced them moves on a timer because the owner asked for exactly that
+    (11.26: the callouts "changing every 2.5 seconds", the three cards on a
+    phone to "rotate every 3 seconds"). It is bounded: a tap restarts the
+    wait, a device that asks for less motion gets none, and the cards have
+    dots and a swipe."""
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
-    boxes = page.split(" data-carousel role=")[1:]
-    assert len(boxes) == 2  # the problem, and the features (back in §282)
-    for box in boxes:
-        box = box.split("</section>", 1)[0]
-        # Without script every slide shows: nothing is hidden in the markup.
-        slides = box.count('aria-roledescription="slide"')
-        assert slides >= 3
-        tags = re.findall(r'<[^>]*aria-roledescription="slide"[^>]*>', box)
-        assert len(tags) == slides
-        assert not any("data-on" in t or "inert" in t or "aria-hidden" in t for t in tags)
-        # Arrows on the left and right, a dot a slide.
-        assert box.index('class="car-arrow car-prev"') < box.index('class="car-arrow car-next"')
-        assert box.split('class="car-dots"', 1)[1].split("</div>", 1)[0].count("<button") == slides
-    # Running, it stacks the slides and shows one; the rest are hidden from
-    # sight, screen readers and the keyboard.
-    assert ".car:not(.ready) .car-arrow" in page and ".car.ready .car-slide{ grid-area:1/1;" in page
-    assert 'el.setAttribute("aria-hidden", "true"); el.inert = true;' in page
-    assert 'box.classList.add("ready");' in page
-    # Never on a timer: a slide must not move while someone is reading it.
-    turn = page.split("function turnCarousel(box){", 1)[1].split("\n  }\n", 1)[0]
-    assert "setInterval" not in turn and "setTimeout" not in turn
-    assert "CAROUSEL_SECONDS" not in page
-    # The arrows are white with black chevrons, in their own row above the
-    # slide on every width, so they never cover a picture.
-    assert "background:#FFFFFF; color:#000000;" in page
-    assert 'grid-template-areas:"p d n" "s s s";' in page
-    assert '"p s n"' not in page
-    assert 'querySelectorAll("[data-carousel]"), turnCarousel' in page.split("function showAbout(member){", 1)[1]
+    assert " data-carousel" not in page and "function turnCarousel" not in page
+    assert ".car-slide" not in page and "CAROUSEL_SECONDS" not in page
+    assert "var HOME_STEP_MS = 2500, HOME_CARD_MS = 3000;" in page
+    stage = page.split("function homeStage(stage){", 1)[1].split("\n  }\n", 1)[0]
+    assert "if(homeStill() || points.length < 2) return;" in stage
+    assert 'b.addEventListener("click", function(){ show(k); wait(); });' in stage
+    cards = page.split("function homeCards(){", 1)[1].split("\n  }\n", 1)[0]
+    assert "if(homeStill()) return;" in cards
+    assert '"pointerdown"' in cards and '"pointerup"' in cards and 'setAttribute("role", "tab")' in cards
+    assert 'matchMedia("(prefers-reduced-motion: reduce)")' in page
+    # On a wide page the three stand side by side and nothing slides.
+    assert "@media (min-width: 761px){ .hm-cards{ transform:none !important; }" in page
+    assert "homeTour();" in page.split("function showAbout(member){", 1)[1].split("\n  }\n", 1)[0]
 
 
 def test_the_10_7_packet_on_the_waitlist_page():
@@ -1063,11 +1066,12 @@ def test_the_waitlist_profile_saves_topics_off_the_long_list(world):
     assert chosen[1]["typed"] is True
 
 
-def test_the_video_sits_above_the_features_and_loads_youtube_only_on_a_tap():
+def test_the_video_follows_the_screens_and_loads_youtube_only_on_a_tap():
     # §284: the Short that replaced "Stay in the loop" and "Better together".
     page = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
     about = page.split('id="about"', 1)[1].split("</footer>", 1)[0]
-    assert about.index('class="ab-wrap ab-video') < about.index('class="ab-wrap ab-how"')
+    # Since §698 it follows the app's own pictures and leads into the founders.
+    assert about.index('id="hmIdea"') < about.index('class="ab-wrap ab-video') < about.index('class="ab-wrap ab-founders')
     video = re.search(r'<div class="yt" data-yt="([\w-]+)">(.*?)</div>', about, re.S)
     vid, inner = video.group(1), video.group(2)
     # A picture of the video, never the player, until somebody taps.

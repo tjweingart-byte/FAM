@@ -163,8 +163,13 @@ section when a decision changes, including why.
 18. **Under the sign-up, the landing page says what FAM is** (the owner,
     03/10, PROBLEMS.md §198): what an episode is, the old way against FAM,
     Search / DailyFAM / myFAM each with real screens of the app, friends, the
-    founders, and a last Join button that scrolls back to the form. The
-    screens are `static/landing/*.jpg`, photographed from the preview build by
+    founders, and a last Join button that scrolls back to the form.
+    **Since §698 the page opens on a homepage instead** - a header, the
+    headline and the app in a collage; six screens behind six tabs and the
+    player, each walked through one callout at a time; the mixes; three
+    problems with their answers - then the video, the founders, and the
+    sign-up form at the foot. The header's buttons lead to that form. Four
+    of the screens are `static/landing/home/*.jpg`, photographed from the preview build by
     `python tools/landing_shots.py` (run it after `build_preview.py` whenever a
     pictured screen changes); nothing in the section plays. The pictures
     show only tiles with a painted picture (real cards cut from the app's
