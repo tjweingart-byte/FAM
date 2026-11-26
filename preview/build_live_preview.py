@@ -2143,6 +2143,10 @@ __WRITING_SIM__
       if (!EMAIL) return json({ error: ACCOUNT_REQUIRED }, 401);
       body = { topics: (myPrefs().topics || []).concat([String(body.topic || "")]) };
       path = "/api/preferences";
+      // Answered as `/api/follow` answers, not as a preferences save does:
+      // the app reads `following` before it says so (§697). The fixture
+      // left it out, so the card said the list was full (§699).
+      var followOne = true;
     }
     var init = { body: JSON.stringify(body) };
 __FOLLOW_JS__
@@ -2200,7 +2204,11 @@ __FOLLOW_JS__
         intro_done: body.intro_done !== undefined && body.intro_done !== null
           ? (body.intro_done ? 1 : 0) : (was.intro_done ? 1 : 0),
         updated: now()
-      }).then(function () { paint(); return json(myPrefs()); });
+      }).then(function () {
+        paint();
+        return json(followOne ? { topics: myPrefs().topics || [], following: true }
+                              : myPrefs());
+      });
     }
     if (path === "/api/nextup") {
       return json(nextUpBody(qs.get("topic_id") || "", qs.get("q") || "",
