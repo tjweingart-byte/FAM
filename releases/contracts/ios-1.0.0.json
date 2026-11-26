@@ -1,6 +1,6 @@
 {
-  "commit": "cb666c6e0aba613103b8995f65d181a73c6b5a50",
-  "cut": "2026-11-19",
+  "commit": "5d51c46950c5d0cdb812f37b8dd23529165b4d33",
+  "cut": "2026-11-26",
   "platform": "ios",
   "routes": [
     "/api/account",
@@ -36,6 +36,11 @@
     "/api/episode/topic",
     "/api/event",
     "/api/feedback",
+    "/api/follow",
+    "/api/follow/mix",
+    "/api/follow/preview",
+    "/api/follow/suggest",
+    "/api/follow/tree",
     "/api/free-month/claim",
     "/api/friends",
     "/api/friends/announced",
@@ -300,6 +305,27 @@
       "id": "string",
       "label": "string",
       "title": "string"
+    },
+    "/api/follow/suggest": {
+      "topic": "string"
+    },
+    "/api/follow/tree": {
+      "worlds": [
+        {
+          "id": "string",
+          "label": "string",
+          "subtopics": [
+            {
+              "label": "string",
+              "more": [
+                {
+                  "label": "string"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     },
     "/api/godeeper": {
       "resume": [],
