@@ -65,6 +65,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var tasteSource = "taste"
     /// The face book the cards' friends pills point into.
     @Published private(set) var friendFaces: [FriendFace] = []
+    /// The followed teams' held games (`/api/myfam`'s `teams`, §696):
+    /// the "Your teams" strip above the rails. Empty draws nothing.
+    @Published private(set) var teams: [Tile] = []
+    /// "Follow this?" (§696): the subject a search named, waiting on this
+    /// phone until it is answered. Drawn first on DailyFAM (`FollowAskCard`).
+    @Published private(set) var followAsk: FollowAsk?
+    /// How often each search has asked `/api/follow/suggest`, by its
+    /// lower-cased question (`followAskTried`): once, then once more when
+    /// the brief's subject arrives.
+    private var followAskTried: [String: Int] = [:]
     /// `query|minutes` of every saved episode, so bookmarks are lit.
     @Published private(set) var savedTiles: Set<String> = []
     @Published private(set) var pickUp: PickUpPage?
@@ -458,6 +468,7 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        nowPlaying.askFollow = { [weak self] ep, subject in self?.maybeAskFollow(ep, subject: subject) }
         // The player's save and a playlist row's heart are one shelf (§691).
         nowPlaying.savedChanged = { [weak self] query, minutes, on in
             guard let self else { return }
@@ -465,6 +476,7 @@ final class AppModel: ObservableObject {
             if on { self.savedTiles.insert(key) } else { self.savedTiles.remove(key) }
         }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
+        nowPlaying.offline = { [weak self] in self?.isOffline ?? false }
         // The myFAM screen on show is the dot looked at (§550,
         // `#screen-playfam.active`): its tab, with no mix pushed over it.
         mixes.screenShowing = { [weak self] in
@@ -1011,6 +1023,9 @@ final class AppModel: ObservableObject {
         notInterestedIDs = []
         emptiedRails = []
         tasteSource = "taste"
+        teams = []
+        // "Follow this?" names a search: never the next account's (§697).
+        forgetFollowAsk()
         forgetDevicePrefs()
         // The tour as this phone knew it was theirs (§595).
         tour.forget()
@@ -1092,8 +1107,12 @@ final class AppModel: ObservableObject {
             }
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
+            // Only ever from a fresh answer (`myFamTeams = data.teams || []`):
+            // a remembered page's score is never drawn as today's.
+            teams = page.teams ?? []
             railsProblem = ""
             if requestFailed { setOffline(false) }
+            paintFollowAsk()
             // Remembered only once it has drawn, so a page that fails to
             // draw is never the one an offline open falls back to.
             shelf.rememberFeed(data)
