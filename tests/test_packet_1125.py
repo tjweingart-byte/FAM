@@ -147,11 +147,51 @@ def test_the_trending_editions_stories_still_lead(client, monkeypatch):
 
 
 def test_the_order_is_pure_and_loses_nothing():
-    rows = [{"key": str(n), "node": "sports", "chain": frozenset({"sports"}),
-             "popularity": n, "created": float(n), "today": n % 2 == 0}
-            for n in range(9)]
-    out = appmod._explore_order(list(rows), "sports", {})
-    assert sorted(r["key"] for r in out) == sorted(r["key"] for r in rows)
+    C.apply_seed(T.category_tree())
+    strands = ("nfl", "nba", "golf", "cricket", "sports")
+    rows = [{"key": str(n), "node": strands[n % 5],
+             "chain": frozenset({"sports", strands[n % 5]}),
+             "popularity": n % 4, "created": float(n), "today": n % 3 != 0}
+            for n in range(23)]
+    for trending in ({}, {"7": 0, "0": 1}):
+        out = appmod._explore_order(list(rows), "sports", trending)
+        assert sorted(r["key"] for r in out) == sorted(r["key"] for r in rows)
+        assert len({r["key"] for r in out}) == len(rows)
+    # Place 0 in the edition is a place, not "none".
+    assert [r["key"] for r in out[:2]] == ["7", "0"]
+
+
+def test_a_change_of_settings_does_not_empty_the_page(client):
+    """A bucket holds the model and pace as they were at the write. Rows from
+    before a change match neither of today's cold buckets, but they share
+    one with each other - which a Go Deeper's never does (review, §694)."""
+    # What `key_bucket` gave under the earlier settings: any other hashes.
+    old_cold, old_follow = "bucket-of-the-earlier-model", "that-bucket-plus-an-episode"
+    assert old_cold != cache_mod.key_bucket(2, "", True)
+    for n in range(appmod.COLD_BUCKET_ROWS):
+        _put(f"o{n}", f"Before the change {n}", "nba", bucket=old_cold)
+    _put("f", "A follow-up from before", "nba", bucket=old_follow)
+    got = _titles(client, "nba")
+    assert len(got) == appmod.COLD_BUCKET_ROWS and "A follow-up from before" not in got
+
+
+def test_a_follow_up_with_no_bucket_kept_is_still_a_card_and_plays_by_id(client):
+    key = cache_mod.cache_key("why", 2, None, "Some episode", True)
+    _put(key, "A follow-up", "nba")           # CACHE_VECTOR=0: no bucket
+    row = client.get("/api/categories/episodes", params={"id": "nba"}).json()["episodes"][0]
+    assert appmod.SCRIPT_CACHE.resolve_episode(row["episode"]) == key
+
+
+def test_a_stale_episode_id_falls_back_to_the_question_once():
+    assert "askIfGone: !!first.episode" in _fn("playCategoryList")
+    assert "askIfGone: !!entry.episode" in _fn("playQueueNext")
+    failed = _fn("onGenerationFailed")
+    assert "gone.askIfGone && gone.episode" in failed and 'gone.episode = "";' in failed
+
+
+def test_a_follower_waits_once_for_whats_next():
+    follower = _fn("showFollowerPopup")
+    assert "if(followerWaiting[person.user_id]) return;" in follower
 
 
 # --- the web: Explore -------------------------------------------------------
@@ -189,7 +229,7 @@ def test_the_chip_row_is_all_and_the_main_categories_whatever_is_picked():
 
 def test_whats_next_is_offered_with_one_tile_and_only_none_shows_nothing():
     offer = _fn("maybeOfferNextUp")
-    assert "if(!tiles.length || !nextUpAllowedHere() || goDeeperIsOpen()) return;" in offer
+    assert "if(!tiles.length || !nextUpAllowedHere() || goDeeperIsOpen() || navigator.onLine === false) return;" in offer
     assert "tiles.length < 2" not in HTML
 
 

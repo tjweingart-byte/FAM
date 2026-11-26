@@ -41704,9 +41704,28 @@ under an earlier `MODEL` (which the id now covers on new clients).
 `[player-no-autogen]`: unchanged - every tile waits for a tap.
 `[no-dead-controls]`: no chip or button was left without something behind it.
 
-**A known cost.** `_is_follow_up` compares the stored bucket with a cold
-question's under the *current* `MODEL` and pace, so after either changes,
-rows written before it are off Explore until they age out (a week at most).
+**The branch reviewed before its PR** (two second readers, one given the
+server and web diff, one the Swift). The Swift: nothing found that would not
+compile, no call site left behind. Fixed from the other: (1) `_is_follow_up`
+compared a row's bucket with a cold question's under *today's* `MODEL`, pace
+and embedding space, so a change of any of them would have taken every
+earlier row off Explore, the other sorts and the "today" counts for a week;
+`_cold_buckets` now also counts as cold any bucket `COLD_BUCKET_ROWS` (5)
+kept rows share, which rows from one era do and a Go Deeper's never does.
+(2) A card's `episode` id goes stale when its key is written again; the tap
+answered 409 until the page was reloaded. It now falls back to the question
+once, still replay only (`askIfGone`, as a shared episode does). (3) What's
+next with its one tile no longer comes up offline, where that tile is a Go
+Deeper that cannot run. (4) A follower popup waiting for What's next waits
+once per person, not once per re-read of the friends list.
+Left as it is, knowingly: with no bucket kept (`CACHE_VECTOR=0`, the memory
+cache) a follow-up is still a card - it plays, by its id; fewer than five
+rows from before a settings change stay hidden until they age out; the
+filing now reads up to `CATEGORY_SCAN` rows per 30-second memo rather than
+today's only (not measured on Postgres); an installed build 12 gets the
+older rows without a day label; on the iPhone a message retyped identically
+within 0.15 s of sending it is cleared, and the composer's height wants a
+device.
 
 **Verified:** `tests/test_packet_1125.py` (server order, shelf, follow-ups,
 the id; the web source), `tests/test_packet_1125_ios.py` (the Swift, read);

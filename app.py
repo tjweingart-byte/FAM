@@ -11248,22 +11248,49 @@ EXPLORE_LEADING = {
 }
 
 
-def _is_follow_up(entry: dict) -> bool:
+#: A bucket this many kept rows share is a cold question's, whatever the
+#: settings were when they were written (`_cold_buckets`).
+COLD_BUCKET_ROWS = 5
+
+
+def _cold_buckets(entries: list[dict]) -> set:
+    """The buckets (`cache.key_bucket`: everything in the key but the
+    question) that belong to questions asked cold, among `entries`.
+
+    Today's settings' own, and any bucket `COLD_BUCKET_ROWS` rows share. The
+    second half is why a change of `MODEL`, pace or embedding space does not
+    empty the page (review, §694): a bucket holds those settings as they were
+    at the write, so every row from before the change matches neither of
+    today's - but they still share one bucket with each other, where a Go
+    Deeper's bucket carries the one episode it follows."""
+    cold: set = set()
+    held: dict = {}
+    for entry in entries:
+        bucket = entry.get("bucket") or ""
+        if not bucket:
+            continue
+        held[bucket] = held.get(bucket, 0) + 1
+        try:
+            minutes = entry["minutes"]
+            cold.add(cache_mod.key_bucket(minutes, "", True))
+            cold.add(cache_mod.key_bucket(minutes, "", False))
+        except Exception:  # noqa: BLE001 - a filing is never worth a failure
+            continue
+    cold.update(b for b, n in held.items() if n >= COLD_BUCKET_ROWS)
+    return cold
+
+
+def _is_follow_up(entry: dict, cold: set) -> bool:
     """Whether a cached row is a Go Deeper's episode: written for somebody
     who has just heard the one before it, and kept under a key that carries
     that episode - so a card's own words never found it ("That episode is no
     longer in the cache", the 11.25 packet). Read off the bucket stored with
-    it (`cache.key_bucket`, everything in the key but the question): one that
-    is not a cold question's at this length. False when no bucket was kept."""
+    it: one that is not a cold question's (`_cold_buckets`).
+
+    **False when no bucket was kept** (`CACHE_VECTOR=0`, the memory cache):
+    such a follow-up is still a card, and still plays - by its `episode`."""
     bucket = entry.get("bucket") or ""
-    if not bucket:
-        return False
-    try:
-        minutes = entry["minutes"]
-        return bucket not in (cache_mod.key_bucket(minutes, "", True),
-                              cache_mod.key_bucket(minutes, "", False))
-    except Exception:  # noqa: BLE001 - a filing is never worth a failure
-        return False
+    return bool(bucket) and bucket not in cold
 
 
 def _category_label(node: str) -> str:
@@ -11401,12 +11428,13 @@ def _filed_rows() -> list[dict]:
     entries = store.recent(CATEGORY_SCAN)
     mixed = _mix_counts()
     since = day_start - EXPLORE_PAST_DAYS * 86400.0
+    cold = _cold_buckets(entries)
     rows = []
     for entry in entries:
         made = float(entry.get("created") or entry.get("sourced_at") or 0.0)
         if made < since:
             continue
-        if _is_follow_up(entry):
+        if _is_follow_up(entry, cold):
             continue  # never a card: it presumes another episode was heard
         query = entry.get("query") or ""
         title = (entry.get("title") or (query[:1].upper() + query[1:])).strip()

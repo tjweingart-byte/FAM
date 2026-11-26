@@ -13799,7 +13799,7 @@
       caption: "Live captions will appear here as this plays—",
       exploreMinutes: entry.minutes || 0, surface: entry.surface || undefined,
       bankTopicId: entry.bankTopicId, cachedOnly: entry.cachedOnly,
-      episode: entry.episode || "",
+      episode: entry.episode || "", askIfGone: !!entry.episode,
       parentTopic: entry.parentTopic || undefined,
       thumb: entry.thumb, titleOverridden: entry.titleOverridden
     };
@@ -16822,6 +16822,8 @@
              source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", surface: "",
              cachedOnly: true, thumb: ep.thumb || "", titleOverridden: true,
              episode: ep.episode || "", fromCategory: true };
+    // `episode` gone stale (the key written again since the page was read)
+    // falls back to the question once, still replay only (`askIfGone`).
   }
   function playCategoryList(list){
     if(!list.length) return;
@@ -16829,7 +16831,8 @@
     TOPICS["_category"] = { title: first.title || first.query, prompt: first.query,
                             source: (catPage.node && categoryLabelOf(catPage.node)) || "Explore", caption: "",
                             cachedOnly: true, exploreMinutes: first.minutes || BROWSE_MINUTES,
-                            episode: first.episode || "", titleOverridden: true };
+                            episode: first.episode || "", askIfGone: !!first.episode,
+                            titleOverridden: true };
     generate("_category");
     // A second tap replaces what the first queued rather than piling the
     // page on again; anything the listener queued themselves stays.
@@ -24224,12 +24227,18 @@
   }
 
   var followerNow = null;
+  var followerWaiting = {};
 
   function showFollowerPopup(person){
     // Never two overlays deep, and What's next goes only when the listener
     // leaves it (§694): this used to close it. It waits its turn instead.
     if(document.getElementById("nextUpOverlay").classList.contains("active")){
-      setTimeout(function(){ showFollowerPopup(person); }, 3000);
+      // One wait per person, however often the friends list is re-read.
+      if(followerWaiting[person.user_id]) return;
+      followerWaiting[person.user_id] = setTimeout(function(){
+        delete followerWaiting[person.user_id];
+        if(!followerPopupShown[person.user_id]) showFollowerPopup(person);
+      }, 3000);
       return;
     }
     followerNow = person;
@@ -31150,7 +31159,8 @@
       // "I still want that screen to display after the episode"). One tile
       // used to show nothing; the lead is Go Deeper's suggestion and the
       // card has its own search, so one is enough. Only none shows nothing.
-      if(!tiles.length || !nextUpAllowedHere() || goDeeperIsOpen()) return;
+      // Not offline: its one tile would be a Go Deeper that cannot run.
+      if(!tiles.length || !nextUpAllowedHere() || goDeeperIsOpen() || navigator.onLine === false) return;
       showNextUp(tiles);
     });
   }
