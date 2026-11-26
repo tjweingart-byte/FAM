@@ -1408,7 +1408,8 @@ FORMATS = {
 
 
 def build_ei_prompt(query: str, minutes: int, context: str = "",
-                    now: str = "", covered=(), fields=None, reading: str = "") -> str:
+                    now: str = "", covered=(), fields=None, reading: str = "",
+                    heard: str = "") -> str:
     """The brief's user turn: the request, the moment, and what to work out.
 
     `fields` names the entries of `FIELD_GUIDE` to ask for, in its order;
@@ -1430,6 +1431,16 @@ def build_ei_prompt(query: str, minutes: int, context: str = "",
             f"\nThis is a follow-up. They have already heard a briefing on: "
             f"{context}\nThe search must find what is *new* relative to that, "
             "not the same ground again.\n")
+        if heard:
+            # What that briefing actually said (`EpisodePlan.heard`): a
+            # follow-up told only the title searched the same ground and was
+            # heard as "just rephrasing" the episode before it.
+            follow_up += (
+                "This is what it said, word for word:\n<already_said>\n"
+                f"{heard}\n</already_said>\n"
+                "Everything in it is known to them. Aim the search past it: "
+                "at the cause, the detail or the development it did not "
+                "reach.\n")
     if covered:
         # A daily episode's earlier editions
         # (`daily_edition.with_earlier_editions`).
@@ -1810,17 +1821,17 @@ def _count(kind: str, path: str) -> None:
 
 async def _ask(client, part: str, query: str, minutes: int, context: str,
                now: str, covered: tuple, timeout: float, notes,
-               path: str = "", reading: str = "") -> tuple:
+               path: str = "", reading: str = "", heard: str = "") -> tuple:
     """One brief call: `(kind, data, reason)`, `kind` "ok" or why it failed.
     Never raises."""
     if part == "outline":
         content = (build_ei_prompt(query, minutes, context, now, covered, (),
-                                   reading=reading)
+                                   reading=reading, heard=heard)
                    + OUTLINE_GUIDE)
     else:
         content = build_ei_prompt(query, minutes, context, now, covered,
                                   None if part == "whole" else parts_asked()[part],
-                                  reading=reading)
+                                  reading=reading, heard=heard)
     # The routing part's own answer shape when the framing is apart (§603).
     shape = (FORMATS["route"] if part == "understand" and settings.ei_frame_apart
              else FORMATS[part])
@@ -1913,7 +1924,7 @@ def _search_fields(data: dict, query: str) -> dict:
 async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = "",
                      notes=None, now: str | None = None, covered=(),
                      ahead: bool = False, reading: str = "",
-                     defer_framing: bool = False) -> Brief:
+                     defer_framing: bool = False, heard: str = "") -> Brief:
     """Work out what this request is, before anything is retrieved.
 
     `defer_framing` (§603): with the framing apart (`EI_FRAME_APART`), a
@@ -1985,7 +1996,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
         # ceiling ahead, where nobody waits), then the brief goes without it.
         def ask(part: str):
             own = _ask(client, part, query, minutes, context, now,
-                       tuple(covered or ()), timeout, notes, path, reading=reading)
+                       tuple(covered or ()), timeout, notes, path, reading=reading,
+                            heard=heard)
             if part != "search" or not c3p0:
                 return own
             from agents import contextualizer
@@ -1994,7 +2006,8 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
 
             def fallback():
                 return _ask(client, part, query, minutes, context, now,
-                            tuple(covered or ()), timeout, notes, path, reading=reading)
+                            tuple(covered or ()), timeout, notes, path, reading=reading,
+                            heard=heard)
             return contextualizer.search_half(query, minutes, context, now,
                                               tuple(covered or ()), ahead, notes,
                                               candidates, fallback, reading=reading)
@@ -2005,13 +2018,15 @@ async def understand(query: str, minutes: int = DEFAULT_MINUTES, context: str = 
             # search (§603).
             frame_task = asyncio.ensure_future(_timed("frame", path, _ask(
                 client, "frame", query, minutes, context, now,
-                tuple(covered or ()), timeout, notes, path, reading=reading)))
+                tuple(covered or ()), timeout, notes, path, reading=reading,
+                            heard=heard)))
         outline_task = None
         if len(parts) == 2 and settings.ei_outline:
             outline_task = asyncio.ensure_future(_timed(
                 "outline", path,
                 _ask(client, "outline", query, minutes, context, now,
-                     tuple(covered or ()), timeout, notes, path, reading=reading)))
+                     tuple(covered or ()), timeout, notes, path, reading=reading,
+                            heard=heard)))
         try:
             answers = await main
         except BaseException:

@@ -281,6 +281,20 @@ _TITLE_BEFORE = re.compile(
 _MONTH_BEFORE = re.compile(
     r"(?:^|\s)(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$")
 _INITIALS_BEFORE = re.compile(r"(?:^|[\s(])(?:[A-Z]\.){2,4}$")
+#: "a.m." and "p.m.", which end a sentence about as often as not.
+_CLOCK_BEFORE = re.compile(r"(?:^|[\s\d(])[ap]\.m\.$")
+#: The words a sentence opens on after "the U.S." or "7 p.m.". Anything else
+#: capitalised there is a name the abbreviation belongs to ("U.S. Senate",
+#: "p.m. Eastern"). Wrongly joining two sentences costs nothing - they are
+#: voiced together - where wrongly cutting one leaves half a sentence.
+_OPENERS = frozenset(
+    "a after all although an and another as at because before but by "
+    "both each even every few for from he her here his how however i if in "
+    "instead it its just last later many meanwhile most much no none not "
+    "now nobody nothing on one only or others our she since so some still "
+    "that the their then there these they this those though three two "
+    "under until we what when where whether which while who why with yet "
+    "you your".split())
 
 
 def find_sentence_end(text: str):
@@ -292,10 +306,26 @@ def find_sentence_end(text: str):
         after = text[match.end(): match.end() + 1]
         if _TITLE_BEFORE.search(head):
             continue
+        # What follows decides the rest, so a stream waits for it.
+        if not after:
+            return None
+        # A sentence does not start in lower case: "Apple Inc. said",
+        # "7 p.m. on Friday", "i.e. a lot", "Yes... maybe", '"Why?" he
+        # asked'. Cut there, the voice was handed half a sentence - and an
+        # episode stopped at its length stopped on it, mid-sentence.
+        if after.islower():
+            continue
         if _MONTH_BEFORE.search(head) or _INITIALS_BEFORE.search(head):
-            if not after:
+            if after.isdigit():
+                continue
+        if _INITIALS_BEFORE.search(head) or _CLOCK_BEFORE.search(head):
+            # "the U.S. Supreme Court", "7 p.m. Eastern": a capital follows
+            # and it is still one sentence, unless the word is one that
+            # sentences open on. The whole word has to be here to tell.
+            word = re.match(r"[A-Za-z'’]+", text[match.end():])
+            if word is not None and word.end() == len(text) - match.end():
                 return None
-            if after.isdigit() or after.islower():
+            if word is None or word.group(0).lower() not in _OPENERS:
                 continue
         return match
     return None
@@ -1347,6 +1377,50 @@ def extract_thread(text: str) -> str:
     return content_filter.scrub(thread[:160])
 
 
+#: Words that say nothing about which subject a follow-up is on.
+_THREAD_SMALL = frozenset(
+    "a an and are as at be behind bigger but by did do does for from had has "
+    "have how in into is it its more of on or s story than that the their "
+    "there this to was were what whats when where whether which who why will "
+    "with would".split())
+
+
+def _thread_words(text: str) -> set:
+    words = re.findall(r"[a-z0-9]+", str(text or "").lower().replace("'", ""))
+    return {w[:-1] if len(w) > 3 and w.endswith("s") else w
+            for w in words if w not in _THREAD_SMALL}
+
+
+def circles_back(thread: str, *heard: str) -> bool:
+    """Whether a predicted follow-up only leads back to what was just heard.
+
+    A tester's Go Deeper offered "the episode that I just watched in an
+    endless cycle": an episode's `<<NEXT:>>` line named the request it had
+    itself answered, or the briefing it followed, so the tap wrote the same
+    ground again and that episode offered it back. `heard` is each thing the
+    listener already has - the request, and the title a follow-up follows.
+    True when the thread's subject words are (nearly) all in one of them:
+    nothing new is named, so it is no thread at all.
+    """
+    mine = _thread_words(thread)
+    if not mine:
+        return False
+    for prior in heard:
+        theirs = _thread_words(prior)
+        if not theirs:
+            continue
+        shared = len(mine & theirs)
+        # "All its words are in there" says little of a long prior - a
+        # mix's edition prompt names a dozen subjects, and a thread on one
+        # of them is a real thread - so that test is for priors of the
+        # thread's own size.
+        contained = (shared / len(mine) >= 0.8
+                     and len(theirs) <= 3 * len(mine))
+        if contained or shared / len(mine | theirs) >= 0.6:
+            return True
+    return False
+
+
 def extract_title(text: str) -> str:
     """Pull the episode's own title out of its trailing marker line.
 
@@ -1471,6 +1545,14 @@ class EpisodePlan:
     #: in the cache key**: it names a stored episode, it does not change what
     #: an episode is.
     episode: str = ""
+    #: What the episode a Go Deeper follows actually said - its script, read
+    #: from the cache by `app._heard_before` - so the follow-up can be made
+    #: of what that one did not say instead of the same ground reworded
+    #: ("not going deeper, just rephrasing"). "" when it could not be found:
+    #: the follow-up is then written from the title alone, as it always was.
+    #: **Never in the cache key**: `context` already names the episode this
+    #: follows, and this is that episode's own words.
+    heard: str = ""
     #: What the local ladder found, when the brief names a town (§194): a
     #: `local_news.LocalResult` - which rung answered, whether the town
     #: itself had nothing, and the weather there. **Never in the cache
@@ -1911,6 +1993,24 @@ This is a FOLLOW-UP. The listener has just heard a briefing on:
 
 Treat that as known. Do not re-explain it or re-introduce the subject. Go
 straight into the narrower thing they asked for and stay on it.
+"""
+        if getattr(plan, "heard", ""):
+            follow_up += f"""
+This is what that briefing said, word for word:
+<already_said>
+{plan.heard}
+</already_said>
+
+Every fact, figure, name and quotation in it is something they already know.
+This episode is made of what is NOT in it: the next layer down - the cause
+behind what it reported, the detail it passed over, what has happened since,
+the part of the evidence it never used. Name something it said only in a
+clause, to build on it; never tell it again in other words. If the evidence
+holds nothing beyond what it said, say the little that is new and stop early.
+"""
+        follow_up += """
+Your <<NEXT:>> line leads somewhere neither briefing has been. Never back to
+the one they already heard, and never this request reworded.
 """
 
     # A daily episode's earlier editions. Said to the writer as well as to EI:
@@ -2444,6 +2544,15 @@ class _ScriptReader:
                 out.append(line)
         if self.notes is not None:
             self.notes.thread = extract_thread(self.buffer)
+            # A thread that only leads back to this request, or to the
+            # briefing it follows, is not offered: the tap would write the
+            # same ground again and offer it back, round and round.
+            if self.notes.thread and circles_back(
+                    self.notes.thread, getattr(self.plan, "query", ""),
+                    getattr(self.plan, "context", "")):
+                log.info("dropping a <<NEXT>> line that leads back to what "
+                         "was heard: %r", self.notes.thread)
+                self.notes.thread = ""
             # C3P0's title is the episode's title when he wrote one (decided
             # item 1, §375); the writer's names it otherwise, as before.
             self.notes.title = (getattr(self.notes, "c3p0_title", "")
@@ -3148,6 +3257,10 @@ class ScriptGenerator:
         # The reading the listener chose (§426), only when there is one.
         if plan.reading:
             extra["reading"] = plan.reading
+        # What the episode a Go Deeper follows said, so the search is aimed
+        # past it. Only when there is one, so every other call is as it was.
+        if getattr(plan, "heard", ""):
+            extra["heard"] = plan.heard
         # The framing finished beside the research (§603): only where a
         # listener waits and `prepare` will finish it.
         if (defer_framing or getattr(notes, "framing_later", False)) and not ahead:
@@ -4124,6 +4237,11 @@ def _publish_title(notes: "ScriptNotes | None", brief) -> None:
         category = getattr(brief, "category", "") if brief is not None else ""
         if notes is not None and notes.caption_key and category:
             live_captions.publish_category(notes.caption_key, category)
+        # Who or what it is about, for "Follow this?" after a search (§696).
+        subject = getattr(brief, "subject", "") if brief is not None else ""
+        if notes is not None and notes.caption_key and subject:
+            live_captions.publish_subject(notes.caption_key,
+                                          content_filter.scrub(subject))
     except Exception:
         log.exception("could not publish a title; the episode is unaffected")
 

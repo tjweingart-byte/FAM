@@ -94,7 +94,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   lettered (`/api/myfam/catalog`); typing shows the closest; each row
   says the day it was made, then a date past six days. [dailyfam-catalogue]
 - **Explore is a tab**: myFAM is Explore | Playlists (§691); trending
-  first; chips filter; today's cache. [your-categories]
+  first; main chips; kept cache. [your-categories]
 - **A queue**: Add to / Go to Queue from the player's and a DailyFAM
   tile's ⋯; client state; plays before the grid; a mix survives Go Deeper
  . [queue]
@@ -129,15 +129,14 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
  , else the writer's stripped `<<TITLE:>>`; no extra call, never a result;
   derived title first, then swapped; `titleOverridden` never replaced; own column;
   a written live-story tile takes the episode's title, summary, category. [title-from-content]
-- `<<NEXT: ...>>` is a *prediction* of the likeliest follow-up, stored beside the
-  script, served free by `/api/next`, offered by Go Deeper; the script never
-  gestures at it. Every Go Deeper shows a suggestion - that
-  line, else one built from the title - a box, and a 1-5 minute length;
-  opening it never stops the episode, and one ending under it starts nothing. [next-is-prediction]
+- `<<NEXT: ...>>` predicts the likeliest follow-up, stored beside the
+  script, free from `/api/next`, offered by Go Deeper, never gestured at, never
+  circling back; a follow-up reads its parent's script. Every Go Deeper: that line, else one from the title, a box,
+  1-5 min; opening never stops the episode, one ending under it starts none. [next-is-prediction]
 - After an episode: four recommendations, **none starts itself** - a tap
   only (§686); the lead is Go Deeper's own suggestion, played as its follow-up,
   then album next, then `topics.rank_next_up` over both inventories; a search
-  box above Back; not on Explore / Explore New. [post-episode-grid]
+  box above Back; stays till left (§694). [post-episode-grid]
 - **One episode, one category**: Nando's stored node, else the
   writer's `<<CATEGORY:>>`, via `app._episode_category` for tile, picture,
   ranking and tags; events name the heard episode; a written live story ranks under it;
@@ -178,8 +177,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift. [op-voice]
-- **Voice bank**: searchFAM alone picks; others draw one per episode;
-  a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
+- **Voice bank**: searchFAM alone picks (length too), never the player (§693); others draw
+  one each; a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
   for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing
@@ -233,9 +232,9 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   whole signal, each heading above `ANCESTOR_SHARE` per level; major-league
   teams seeded under their leagues, never one whose name is also an everyday
   phrase (`LEFT_TO_GROW`); `taste_tree` draws it. [taste-tree]
-- **Chosen interests never fade**: added after normalisation at
-  `INTEREST_WEIGHT` (2.0), never decayed or lowered by a skip; facets and
-  named subjects both count. [interests-constant]
+- **Chosen interests never fade**: `INTEREST_WEIGHT` 2.0, never
+  decayed or skip-lowered. [interests-constant]
+- **Anything chosen leads** §695; follow §696. [chosen-subjects] [follow-topics]
 - **"Not interested" only in a tile's ⋯** (§499, reversing §171 there):
   `not_interested` (-1.5) keeps that tile off every rail, Trending and the
   post-episode grid; no card button; `hide` stays retired. [no-not-interested]

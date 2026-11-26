@@ -394,8 +394,11 @@ struct PlayerView: View {
                 // "from knowledge" opens too: "No sources for this episode."
                 // (`openSources`: items or `known`).
                 SourcesStrip(sources: sources) { popup = .sources }
+                    // It arrives, never pops (a tester, 11.24).
+                    .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.15), value: now.sources?.items.count ?? -1)
         .padding(.horizontal, 20)
     }
 
@@ -596,8 +599,6 @@ struct PlayerView: View {
         case .vibe: EmptyView()
         case .share: ShareSheet()
         case .speed: ActionSheetList(items: speedItems)
-        case .length: ActionSheetList(items: lengthItems)
-        case .voice: ActionSheetList(items: voiceItems)
         case .addToMix: AddToMixSheet(query: now.episode?.key.query ?? "", title: now.title)
         case .problem:
             ProblemReportSheet()
@@ -628,48 +629,10 @@ struct PlayerView: View {
         }))
         return items
     }
-
-    /// `openVoiceMenu` from the Playback modal (a search only): "Voice for
-    /// your searches", the bank with a tick on the chosen one; a new voice
-    /// is the same episode voiced again (`AppModel.revoice`).
-    private var voiceItems: [ActionItem] {
-        var items = [ActionItem(label: "Voice for your searches", group: true)]
-        let page = model.voices
-        let selected = page?.selected ?? ""
-        for v in page?.voices ?? [] {
-            let label = v.label + (v.id == selected ? "  \u{2713}" : "")
-            let id = v.id
-            let name = v.label
-            items.append(ActionItem(label: label, action: { model.revoice(id, label: name) }))
-        }
-        return items
-    }
-
-    /// `openLengthMenu` (a search only): the search page's Length, ticked
-    /// and moved (`selectedLengthMinutes`); a change made on the player is
-    /// a new episode at that length (`regenerateAtNewLength`).
-    private var lengthItems: [ActionItem] {
-        guard let ep = now.episode else { return [] }
-        var items: [ActionItem] = []
-        let chosen = model.searchLength
-        for m in [1, 1.5, 2, 3, 4, 5.0] {
-            let label = "\(FAMAPI.minutes(m)) min" + (m == chosen ? "  \u{2713}" : "")
-            items.append(ActionItem(label: label, action: {
-                let changed = m != model.searchLength
-                model.searchLength = m
-                guard changed else { return }
-                now.say("Rebuilding at \(FAMAPI.minutes(m)) min")
-                var again = ep
-                again.key.minutes = m
-                model.play(again)
-            }))
-        }
-        return items
-    }
 }
 
 enum PlayerSheet: String, Identifiable {
-    case menu, queue, vibe, share, report, problem, addToMix, speed, length, voice
+    case menu, queue, vibe, share, report, problem, addToMix, speed
     var id: String { rawValue }
 }
 

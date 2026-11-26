@@ -683,3 +683,11 @@ and `limit` = Lines.
 | 41159 | 132 | 690. The 11.24 packet: an NBA tile that played baseball, dead story buttons, the back chevrons, the lock explained (2026-11-24) |
 | 41291 | 128 | 691. myFAM is Explore / Playlists, from the owner's mock (2026-11-24) |
 | 41419 | 104 | 692. iOS build 12: the audit of Main since build 11, Explore / Playlists on the iPhone, and Search friends on dailyFAM (2026-11-24) |
+| 41523 | 97 | 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24) |
+| 41620 | 119 | 694. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25) |
+| 41739 | 82 | 695. A chosen interest that reached the ranker as nothing: "Boston sports", and 94 of 208 others (2026-11-26) |
+| 41821 | 77 | 696. "What topics do you want to follow": the follow step rebuilt, and following from inside the app (2026-11-26) |
+| 41898 | 56 | 697. "My topics" is public, and for followers while its owner is private; the branch reviewed for Main (2026-11-26) |
+| 41954 | 99 | 698. The homepage: the waitlist page opens on the app in pictures (2026-11-26) |
+| 42053 | 25 | 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26) |
+| 42078 | 73 | 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26) |

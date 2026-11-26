@@ -411,7 +411,7 @@ final class FAMAPI: @unchecked Sendable {
                reading: String = "", askReading: Bool = false,
                voice: String = "", voicePicked: Bool = false,
                isPrivate: Bool = false, attach: String = "",
-               mix: String = "") -> URLRequest {
+               mix: String = "", heard: String = "") -> URLRequest {
         var items = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "minutes", value: Self.minutes(minutes)),
@@ -449,6 +449,9 @@ final class FAMAPI: @unchecked Sendable {
         // The myFAM mix this plays from (§656): a free listener hears half
         // of one, counted on the server.
         if !mix.isEmpty { items.append(URLQueryItem(name: "mix", value: mix)) }
+        // The episode a Go Deeper follows, by its id: the server reads what
+        // it said, so the follow-up goes past it instead of rewording it.
+        if !heard.isEmpty { items.append(URLQueryItem(name: "heard", value: heard)) }
         var audioRequest = request("GET", "api/v1/audio", query: items)
         // A cold voice may be silent longer than URLSession's 60 s: the
         // loading screen's own give-up (§497, `voice_wait` + 15 s) decides,
@@ -843,6 +846,10 @@ struct RailsPage: Decodable {
     /// rail 1 is then headed "Start here".
     let tasteSource: String?
     let friendFaces: [FriendFace]?
+    /// The followed teams' held games (§696, `topics.team_scores`), for
+    /// the "Your teams" strip above the rails. Absent from an older
+    /// server and from a guest's page: nothing is drawn.
+    let teams: [Tile]?
 }
 
 /// A face a card's "friends listened" pill points into (`friend_faces`).
@@ -1222,6 +1229,11 @@ struct Tile: Decodable, Identifiable, Hashable {
     let tags: [String]
     /// The drawing a card with no picture shows (`seedThumbSVG`).
     let icon: String
+    /// Why a Made-for-you card is here, when the answer is "you follow
+    /// it" (§696): the followed topic's name, drawn as "Because you follow
+    /// X" on a line of its own. "" on every other tile and from an older
+    /// server.
+    let why: String
 
     /// The card's one line under the title: the angle, else the subtitle
     /// (`seedHook` on the web).
@@ -1229,7 +1241,7 @@ struct Tile: Decodable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, subtitle, angle, query, thumb, thumbFacet, cached
-        case liveLine, liveStatus, liveAsOf, friendsListened, friendsFaces, tags, icon
+        case liveLine, liveStatus, liveAsOf, friendsListened, friendsFaces, tags, icon, why
     }
 
     /// Lenient: a tile from any rail decodes even if a field is missing,
@@ -1251,6 +1263,7 @@ struct Tile: Decodable, Identifiable, Hashable {
         friendsFaces = try c.decodeIfPresent([Int].self, forKey: .friendsFaces) ?? []
         tags = (try? c.decodeIfPresent([String].self, forKey: .tags)) ?? []
         icon = (try? c.decodeIfPresent(String.self, forKey: .icon)) ?? ""
+        why = (try? c.decodeIfPresent(String.self, forKey: .why)) ?? ""
     }
 
     /// The word on the picture (`seedTagText`): the picture's own facet,
@@ -1433,6 +1446,10 @@ struct NextThread: Decodable {
     let titleFinal: Bool?
     let sourcedAt: Double?
     let explicit: Bool?
+    /// Who or what the episode's brief said it is about, while its live
+    /// track lasts (§696): handed to `/api/follow/suggest`. Never stored,
+    /// so a replay has none.
+    let subject: String?
 }
 
 /// `/api/sources`.
@@ -2469,6 +2486,14 @@ struct CategoryEpisode: Decodable, Identifiable, Hashable {
     let hook: String?
     /// One of the Trending edition's stories (§691); they come first.
     let trending: Bool?
+    /// The heard-episode id (11.25 packet; `X-FAM-Episode`'s form, what a
+    /// history row replays with `?episode=`): the card plays exactly this
+    /// episode, so one the cache has since moved past still plays. Nil or
+    /// "" from an older server - the card then replays by its question.
+    let episode: String?
+    /// How long ago it was made (`made_age_seconds`): the card's "Today",
+    /// "Yesterday", then a date. Nil when the server does not say.
+    let madeAgeSeconds: Double?
 
     var id: String { query + "|" + String(minutes ?? 0) }
 }
@@ -3570,4 +3595,94 @@ struct VibeLikeAnswer: Decodable {
     let id: Int?
     let likes: Int?
     let liked: Bool?
+}
+
+// MARK: - Following topics (§696, `rule:follow-topics`)
+//
+// The follow step ("What topics do you want to follow?"), the Made for you
+// row drawn as topics are chosen, "Follow this?" after a search, and the
+// first mix. Every field is optional (`old-clients`): an older server
+// answers 404 and the screens say so or draw nothing.
+
+extension FAMAPI {
+    /// What the follow screen offers (`/api/follow/tree`): the general
+    /// topics, the subjects under each, and what is under those.
+    func followTree() async throws -> FollowTree {
+        try await get("api/v1/follow/tree", [], as: FollowTree.self)
+    }
+
+    /// The Made for you tiles these choices would lead with, before they
+    /// are saved (`/api/follow/preview`). Nothing is written or generated.
+    func followPreview(interests: [String], topics: [String]) async throws -> [Tile] {
+        let body: [String: Any] = ["interests": interests, "topics": topics]
+        return try await send("POST", "api/v1/follow/preview", body: body,
+                              as: FollowPreviewPage.self).topics ?? []
+    }
+
+    /// The one subject worth offering to follow after a search, or ""
+    /// (`/api/follow/suggest`). `subject` is `/api/next`'s, when it has one.
+    func followSuggest(query: String, subject: String) async throws -> String {
+        try await get("api/v1/follow/suggest", [
+            URLQueryItem(name: "q", value: String(query.prefix(300))),
+            URLQueryItem(name: "subject", value: String(subject.prefix(80))),
+        ], as: FollowSuggestion.self).topic ?? ""
+    }
+
+    /// Follow one more topic (`POST /api/follow`). `following` false means
+    /// the list is full and nothing was kept.
+    func followTopic(_ topic: String) async throws -> FollowTopicAnswer {
+        try await send("POST", "api/v1/follow", body: ["topic": topic], as: FollowTopicAnswer.self)
+    }
+
+    /// The chosen topics as a first mix, "My topics" (`/api/follow/mix`):
+    /// the server makes it once, and only for a listener with no mix.
+    /// Returns whether one was made.
+    @discardableResult
+    func followMix() async throws -> Bool {
+        try await send("POST", "api/v1/follow/mix", as: FollowMixAnswer.self).made ?? false
+    }
+}
+
+/// `/api/follow/tree` (`topics.follow_tree`).
+struct FollowTree: Decodable {
+    let worlds: [FollowWorld]?
+}
+
+/// One general topic: "Sports", "News & politics", ... in the server's order.
+struct FollowWorld: Decodable, Identifiable, Hashable {
+    let id: String
+    let label: String
+    let subtopics: [FollowSubject]?
+}
+
+/// A subject under a general topic, and everything beneath it.
+struct FollowSubject: Decodable, Hashable {
+    let label: String
+    let more: [FollowLeaf]?
+}
+
+/// Something under a subject: a league, a team. Its label is what is followed.
+struct FollowLeaf: Decodable, Hashable {
+    let label: String
+}
+
+/// `POST /api/follow/preview`.
+struct FollowPreviewPage: Decodable {
+    let topics: [Tile]?
+}
+
+/// `GET /api/follow/suggest`.
+struct FollowSuggestion: Decodable {
+    let topic: String?
+}
+
+/// `POST /api/follow`.
+struct FollowTopicAnswer: Decodable {
+    let topics: [String]?
+    let following: Bool?
+}
+
+/// `POST /api/follow/mix`: only whether one was made is read.
+struct FollowMixAnswer: Decodable {
+    let made: Bool?
 }

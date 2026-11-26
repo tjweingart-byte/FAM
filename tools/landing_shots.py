@@ -1,30 +1,36 @@
-"""Retake the pictures of the app on the waitlist page's "What is FAM" section.
+"""Retake the pictures of the app on the waitlist page's homepage.
 
-The landing page shows the real interface rather than a drawing of it
-(PROBLEMS.md §198). These are photographs of the preview build - the shipped
-`static/index.html` answered from its fixtures - at phone size, with the
-preview's own banner removed and a sample account signed in so the mixes
-screen has something on it. Three things are changed for the camera, at the
-owner's direction:
+The page shows the real interface rather than a drawing of it (PROBLEMS.md
+§198, §698). Four of the six screens are photographs of the preview build -
+the shipped `static/index.html` answered from its fixtures - at phone size,
+in the dark theme the app opens in, with the preview's own banner removed
+and a sample account signed in. These things are changed for the camera, at
+the owner's direction:
 
 * **Only tiles with a painted picture are shown.** The fixtures carry no
   paintings, so DailyFAM's tiles are dressed in real cards cut from screens
   of the app (`tools/landing/tiles/`, one file per card, named for the rail
-  it came from: `foryou-`, `trending-`, `friends-`). A tile left on its
-  placeholder drawing is taken off the screen, and a rail left with none
-  goes with it.
-* **Friends have made-up names** (`FAKE_NAMES`): the fixtures' sample
-  people are named after real people.
-* **The Morning mix has a cover**, `tools/landing/morning-cover.jpg`, set
-  through the same PATCH the app's cover editor sends.
+  it came from). `SKIP_TILES` leaves out the cards about a death, an
+  execution and a strike: not what a first visitor should meet.
+* **Explore's thumbnails and the profile's vibes are painted** from
+  `tools/landing/home/art/`, paintings cut from the owner's screenshots.
+* **The friends are four real people, shown with their photos and first
+  names** (`tools/landing/home/people/`; the owner, 11.26: "replace the
+  profiles shown through the app with people's that have images attached").
+  Until then the fixtures' people were given names nobody has (§198).
+  The account whose profile is shown is Brady's.
+* **The Morning mix has a cover**, `tools/landing/morning-cover.jpg`.
 
 Retake them whenever a screen they show changes:
 
     python preview/build_preview.py
     python tools/landing_shots.py
 
-Writes `static/landing/*.jpg`, the files `static/waitlist.html` names. Each
-shot names the theme it is taken in: some light, some dark (§250).
+Writes `static/landing/home/{dailyfam,search,messages,profile}.jpg`. The
+rest of that folder is cut from the owner's own screenshots and is not
+retaken here: `explore.jpg` and `mixes.jpg` (the two myFAM tabs, the status
+bar painted out), the three episode cards, the mix covers and the `art-`
+paintings. `static/landing/player.jpg` is `STILLS`, as before.
 """
 from __future__ import annotations
 
@@ -36,43 +42,35 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE = ROOT / "preview" / "fam-artifact.html"
-OUT = ROOT / "static" / "landing"
-CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+OUT = ROOT / "static" / "landing" / "home"
+STILL_OUT = ROOT / "static" / "landing"
+CHROME = "/opt/pw-browsers/chromium"
 COVER = ROOT / "tools" / "landing" / "morning-cover.jpg"
 TILES = ROOT / "tools" / "landing" / "tiles"
+PEOPLE = ROOT / "tools" / "landing" / "home" / "people"
+ART = ROOT / "tools" / "landing" / "home" / "art"
+#: Cards the homepage does not open on (see the docstring).
+SKIP_TILES = {"foryou-2", "trending-1", "trending-3"}
 
-#: The fixtures' sample people -> names nobody has. Whole words only; the
-#: initials are whole text nodes (the avatar letters).
+#: The fixtures' sample people -> the people the page shows (first names
+#: only; whole words; the initials are whole text nodes, the avatar letters).
 FAKE_NAMES = {
-    "Beth Solomon": "Maya Brooks", "Rachel Solomon": "Jordan Reyes",
-    "Mike Solomon": "Sam Patel", "Nadia Okoro": "Ava Kim",
-    "Beth": "Maya", "Rachel": "Jordan", "Mike": "Sam", "Nadia": "Ava",
-    "@beth": "@maya", "@rachels": "@jordan", "@rachel": "@jordan",
-    "@mike": "@sam", "@nadia": "@ava",
-    # Some labels are written in capitals ("BETH'S SHELF").
-    "BETH": "MAYA", "RACHEL": "JORDAN", "MIKE": "SAM", "NADIA": "AVA",
+    "Beth Solomon": "Beth", "Rachel Solomon": "Elizabeth", "Mike Solomon": "Ian",
+    "Rachel": "Elizabeth", "Mike": "Ian", "RACHEL": "ELIZABETH", "MIKE": "IAN",
+    "Nadia Okoro": "Ava Kim", "Nadia": "Ava",
+    "@rachels": "@elizabeth", "@rachel": "@elizabeth", "@mike": "@ian", "@nadia": "@ava",
 }
-FAKE_INITIALS = {"BS": "MB", "RS": "JR", "MS": "SP", "NO": "AK"}
+FAKE_INITIALS = {"RS": "E", "MS": "I", "NO": "AK"}
 
 #: file name -> the script that puts the interface on that screen, and the
-#: theme it is shown in. Some light and some dark, at the owner's direction
-#: (§250): the page shows both looks the app has. In order: the mix detail
-#: opens from the mixes screen.
+#: theme it is shown in: all dark, the look the app opens in, beside the
+#: owner's own dark screenshots (§698; §250's some-light-some-dark went with
+#: the section it was for).
 SHOTS = [
+    ("dailyfam", "openMyFamTab()", "dark"),
     ("search", "setTab('home')", "dark"),
-    ("dailyfam", "openMyFamTab()", "light"),
-    # The features carousel, back under the video (10.15 packet, §282): each
-    # slide is two phones, so DailyFAM and myFAM each have a second screen.
-    ("dailyfam-rails", "openMyFamTab(); setTimeout(function(){"
-                       " var sc = document.querySelector('#screen-myfam .scroll');"
-                       " if(sc) sc.scrollTop = 520; }, 600)", "light"),
-    # The fixtures hold no categories, so the section under the mixes is
-    # left off the picture rather than shown failing to load.
-    ("myfam-mixes", "openPlayFAM('mixes'); setTimeout(function(){"
-                    " var c = document.getElementById('catSection');"
-                    " if(c) c.style.display = 'none'; }, 600)", "light"),
-    ("myfam-mix", "openPlayFAM('mixes'); setTimeout(function(){"
-                  " document.querySelectorAll('#mixList .pl-card')[0].click(); }, 600)", "light"),
+    ("messages", "openMessages()", "dark"),
+    ("profile", "openProfile()", "dark"),
 ]
 
 #: name -> cut from a screenshot of the app, not photographed: the preview
@@ -129,6 +127,45 @@ document.querySelectorAll('.feed-rail, .sec-grid').forEach(function(r){
 });
 """
 
+#: Explore's thumbnails, the profile's vibes, the friends' faces and the
+#: name on the profile. `{art, people}` are data URIs by file stem.
+DRESS = """(d) => {
+  var art = d.art, ppl = d.people;
+  var byCat = {sport:'stadium', business:'office', money:'trading', technology:'lab', health:'plates', culture:'carpet', science:'harbour', world:'street'};
+  document.querySelectorAll('.xp-card').forEach(function(c, i){
+    var img = c.querySelector('.xp-thumb img'); if(!img) return;
+    var cat = (c.innerText || '').toLowerCase(), pick = null;
+    Object.keys(byCat).forEach(function(k){ if(!pick && cat.indexOf(k) === 0) pick = byCat[k]; });
+    img.src = art[pick || ['tennis','hall','newsroom','podium'][i % 4]];
+    img.style.objectFit = 'cover'; img.style.width = '100%'; img.style.height = '100%';
+  });
+  var grid = ['harbour','plates','lab','office','street','tennis','carpet'];
+  document.querySelectorAll('#screen-profile .yf-pic').forEach(function(b, i){
+    b.style.backgroundImage = 'linear-gradient(to top, rgba(20,17,27,.82), rgba(20,17,27,0) 62%), url(' + art[grid[i % grid.length]] + ')';
+    b.style.backgroundSize = 'cover'; b.style.backgroundPosition = 'center';
+  });
+  function face(av, who){
+    if(!av) return;
+    av.innerHTML = '<img alt="" src="' + ppl[who] + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block">';
+    av.style.padding = '0'; av.style.overflow = 'hidden';
+  }
+  document.querySelectorAll('.yf-friend').forEach(function(f){
+    var l = f.getAttribute('aria-label') || '';
+    var who = /Your story/.test(l) ? 'brady' : /Beth/.test(l) ? 'beth' : /Rachel/.test(l) ? 'elizabeth' : /Mike/.test(l) ? 'ian' : null;
+    if(who) face(f.querySelector('.av'), who);
+  });
+  face(document.querySelector('.thread-row[data-thread="u_beth"] .av'), 'beth');
+  face(document.querySelector('.thread-row[data-thread="u_mike"] .av'), 'ian');
+  face(document.querySelector('#screen-profile .yf-photo .av'), 'brady');
+  var swap = {'Set up your profile':'Brady', 'Set up profile':'Edit profile'};
+  var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+  while((n = walk.nextNode())){
+    var t = n.nodeValue.trim();
+    if(swap[t]) n.nodeValue = n.nodeValue.replace(t, swap[t]);
+    else if(/no handle yet/.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace('no handle yet', '@brady');
+  }
+}"""
+
 RENAME = r"""(names) => {
   // Longest first, so "Beth Solomon" is taken before "Beth". The names are
   // letters, spaces and "@", so none needs escaping.
@@ -179,7 +216,12 @@ async def capture() -> int:
           })""", cover)
         names = {"whole": FAKE_NAMES, "initials": FAKE_INITIALS}
         cards: dict[str, list[str]] = {}
-        for path in sorted(TILES.glob("*.jpg"), key=lambda p: (p.stem.split("-")[0],
+        def uris(folder):
+            return {p.stem: "data:image/jpeg;base64," + base64.b64encode(p.read_bytes()).decode()
+                    for p in sorted(folder.glob("*.jpg"))}
+        dress = {"art": uris(ART), "people": uris(PEOPLE)}
+        kept = [p for p in TILES.glob("*.jpg") if p.stem not in SKIP_TILES]
+        for path in sorted(kept, key=lambda p: (p.stem.split("-")[0],
                                                                 int(p.stem.split("-")[1]))):
             cards.setdefault(path.stem.split("-")[0], []).append(
                 "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode())
@@ -195,6 +237,7 @@ async def capture() -> int:
             await page.evaluate(TIDY)
             await page.evaluate(PAINT_TILES, cards)
             await page.evaluate(DESIGNED_TILES_ONLY)
+            await page.evaluate(DRESS, dress)
             await page.evaluate(RENAME, names)
             await page.wait_for_timeout(200)
             target = await page.query_selector(".phone") or await page.query_selector("body")
@@ -206,7 +249,7 @@ async def capture() -> int:
     for name, _why in STILLS:
         still = Image.open(ROOT / "tools" / "landing" / "stills" / f"{name}.jpg").convert("RGB")
         still = still.resize((780, round(780 * still.height / still.width)))
-        still.save(OUT / f"{name}.jpg", quality=82, optimize=True, progressive=True)
+        still.save(STILL_OUT / f"{name}.jpg", quality=82, optimize=True, progressive=True)
         print(f"  {name:15} from its still")
     if errors:
         print("errors:", errors)

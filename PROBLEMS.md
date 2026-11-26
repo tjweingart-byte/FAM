@@ -41519,3 +41519,631 @@ layout of the new cards and rows at real sizes and at large text, the
 playlist page following a playing playlist, the hearts, and the mini
 player's two new buttons all want a device. Left for later (PARITY.md):
 Explore's cards rising in, the chips' slide, a guest's example playlist.
+
+## 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24)
+
+**Reported** (TestFlight feedback from Tommy, sent on by Ian; the owner:
+"Some bugs to work on. Think of solutions and implement them"):
+
+1. "On the go deeper - it's suggesting the episode that I just watched in
+   an endless cycle."
+2. "The sources pop up midway through the episode which is kind of clunky."
+3. "The go deeper is also not going deeper. Just kind of rephrasing what it
+   said in the previous episode."
+4. "When you want to switch voices mid fam it just recreates the whole
+   episode and trashes what you were just listening to." The owner: "You
+   shouldn't even have the option to switch voices mid episode."
+5. "Most recent episode I listened to also ended in the middle of a
+   sentence."
+
+**1 and 3 are one cause.** A follow-up was told only the *title* of the
+episode it follows (`plan.context`, 300 characters): the brief searched for
+"what is new relative to" a title, the writer was told to "treat that as
+known" without knowing what that was, and it wrote the same ground again.
+Its `<<NEXT:>>` line then often named the parent, and when it wrote none the
+clients build "What's the bigger story behind {title}?" - a request for the
+episode just heard. Either way the next tap wrote it a third time.
+
+- `EpisodePlan.heard`: the parent's script. `app._heard_before` reads it
+  from the cache - by the id the player was given (`heard=`, a new optional
+  parameter the web and the iPhone now send), else from the listener's own
+  history by title, which is what an installed build gets with no update.
+  Never writes, never calls a model, "" on any failure. Never in the cache
+  key, as `covered` is not: `context` already names the parent.
+- The writer is shown it (`<already_said>`) and told the episode is made of
+  what is not in it, and to stop early if the evidence holds nothing more.
+  The brief is shown it too, so the search is aimed past it.
+- `script_generator.circles_back`: a `<<NEXT:>>` line whose subject words
+  are (nearly) all in the request or the parent's title is dropped in code,
+  and a follow-up's writer is told the line "leads somewhere neither
+  briefing has been".
+
+**2.** The server has published who an episode read before its first
+sentence since §288 (`_publish_sources`), but the web first asked six
+seconds after the first word and the iPhone the same, then at 20 s, then
+every 8 s. So the strip appeared beside the title mid-episode and the title
+re-wrapped. Both now ask at the first word (then 2 s, 6 s, 20 s, every 8 s),
+and the strip fades in (150 ms, opacity only).
+
+**4.** The Voice row is gone from the player's Playback modal on the web and
+the iPhone; `voiceItem` no longer calls `generate` on the playing episode,
+and `AppModel.revoice` is deleted. A voice is picked on the search page or
+in Settings. Length is still on the player for a search and still rebuilds
+the episode ("Rebuilding at N min") - the owner spoke only of the voice;
+say the word and it goes the same way.
+
+**5. One cause found and fixed; not proven to be his.** The sentence
+splitter cut at "the U.S. | Supreme Court", "7 p.m. | Eastern", "Apple Inc.
+| said", "i.e. | a lot" (§288 had covered only a lower-case word after
+initials). A length cut is at a "sentence" boundary ([duration-ceiling]),
+so an episode could stop on "The U.S." - and every such cut also put a
+sentence gap inside a sentence. Now: a terminator before a lower-case word
+never ends a sentence; initials and a.m./p.m. before a capital end one only
+when the word is one sentences open on (`_OPENERS`); a stream waits for the
+word that decides. Wrongly joining two sentences costs nothing (they are
+voiced together). And an episode stopped at its length with script unsaid
+is now a notice on /admin's errors (`pipeline._note_cut_at_length`: the last
+sentence said and the first not said), because nothing counted how often
+that happens and it is the other way an episode ends before its own ending.
+
+Tests: `tests/test_tester_feedback_693.py` (14).
+
+**Not verified.** No paid run was made, so whether follow-ups now read as
+deeper is unheard: one Go Deeper pair through `writing.yml` would say. The
+`circles_back` thresholds (80% of the line's words, or 60% overlap) are
+chosen on six hand-made lines, not on logged threads. The c3p0 search half
+(`contextualizer.search_half`) is not shown `heard`. The Swift was not
+compiled here (no Xcode on this machine); the iPhone changes reach testers
+only in a new build, though the server half of 1, 3 and 5 reaches build 12
+as it is. Which ending Tommy heard is unknown: his Report a problem
+playback log (§653) would say whether the stream broke or the script was
+cut.
+
+**The full check (§693).** 8,195 passed, 1 failed:
+`tests/test_push_562.py::test_the_prefs_endpoints` (`KeyError: 'prefs'`
+after a sign-up), which passes alone and touches nothing changed here - an
+order-dependent failure, not looked into further. That failure stopped
+`dev.sh check` before its browser runs, so they were run by hand: landing,
+Opus, activation and reconnect passed; both preview smokes failed one
+check, "Search picks its voice from the bank", which still expected the
+lock's old aria-label ("Private search") where §690 put the word "Private"
+on it. The expectation is corrected; both then end `all checks passed`.
+
+**Length too (the owner, 11.25: "take length off the player too").** The
+Playback modal is Speed alone on the web and the iPhone. Gone:
+`#lengthModalVal`, `regenerateAtNewLength` ("Rebuilding at N min"), the
+length menu's rebuild when opened from the player, the iPhone's
+`lengthItems` and `PlayerSheet.length`. The search page's Length bubble is
+unchanged, and the pill on the player still shows the episode's length.
+Three checks that read the removed row now assert it is gone
+(`test_search_length_and_mix_gate`, `test_packet_1001`, the preview smoke).
+## 694. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25)
+
+**The owner's ten notes** (a PDF of annotated screenshots from the iPhone
+app), and what each turned out to be in this repo's terms.
+
+**1. "It's OK that auto play was removed, but I still want that screen to
+display after the episode ... it should only go away if the user taps out
+of it."** §686 removed the countdown, not the card. The card stopped
+appearing for a different reason: since §499 a tap on an Explore card played
+that story *and queued the rest of the page behind it*, and a queued episode
+starts in place of What's next (§190). With Explore the first tab (§691),
+nearly every play ended into the next card's episode. Now a card plays that
+story alone (`playCategoryEpisode`, the iPhone's `AppModel.playExplore`);
+Play all still queues. The card is also shown with one tile (it needed two),
+closes on a tap outside it, and the new-follower popup waits for it instead
+of closing it. Still not over an open Go Deeper, off the full player, or
+while a playlist or the listener's own queue plays.
+
+**2. "Populate the Explorer page with better, more relevant ... Sports
+should be all the top stories in the major sports leagues as well as a
+mixture of interesting stories from the past."** Explore was today's cache
+sorted by plays, so a category's page was whichever league had been played
+most. For `sort=trending` (what Explore asks, the installed iPhone build
+included): the shelf is today's episodes plus those of the previous
+`EXPLORE_PAST_DAYS` (6) that are still *current* - the cache's own word for
+"a new request would still be served this" (`[ttl-from-evidence]`), so a
+settled story stays and Monday's score does not; and `_explore_order` deals
+the page in turn from its strands - `EXPLORE_LEADING` first (NFL, NBA, MLB,
+NHL, college football and basketball, the Premier League, ...), then the
+page's other categories, the busiest first - `EXPLORE_FRESH_RUN` (3) of
+today's, then one from before. The Trending edition still leads. Nothing is
+written, asked of a model, or fetched: this orders and widens what is
+already kept. `popular`, `az`, `recent` and the "today" counts are unchanged.
+
+**3. "Don't display episodes that aren't cached"** ("That episode is no
+longer in the cache"). The rows were all cached; the tap could not find
+them. A card replayed by its words and length, and a Go Deeper's episode is
+kept under a key that also carries the episode it follows - the screenshot's
+card is one: "What's the bigger story behind Why the NBA's Western
+Conference Looks Stronger?". Two fixes: a follow-up is never a card
+(`_is_follow_up`, read off the bucket stored with the row; `recent` now
+returns `bucket`), and every row carries `episode` (`cache.episode_id`), by
+which the web and the iPhone replay it as the history does (§173) - so a
+row plays whatever key it was written under.
+
+**5, 6, 7.** The card says the day it was made (the catalogue's
+`episodeDayLabel`); its play is a round play button with no FAM wordmark;
+the chip row is All and the main categories, the same row always.
+
+**8, 10.** A playlist's header lost "MORNING · NOV 25 · 7 STORIES"; an empty
+playlist's Add topics is under its picture and name.
+
+**9 (messages, iPhone only).** The sent words stayed in the box and the box
+stayed tall after deleting them: SwiftUI's vertical `TextField` not
+following its binding. `ChatModel.clearSent` clears again on the next turn
+and 0.15 s later when the box still holds what was sent; the box's height
+comes from a hidden mirror `Text`. The web's box already cleared.
+
+**Decisions taken without asking, each reversible.** (1) One card plays one
+story; the alternative (keep queueing, show What's next when the queue runs
+out) would not put the screen after *the* episode. (2) More, and chips for
+followed sub-categories, left the row with the sub-categories, as "only the
+main categories" says; Follow on a main category still stars it. The web's
+category-find code is unreachable and left in place. (3) The older episodes
+on Explore are only the still-current ones.
+
+**Not done, and why.**
+- *"It sometimes mixes information"* (Stanford's game told as Cal's; the
+  Lakers trading for Kobe told as Shaq) and *"Golf's biggest story this
+  week" that was a history of golf*: writing faults. Nothing in the repo
+  templates that golf title, so it was typed or written by the model.
+  Diagnosing needs the episodes' briefs and scripts (`[brief-above-script]`),
+  which means a paid run through the Writing run workflow on the owner's
+  yes (`[no-api-key]`); nothing was changed blind.
+- *Writing more for Explore.* Explore still shows only what is kept. "Stories
+  from the past" appear when somebody has played or searched one, or an
+  edition wrote it; writing evergreen stories ahead per category would be
+  new spend and was not built.
+
+**Held against the rules.** `[your-categories]`, `[post-episode-grid]`,
+`[mix-made-by-naming]` amended (Current notes). `[old-clients]`: `episode`
+and `bucket` are new fields; build 12 asks `sort=trending` and gets the new
+shelf and order, and its replay by words finds every row but one written
+under an earlier `MODEL` (which the id now covers on new clients).
+`[player-no-autogen]`: unchanged - every tile waits for a tap.
+`[no-dead-controls]`: no chip or button was left without something behind it.
+
+**The branch reviewed before its PR** (two second readers, one given the
+server and web diff, one the Swift). The Swift: nothing found that would not
+compile, no call site left behind. Fixed from the other: (1) `_is_follow_up`
+compared a row's bucket with a cold question's under *today's* `MODEL`, pace
+and embedding space, so a change of any of them would have taken every
+earlier row off Explore, the other sorts and the "today" counts for a week;
+`_cold_buckets` now also counts as cold any bucket `COLD_BUCKET_ROWS` (5)
+kept rows share, which rows from one era do and a Go Deeper's never does.
+(2) A card's `episode` id goes stale when its key is written again; the tap
+answered 409 until the page was reloaded. It now falls back to the question
+once, still replay only (`askIfGone`, as a shared episode does). (3) What's
+next with its one tile no longer comes up offline, where that tile is a Go
+Deeper that cannot run. (4) A follower popup waiting for What's next waits
+once per person, not once per re-read of the friends list.
+Left as it is, knowingly: with no bucket kept (`CACHE_VECTOR=0`, the memory
+cache) a follow-up is still a card - it plays, by its id; fewer than five
+rows from before a settings change stay hidden until they age out; the
+filing now reads up to `CATEGORY_SCAN` rows per 30-second memo rather than
+today's only (not measured on Postgres); an installed build 12 gets the
+older rows without a day label; on the iPhone a message retyped identically
+within 0.15 s of sending it is cleared, and the composer's height wants a
+device.
+
+**Verified:** `tests/test_packet_1125.py` (server order, shelf, follow-ups,
+the id; the web source), `tests/test_packet_1125_ios.py` (the Swift, read);
+the browser smoke checks walk the chip row, the card and an empty playlist;
+screenshots of Explore, a category and a playlist from the fixture preview.
+**Not verified:** nothing was compiled or run on a phone (no Xcode here;
+`ios.yml` compiles) - above all the composer fix, which is a best reading of
+a UIKit behaviour; the new order against a real deployment's cache; What's
+next after an Explore play end to end with real audio.
+
+## 695. A chosen interest that reached the ranker as nothing: "Boston sports", and 94 of 208 others (2026-11-26)
+
+**The report** (the owner, relaying a first-week listener): the interest
+step "was just random and poorly laid out", and "the recommended episodes
+have nothing to do with the topics of interest that he put in ... He's a
+diehard Boston sports fan and hasn't gotten a single Boston sports episode
+recommended for him." The owner: Made for you "should feel very personalized
+as soon as someone opens the app", then "investigate how this bug works with
+all topics, not just boston sports", and "the list of topics should also be
+pretty expansive, and people should be able to type in any topic".
+
+**What was happening.** The interests page has stored anything typed since
+§142, and `taste` resolves it on the way out through `tags_for_text` - a
+keyword map and the category tree. Reproduced with the seed applied, an
+account, and a pool holding a Celtics, a Bruins, a Red Sox and a Patriots
+game:
+
+| chosen | what `taste` held | the rail |
+|---|---|---|
+| "Boston sports" (typed) | nothing | the four "Start here" questions, headed as such |
+| "Sports" (listed) | `sports` | one generic sports question; no game (a heading alone never admits a live story, §155) |
+| Celtics, Red Sox, Bruins | three teams | two games - the variety cap dropped the third |
+| "New England Patriots" | nothing | Start here (`LEFT_TO_GROW`) |
+
+**Every topic, measured.** Of the 73 listed interests, 19 resolve to a bare
+heading (Formula 1 and Motorcycles are `sports`, Cars is `tech`, Crime and
+Politics are `world`, Beauty and Design are `culture`). Of 208 typed
+interests a listener plausibly enters, 94 resolve to **nothing** (Taylor
+Swift, Tesla, Nvidia, Bitcoin, Arsenal, Donald Trump, China, running, dogs,
+Netflix, Patriots, Celtics) and 5 to a bare heading; "Kansas City Chiefs"
+is filed under `cities`. An interest that is nothing leaves `taste` empty,
+and an empty `taste` is the cold start - the listener who typed five things
+was treated exactly as one who skipped the step. The list is the
+scratchpad audit's, not a sample of what listeners typed: no deployment's
+stored topics were read.
+
+**Fixed** (`rule:chosen-subjects`, all in `topics.py` but two helpers):
+
+1. `category_seed.teams_of`: a city with "sports", "teams" or "fans" is its
+   major-league teams, through `HOME_OF` (the six teams seeded by nickname)
+   and `METRO` (Boston's football team is New England's). A team
+   `LEFT_TO_GROW` keeps out of the tree stays out of it and is followed by
+   its full name only.
+2. `followed_names` / `FamiliarWords.names`: a tile that says a chosen
+   subject as whole words in order is on subject in any field, and is
+   scored `FOLLOWED_NAME_AFFINITY` on top of its tags.
+3. `interest_topics`: one composed tile per chosen subject ("Boston
+   Celtics: What's New This Week"), built the way `local_startup_topic`
+   is. `lead_with_interests` leads the rail with real stories naming a
+   chosen subject, then composed tiles: the whole rail before a first
+   play, two after; View more leads with all of them.
+4. The variety cap never drops a chosen subject's tile; it still counts
+   them, so nothing unchosen rides in behind.
+5. `app._served_tile_query` knows a listener's own composed tile, so on a
+   metered tier it is a tile and not their weekly search.
+
+After: "Boston sports" with the four games on shows the four games; with
+none on, the four teams' own tiles; "Taylor Swift" leads with a story
+naming her when the pool holds one and her own tile when it does not.
+
+**The interest step itself** is not changed here. Ten designs for it, with
+the current screen beside them, are a slide deck for the owner to choose
+from; every one assumes a list far larger than 73 (the tree's subjects and
+every team) and typing anything.
+
+**For the owner to decide.** (1) Seeding the 31 `LEFT_TO_GROW` teams as
+full-name-only nodes now that nodes match as in-order phrases - today
+"Patriots" alone still follows nothing. (2) A composed tile is free on the
+free tier like any tile, so changing interests is a way to free episodes
+once quotas are on. (3) Writing the composed tiles ahead at the edition,
+most-chosen first, so the first tap is instant.
+
+**Verified:** `tests/test_chosen_subjects_695.py` (20), and the eleven
+Made-for-you, taste, startup and preferences test files; the table above
+is the simulation's output before and after. **Not verified:** nothing was
+run against a real pool - whether a Boston final from last night is still
+held when the fan opens the app the next morning depends on the sports
+sweep's demand rule and was not measured; no episode was written from a
+composed tile's question (no key here), so how "what is the latest news on
+X this week" reads as an episode is unheard; `learned_rank` with a trained
+model was not exercised with followed names.
+
+## 696. "What topics do you want to follow": the follow step rebuilt, and following from inside the app (2026-11-26)
+
+**The owner, choosing from §695's ten designs:** "We like the flow of number
+3 and the instant creation of the made for you sections shown in number 7.
+For the flow, once you select general topics the second screen should act as
+a dropdown that displays larger subtopics (i.e. for sports it goes into
+'american football, baseball, rugby, etc.') that people can click on then
+teams drop down that they can type into or select. Also we want to reword
+this to be like 'what topics do you want to follow' rather than it seeming
+like people entering what their interests are. Also, I like the idea of the
+taylor swift example once people are in the app where they can more easily
+add topics to what they want to follow without having to go to their profile
+page." And of the six further ideas: "These are also all great ideas and we
+want to implement all of them."
+
+**Built** (`rule:follow-topics`):
+
+1. **The step.** Two pages on `screen-intro`. Page one is the eight
+   headings (`topics.FOLLOW_WORLDS`: Sports, News & politics, Technology,
+   Money & markets, Culture & entertainment, Business, Health & mind,
+   Science). Page two is a section per chosen heading; its chips are the
+   category tree's subjects under it, largest first; a subject's first tap
+   follows it and opens a drawer of everything beneath - its own subjects,
+   then what is under those, each level A to Z - with a box that narrows
+   them or follows what is typed. The search box finds across the whole
+   tree and follows anything typed. 677 seeded nodes and the 31 teams the
+   tree leaves out are on offer where the list held 73.
+2. **The row, as it is chosen.** `/api/follow/preview` returns
+   `topics.interest_topics` for what is ticked, drawn in the dock above the
+   button on every change. They are the tiles §695 leads the rail with.
+3. **The wording.** "What topics do you want to follow?", "Get specific",
+   "Following N topics", Settings' "Topics you follow". A profile's line is
+   still labelled Interests - not asked for, and other people read it.
+4. **Follow this?** `/api/follow/suggest` after a search; the card is the
+   first thing on DailyFAM until answered. The subject is a team or the
+   deepest tree subject the words name; for a name the tree has never
+   heard of (the owner's own example, Taylor Swift) it is the brief's
+   `Brief.subject`, which now rides the live track to `/api/next`. A replay
+   of a kept episode has no brief, so there only the tree can name one.
+5. **Why on the card.** `why` on a Made-for-you tile that is there for a
+   followed topic; drawn as its own line, the hook untouched.
+6. **Your teams.** `topics.team_scores`: every held sports story naming a
+   followed major-league team, as `/api/myfam`'s `teams`, drawn above the
+   rails with its score line.
+7. **A first mix.** `/api/follow/mix`, called once the step's choices are
+   saved: "My topics", private, each topic titled by its own name (no
+   naming call), written ahead as a saved mix is.
+8. **The reminder.** `push.message_for(followed=)`.
+
+**Superseded:** the A to Z list (§142) and its ordering (§170, 28/09); the
+smoke checks that pinned them are rewritten for the tree. `renderIntroFacets`
+is gone: a facet chosen on the old wheel is a ticked heading now.
+
+**Not done, and why.** "Write interest tiles ahead" as its own job was the
+one idea not pictured in the owner's message and the one that spends model
+budget on a schedule; the first mix already writes each listener's chosen
+subjects ahead inside the existing ahead budget, so it waits for a yes and a
+cap. The iOS step is not built (no compiler here; `PARITY.md` has the row).
+
+**For the owner.** (1) The first mix is private; say if it should be public
+like every other new mix. (2) A free listener gets it although "no own
+mixes" is the free tier's rule - tiers are off today. (3) The score strip
+shows only games the live pool is holding; a team with no game held shows
+nothing, and whether last night's final is still held the next morning is
+still unmeasured (§695).
+
+**Verified:** `tests/test_follow_696.py` (20), `tests/test_chosen_subjects_695.py`,
+the 35 test files naming what changed, and the browser smoke run on the
+fixture build, including a new check for the card, the reason and the strip;
+screenshots of both pages, a drawer narrowed by typing, the search and the
+preview row. **Not verified:** nothing ran against a live deployment or a
+real search - above all that `Brief.subject` arrives in time and reads as a
+name ("the US Federal Reserve" is trimmed to its tree subject; an odd one
+would be offered as written, scrubbed, if four words or fewer); the first
+mix's morning edition; a push actually sent; the screen at the phone's
+largest text sizes, and on a real phone at all.
+
+## 697. "My topics" is public, and for followers while its owner is private; the branch reviewed for Main (2026-11-26)
+
+**The owner:** "make my topics public (but only visible to someone who
+follows if someone is on private mode in settings), then double check all
+changes made in this branch and get it ready to merge into main."
+
+**The mix.** §696 made it private and asked. It is public now, as every new
+mix is, and carries `mixes.FROM_FOLLOWS` in `source_id` (the column a copy
+keeps its source in; never a mix id). `app._mix_shown_to` is the one gate:
+that mix, of an owner in private mode, is shown to the owner and to the
+people who follow them and to nobody else - on `/api/person`, in
+`/api/mixes/public` and by id, as a copy, a story card, and when a play is
+counted as a browse episode. It answers as a mix that does not exist, and
+fails closed when the store cannot say who is private. It is that one mix
+only: `rule:private-mode` says a private listener's public mixes stay, and
+nothing else of theirs changes. A mix renamed by its owner keeps the mark;
+one they make themselves never has it.
+
+**Found reviewing the branch, and fixed.** The new mix's titles are what
+the listener typed and are now public, so they are scrubbed
+(`content_filter.scrub`); a suspended account's is made private rather than
+published. `category_seed.all_teams()` was rebuilt for every chosen
+interest on every page load; it is built once.
+
+An independent read of the whole diff found ten more things; nine are
+fixed. (1) **The variety cap had a hole**: `diversify(keep=)` waved through
+every tile that said a followed name, so five stories naming one followed
+person were the whole rail. Only the tiles `lead_with_interests` actually
+led (at most `MAX_PER_FACET` a name) and composed tiles are kept now. (2)
+`followed_name` re-split every name for every tile several times a page -
+177 ms for a listener following 135 things over 300 stories; names are
+split once (`FamiliarWords.name_words`), the answer is kept per tile for
+the page, `chosen_subjects` is memoised by (interests, tree), and the pool
+is read once for the rail and the strip. (3) **"Follow this?" was kept on
+the device without whose it was**, so the next account to sign in saw the
+last one's search; it is stored with the listener's id, as the remembered
+feed is, and cleared on sign-out. (4) The 49ers were "san francisco
+niners" to `all_teams` and so matched no fixture (`FULL_NAME`). (5) "new
+teams" followed eleven teams and "the" was a followed name said by nearly
+every tile: a city must be one a team is named for (`cities()`), and a
+subject made only of stop words is not one. (6) `/api/follow/preview`
+answered 500 to an unknown heading; 400 now. (7) A subject unfollowed from
+the tray left its drawer "open", so the next tap did nothing visible. (8)
+The card said "Following X" when the list was full and nothing was kept.
+(9) `/admin` counted "My topics" as a copied mix. **Not changed** (10): a
+composed tile for anything typed is free on the free tier - §695's open
+question for the owner, with tiers off.
+
+**Verified:** `tests/test_follow_696.py` (the mix seen and not seen by a
+stranger, a follower and the owner, in the list and by id; another public
+mix of the same owner untouched; the closed failure). **Not verified:**
+the gate was not exercised through the share landing page in a browser;
+existing public mixes are unaffected by construction (no mark), which was
+read and not run against a deployment's data.
+
+
+## 698. The homepage: the waitlist page opens on the app in pictures (2026-11-26)
+
+**The owner:** "I want to greatly improve our website, right now we haven't
+built out an official website and it looks terrible when you go to
+familiarize.net." Then, over a day of rounds on a design canvas: "a website
+with a similar enough product to ours is pinterest ... use less colors so
+the product is clearly highlighted"; one design chosen; the six screens "in
+the order of dailyFAM, myFAM explore, myFAM mixes, searchFAM, messages,
+yourFAM" with "where each screen is located on the app (on the bottom)";
+callouts "changing every 2.5 seconds with a smooth animation ... a bubble
+around the words and an arrow pointing to where it is on the screen"; "the
+problem and solution statements are wordy and don't pop enough"; on a phone
+the three "rotate every 3 seconds from right to left"; and, asked where it
+goes and about the photographs: "Go with 1, keep the photos" - 1 being to
+replace the top of the existing waitlist page and keep its sign-up.
+
+**What a visitor gets.** `/waitlist` (`static/waitlist.html`) now opens on a
+light homepage: a header with **Join the waitlist** and **Sign in**; the
+headline beside a collage of the player and three episode cards; **Take a
+look around**, six tabs (DailyFAM, Explore, Mixes, searchFAM, Messages,
+Profile) each showing a real screen, with a gold outline on the bottom-bar
+tab it lives under and a line saying so; **Tap any card and it plays**, the
+player; the mixes; and three dark cards, each a problem in a line with its
+answer under it. Under those the page is what it was: the video (§284), the
+founders (§282), the last call, and the sign-up - which moved from the top
+of the page to its foot, unchanged, with its samples, ambassador code, sign
+in and reset. The header's and the headline's buttons scroll to it, one of
+them opening its sign-in (`homeDoors`). The status page's "Learn more about
+FAM" shows the same sections (they are inside `#about`).
+
+**The callouts** (`homeStage`). A callout is a name, a line and a point on
+the picture. On a wide page they stand either side of the phone and the lit
+one grows a bubble and an arrow; the arrow is computed from where the bubble
+and the point really are (`getBoundingClientRect`), so it holds at any
+width and is redrawn on resize and when the picture loads. On a phone
+(760px and under) there is no room beside the screen: one callout shows
+above it, crossfading, and a small gold dot moves to its point; the tabs
+become a three-by-two grid with the picture over the word; arrows either
+side of the phone turn the screens; the mixes sit two across; and the three
+cards slide one at a time with dots and a swipe (`homeCards`, a copy of the
+first card after the third so the turn from three to one goes the same way).
+
+**Decisions this reverses, each on the owner's word above.**
+1. **The doctrine's long telling (§246) is off the page.** Its three
+   problems are three lines now, each with an answer. `docs/doctrine/` and
+   `rule:social-information` are untouched; `product.md` says where the
+   page's wording went.
+2. **Things on this page move on a timer.** §250's carousels turned only by
+   hand ("a slide must not move while someone is reading it") and are gone
+   with their sections, their script (`turnCarousel`) and their styles. The
+   callouts step every 2.5s and the phone's cards every 3s. Bounded: a tap,
+   a swipe or a tab restarts the wait, and `prefers-reduced-motion` gets no
+   timer at all.
+3. **The friends in the pictures are real people** - Brady (the account
+   shown), Beth, Elizabeth and Ian, by first name with their photos
+   (`tools/landing/home/people/`). §198 gave the fixtures' people names
+   nobody has, because the fixtures are named after real people; the owner
+   chose these four. A fifth supplied photo that looks like a child's was
+   left out.
+4. **All six screens are dark.** §250 wanted some light and some dark; that
+   was for the section this replaces.
+5. **The sign-up is at the foot, not the top**, so the "What is FAM?" link
+   under it is hidden and its scroll targets the form, not the top.
+
+**The pictures** (`static/landing/home/`, 16 files, under 1 MB). Four
+screens are photographed by `tools/landing_shots.py`, rewritten for this:
+dark theme, Explore's thumbnails and the profile's vibes painted from
+`tools/landing/home/art/`, the four faces, and `SKIP_TILES` leaving three
+cards (a death, an execution, a strike) off DailyFAM. The two myFAM tabs
+are the owner's own screenshots with the status bar painted out, because
+the deployed app's Explore ("▶ FAM", starred chips) is ahead of the preview
+build's. The episode cards, mix covers and `art-` paintings are cut from
+the owner's screenshots. The five old `static/landing/*.jpg` screens are
+deleted; `player.jpg` stays.
+
+**Removed with the old sections:** 99 style rules that no element on the
+page can match any more (found mechanically: a rule goes only if one of
+its classes or ids appears nowhere outside the stylesheet) and
+`turnCarousel`. `tools/check_css.py` and `tools/check_js.py` pass.
+
+**Tests.** Six in `tests/test_waitlist.py` described the old page and were
+rewritten to describe this one, keeping what each was for: the page's
+order; every shipped picture is on the page and the reverse, each with a
+description, each screen's height matching its file; the six tabs and their
+35 callouts inside the picture; where motion is allowed and how it stops;
+the video still asks YouTube only on a tap.
+
+**Verified:** the page was served by the app here and photographed at 1280
+and 390 wide with no script errors and no sideways scroll; the 302 tests
+that read this page pass; `python tools/landing_shots.py` was run and wrote
+its four screens. **Not verified:** the join, sign-in and reset forms were
+not submitted in a browser after the move (their markup and script are
+unchanged, and their tests pass); "Learn more about FAM" on the status page
+was not opened in a browser; Safari and a real phone were not tried; the
+video's picture did not load here (no access to YouTube's image host), so
+that section was seen empty; the four people have not been asked.
+**For the owner:** the profile's counts, interests and vibes and the two
+messages are the demo account's, under real names and faces.
+
+## 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26)
+
+**What failed.** CI on the last commit of §697's branch: "Follow this? after
+a search, a reason on a card, the teams strip" timed out on the live-database
+preview (`preview/fam-live.html`), after the branch had been merged (PR 344
+was merged while its run was still going).
+
+**Why.** §697's review made the card read `following` from `POST /api/follow`
+before saying "Following X". The fixture preview's stand-in returned it; the
+live preview's stand-in turned the request into a preferences save and
+answered with the preferences body, which has no `following`. So in that
+build the card said the list was full and followed nothing. The server
+itself always returned it (`tests/test_follow_696.py`); only the preview's
+copy of the endpoint was wrong.
+
+**Why it was not caught.** After the review fixes the smoke run was started
+by hand on the fixture build only; `dev.sh check` drives both, and the full
+check was not re-run on the final commit. The earlier runs on that build
+passed because the card did not yet read the field.
+
+**Fixed.** The live preview answers `/api/follow` with `{topics, following}`.
+
+**Verified:** `tools/smoke_preview.py` on both builds, all checks passed.
+**Not verified:** the full `./dev.sh check` on this commit - CI is that run.
+
+## 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26)
+
+**Asked.** The owner, with the session list open (Familiarize.net website
+redesign, Interest selection and personalization, App Store review delay, New
+session, Bug fixes, New packet of updates, Impact and context assessment,
+myFAM page redesign, Episode autoplay behavior, Admin page feedback): "Make
+the new iOS build (build 13). Run a full audit to include everything that
+has changed since the last build ... double check everything that is built
+with another audit, then get the branch ready to merge into main."
+
+**Is everything on Main?** Build 12 was cut at #340. Every branch pushed
+since was compared with Main: one held a commit Main lacks - §699's
+live-preview stand-in for `/api/follow`, pushed to its branch after #344
+merged - and it is in this branch. Nothing else is unmerged.
+
+**The first audit** (a reader given only the range and told not to trust a
+log entry's claim: open the Swift). Everything merged after build 12:
+
+| Change | What | On the iPhone |
+|---|---|---|
+| #342 (§693, the Bug fixes session) | A tester's five reports: Go Deeper sends `heard=`; sources asked at the first word and faded in; the Voice and Length rows off the player | In the PR, confirmed in the Swift |
+| #343 (§694, this session's 11.25 packet) | What's next back after an episode; an Explore card plays one story by its episode id; the day on the card, the round play button, the main-category chips; the playlist page; the message box | In the PR. **First compiled on Main after the merge: `ios.yml` green** |
+| §694's review | What's next not offered offline | **Missing: added here** (`NowPlayingModel.offline`) - with one tile enough to show it, an offline phone's only tile was a Go Deeper that cannot run |
+| #344 (§695, the Interest selection session) | A chosen interest reaches Made for you | Server only; the composed tiles are ordinary tiles |
+| #344 (§696, §697) | "What topics do you want to follow?", the row as it is chosen, Follow this?, Because you follow X, Your teams, the first mix, My topics public | **Missing: built here.** §696 said so and PARITY.md's row read "Not built" |
+| #345 (§698, the website session) | The waitlist homepage | Web only; `/waitlist#about`, which the app links to, is still on the page |
+| §699 | The live preview's stand-in | Tooling |
+| App Store review delay, Impact, Admin page feedback | A conversation; §688's key move; nothing since build 12 | No app code |
+
+**Following topics on the iPhone** (PARITY.md's row has every detail):
+`InterestsView` is the web's two pages, at sign-up and from Settings' row,
+now "Topics you follow" - the eight general topics, then "Get specific" with
+a section per chosen one, a subject's first tap following it and opening its
+drawer, the box that narrows or follows what is typed, the search across the
+tree, and the tray. The Made for you row is drawn in the dock as topics are
+chosen. `FollowAskCard` is on dailyFAM after a search, kept on the device
+with whose it is and cleared on sign-out (§697's fix). A Made-for-you card
+says "Because you follow X"; `TeamStrip` is above the rails; the first mix is
+asked for once, on the first run's save. Every new field is optional, so an
+older server still decodes.
+
+**The second audit** (another reader, given the new Swift and the eight
+constructs its author was least sure of). Compile: `ios.yml` built the
+commit - `BUILD SUCCEEDED`, no warnings - and the reader agreed with it on
+all eight. Behaviour, three defects, fixed: (1) "Culture & entertainment"
+broke by the letter on the general-topics grid at the default text size on
+every phone under 430 pt - the web's 34 px beside the tick is room a
+browser lets a long word run into, and `Text` does not; (2) "Skip for now"
+stayed live while "Start listening" saved, so its empty save could land
+second and undo the follow; (3) a topic typed before the stored list
+arrived was overwritten by it.
+
+**The build.** `CURRENT_PROJECT_VERSION` 13. **The contract is recut**
+(`tools/cut_release.py --build 13 --force`), the first recut since build 9:
+the app names `/api/follow`, `/api/follow/tree`, `/api/follow/preview`,
+`/api/follow/suggest` and `/api/follow/mix`. The cut only added - every
+route and shape build 12 was promised is still there (`old-clients`).
+
+**Left as it is, knowingly.** The preview tiles do not rise in and the
+chips do not cross-fade (motion, PARITY.md). A failed save from Settings
+keeps the screen open with "Could not save that", where the web closes. A
+guest's note under the step still says "Saved to your account". With one
+tile, What's next draws it at half width.
+
+Tests: `tests/test_build13_ios.py`, `tests/test_follow_ios_700.py`.
+
+**Not verified here:** nothing has run on a phone. The compile is real;
+the layout of the step at large text and on a small phone with the keyboard
+up, the dock's height with the preview row in it, VoiceOver, and §694's
+message box all want a device. The fixes made after the green compile
+(three small edits in `ProfileEdit.swift`) are compiled by `ios.yml` on the
+push that carries them.

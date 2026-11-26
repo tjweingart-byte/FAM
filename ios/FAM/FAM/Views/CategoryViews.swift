@@ -1,14 +1,14 @@
 import SwiftUI
 
 /// Where Explore's category chips stand (§229, §500, §550, §691): at rest
-/// (All - every category's stories), inside a category (its root and a
-/// chosen sub), or finding one.
+/// (All - every category's stories) or inside one main category. Since the
+/// 11.25 packet the row holds nothing narrower, so `root` and `node` are
+/// the same chip.
 struct CategoryState: Equatable {
     var root: String?
     var node: String?
-    var finding = false
 
-    var atRest: Bool { root == nil && !finding }
+    var atRest: Bool { root == nil }
 }
 
 /// A chip (`.catchip`): 32 tall, white, a strong border; on, filled dark.
@@ -58,56 +58,27 @@ struct StarShape: Shape {
     }
 }
 
-/// The chips row, edge to edge (`renderCategoryChips`).
+/// The chips row, edge to edge (`renderCategoryChips`). **Only the main
+/// categories, and it never changes** (11.25 packet #5, the owner: "I only
+/// want the main categories and I don't want them to ever disappear"):
+/// All, then the facets in the server's order - the same chips in the same
+/// places whether or not one is picked. Picking one lights it and loads
+/// that category; All, or the lit chip again, goes back to All. A followed
+/// main category keeps its star and its place. The X, the sub-categories,
+/// the listener's followed sub-categories and "More" (with its find) are
+/// gone from the row.
 struct CategoryChipsRow: View {
     @EnvironmentObject private var mixes: MixesModel
     @Binding var state: CategoryState
-    let subs: [CategorySub]
 
     var body: some View {
         if let page = mixes.categories {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
-                    if state.atRest {
-                        // "All" is back (§691): Explore before a category
-                        // is picked, the trending stories first. It is the
-                        // chip that is on.
-                        CategoryChip(label: "All", on: true) {}
-                        if page.saved {
-                            ForEach(page.mine) { c in
-                                CategoryChip(label: c.label, starred: true) { pick(c.id) }
-                            }
-                        }
-                        ForEach(page.facets.filter { f in !page.mine.contains { $0.id == f.id } }) { f in
-                            CategoryChip(label: f.label) { pick(f.id) }
-                        }
-                        CategoryChip(label: "More", dashed: true) { state = CategoryState(finding: true) }
-                    } else {
-                        Button { state = CategoryState() } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(FAMColor.text)
-                                .frame(width: 34, height: 32)
-                                .overlay(Capsule().stroke(FAMColor.borderStrong))
-                        }
-                        .buttonStyle(.press)
-                        // Back to the list of categories (§550).
-                        .accessibilityLabel("All categories")
-                        if state.finding {
-                            Text("Find a category")
-                                .font(FAMFont.body(12.5))
-                                .foregroundStyle(FAMColor.textMuted)
-                        } else if let root = state.root {
-                            CategoryChip(label: label(root), on: state.node == root,
-                                         starred: mixes.follows(root)) { state.node = root }
-                            ForEach(subs) { sub in
-                                CategoryChip(label: sub.label, on: state.node == sub.id,
-                                             starred: mixes.follows(sub.id)) {
-                                    // The chosen sub again goes back up to the root.
-                                    state.node = state.node == sub.id ? root : sub.id
-                                }
-                            }
-                        }
+                    CategoryChip(label: "All", on: state.atRest) { state = CategoryState() }
+                    ForEach(page.facets) { f in
+                        CategoryChip(label: f.label, on: state.node == f.id,
+                                     starred: mixes.follows(f.id)) { pick(f.id) }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -118,13 +89,9 @@ struct CategoryChipsRow: View {
         }
     }
 
+    /// The lit chip again is All.
     private func pick(_ id: String) {
-        state = CategoryState(root: id, node: id)
-    }
-
-    private func label(_ id: String) -> String {
-        mixes.categories?.all.first { $0.id == id }?.label
-            ?? mixes.categories?.facets.first { $0.id == id }?.label ?? id
+        state = state.node == id ? CategoryState() : CategoryState(root: id, node: id)
     }
 }
 
@@ -139,10 +106,6 @@ struct CategoryPanel: View {
     @EnvironmentObject private var mixes: MixesModel
     /// The category, or "" for All.
     let node: String
-    @Binding var subs: [CategorySub]
-    /// The category the chips are inside: its answer alone sets the sub
-    /// row (`catPage.root`).
-    var root: String = ""
 
     @State private var page: CategoryEpisodes?
     @State private var failed = false
@@ -188,10 +151,14 @@ struct CategoryPanel: View {
                     }
                 } else {
                     if !node.isEmpty { actions(page) }
-                    ForEach(Array(page.episodes.enumerated()), id: \.offset) { i, e in
+                    ForEach(Array(page.episodes.enumerated()), id: \.offset) { _, e in
                         ExploreCard(episode: e, kicker: mixes.exploreKicker(e),
                                     tone: Self.tones[mixes.facet(of: e.node ?? "")] ?? FAMColor.surface2,
-                                    play: { model.playCategory(page.episodes, from: i) },
+                                    // One card, one episode: nothing of the
+                                    // page is queued behind it, so it ends on
+                                    // What's next (11.25 packet #1). Play
+                                    // all still queues the page.
+                                    play: { model.playExplore(e) },
                                     add: { adding = e })
                     }
                 }
@@ -251,10 +218,6 @@ struct CategoryPanel: View {
             if Task.isCancelled { return }
             page = answer
             pageNode = wanted
-            // The level below comes from the category's own answer only,
-            // so narrowing to one of its subs keeps the row
-            // (`if(node === catPage.root)`). All has none.
-            if !node.isEmpty && (root.isEmpty || node == root) { subs = answer.subcategories }
         } catch {
             // A load overtaken by the next node's says nothing.
             if Task.isCancelled { return }
@@ -317,84 +280,6 @@ struct CategoryPanel: View {
                 .overlay(Capsule().stroke(on ? FAMColor.paper : FAMColor.borderStrong))
         }
         .buttonStyle(.press)
-    }
-}
-
-/// "More": find any category by the start of a word (`renderCategoryFind`).
-struct CategoryFind: View {
-    @EnvironmentObject private var mixes: MixesModel
-    @Binding var state: CategoryState
-    @State private var words = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(FAMColor.textMuted)
-                TextField("", text: $words,
-                          prompt: Text("Find a category, like NFL").foregroundColor(FAMColor.textFaint))
-                    .font(FAMFont.body(13))
-                    .focused($focused)
-                    .autocorrectionDisabled()
-                    .accessibilityLabel("Find a category")
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 38)
-            .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(focused ? FAMColor.copper : FAMColor.borderStrong))
-            .padding(.top, 4)
-            .padding(.bottom, 12)
-            let found = matches
-            if found.isEmpty {
-                Text("No category called that yet.")
-                    .font(FAMFont.body(11)).foregroundStyle(FAMColor.textFaint)
-                    .frame(maxWidth: .infinity).padding(.vertical, 30)
-            }
-            // By place: a facet can also be one of the tree's nodes, listed twice as on the web.
-            ForEach(Array(found.enumerated()), id: \.offset) { _, c in
-                Button { state = CategoryState(root: c.id, node: c.id) } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 4) {
-                            if mixes.follows(c.id) {
-                                StarShape().fill(FAMColor.copper).frame(width: 11, height: 11)
-                            }
-                            Text(c.label).font(FAMFont.heading(12.5, .medium)).foregroundStyle(FAMColor.text)
-                        }
-                        Text((c.path ?? []).joined(separator: " › ").uppercased())
-                            .font(FAMFont.mono(8)).tracking(0.32).foregroundStyle(FAMColor.textFaint)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .overlay(alignment: .bottom) { Rectangle().fill(FAMColor.border).frame(height: 1) }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.press)
-            }
-        }
-        .padding(.horizontal, 18)
-        .onAppear { focused = true }
-    }
-
-    /// Nothing typed: the facets. Typed: the facets and then every node
-    /// whose label has a word starting with what was typed - spaces split
-    /// words, so "york gi" finds the New York Giants - 60 at most
-    /// (`renderCategoryFind`: `(" " + label).indexOf(" " + q)`).
-    private var matches: [CategoryNode] {
-        guard let page = mixes.categories else { return [] }
-        let q = words.trimmingCharacters(in: .whitespaces).lowercased()
-        let facets = page.facets
-            .filter { Self.starts($0.label, q) }
-            .map { CategoryNode(id: $0.id, label: $0.label, facet: $0.id, path: [], children: nil, today: nil) }
-        if q.isEmpty { return facets }
-        let nodes = page.all.filter { Self.starts($0.label, q) }
-        return Array((facets + nodes).prefix(60))
-    }
-
-    static func starts(_ label: String, _ q: String) -> Bool {
-        if q.isEmpty { return true }
-        return (" " + label.lowercased()).contains(" " + q)
     }
 }
 

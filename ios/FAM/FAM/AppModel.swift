@@ -65,6 +65,16 @@ final class AppModel: ObservableObject {
     @Published private(set) var tasteSource = "taste"
     /// The face book the cards' friends pills point into.
     @Published private(set) var friendFaces: [FriendFace] = []
+    /// The followed teams' held games (`/api/myfam`'s `teams`, §696):
+    /// the "Your teams" strip above the rails. Empty draws nothing.
+    @Published private(set) var teams: [Tile] = []
+    /// "Follow this?" (§696): the subject a search named, waiting on this
+    /// phone until it is answered. Drawn first on DailyFAM (`FollowAskCard`).
+    @Published private(set) var followAsk: FollowAsk?
+    /// How often each search has asked `/api/follow/suggest`, by its
+    /// lower-cased question (`followAskTried`): once, then once more when
+    /// the brief's subject arrives.
+    private var followAskTried: [String: Int] = [:]
     /// `query|minutes` of every saved episode, so bookmarks are lit.
     @Published private(set) var savedTiles: Set<String> = []
     @Published private(set) var pickUp: PickUpPage?
@@ -458,6 +468,7 @@ final class AppModel: ObservableObject {
             self?.nowPlaying.say(text, action: action, perform: perform)
         }
         nowPlaying.signedIn = { [weak self] in self?.listener?.authenticated == true }
+        nowPlaying.askFollow = { [weak self] ep, subject in self?.maybeAskFollow(ep, subject: subject) }
         // The player's save and a playlist row's heart are one shelf (§691).
         nowPlaying.savedChanged = { [weak self] query, minutes, on in
             guard let self else { return }
@@ -465,6 +476,7 @@ final class AppModel: ObservableObject {
             if on { self.savedTiles.insert(key) } else { self.savedTiles.remove(key) }
         }
         nowPlaying.playerShowing = { [weak self] in self?.showPlayer ?? false }
+        nowPlaying.offline = { [weak self] in self?.isOffline ?? false }
         // The myFAM screen on show is the dot looked at (§550,
         // `#screen-playfam.active`): its tab, with no mix pushed over it.
         mixes.screenShowing = { [weak self] in
@@ -1011,6 +1023,9 @@ final class AppModel: ObservableObject {
         notInterestedIDs = []
         emptiedRails = []
         tasteSource = "taste"
+        teams = []
+        // "Follow this?" names a search: never the next account's (§697).
+        forgetFollowAsk()
         forgetDevicePrefs()
         // The tour as this phone knew it was theirs (§595).
         tour.forget()
@@ -1092,8 +1107,12 @@ final class AppModel: ObservableObject {
             }
             tasteSource = page.tasteSource ?? "taste"
             friendFaces = page.friendFaces ?? []
+            // Only ever from a fresh answer (`myFamTeams = data.teams || []`):
+            // a remembered page's score is never drawn as today's.
+            teams = page.teams ?? []
             railsProblem = ""
             if requestFailed { setOffline(false) }
+            paintFollowAsk()
             // Remembered only once it has drawn, so a page that fails to
             // draw is never the one an offline open falls back to.
             shelf.rememberFeed(data)
@@ -1703,32 +1722,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The Playback modal's Voice row (`voiceItem` from the player): a pick
-    /// for the next search (`voice_picked`), kept on the server first; then,
-    /// for a searched episode on the player, "Switching to …" and the same
-    /// episode asked again in that voice - the cached script reused, only
-    /// the audio new (§447).
-    func revoice(_ id: String, label: String) {
-        voicePicked = true
-        guard let page = voices, id != (page.selected ?? "") else { return }
-        voices = VoicesPage(selected: id, voices: page.voices)
-        // `generate(key)`: asked again, never the kept episode replayed by
-        // its id (that would be the old voice).
-        var asked: Episode?
-        if showPlayer, var ep = nowPlaying.episode, ep.surface == "search" {
-            ep.episodeID = ""
-            ep.cachedOnly = false
-            asked = ep
-        }
-        let again = asked
-        if again != nil { nowPlaying.say("Switching to " + label) }
-        Task {
-            try? await api.chooseVoice(id)
-            await you.loadSettings()
-            if let again { play(again) }
-        }
-    }
-
     /// The voice a search is sent in: the listener's choice, else none (the
     /// server's own default).
     var searchVoice: String { voices?.selected ?? "" }
@@ -1927,7 +1920,7 @@ final class AppModel: ObservableObject {
                                 reading: ep.key.reading, askReading: askReading,
                                 voice: voice, voicePicked: picked,
                                 isPrivate: ep.isPrivate, attach: ep.attach,
-                                mix: ep.mixID)
+                                mix: ep.mixID, heard: ep.heardID)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }
@@ -2451,31 +2444,49 @@ extension AppModel {
         return nowPlaying.episode?.mixDetour == list.key
     }
 
-    /// A category's episode: replay only, never written anew, with the rest
-    /// of the list queued after it (`playCategoryList`).
+    /// A category's episode as the player takes it: replay only, never
+    /// written anew. No surface: a category replay is not a DailyFAM
+    /// edition (`categoryQueueEntry`, `surface: ""`). When the row names
+    /// the heard episode (11.25 packet, `episode`) it is replayed by that
+    /// id, as a history row is - one the cache has since moved past still
+    /// plays; a 409 (no longer kept) asks again by the question, still a
+    /// replay (`refused`).
+    private func categoryEpisode(_ e: CategoryEpisode, queued: Bool) -> Episode {
+        var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
+                           title: e.title.isEmpty ? e.query : e.title, surface: "",
+                           picture: api.picture(e.thumb ?? ""))
+        made.cachedOnly = true
+        made.episodeID = e.episode ?? ""
+        // Only Play all's: the rest of its list stays queued behind it.
+        made.fromCategory = queued
+        return made
+    }
+
+    /// **One Explore card's play** (11.25 packet #1): that one episode and
+    /// nothing queued behind it, so it ends on What's next. Until then a
+    /// tap queued the rest of the page after it, the next story started by
+    /// itself, and the card the owner asked to see never came. What an
+    /// earlier Play all queued goes (`startPlaying` → `dropCategoryQueue`);
+    /// what the listener queued themselves stays.
+    func playExplore(_ episode: CategoryEpisode) {
+        startPlaying(categoryEpisode(episode, queued: false), cachedOnly: true)
+    }
+
+    /// **Play all** inside a category: the first plays and the rest of the
+    /// list is queued after it (`playCategoryList`).
     func playCategory(_ list: [CategoryEpisode], from index: Int) {
         guard index < list.count else {
             nowPlaying.say("Nothing has been made in this category today yet")
             return
         }
-        // No surface: a category replay is not a DailyFAM edition
-        // (`categoryQueueEntry`, `surface: ""`).
-        func ep(_ e: CategoryEpisode) -> Episode {
-            var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
-                               title: e.title.isEmpty ? e.query : e.title, surface: "",
-                               picture: api.picture(e.thumb ?? ""))
-            made.cachedOnly = true
-            made.fromCategory = true
-            return made
-        }
-        // The rest of the category after the one tapped, never the ones
+        // The rest of the category after the one played, never the ones
         // above it (`list.slice(1)` of what was played from).
         var rest: [Episode] = []
         if index + 1 < list.count {
-            for e in list[(index + 1)...] { rest.append(ep(e)) }
+            for e in list[(index + 1)...] { rest.append(categoryEpisode(e, queued: true)) }
         }
         nowPlaying.replaceCategoryQueue(rest)
-        startPlaying(ep(list[index]), cachedOnly: true)
+        startPlaying(categoryEpisode(list[index], queued: true), cachedOnly: true)
     }
 }
 
@@ -2545,5 +2556,133 @@ extension AppModel {
         pending = ep
         playFromShelf(ep, glide: lastGlide, dial: lastDial)
         return true
+    }
+}
+
+// MARK: - "Follow this?" (§696, `rule:follow-topics`)
+
+/// The subject a search named, and the search it came from.
+struct FollowAsk: Codable, Equatable {
+    let topic: String
+    let q: String
+}
+
+/// What this phone keeps about "Follow this?": the question waiting, and
+/// the subjects answered "Not now" (lower-cased, the last fifty).
+struct FollowAskState: Codable, Equatable {
+    var ask: FollowAsk?
+    var no: [String]?
+}
+
+/// The state with whose it is (`{who, data}`, §697): a second account on
+/// this phone never sees the first one's search.
+struct FollowAskKept: Codable {
+    var who: String
+    var data: FollowAskState
+}
+
+extension AppModel {
+    /// Where "Follow this?" is kept on this phone (the web's `fam.followAsk`).
+    static let followAskKey = "fam.followAsk"
+    /// "The list is full" (§697, review fix 8): the server kept nothing,
+    /// so the card never says "Following X".
+    static let followFullLine = "You follow as many topics as FAM keeps. Remove one in Settings first."
+
+    /// `followAskState`: what is kept, only if it is this listener's.
+    private func followAskState() -> FollowAskState {
+        guard let data = UserDefaults.standard.data(forKey: Self.followAskKey),
+              let kept = try? JSONDecoder().decode(FollowAskKept.self, from: data),
+              kept.who == (listener?.userId ?? "") else { return FollowAskState() }
+        return kept.data
+    }
+
+    /// `saveFollowAsk`: kept with the listener's id, as the remembered
+    /// feed is the listener's (§697).
+    private func saveFollowAsk(_ state: FollowAskState) {
+        let kept = FollowAskKept(who: listener?.userId ?? "", data: state)
+        guard let data = try? JSONEncoder().encode(kept) else { return }
+        UserDefaults.standard.set(data, forKey: Self.followAskKey)
+    }
+
+    /// Signing out (`forgetOfflineCopies`): the question, the "Not now"s
+    /// and what was already asked all go.
+    fileprivate func forgetFollowAsk() {
+        UserDefaults.standard.removeObject(forKey: Self.followAskKey)
+        followAsk = nil
+        followAskTried = [:]
+    }
+
+    /// `paintFollowAsk`: the card shows what is kept for this listener.
+    func paintFollowAsk() {
+        let ask = listener?.authenticated == true ? followAskState().ask : nil
+        let shown = (ask?.topic.isEmpty ?? true) ? nil : ask
+        if shown != followAsk { followAsk = shown }
+    }
+
+    /// After a search (`maybeAskFollow`): the server names the one subject
+    /// worth following. Never for a private search or a guest, never one
+    /// already followed, never one they said "Not now" to. Asked once per
+    /// question, then once more when the brief's subject arrives.
+    func maybeAskFollow(_ ep: Episode, subject: String) {
+        guard listener?.authenticated == true, !privateSearch, !ep.isPrivate,
+              ep.surface == "search" else { return }
+        let query = ep.key.query
+        let key = query.lowercased()
+        let tries = followAskTried[key] ?? 0
+        if key.isEmpty || tries >= 2 || (tries == 1 && subject.isEmpty) { return }
+        followAskTried[key] = subject.isEmpty ? 1 : 2
+        let who = listener?.userId
+        Task { [weak self] in
+            guard let self else { return }
+            guard let topic = try? await self.api.followSuggest(query: query, subject: subject),
+                  !topic.isEmpty else { return }
+            // Signed out, or another account, while it was asked.
+            guard self.listener?.authenticated == true, self.listener?.userId == who else { return }
+            var state = self.followAskState()
+            if (state.no ?? []).contains(topic.lowercased()) { return }
+            state.ask = FollowAsk(topic: topic, q: query)
+            self.saveFollowAsk(state)
+            self.paintFollowAsk()
+        }
+    }
+
+    /// `answerFollowAsk`: "Not now" is remembered on this phone; Follow
+    /// adds the topic (`POST /api/follow`) and the page is drawn around it.
+    func answerFollowAsk(_ yes: Bool) {
+        var state = followAskState()
+        guard let ask = state.ask else { return }
+        state.ask = nil
+        if !yes {
+            state.no = Array(((state.no ?? []) + [ask.topic.lowercased()]).suffix(50))
+            saveFollowAsk(state)
+            paintFollowAsk()
+            return
+        }
+        saveFollowAsk(state)
+        paintFollowAsk()
+        let who = listener?.userId
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let answer = try await self.api.followTopic(ask.topic)
+                // The server says whether it was kept: a full list keeps nothing.
+                guard answer.following == true else {
+                    self.nowPlaying.say(AppModel.followFullLine)
+                    return
+                }
+                self.nowPlaying.say("Following " + ask.topic)
+                // Settings' row and the rails are rebuilt around it at once.
+                await self.you.loadPrefs()
+                await self.loadRails()
+            } catch {
+                // Not followed: the question comes back rather than vanishing.
+                guard self.listener?.authenticated == true, self.listener?.userId == who else { return }
+                var again = self.followAskState()
+                again.ask = ask
+                self.saveFollowAsk(again)
+                self.paintFollowAsk()
+                self.nowPlaying.say("Could not follow that just now.")
+            }
+        }
     }
 }

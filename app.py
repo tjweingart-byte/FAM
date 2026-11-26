@@ -892,7 +892,7 @@ async def lifespan(_: FastAPI):
         # finals (`push_stories.py`), each written before it is told.
         _BACKGROUND.add(asyncio.create_task(push_mod.run_forever(
             MIXES, PUSH, allowed=_may_be_notified, plays=_push_plays,
-            stories=_push_stories_pass)))
+            followed=_followed_labels, stories=_push_stories_pass)))
     else:
         log.info("notifications: off - %s", push_ready["reason"])
     # How the voice is found, and a loop that keeps that answer fresh. Both
@@ -3650,6 +3650,45 @@ def _follows(me: str, other: str) -> bool:
     return bool(me and other and me != other and SOCIAL.is_following(me, other))
 
 
+def _mix_shown_to(mix, viewer: str, private: Optional[set] = None) -> bool:
+    """Whether a public mix may be shown to `viewer` (§697, the owner
+    11.26: "make my topics public (but only visible to someone who follows
+    if someone is on private mode in settings)").
+
+    Every public mix is, but one: the mix made from a listener's followed
+    topics (`mixes.FROM_FOLLOWS`) is what they follow, written down, and
+    while its owner is in private mode it is for the people who follow them
+    - the door a profile's interests already have (`rule:private-mode`).
+    `private` is `PREFS.private_among` already read for a page of mixes;
+    without it the one owner is asked. **Fails closed**, as that read does.
+    """
+    if mix is None:
+        return False
+    if getattr(mix, "source_id", "") != mixes_mod.FROM_FOLLOWS:
+        return True
+    if viewer and viewer == mix.user_id:
+        return True
+    if private is None:
+        private = PREFS.private_among([mix.user_id])
+    return mix.user_id not in private or _follows(viewer, mix.user_id)
+
+
+def _mixes_shown_to(found, viewer: str) -> list:
+    """`found` without the mixes `viewer` may not see, in one read."""
+    found = list(found)
+    owners = [m.user_id for m in found
+              if getattr(m, "source_id", "") == mixes_mod.FROM_FOLLOWS]
+    private = PREFS.private_among(owners) if owners else set()
+    return [m for m in found if _mix_shown_to(m, viewer, private)]
+
+
+def _public_mix_for(mix_id: str, viewer: str = ""):
+    """`MIXES.get_public` for somebody: None for a mix they may not see,
+    which is the answer for one that does not exist."""
+    mix = MIXES.get_public(mix_id, viewer=viewer)
+    return mix if _mix_shown_to(mix, viewer) else None
+
+
 def _listening_shown(user_ids) -> list[str]:
     """These listeners, without anybody in private mode (§638): the ones
     whose plays may be shown to another person - a face on a card, a place
@@ -3915,7 +3954,7 @@ async def person_profile(request: Request,
         # Each mix and vibe wears the picture the player would draw, so a
         # friend's page is the same grid of tiles as your own (§345).
         "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
-                  for m in MIXES.public_for_user(target)],
+                  for m in _mixes_shown_to(MIXES.public_for_user(target), me)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
         # Every vibe, for good (the owner's direction after §161): the 24
@@ -8093,7 +8132,7 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
-def _served_tile_query(topic_id: str) -> str:
+def _served_tile_query(topic_id: str, user: str = "") -> str:
     """The question a DailyFAM tile with this id asks, if the server serves
     one (§656 review): the evergreen bank, Start here, the live story pool or
     the Trending edition - so a tile is free whether or not its episode is
@@ -8105,6 +8144,14 @@ def _served_tile_query(topic_id: str) -> str:
             return tile.query
     now = time.time()
     try:
+        if user and topic_id.startswith(topics_mod.INTEREST_TILE_PREFIX):
+            # A tile composed from this listener's own chosen interests
+            # (§695) - theirs only, so a made-up id still buys nothing.
+            prefs = PREFS.get(user)
+            for tile in topics_mod.interest_topics(
+                    tuple(prefs.interests) + tuple(prefs.topics)):
+                if tile.id == topic_id:
+                    return tile.query
         for tile in topics_mod.live_topics(now):
             if tile.id == topic_id:
                 return tile.query
@@ -8139,9 +8186,9 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
         return "godeeper"
     query = plan.query
     if mix and _mix_plays(MIXES.get_editable(user, mix)
-                          or MIXES.get_public(mix, viewer=user), query):
+                          or _public_mix_for(mix, user), query):
         return "myfam"
-    served = _served_tile_query(topic_id) if topic_id else ""
+    served = _served_tile_query(topic_id, user) if topic_id else ""
     if served and mixes_mod._plain(served) == mixes_mod._plain(query):
         return "myfam"
     # A shared link, a history replay, a tile: off the search bar, an
@@ -8169,7 +8216,7 @@ def _take_half_a_mix(request: Request, user: str, mix_id: str,
     tier_name = _tier(request)
     if entitlements.at_least(tier_name, billing.PAID_TIER):
         return
-    found = MIXES.get_editable(user, mix_id) or MIXES.get_public(mix_id, viewer=user)
+    found = MIXES.get_editable(user, mix_id) or _public_mix_for(mix_id, user)
     if found is None:
         return
     episodes = len([i for i in found.items if not getattr(i, "pending", False)])
@@ -9287,6 +9334,61 @@ def _push_plays(user_id: str) -> list:
             if e.kind in ("play", "complete")]
 
 
+def _followed_labels(user_id: str) -> list:
+    """What this person chose to follow, as it is said (§696): the names the
+    daily reminder may lead with."""
+    prefs = PREFS.get(user_id)
+    return [s.label for s in topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))]
+
+
+#: The mix a listener's chosen topics become at the end of sign-up (§696).
+FOLLOW_MIX_NAME = "My topics"
+
+
+@app.post("/api/follow/mix")
+async def follow_mix(request: Request) -> dict:
+    """Make the listener's chosen topics their first mix (§696, the owner:
+    "sign-up interests become a first personal mix in myFAM, ready to play
+    daily"). Once: a listener who already has any mix keeps what they have.
+    Public, as every new mix is (§697) - but marked as made from what they
+    follow, so while they are in private mode only their followers see it
+    (`_mix_shown_to`). Each topic is titled by its own name, so no naming
+    call is made. Its subjects are
+    written ahead as any saved mix's are (`_write_mix_ahead`)."""
+    _read_limit(request)
+    account = _require_account(request)
+    if MIXES.list_for_user(account):
+        return {"mix": None, "made": False}
+    prefs = PREFS.get(account)
+    subjects = topics_mod.chosen_subjects(
+        tuple(prefs.interests) + tuple(prefs.topics))[:mixes_mod.MAX_TOPICS]
+    if not subjects:
+        return {"mix": None, "made": False}
+    tiles = {t.id: t for t in topics_mod.interest_topics(
+        tuple(prefs.interests) + tuple(prefs.topics))}
+    entries = []
+    for subject in subjects:
+        tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
+                         + "-".join(subject.name.split()))
+        if tile is not None:
+            # A public mix shows its titles to other people (§697).
+            entries.append({"query": tile.query,
+                            "title": content_filter.scrub(subject.label)})
+    try:
+        # A suspended account posts nothing that reaches anybody: theirs is
+        # made private (`_require_can_post`'s rule, without refusing a mix
+        # nobody but them will see).
+        mix = MIXES.create(account, FOLLOW_MIX_NAME, entries, "",
+                           public=not MODERATION.is_suspended(account),
+                           made_from=mixes_mod.FROM_FOLLOWS)
+    except mixes_mod.MixError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _record_mix_adds(mix)
+    _write_mix_ahead(mix)
+    return {"mix": _mix_out(mix, account, {}, False), "made": True}
+
+
 def _push_follows(user_id: str) -> list:
     """What this person chose to follow (§562): the subjects in their mixes
     and their chosen interests that name one. Never what they were inferred
@@ -9564,7 +9666,8 @@ async def public_mixes(request: Request, q: str = Query("", max_length=80)) -> d
     # With nothing typed only the newest are shown, so only a few more than
     # that are read (an empty mix is skipped); a search reads the lot.
     scan = mixes_mod.PUBLIC_SCAN if q.strip() else mixes_mod.MAX_PUBLIC_RESULTS * 3
-    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer, limit=scan)):
+    for position, mix in enumerate(_mixes_shown_to(
+            MIXES.all_public(exclude_user=viewer, limit=scan), viewer)):
         if not mix.items:
             continue
         if q.strip():
@@ -9592,7 +9695,7 @@ async def public_mix(mix_id: str, request: Request) -> dict:
     A private mix answers exactly like one that does not exist."""
     _read_limit(request)
     viewer = _listener(request)
-    mix = MIXES.get_public(mix_id, viewer=viewer)
+    mix = _public_mix_for(mix_id, viewer)
     if not mix:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9615,7 +9718,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_feature(request, "mixes")
-    source = MIXES.get_public(mix_id)
+    source = _public_mix_for(mix_id, user)
     if not source:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9681,7 +9784,7 @@ async def share_mix(mix_id: str, request: Request) -> dict:
 async def mix_card(mix_id: str, request: Request) -> Response:
     """The story image for a shared mix, as SVG - see `share_card`."""
     _read_limit(request)
-    mix = MIXES.get_public(mix_id)
+    mix = _public_mix_for(mix_id, _listener(request))
     if not mix:
         raise HTTPException(status_code=404, detail="That mix is private or no longer exists.")
     owner = SOCIAL.person(mix.user_id) or {}
@@ -10162,6 +10265,83 @@ async def write_preferences(req: PreferenceRequest, request: Request):
                 user, "pick", topic, "",
                 topics_mod.tags_for_id(topic, topic)))
     return prefs.as_dict()
+
+
+class FollowPreviewRequest(BaseModel):
+    """What is ticked on the follow screen, not yet saved."""
+    interests: list[str] = Field(default_factory=list, max_length=20)
+    topics: list[str] = Field(default_factory=list, max_length=200)
+
+
+class FollowRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=prefs_mod.MAX_TOPIC)
+
+
+@app.get("/api/follow/tree")
+async def follow_tree(request: Request) -> dict:
+    """What the follow screen offers (§696): the general topics, the larger
+    subjects under each, and what is under those. The shared vocabulary -
+    nothing of the listener in it, no model, no network."""
+    _read_limit(request)
+    return topics_mod.follow_tree()
+
+
+@app.post("/api/follow/preview")
+async def follow_preview(req: FollowPreviewRequest, request: Request) -> dict:
+    """The Made for you tiles these choices would lead with, before they
+    are saved (§696): `topics.interest_topics`, the same tiles the rail
+    draws. Composed in code; nothing is written, logged or generated."""
+    _read_limit(request)
+    try:
+        chosen = (prefs_mod.clean_interests(req.interests)
+                  + prefs_mod.clean_topics(req.topics))
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    tiles = [t.as_dict() for t in topics_mod.interest_topics(chosen)]
+    return {"topics": tiles[:topics_mod.VIEW_MORE_PAGE]}
+
+
+@app.get("/api/follow/suggest")
+async def follow_suggest(
+    request: Request,
+    q: str = Query("", max_length=300, description="What was just searched"),
+    subject: str = Query("", max_length=80,
+                         description="The episode's subject, from /api/next"),
+) -> dict:
+    """The one subject worth offering to follow after a search, or none
+    (§696). Never one already followed; nothing for a guest, whose choices
+    are not kept. No model call."""
+    _read_limit(request)
+    listener = getattr(request.state, "listener", None)
+    if listener is None or not listener.is_authenticated or not q.strip():
+        return {"topic": ""}
+    prefs = PREFS.get(listener.user_id)
+    label = topics_mod.follow_suggestion(
+        q, tuple(prefs.interests) + tuple(prefs.topics),
+        subject=content_filter.scrub(subject))
+    if label and content_filter.scrub(label) != label:
+        label = ""
+    return {"topic": label}
+
+
+@app.post("/api/follow")
+async def follow_topic(req: FollowRequest, request: Request) -> dict:
+    """Follow one more topic, from anywhere in the app (§696): added to the
+    listener's chosen topics, which never fade (`rule:interests-constant`),
+    and logged as a pick as a save from the follow screen is."""
+    _read_limit(request)
+    user = _require_account(request)
+    current = PREFS.get(user)
+    try:
+        prefs = PREFS.save(user, topics=list(current.topics) + [req.topic])
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    added = [t for t in prefs.topics if t not in current.topics]
+    for topic in added:
+        EVENTS.record(topics_mod.Event(
+            user, "pick", topic, "", topics_mod.tags_for_id(topic, topic)))
+    return {"topics": list(prefs.topics), "following": bool(added) or
+            req.topic.strip().lower() in {t.lower() for t in prefs.topics}}
 
 
 @app.get("/api/nextup")
@@ -11230,6 +11410,67 @@ EXPLORE_ALL_LIMIT = 60
 #: and every "Your categories" count. A filing is one category read per row.
 CATEGORY_MEMO_SECONDS = 30.0
 _CATEGORY_MEMO: dict = {"at": 0.0}
+#: **Explore's shelf** (the 11.25 packet, §694): today's episodes and, from
+#: the days before, the ones still *current* - what `ttl_for` says a new
+#: request would still be served, so a settled story stays and yesterday's
+#: score does not. As far back as every episode's audio is kept.
+EXPLORE_PAST_DAYS = 6
+#: After this many of today's stories, one from the days before.
+EXPLORE_FRESH_RUN = 3
+#: What leads a category's page, in this order, one story each in turn:
+#: the major leagues on Sport (the owner: "all the top stories in the major
+#: sports leagues"). Tree node ids; one the tree does not hold is skipped.
+EXPLORE_LEADING = {
+    "sports": ("nfl", "nba", "mlb", "nhl", "college football",
+               "college basketball", "premier league", "champions league",
+               "major league soccer", "wnba", "formula one", "golf",
+               "tennis", "ufc"),
+}
+
+
+#: A bucket this many kept rows share is a cold question's, whatever the
+#: settings were when they were written (`_cold_buckets`).
+COLD_BUCKET_ROWS = 5
+
+
+def _cold_buckets(entries: list[dict]) -> set:
+    """The buckets (`cache.key_bucket`: everything in the key but the
+    question) that belong to questions asked cold, among `entries`.
+
+    Today's settings' own, and any bucket `COLD_BUCKET_ROWS` rows share. The
+    second half is why a change of `MODEL`, pace or embedding space does not
+    empty the page (review, §694): a bucket holds those settings as they were
+    at the write, so every row from before the change matches neither of
+    today's - but they still share one bucket with each other, where a Go
+    Deeper's bucket carries the one episode it follows."""
+    cold: set = set()
+    held: dict = {}
+    for entry in entries:
+        bucket = entry.get("bucket") or ""
+        if not bucket:
+            continue
+        held[bucket] = held.get(bucket, 0) + 1
+        try:
+            minutes = entry["minutes"]
+            cold.add(cache_mod.key_bucket(minutes, "", True))
+            cold.add(cache_mod.key_bucket(minutes, "", False))
+        except Exception:  # noqa: BLE001 - a filing is never worth a failure
+            continue
+    cold.update(b for b, n in held.items() if n >= COLD_BUCKET_ROWS)
+    return cold
+
+
+def _is_follow_up(entry: dict, cold: set) -> bool:
+    """Whether a cached row is a Go Deeper's episode: written for somebody
+    who has just heard the one before it, and kept under a key that carries
+    that episode - so a card's own words never found it ("That episode is no
+    longer in the cache", the 11.25 packet). Read off the bucket stored with
+    it: one that is not a cold question's (`_cold_buckets`).
+
+    **False when no bucket was kept** (`CACHE_VECTOR=0`, the memory cache):
+    such a follow-up is still a card, and still plays - by its `episode`."""
+    bucket = entry.get("bucket") or ""
+    return bool(bucket) and bucket not in cold
 
 
 def _category_label(node: str) -> str:
@@ -11344,8 +11585,9 @@ def _day_start() -> float:
         hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
-def _todays_filed() -> list[dict]:
-    """Every episode cached since the start of the listener's day, filed.
+def _filed_rows() -> list[dict]:
+    """Every kept episode of the last `EXPLORE_PAST_DAYS` days and today,
+    filed: what `_todays_filed` and `_explore_filed` both choose from.
 
     **A read of the shared cache and nothing else** (§229): nothing here
     writes, prefetches or asks a model. What is in it is what is already
@@ -11365,11 +11607,15 @@ def _todays_filed() -> list[dict]:
         return []
     entries = store.recent(CATEGORY_SCAN)
     mixed = _mix_counts()
+    since = day_start - EXPLORE_PAST_DAYS * 86400.0
+    cold = _cold_buckets(entries)
     rows = []
     for entry in entries:
         made = float(entry.get("created") or entry.get("sourced_at") or 0.0)
-        if made < day_start:
+        if made < since:
             continue
+        if _is_follow_up(entry, cold):
+            continue  # never a card: it presumes another episode was heard
         query = entry.get("query") or ""
         title = (entry.get("title") or (query[:1].upper() + query[1:])).strip()
         if not title:
@@ -11379,6 +11625,7 @@ def _todays_filed() -> list[dict]:
             continue
         plays = int(entry.get("plays") or 0)
         in_mixes = int(mixed.get(query, 0))
+        sourced = float(entry.get("sourced_at") or made)
         rows.append({
             "query": query,
             "title": title,
@@ -11391,10 +11638,14 @@ def _todays_filed() -> list[dict]:
             "mixes": in_mixes,
             "popularity": plays + in_mixes,
             "created": made,
-            "sourced_at": float(entry.get("sourced_at") or made),
+            "sourced_at": sourced,
             "explicit": bool(entry.get("explicit")),
             "node": node,
             "chain": chain,
+            # Made today (the listener's day), and whether a new request
+            # would still be served it (§143) - Explore's shelf reads both.
+            "today": made >= day_start,
+            "current": bool(entry.get("current", True)),
             # For `_visible_episodes` only; never sent (`_category_row`).
             "author": entry.get("author") or "",
         })
@@ -11402,18 +11653,105 @@ def _todays_filed() -> list[dict]:
     return rows
 
 
-def _todays_for(viewer: str) -> list[dict]:
+def _todays_filed() -> list[dict]:
+    """Every episode cached since the start of the listener's day, filed."""
+    return [row for row in _filed_rows() if row["today"]]
+
+
+def _explore_filed() -> list[dict]:
+    """Explore's shelf: today's episodes, and those of the days before that
+    are still current (`EXPLORE_PAST_DAYS`)."""
+    return [row for row in _filed_rows() if row["today"] or row["current"]]
+
+
+def _todays_for(viewer: str, explore: bool = False) -> list[dict]:
     """Today's filed episodes as `viewer` may see them: screened as every
     shelf of other people's episodes is (`_visible_episodes`: nothing taken
     down, reported by them, or from somebody blocked or suspended), then one
-    row per title, the most popular, as the A to Z catalogue does."""
+    row per title, the most popular, as the A to Z catalogue does.
+    `explore`: Explore's wider shelf (`_explore_filed`), today's copy of a
+    title ahead of an older one."""
     best: dict[str, dict] = {}
-    for row in _visible_episodes(viewer, _todays_filed()):
+    rank = lambda r: (r["today"], r["popularity"], r["created"])  # noqa: E731
+    for row in _visible_episodes(
+            viewer, _explore_filed() if explore else _todays_filed()):
         held = best.get(row["title"].casefold())
-        if held is None or (row["popularity"], row["created"]) > (
-                held["popularity"], held["created"]):
+        if held is None or rank(row) > rank(held):
             best[row["title"].casefold()] = row
     return list(best.values())
+
+
+def _explore_group(row: dict, node: str, leading: tuple, parents: dict) -> str:
+    """Which strand of a page a story belongs to: the leading subject it is
+    under (a league), else the category one level below the page's own that
+    holds it, else the page's own."""
+    chain = row["chain"]
+    for name in leading:
+        if name in chain:
+            return name
+    for name in chain:
+        if name != node and parents.get(name, "") == node:
+            return name
+    return node
+
+
+def _explore_order(rows: list[dict], node: str, trending: dict) -> list[dict]:
+    """Explore's order for one page (§694, the owner: "all the top stories
+    in the major sports leagues as well as a mixture of interesting stories
+    from the past").
+
+    1. The Trending edition's stories, in the edition's order (§691).
+    2. Then the page **dealt in turn from its strands** - the leading
+       subjects first (`EXPLORE_LEADING`: the major leagues on Sport), then
+       the page's other categories, the busiest first - each strand's most
+       played first. Sorted by popularity alone the page was whichever
+       league had been played most, ten cards deep.
+    3. Today's stories and the still-current ones from the days before are
+       dealt separately and woven: `EXPLORE_FRESH_RUN` of today's, then one
+       from before.
+
+    `node` is "" for All, whose strands are the facets. Pure: rows in, the
+    same rows out in a new order; nothing is read or asked."""
+    try:
+        parents = {n: r.parent_id for n, r in topics_mod.category_tree().nodes().items()}
+    except Exception:  # noqa: BLE001 - an order is never worth a failure
+        parents = {}
+    facet = topics_mod._root_facet(node) if node else ""
+    leading = EXPLORE_LEADING.get(facet or node, ()) if node else ()
+    by_heat = lambda r: (-r["popularity"], -r["created"])  # noqa: E731
+
+    def strand_of(row: dict) -> str:
+        if not node:
+            return topics_mod._root_facet(row["node"]) or row["node"]
+        return _explore_group(row, node, leading, parents)
+
+    def deal(some: list[dict]) -> list[dict]:
+        strands: dict[str, list[dict]] = {}
+        for row in sorted(some, key=by_heat):
+            strands.setdefault(strand_of(row), []).append(row)
+        first = [name for name in leading if name in strands]
+        rest = sorted((name for name in strands if name not in first),
+                      key=lambda name: (by_heat(strands[name][0]), name))
+        out: list[dict] = []
+        order = first + rest
+        while order:
+            for name in order:
+                out.append(strands[name].pop(0))
+            order = [name for name in order if strands[name]]
+        return out
+
+    place = lambda r: trending.get(r.get("key") or "")  # noqa: E731
+    lead = sorted((r for r in rows if place(r) is not None), key=place)
+    others = [r for r in rows if place(r) is None]
+    fresh = deal([r for r in others if r["today"]])
+    past = deal([r for r in others if not r["today"]])
+    woven: list[dict] = []
+    while fresh or past:
+        woven.extend(fresh[:EXPLORE_FRESH_RUN])
+        del fresh[:EXPLORE_FRESH_RUN]
+        if past:
+            woven.append(past.pop(0))
+    return lead + woven
 
 
 def _category_row(row: dict, now: float) -> dict:
@@ -11422,6 +11760,10 @@ def _category_row(row: dict, now: float) -> dict:
         "query": row["query"], "title": row["title"],
         "minutes": row["minutes"], "plays": row["plays"],
         "key": row.get("key", ""),
+        # Which kept episode this is (`cache.episode_id`): a card replays it
+        # by this, as the history does (§173), so it plays whatever key it
+        # was written under. New field (`old-clients`).
+        "episode": cache_mod.episode_id(row.get("key", ""), row["sourced_at"]),
         "mixes": row["mixes"], "popularity": row["popularity"],
         "made_age_seconds": max(0.0, now - row["created"]),
         "sourced_age_seconds": max(0.0, now - row["sourced_at"]),
@@ -11592,7 +11934,10 @@ async def category_episodes(
         raise HTTPException(status_code=404, detail="There is no such category.")
     order = sort if sort in CATEGORY_SORTS else CATEGORY_SORTS[0]
     try:
-        filed = await asyncio.to_thread(_todays_for, _listener(request))
+        # Explore (`trending`) reads its wider shelf (§694); the other
+        # orders are today's only, as installed clients have them.
+        filed = await asyncio.to_thread(_todays_for, _listener(request),
+                                        order == "trending")
     except Exception:  # noqa: BLE001 - a category page is never worth a 500
         log.exception("could not file today's episodes")
         raise HTTPException(status_code=503,
@@ -11620,8 +11965,9 @@ async def category_episodes(
     now = time.time()
     leading = _trending_keys(now)
     if order == "trending":
-        # Stable: the edition's stories in its order, the rest as sorted.
-        inside.sort(key=lambda r: leading.get(r.get("key") or "", len(leading)))
+        # The edition's stories in its order, then the page dealt from its
+        # strands, today's woven with the days before (`_explore_order`).
+        inside = _explore_order(inside, "" if everything else node, leading)
     if everything:
         inside = inside[:EXPLORE_ALL_LIMIT]
     episodes = [_category_row(row, now) for row in inside]
@@ -13747,6 +14093,49 @@ def _voice_wait() -> float | None:
     return float(settings.remote_voice_timeout)
 
 
+#: The most of an earlier episode's script a follow-up's writer is shown:
+#: all of a five-minute episode, with room.
+HEARD_CHARS = 7000
+
+
+def _heard_before(user: str, context: str, episode: str = "") -> str:
+    """What the episode a Go Deeper follows said, or "".
+
+    A follow-up used to be told only the *title* of what the listener had
+    just heard, so it researched and wrote the same ground again - "not
+    going deeper, just rephrasing what it said in the previous episode".
+    This reads that episode's script from the cache (never writes, never
+    calls a model): by the id the player was given for it (`heard=`), else
+    - an installed client sends none - from the listener's own history, the
+    most recent row carrying that title. "" when neither finds it, and the
+    follow-up is written from the title alone, as before.
+    """
+    try:
+        key = ""
+        if episode and parse_episode_id(episode) is not None:
+            key = SCRIPT_CACHE.resolve_episode(episode)
+        if not key and user and context:
+            wanted = " ".join(context.split()).casefold()
+            for row in SAVED.history(user, limit=40):
+                if wanted not in (row["title"].casefold(), row["query"].casefold()):
+                    continue
+                if row["episode"]:
+                    key = SCRIPT_CACHE.resolve_episode(row["episode"])
+                if not key:
+                    key = _episode_key(_validated_plan(
+                        row["query"], row["minutes"], row["context"])) or ""
+                break
+        if not key:
+            return ""
+        return " ".join(SCRIPT_CACHE.script(key))[:HEARD_CHARS].strip()
+    except HTTPException:
+        return ""
+    except Exception:  # noqa: BLE001 - never worth the follow-up itself
+        log.exception("could not read what a follow-up follows; writing it "
+                      "from the title alone")
+        return ""
+
+
 @app.get("/api/next")
 async def next_thread(
     request: Request,
@@ -13793,7 +14182,7 @@ async def next_thread(
         pipeline = _make_pipeline()
     except TTSUnavailable:
         return {"thread": "", "title": "", "title_final": False, "summary": "",
-                "explicit": False}
+                "explicit": False, "subject": ""}
     # `title_final` is what lets the player ask early: the brief's title is on
     # the live track before the first word (§127), and the interface keeps
     # asking until the writer's own has replaced it.
@@ -13854,6 +14243,11 @@ async def audio(
     # §656: the myFAM mix this episode is played from, so a free listener's
     # half of it can be counted. An older client never sends it.
     mix: str = Query("", max_length=64, description="The mix this is played from"),
+    # The episode a Go Deeper follows, by its id (`X-FAM-Episode`), so the
+    # follow-up is written knowing what that one said. An older client
+    # never sends it; the listener's history is asked by title instead.
+    heard: str = Query("", max_length=80, description="The id of the episode "
+                                                      "this follow-up follows"),
 ):
     """Stream the episode.
 
@@ -13885,6 +14279,12 @@ async def audio(
                            _attachments_for(user, attach), reading=reading)
     if ask_reading:
         plan = dataclasses.replace(plan, ask_reading=True)
+    # A Go Deeper is written knowing what the episode it follows said, so
+    # it goes past it rather than rewording it. Never for a replay.
+    if plan.context and not (cached_only or episode):
+        said = _heard_before(user, plan.context, heard)
+        if said:
+            plan = dataclasses.replace(plan, heard=said)
     # A reviewer took this episode down (moderation.py, §226): it plays for
     # nobody - not from a share, a rail, a replay, or written again.
     if _episode_target(q, minutes) in MODERATION.hidden_episodes():

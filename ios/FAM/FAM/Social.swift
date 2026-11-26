@@ -1007,6 +1007,7 @@ final class ChatModel: ObservableObject {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
+        clearSent(text)
         // The server ends the dots on a send; the next keystroke says it
         // again at once (`typingSentAt = 0`).
         lastTypingNote = .distantPast
@@ -1014,6 +1015,31 @@ final class ChatModel: ObservableObject {
         rows.append(row)
         fresh = [row.id]
         post(row)
+    }
+
+    /// **The box really is empty after a send** (11.25 packet; the owner:
+    /// "the message sends but then what I've sent stays in the send bar ...
+    /// have to delete the old one before sending again"). A vertical
+    /// `TextField` does not always follow its binding when it is cleared
+    /// from inside its own `onChange` (Return) or while the keyboard still
+    /// holds a pending autocorrection: UIKit writes the words back a moment
+    /// later. So the draft is cleared again on the next turn of the main
+    /// queue and once more 0.15 s on - but only while the box holds nothing,
+    /// or exactly what was just sent. Anything typed since is left alone.
+    private func clearSent(_ sent: String) {
+        // A task on the main actor is its own later turn of the main queue.
+        Task { @MainActor [weak self] in
+            self?.clearIfStill(sent)
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            self?.clearIfStill(sent)
+        }
+    }
+
+    private func clearIfStill(_ sent: String) {
+        // Empty already: set again all the same, so a field still drawing
+        // the old words is told once more (a set publishes even when equal).
+        guard draft.isEmpty || draft.trimmingCharacters(in: .whitespacesAndNewlines) == sent else { return }
+        draft = ""
     }
 
     /// The composer's (+): an episode, with the id of the one heard.

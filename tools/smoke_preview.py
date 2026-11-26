@@ -175,27 +175,46 @@ def main() -> int:
                 "Find your friends has no way past it"
             page.evaluate("afterFindFriends()")
 
-            page.wait_for_selector("#screen-intro.active .cat-row",
+            page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
-            # The long list of topics, straight away - the wheel of six
-            # facets that stood in front of it is gone (§142).
+            # "What topics do you want to follow" (§696): eight general
+            # topics, then each chosen one opened into its subjects. The
+            # wheel (§142) and the A to Z list of 73 are both gone.
             assert not page.query_selector("#orbitRing, .intro-chip"), \
                 "the interests wheel is back on the first run"
-            rows = page.eval_on_selector_all(".cat-row", "e => e.length")
-            assert rows > 50, f"the first run offered {rows} topics, not the list"
-            # And no paragraph between the heading and them.
+            heading = (page.text_content("#introHeading") or "").lower()
+            assert "follow" in heading and "interest" not in heading, heading
+            worlds = page.eval_on_selector_all(".fw-world", "e => e.length")
+            assert worlds == 8, f"the first run offered {worlds} general topics"
             assert not page.query_selector("#introPageInterests .entry-lede"), \
-                "the lede is back under Your interests"
+                "the lede is back under the heading"
+            page.evaluate("toggleFollowWorld('sports'); toggleFollowWorld('tech')")
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Next", "choosing a general topic did not offer the second page"
+            page.evaluate("introPrimary()")
+            page.wait_for_selector(".fw-sec[data-world='sports'] .fw-chip", timeout=5000)
+            assert page.eval_on_selector_all(".fw-sec", "e => e.length") == 2, \
+                "the second page is not one section per chosen topic"
+            # A subject's first tap follows it and opens what is under it.
+            page.evaluate("document.querySelector(\".fw-sec[data-world='sports'] .fw-chip\").click()")
+            page.wait_for_selector(".fw-drop[data-world='sports'] .fw-leaf", timeout=5000)
+            assert page.query_selector(".fw-drop[data-world='sports'] .fw-filter"), \
+                "there is no box to type a team into"
             # Any number of them, with nothing counting them against a cap.
-            for i in range(6):
-                page.evaluate(f"document.querySelectorAll('.cat-row')[{i}].click()")
-            chosen = page.eval_on_selector_all(".cat-add.on", "e => e.length")
-            assert chosen == 6, f"only {chosen} of six topics took a tap"
+            for _ in range(6):
+                page.evaluate("document.querySelector('.fw-drop .fw-leaf:not(.on)').click()")
+            chosen = page.evaluate("chosenTopics.length")
+            assert chosen == 7, f"{chosen} topics followed after a subject and six under it"
             assert not page.query_selector("#introCount"), \
                 "the interest counter is back, and there is no number to show"
             body = page.text_content("#introPageInterests") or ""
             for word in ("limit", "up to six", "at most"):
                 assert word not in body.lower(), f"the page still mentions a cap: {word!r}"
+            # And the Made for you row is built as they choose (§696).
+            page.wait_for_function(
+                "document.querySelectorAll('#followPreview .fw-tile').length === 7",
+                timeout=5000)
+            assert not page.eval_on_selector("#followPreview", "e => e.hidden")
             # Interests is the last step now - the language page is gone
             # (§100), so this button finishes the run rather than chaining on
             # to a question that was never wired to anything.
@@ -1331,35 +1350,37 @@ def main() -> int:
             page.wait_for_timeout(400)
 
         def the_interest_catalogue_is_the_whole_list():
-            """The first run's interests page *is* the list now (§142) -
-            seventy-odd named subjects, each with an icon. It used to be a
-            wheel of six facets with this list behind its hub."""
+            """The follow screen offers the whole tree (§696): eight general
+            topics up front, hundreds of subjects and every team behind
+            them. It was an A to Z list of seventy-three (§142), and a wheel
+            of six facets before that."""
             page.evaluate(
                 "try{ localStorage.removeItem('fam.prefs'); }catch(e){}; startEntry()")
             page.wait_for_timeout(600)
             page.evaluate("skipAccount()")
-            page.wait_for_selector("#screen-intro.active .cat-row",
+            page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
             assert not page.query_selector(".orbit-more, #orbitRing"), \
-                "a wheel is standing in front of the list again"
+                "a wheel is standing in front of the topics again"
             assert not page.query_selector("#screen-catalog"), \
-                "the list has a second screen of its own again"
-            rows = page.eval_on_selector_all(".cat-row", "e => e.length")
-            assert rows > 50, f"the list offered {rows} interests"
-            names = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
-            for wanted in ("Soccer", "Formula 1", "K-pop", "Personal Finance"):
-                assert wanted in names, f"{wanted} is missing from the list"
-            # Every row draws an icon. A row with none is a row that looks
-            # broken next to the ones that have them.
-            icons = page.eval_on_selector_all(".cat-art svg", "e => e.length")
-            assert icons == rows, f"{rows - icons} rows had no icon"
-            # And the search narrows it rather than decorating it.
-            page.fill("#catalogSearch", "hockey")
+                "the topics have a second screen of their own again"
+            # The whole tree is on offer (§696): hundreds of subjects and
+            # every major-league team, where the list held seventy-three.
+            offered = page.evaluate("followLabels().map(function(m){ return m.label; })")
+            assert len(offered) > 500, f"the follow screen offered {len(offered)} topics"
+            for wanted in ("Soccer", "Formula One", "K-pop", "Personal Finance",
+                           "Boston Celtics", "New England Patriots"):
+                assert wanted in offered, f"{wanted} is missing from what can be followed"
+            # And the search finds across all of it.
+            page.fill("#catalogSearch", "celtics")
             page.wait_for_timeout(400)
-            found = page.eval_on_selector_all(".cat-name", "e => e.map(x => x.textContent)")
-            assert found == ["Ice Hockey"], found
+            found = page.eval_on_selector_all(
+                "#followFound .cat-row", "e => e.map(x => x.dataset.label)")
+            assert found == ["Boston Celtics"], found
             page.fill("#catalogSearch", "")
             page.wait_for_timeout(200)
+            assert not page.query_selector("#followFound .cat-row"), \
+                "an empty search still lists results"
             # A second first run, for this check only: its tour was taken.
             page.evaluate("finishIntro(); saveLocalPrefs({ tour: 'done' })")
             page.wait_for_timeout(700)
@@ -1373,14 +1394,15 @@ def main() -> int:
             page.evaluate("openSettings()")
             page.wait_for_selector("#screen-settings.active", timeout=10000)
             page.evaluate("openInterestsFromSettings()")
-            page.wait_for_selector("#screen-intro.active .cat-row",
+            page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(300)
             before = page.evaluate("chosenTopics.length")
-            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
-                == "Save", "Settings opened the first run rather than an editor"
+            assert not page.eval_on_selector("#introTop", "e => e.hidden") \
+                and page.eval_on_selector("#introSkip", "e => e.hidden"), \
+                "Settings opened the first run rather than an editor"
 
-            page.evaluate("document.querySelectorAll('.cat-row:not(:has(.cat-add.on))')[0].click()")
+            page.evaluate("toggleCatalogTopic('Boston Celtics')")
             page.wait_for_timeout(300)
             assert page.evaluate("chosenTopics.length") == before + 1
 
@@ -1390,13 +1412,16 @@ def main() -> int:
             assert page.evaluate("chosenTopics.length") == before, \
                 "the X kept a topic that was never saved"
 
-            # And again, this time pressing Save.
+            # And again, this time pressing Save, on the second page.
             page.evaluate("openInterestsFromSettings()")
-            page.wait_for_selector("#screen-intro.active .cat-row",
+            page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(300)
-            page.evaluate("document.querySelectorAll('.cat-row:not(:has(.cat-add.on))')[0].click()")
+            page.evaluate("toggleCatalogTopic('Boston Celtics')")
             page.wait_for_timeout(200)
+            page.evaluate("followPage = 2; renderIntro()")
+            assert page.eval_on_selector("#introNextBtn", "e => e.textContent.trim()") \
+                == "Save", "the editor's last page does not save"
             page.evaluate("introPrimary()")
             page.wait_for_timeout(500)
             assert page.evaluate("chosenTopics.length") == before + 1, \
@@ -1427,10 +1452,9 @@ def main() -> int:
             labels = page.evaluate("chosenTopicLabels()")
             assert "nineteenth century canals" in labels, labels
 
-            # Typing the name of something that *is* listed adds the listed
-            # entry rather than a second row that reads the same and carries
-            # none of the catalogue's tags.
-            page.fill("#catalogSearch", "Formula 1")
+            # Typing the name of something that *is* listed offers the listed
+            # subject rather than a second one that reads the same.
+            page.fill("#catalogSearch", "boston celtics")
             page.wait_for_timeout(300)
             assert not page.query_selector(".cat-add-typed"), \
                 "offered to add a topic that is already on the list"
@@ -2204,12 +2228,13 @@ def main() -> int:
             assert chip, "the search page has no voice control"
             # §190: bubbles under the bar, Length then Voice, and the
             # choice is not printed on them; Private is the third (§282),
-            # a lock with no word on it since the 11.16 notes.
+            # a lock and its word since the 11.24 packet (§690: "add the
+            # word Private on the lock too"), a bare lock before it.
             order = page.evaluate(
                 """() => Array.from(document.querySelectorAll(
                     '#screen-home .fam-controls .search-bubble'))
                     .map(e => e.textContent.trim() || e.getAttribute('aria-label'))""")
-            assert order == ["Length", "Voice", "Private search"], f"the bubbles read {order}"
+            assert order == ["Length", "Voice", "Private"], f"the bubbles read {order}"
             page.evaluate("openVoiceMenu()")
             page.wait_for_timeout(250)
             labels = page.evaluate(
@@ -2719,13 +2744,13 @@ def main() -> int:
             assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
             page.wait_for_timeout(500)
             assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
-            # A chip: the X comes at once, the chip is the same element.
+            # A chip: lit on the tap, in the row that does not move (§694).
             if page.query_selector("#catChips .catchip[data-cat]"):
                 page.evaluate("document.querySelector('#catChips .catchip[data-cat]').click()")
-                assert page.query_selector("#catChips [data-chip=x]"), "the X did not come on the tap"
+                assert page.query_selector("#catChips .catchip.on[data-cat]"), "the chip did not light on the tap"
                 assert "Loading" not in (page.text_content("#catPanel") or ""), "the loading line flashed on the tap"
                 page.wait_for_timeout(900)
-                page.click("#catChips [data-chip=x]")
+                page.click("#catChips [data-chip=all]")
                 page.wait_for_timeout(500)
             page.click("#pfTabMixes")
             page.wait_for_timeout(500)
@@ -3771,10 +3796,9 @@ def main() -> int:
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
             assert want == 1.5, f"the search page opened on {want} min, not 1.5"
-            for element_id in ("lengthModalVal",):
-                shown = page.text_content("#" + element_id).strip()
-                assert shown == "%g min" % want, \
-                    f"#{element_id} reads {shown!r}, the setting is {want} min"
+            # The player's Length row went with §693.
+            assert not page.query_selector("#lengthModalVal"), \
+                "the player offers a length again"
             # And the menu ticks the one the chip names, which is the pair
             # that disagreed.
             page.evaluate("openLengthMenu()")
@@ -3869,10 +3893,16 @@ def main() -> int:
             page.wait_for_selector("#screen-mixdetail.active", timeout=8000)
             assert page.evaluate("mixes.length") == before + 1, \
                 "Create did not make the mix"
-            assert page.text_content("#mixTitle").strip() == name
+            assert page.text_content("#mixBody .mix-hero-t").strip() == name
             body = page.inner_text("#mixBody")
             assert "Add topics to playlist" in body and "Change" in body, body[:300]
             assert "Nothing in this playlist yet" in body, body[:300]
+            # §694: on an empty playlist Add topics is under the picture and
+            # the name, not above them.
+            assert page.evaluate("""() => {
+              var hero = document.querySelector('#mixBody .mix-hero').getBoundingClientRect();
+              var add = document.querySelector('#mixBody .mix-add-topics').getBoundingClientRect();
+              return add.top >= hero.bottom; }"""), "Add topics is above the playlist's picture and name"
 
             # Add topics: search reaches into the specifics - people think in
             # teams - and the (+) saves at once.
@@ -3895,9 +3925,9 @@ def main() -> int:
                 "#mixBody .pl-rows > .pl-row .pl-row-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL · Eagles"], rows
-            # The date is in the header since §691: "NAME · NOV 24 · 1 STORY".
-            assert re.search(r"· \w{3} \d{1,2} · 1 story", page.inner_text("#screen-mixdetail .pl-head-sub"), re.I), \
-                "the edition is not dated"
+            # §694: the header's "NAME · NOV 24 · 1 STORY" line is gone.
+            assert not page.query_selector("#screen-mixdetail .pl-head-sub"), \
+                "the line under myFAM Playlist is back"
 
             # Recommendations: five subjects, one tap adds, shuffled.
             recs = page.eval_on_selector_all(
@@ -4344,7 +4374,7 @@ def main() -> int:
                 f"there is no Listening history row in Settings: {rows}"
 
             page.evaluate("openInterestsFromSettings()")
-            page.wait_for_selector("#screen-intro.active .cat-row",
+            page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
             page.wait_for_timeout(300)
             page.evaluate("""
@@ -4358,15 +4388,20 @@ def main() -> int:
             assert not page.eval_on_selector("#introSub", "e => e.hidden"), \
                 "the editor does not say what it is for"
             ticked = page.eval_on_selector_all(
-                ".cat-row", "e => e.filter(r => r.querySelector('.cat-add.on'))"
-                            ".map(r => r.querySelector('.cat-name').textContent)")
-            assert ticked == ["Soccer"], f"the list ticked {ticked}, not what was chosen"
-            facets = page.eval_on_selector_all(".intro-facet", "e => e.length")
-            assert facets == 1, "a facet chosen on the old wheel cannot be seen or removed"
-            page.click(".intro-facet")
+                ".fw-world[aria-pressed='true']", "e => e.map(b => b.dataset.world)")
+            assert ticked == ["tech"], f"the screen ticked {ticked}, not what was chosen"
+            followed = page.eval_on_selector_all(
+                "#followFollowing .intro-facet", "e => e.map(b => b.textContent.trim())")
+            assert followed == ["Soccer"], f"what is followed reads {followed}"
+            page.evaluate("document.querySelector('#followFollowing .intro-facet').click()")
+            page.wait_for_timeout(200)
+            assert page.evaluate("chosenTopics.length") == 0, \
+                "tapping a followed topic did not take it off"
+            page.evaluate("toggleFollowWorld('tech')")
             page.wait_for_timeout(200)
             assert page.evaluate("introSelection.length") == 0, \
-                "tapping a facet did not take it off"
+                "tapping a general topic did not take it off"
+
             page.evaluate("cancelIntroFromSettings()")
             page.wait_for_timeout(300)
             assert page.evaluate("introSelection.length") == 1, \
@@ -5078,29 +5113,46 @@ def main() -> int:
             page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            assert chips[0] == "All" and chips[-1] == "More", f"the chip row reads {chips}"
+            # §694: All and the main categories only - no More, no X.
+            assert chips[0] == "All" and "More" not in chips and len(chips) >= 5, f"the chip row reads {chips}"
             assert page.query_selector("#catChips .catchip.on[data-chip=all]"), "All is not the chip that is on"
             page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
             card = page.eval_on_selector("#catPanel .xp-card", """e => ({
                 title: !!e.querySelector('.xp-title').textContent.trim(),
                 kick: !!e.querySelector('.xp-kick').textContent.trim(),
                 play: !!e.querySelector('.xp-play'),
+                playText: e.querySelector('.xp-play').textContent.trim(),
+                playWide: e.querySelector('.xp-play').offsetWidth,
+                playTall: e.querySelector('.xp-play').offsetHeight,
+                when: e.querySelector('.xp-when').textContent.trim(),
                 add: e.querySelector('.xp-add').textContent.trim() })""")
             assert card["title"] and card["kick"] and card["play"] and card["add"] == "Add to playlist", \
                 f"an Explore card is missing a part: {card}"
+            # §694: the play is a round play button with no wordmark in it,
+            # and the card says the day its episode was made.
+            assert card["playText"] == "" and card["playWide"] == card["playTall"] >= 44, \
+                f"the play button is not a round play button: {card}"
+            assert card["when"], "an Explore card does not say when it was made"
             target = page.eval_on_selector(
                 "#catChips .catchip[data-cat]:not([data-cat=''])",
                 "e => e.getAttribute('data-cat')")
             page.click(f'#catChips .catchip[data-cat="{target}"]')
             page.wait_for_selector("#catPanel:not([hidden]) .catp-play, #catPanel:not([hidden]) .sv-empty",
                                    timeout=5000)
-            assert page.query_selector("#catChips .catchip-x"), "no way back to All"
+            # §694: the row is the same row with that chip lit - every main
+            # category still there, no X and nothing from the level below.
+            inside = page.eval_on_selector_all("#catChips .catchip",
+                                               "e => e.map(x => x.textContent.trim())")
+            assert inside == chips, f"the chip row changed inside a category: {inside}"
+            assert page.query_selector(f'#catChips .catchip.on[data-cat="{target}"]'), \
+                "the category picked is not the chip that is on"
+            assert not page.query_selector("#catChips .catchip-x"), "the X is back on the chip row"
             if page.query_selector("#catPanel .catp-play"):
                 assert page.query_selector("#catPanel .xp-card"), "the category has Play all and no cards"
-            page.click("#catChips .catchip-x")
+            page.click("#catChips .catchip[data-chip=all]")
             page.wait_for_selector("#catChips .catchip.on[data-chip=all]", timeout=3000)
             page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
-            assert not page.query_selector("#catPanel .catp-play"), "the X left the category showing"
+            assert not page.query_selector("#catPanel .catp-play"), "All left the category showing"
             page.click("#pfTabMixes")
             page.wait_for_timeout(300)
             assert not page.eval_on_selector("#mixesPane", "e => e.hidden")
@@ -5122,7 +5174,7 @@ def main() -> int:
                 f"a playlist's card is missing a part: {card}"
             page.evaluate("document.querySelector('#mixList .pl-card[data-mix]').click()")
             page.wait_for_selector("#screen-mixdetail.active", timeout=5000)
-            assert "STOR" in page.inner_text("#screen-mixdetail .pl-head-sub").upper()
+            assert not page.query_selector("#screen-mixdetail .pl-head-sub")
             assert page.inner_text("#mixBody .pl-pill").startswith(("Play ", "Start with")), \
                 "the pill does not offer to play the playlist"
             assert page.query_selector("#mixBody .pl-row .pl-heart"), "a story has no heart"
@@ -5185,15 +5237,72 @@ def main() -> int:
                 "the tile stayed on the page after Not interested"
 
         def the_interests_list_is_alphabetical():
-            """28/09: the interests list, first run and Settings, is A to Z."""
-            page.evaluate("introMode = 'settings'; showScreen('intro'); renderIntro()")
-            page.wait_for_selector("#catalogBody .cat-row", timeout=5000)
+            """§696 replaced the A to Z list (28/09) with a tree: under an
+            open subject its teams are listed, and typing narrows them."""
+            page.evaluate("introMode = 'settings'; introSelection = ['sports'];"
+                          " chosenTopics = []; followOpen = {}; followPage = 2;"
+                          " showScreen('intro'); renderIntro()")
+            page.wait_for_selector(".fw-sec[data-world='sports'] .fw-chip", timeout=5000)
+            page.evaluate("tapFollowSubject('sports', 'Baseball')")
+            page.wait_for_selector(".fw-drop[data-world='sports'] .fw-leaf", timeout=5000)
+            page.fill(".fw-drop[data-world='sports'] .fw-filter", "red")
+            page.wait_for_timeout(300)
             names = page.eval_on_selector_all(
-                "#catalogBody .cat-name", "e => e.map(n => n.textContent.trim())")
-            assert len(names) > 5, names
-            assert names == sorted(names, key=str.casefold), \
-                f"not alphabetical: {names[:8]}"
-            page.evaluate("cancelIntroFromSettings()")
+                ".fw-drop .fw-leaf", "e => e.map(n => n.textContent.trim())")
+            assert "Boston Red Sox" in names, names
+            assert all("red" in n.lower() for n in names), \
+                f"typing did not narrow what is under Baseball: {names}"
+            page.evaluate("followOpen = {}; followPage = 1; cancelIntroFromSettings()")
+
+        def following_reaches_dailyfam():
+            """§696: after a search DailyFAM asks whether to follow its
+            subject, a card there because of a followed topic says so, and
+            the followed teams' held games stand above the rails."""
+            page.evaluate("openMyFamTab()")
+            page.wait_for_selector("#myfamFeed .seed-card", timeout=10000)
+            if not page.evaluate("AUTH.authenticated"):
+                # A guest is never asked: their choices are not kept.
+                page.evaluate("saveFollowAsk({ ask: { topic: 'Taylor Swift', q: 'x' } });"
+                              " paintFollowAsk()")
+                assert page.eval_on_selector("#followAsk", "e => e.hidden"), \
+                    "a guest was asked to follow a topic"
+                page.evaluate("saveFollowAsk({})")
+                return
+            page.evaluate("saveFollowAsk({ ask: { topic: 'Taylor Swift',"
+                          " q: 'taylor swift tour dates' } }); paintFollowAsk()")
+            card = page.text_content("#followAsk") or ""
+            assert not page.eval_on_selector("#followAsk", "e => e.hidden") \
+                and "Follow Taylor Swift?" in card and "taylor swift tour dates" in card, card
+            # Not now: gone, and not asked about again.
+            page.evaluate("answerFollowAsk(false)")
+            assert page.eval_on_selector("#followAsk", "e => e.hidden")
+            assert "taylor swift" in page.evaluate("followAskState().no || []")
+            # Follow: the topic is theirs.
+            before = page.evaluate("chosenTopics.length")
+            page.evaluate("saveFollowAsk({ ask: { topic: 'Nvidia', q: 'why is nvidia down' } });"
+                          " paintFollowAsk()")
+            page.evaluate("answerFollowAsk(true)")
+            page.wait_for_function(f"chosenTopics.length === {before + 1}", timeout=5000)
+            assert page.eval_on_selector("#followAsk", "e => e.hidden")
+            page.evaluate("chosenTopics = chosenTopics.filter(function(t){ return t.id !== 'Nvidia'; });"
+                          " saveFollowAsk({})")
+            page.wait_for_selector("#myfamFeed .seed-card", timeout=10000)
+            # A reason, and the strip, drawn from what the server sends.
+            page.evaluate("""
+                var first = Object.assign({}, railTiles.from_history[0] || railTiles.world_trending[0],
+                                          { why: 'Boston Celtics' });
+                myFamTeams = [{ id: 'st-game', title: 'Boston Celtics vs New York Knicks',
+                                query: 'celtics knicks', live_line: 'Celtics 102, Knicks 99',
+                                tags: ['sports'] }];
+                renderMyFamFeed([{ key: 'from_history', title: 'Made for you', topics: [first] }]);
+            """)
+            assert "Because you follow Boston Celtics" in (
+                page.text_content("#myfamFeed .seed-because") or ""), \
+                "a followed topic's card does not say why it is there"
+            strip = page.text_content("#myfamFeed .team-strip") or ""
+            assert "Boston Celtics vs New York Knicks" in strip and "102" in strip, strip
+            page.evaluate("myFamTeams = []; loadMyFamFeed()")
+            page.wait_for_timeout(600)
 
         print(f"smoke test: {target.name}")
         def a_myfam_card_is_saved_and_never_waved_off():
@@ -5508,7 +5617,9 @@ def main() -> int:
               dailyfam_searches_other_peoples_mixes)
         check("Tapping Added again removes the mix", an_added_mix_is_removed_by_the_same_button)
         check("A mix is shared from its menu", a_mix_is_shared_from_its_menu)
-        check("The interests list is alphabetical", the_interests_list_is_alphabetical)
+        check("Typing narrows what is under a subject", the_interests_list_is_alphabetical)
+        check("Follow this? after a search, a reason on a card, the teams strip",
+              following_reaches_dailyfam)
         check("Not interested takes a tile off the page", not_interested_takes_a_tile_off_the_page)
         check("Category chips filter the page in place", category_chips_filter_the_page_in_place)
         check("A playlist's page follows what plays", a_playlists_page_follows_what_plays)

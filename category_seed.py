@@ -135,6 +135,108 @@ LEFT_TO_GROW = (
     "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
 )
 
+#: Where a team seeded by its nickname alone plays, so "Cincinnati sports"
+#: finds the Bengals (PROBLEMS.md §695).
+HOME_OF = {
+    "bengals": "cincinnati", "steelers": "pittsburgh", "broncos": "denver",
+    "buccaneers": "tampa bay", "niners": "san francisco",
+    "seahawks": "seattle",
+}
+
+#: A seeded nickname whose full name is not its city and the nickname: the
+#: fixture says "San Francisco 49ers" (§697).
+FULL_NAME = {"niners": "san francisco 49ers"}
+
+#: The other names a city's teams play under: Boston's football team is New
+#: England's. Only where the second name means that city's team and nobody
+#: else's (§695).
+METRO = {
+    "boston": ("new england",),
+    "san francisco": ("golden state",),
+    "minneapolis": ("minnesota",),
+    "denver": ("colorado",),
+    "phoenix": ("arizona",),
+    "indianapolis": ("indiana",),
+    "salt lake city": ("utah",),
+    "nashville": ("tennessee",),
+    "charlotte": ("carolina",),
+    "new york": ("brooklyn",),
+    "los angeles": ("anaheim",),
+}
+
+
+#: The league each `LEFT_TO_GROW` team plays in, so the follow tree can
+#: offer it beside the teams the tree holds (PROBLEMS.md §696). A test
+#: holds this to exactly the `LEFT_TO_GROW` names.
+LEFT_LEAGUE = {
+    "nhl": ("carolina hurricanes", "tampa bay lightning", "colorado avalanche",
+            "minnesota wild", "calgary flames", "dallas stars",
+            "florida panthers", "ottawa senators", "winnipeg jets"),
+    "nba": ("oklahoma city thunder", "miami heat", "houston rockets",
+            "detroit pistons", "chicago bulls", "orlando magic"),
+    "mlb": ("colorado rockies", "tampa bay rays", "washington nationals",
+            "texas rangers", "san francisco giants", "milwaukee brewers"),
+    "nfl": ("miami dolphins", "washington commanders", "kansas city chiefs",
+            "houston texans", "new england patriots", "new york giants",
+            "new york jets", "los angeles chargers", "chicago bears",
+            "buffalo bills"),
+}
+
+
+_ALL_TEAMS: dict = {}
+
+
+def all_teams() -> dict:
+    """Every major-league team by its full name -> the tree node that holds
+    it, or "" for one `LEFT_TO_GROW` keeps out of the tree. Built once: it
+    is read for every chosen interest on every page (§697). Read-only."""
+    if _ALL_TEAMS:
+        return _ALL_TEAMS
+    out: dict = {}
+    for roster in (NFL_TEAMS, NBA_TEAMS, MLB_TEAMS, NHL_TEAMS):
+        for node in roster:
+            home = HOME_OF.get(node)
+            out[FULL_NAME.get(node) or (f"{home} {node}" if home else node)] = node
+    for name in LEFT_TO_GROW:
+        out.setdefault(name, "")
+    _ALL_TEAMS.update(out)
+    return _ALL_TEAMS
+
+
+#: Nicknames of two words, so a team's city can be read off its name.
+_TWO_WORD_NICKNAMES = ("red sox", "white sox", "maple leafs", "blue jays",
+                       "trail blazers", "blue jackets", "red wings",
+                       "golden knights")
+_CITIES: set = set()
+
+
+def cities() -> set:
+    """Every place a major-league team is named for - "boston", "new york",
+    "golden state" - and the metro names in `METRO`. Built once."""
+    if not _CITIES:
+        found = set(METRO)
+        for name in all_teams():
+            words = name.split()
+            drop = 2 if name.endswith(_TWO_WORD_NICKNAMES) else 1
+            if len(words) > drop:
+                found.add(" ".join(words[:-drop]))
+        _CITIES.update(found)
+    return _CITIES
+
+
+def teams_of(place: str) -> dict:
+    """The teams of one city, as `all_teams` rows: every team whose full
+    name opens with the place or with another name its teams play under.
+    **Only a place a team is named for** (§697): a prefix alone made "new
+    teams" eleven teams and "san fans" five."""
+    place = " ".join(str(place or "").lower().split())
+    if not place or place not in cities():
+        return {}
+    homes = (place,) + tuple(METRO.get(place, ()))
+    return {name: node for name, node in all_teams().items()
+            if any(name.startswith(home + " ") for home in homes)}
+
+
 #: Words that are a subject only inside a longer phrase (the owner 11.9,
 #: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
 #: also who is winning: grown alone and filed under science, every golf

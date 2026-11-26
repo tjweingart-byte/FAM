@@ -2798,7 +2798,7 @@ class SqliteScriptCache:
             rows = self._conn().execute(
                 "SELECT key, query, minutes, created, plays, thread, title,"
                 f" author, {_SOURCED}, {_CURRENT_UNTIL}, origin, voice,"
-                " sentences FROM scripts"
+                " sentences, bucket FROM scripts"
                 " WHERE expires >= ? AND query != '' AND minutes > 0"
                 f"   AND origin != '{ARCHIVE_ORIGIN}'"
                 + ("" if origin == PRIVATE_ORIGIN
@@ -2830,7 +2830,10 @@ class SqliteScriptCache:
              # request would still be served it. Replay surfaces show the
              # first; nothing here hides an entry that is kept but not current.
              "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now,
-             "origin": r[10] or "", "voice": r[11] or ""}
+             "origin": r[10] or "", "voice": r[11] or "",
+             # Everything in the key but the question (`key_bucket`), "" when
+             # none was stored: how Explore tells a follow-up (§694).
+             "bucket": r[13] or ""}
             for r in rows
         ]
 

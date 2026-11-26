@@ -34,7 +34,7 @@ global function.
 | `admin_ui/tracker.html`, `thumbnails.html`, `waitlist.html` | — | Admin pages at `/admin`, `/admin/thumbnails` and `/admin/waitlist`. |
 | `static/manifest.webmanifest`, `icon.svg`, `icon-*.png`, `apple-touch-icon.png`, `favicon.ico` | — | The installable-app metadata. The icon is the double chevron (§195). `tools/make_icons.py` renders the PNGs from `icon.svg`. |
 | `static/reference-ui.html`, `app.js`, `style.css` | — | The original minimal test player, kept for debugging (`README.md`). It is not part of the app. |
-| `static/landing/*.jpg` | — | Screenshots used by the waitlist page. |
+| `static/landing/player.jpg`, `static/landing/home/*.jpg` | — | The app in pictures on the waitlist page's homepage (§698). |
 
 FastAPI mounts `static/` at `/` (`app.py:7976`), so `/` serves
 `index.html`. A few page routes come before that mount:

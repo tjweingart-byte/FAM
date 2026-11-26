@@ -951,6 +951,7 @@
   rule episode intelligence lives by.
 
 <!-- rule:card-hook-startup -->
+> **Current (PROBLEMS.md §696, the owner 11.26):** a Made-for-you card that is there for a followed topic also says so - "Because you follow X", a second line above the hook (`seedBecauseHTML`, the tile's `why`). The hook itself is unchanged and is still the episode's - see `follow-topics`.
 > **Current (PROBLEMS.md §174):** the eight startup questions are written ahead at every Trending edition slot (`trending_bank.write_startup`, `STARTUP_WRITE_AHEAD`, needs no GNews key), rewritten each slot because they ask about *this week*, so a card carries the episode's own title (§161's `_name_written_tiles`) before anybody taps. The ninth, local question is never written ahead: it is personal. An outcome-dependent brief is still left for the tap.
 
 > **Current (PROBLEMS.md §168):** `render.yaml` now turns GDELT on, so "`GDELT=1`, which no deployment has" below is stale.
