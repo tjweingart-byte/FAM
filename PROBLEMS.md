@@ -41894,3 +41894,34 @@ name ("the US Federal Reserve" is trimmed to its tree subject; an odd one
 would be offered as written, scrubbed, if four words or fewer); the first
 mix's morning edition; a push actually sent; the screen at the phone's
 largest text sizes, and on a real phone at all.
+
+## 697. "My topics" is public, and for followers while its owner is private; the branch reviewed for Main (2026-11-26)
+
+**The owner:** "make my topics public (but only visible to someone who
+follows if someone is on private mode in settings), then double check all
+changes made in this branch and get it ready to merge into main."
+
+**The mix.** §696 made it private and asked. It is public now, as every new
+mix is, and carries `mixes.FROM_FOLLOWS` in `source_id` (the column a copy
+keeps its source in; never a mix id). `app._mix_shown_to` is the one gate:
+that mix, of an owner in private mode, is shown to the owner and to the
+people who follow them and to nobody else - on `/api/person`, in
+`/api/mixes/public` and by id, as a copy, a story card, and when a play is
+counted as a browse episode. It answers as a mix that does not exist, and
+fails closed when the store cannot say who is private. It is that one mix
+only: `rule:private-mode` says a private listener's public mixes stay, and
+nothing else of theirs changes. A mix renamed by its owner keeps the mark;
+one they make themselves never has it.
+
+**Found reviewing the branch, and fixed.** The new mix's titles are what
+the listener typed and are now public, so they are scrubbed
+(`content_filter.scrub`); a suspended account's is made private rather than
+published. `category_seed.all_teams()` was rebuilt for every chosen
+interest on every page load; it is built once. REVIEW_FINDINGS
+
+**Verified:** `tests/test_follow_696.py` (the mix seen and not seen by a
+stranger, a follower and the owner, in the list and by id; another public
+mix of the same owner untouched; the closed failure). **Not verified:**
+the gate was not exercised through the share landing page in a browser;
+existing public mixes are unaffected by construction (no mark), which was
+read and not run against a deployment's data.

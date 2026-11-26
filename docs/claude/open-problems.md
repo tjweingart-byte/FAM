@@ -542,10 +542,20 @@
   (`rule:card-hook-startup`); `team_scores` reports every held game naming
   a followed major-league team as a strip above the rails - whatever a
   rail took or was heard, empty when none is held, never a made-up line.
-  **A first mix**: finishing the step makes the chosen subjects a private
-  mix, "My topics" (`/api/follow/mix`), once and only for a listener with
-  no mix - the one mix made for a listener rather than by them
-  (`rule:mix-made-by-naming`); its subjects are written ahead as any saved
+  **A first mix**: finishing the step makes the chosen subjects a mix,
+  "My topics" (`/api/follow/mix`), once and only for a listener with no mix
+  - the one mix made for a listener rather than by them
+  (`rule:mix-made-by-naming`). **Public, as every new mix is - but for
+  followers only while its owner is in private mode** *(§697, the owner:
+  "make my topics public (but only visible to someone who follows if
+  someone is on private mode in settings)")*: it is marked
+  `mixes.FROM_FOLLOWS` in `source_id`, and `app._mix_shown_to` hides that
+  one mix from anybody who does not follow a private-mode owner - on their
+  profile, in mix search, by its id, as a copy, a card or a play - as a mix
+  that does not exist. It fails closed (`private_among`). Every other
+  public mix of a private listener is as public as it was
+  (`rule:private-mode`: "public mixes stay"). A suspended account's is made
+  private; its subjects are written ahead as any saved
   mix's are, inside the existing ahead budget. **The daily reminder** names
   the first followed subject an active mix holds ("Boston Celtics: your
   myFAM is ready", `push.message_for(followed=)`), else says what it did.
@@ -764,7 +774,7 @@
 > installed clients.
 
 <!-- rule:mix-made-by-naming -->
-> **Current (PROBLEMS.md §696, the owner 11.26):** one mix is made *for* a listener: finishing the follow step makes their chosen topics a private mix, "My topics" (`/api/follow/mix`), once, and only when they have no mix - see `follow-topics`.
+> **Current (PROBLEMS.md §696, §697, the owner 11.26):** one mix is made *for* a listener: finishing the follow step makes their chosen topics a public mix, "My topics" (`/api/follow/mix`), once, and only when they have no mix - see `follow-topics`.
 > **Current (PROBLEMS.md §694, the owner's 11.25 packet):** a playlist's header is "myFAM Playlist" with no line under it (the name, date and story count went); a playlist with no topics yet opens on its picture and name, with the empty note and **Add topics** under them, not above.
 > **Current (PROBLEMS.md §691, the owner's 11.24 mock):** the listener reads **playlist** for a mix on these screens (the tab, "New playlist", "Add topics to playlist", "myFAM Playlist"); code, ids and these docs keep "mix". **A playlist's card** is one row - today's lead picture or its own photo, its name, "7 BRIEFINGS · DAILY" (then "Trending" / "Major update" when §545 has one), its topics in today's order ("Startups, AI, NBA and 4 more") and a play button that starts it from the top - replacing §616's stacked deck and reversing §544's "no briefing count, no topic line". Making one is a dashed **+ New playlist** under the cards (still hidden without an account); the public search sits under that. **A playlist's page** opens on what plays: "myFAM Playlist" over "MORNING · NOV 23 · 7 STORIES", sliders top right for the menu the three dots opened, one outlined pill ("Play Morning · 7 stories", "Start with what changed", or - while it plays - "Playing Morning · 2 of 7", which pauses), then today's stories in the order they play: **heard** (one quiet line with a tick), **now playing** (a card, pause on its picture), **up next**, each today's title over its one line (`episode_hook`, the stored summary) with a **heart that is Saved for Later** (`save-pointer`; never a like, shown to nobody). The page follows the player (`refreshMixPlaying`). Add topics, the cover and name, share and invite, Recommended topics, the listen time and Public/Private follow under the stories; **dragging to reorder moved into Edit topics**, with the X. The page carries the tab bar, so the mini player is on it; in a playlist the mini player says "2 of 7 · NBA" and adds the heart and a next - **its X stays** (`[transport]`).
 > **Current (PROBLEMS.md §637, the owner's 11.16 notes):** a mix's three dots offer **Edit topics** (owner and joint-mix member): the mix page with an X in place of each topic's play button, and Done. An X removes that topic (`PATCH /api/mixes/{id}` with the remaining `topic_ids`); nothing plays from the page while it is being edited. **The "Sat: ..." / "Today: ..." bubbles under a changed topic are gone** (§545's Q5); the "Trending · since you last listened" tag, the outline and "Start with what changed" stay.
@@ -936,6 +946,7 @@ friends and get none.
    reward. A share rather than a number of seconds, because "the last thirty
    seconds" is most of a one-minute episode and nothing of a ten-minute one.
 <!-- rule:private-mode -->
+> **Current (PROBLEMS.md §697, the owner 11.26):** one public mix does not "stay": the mix made from a listener's followed topics ("My topics", `mixes.FROM_FOLLOWS`) is shown only to their followers while they are in private mode (`app._mix_shown_to`) - see `follow-topics`.
 **Private mode, and a profile for followers** *(PROBLEMS.md §638, the
 owner's direction)*. A switch at the **top of Settings** (`private_mode`
 on the account's preferences, off by default): while it is on, **nobody

@@ -179,9 +179,15 @@ LEFT_LEAGUE = {
 }
 
 
+_ALL_TEAMS: dict = {}
+
+
 def all_teams() -> dict:
     """Every major-league team by its full name -> the tree node that holds
-    it, or "" for one `LEFT_TO_GROW` keeps out of the tree."""
+    it, or "" for one `LEFT_TO_GROW` keeps out of the tree. Built once: it
+    is read for every chosen interest on every page (§697). Read-only."""
+    if _ALL_TEAMS:
+        return _ALL_TEAMS
     out: dict = {}
     for roster in (NFL_TEAMS, NBA_TEAMS, MLB_TEAMS, NHL_TEAMS):
         for node in roster:
@@ -189,7 +195,8 @@ def all_teams() -> dict:
             out[f"{home} {node}" if home else node] = node
     for name in LEFT_TO_GROW:
         out.setdefault(name, "")
-    return out
+    _ALL_TEAMS.update(out)
+    return _ALL_TEAMS
 
 
 def teams_of(place: str) -> dict:

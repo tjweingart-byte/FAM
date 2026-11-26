@@ -3650,6 +3650,45 @@ def _follows(me: str, other: str) -> bool:
     return bool(me and other and me != other and SOCIAL.is_following(me, other))
 
 
+def _mix_shown_to(mix, viewer: str, private: Optional[set] = None) -> bool:
+    """Whether a public mix may be shown to `viewer` (§697, the owner
+    11.26: "make my topics public (but only visible to someone who follows
+    if someone is on private mode in settings)").
+
+    Every public mix is, but one: the mix made from a listener's followed
+    topics (`mixes.FROM_FOLLOWS`) is what they follow, written down, and
+    while its owner is in private mode it is for the people who follow them
+    - the door a profile's interests already have (`rule:private-mode`).
+    `private` is `PREFS.private_among` already read for a page of mixes;
+    without it the one owner is asked. **Fails closed**, as that read does.
+    """
+    if mix is None:
+        return False
+    if getattr(mix, "source_id", "") != mixes_mod.FROM_FOLLOWS:
+        return True
+    if viewer and viewer == mix.user_id:
+        return True
+    if private is None:
+        private = PREFS.private_among([mix.user_id])
+    return mix.user_id not in private or _follows(viewer, mix.user_id)
+
+
+def _mixes_shown_to(found, viewer: str) -> list:
+    """`found` without the mixes `viewer` may not see, in one read."""
+    found = list(found)
+    owners = [m.user_id for m in found
+              if getattr(m, "source_id", "") == mixes_mod.FROM_FOLLOWS]
+    private = PREFS.private_among(owners) if owners else set()
+    return [m for m in found if _mix_shown_to(m, viewer, private)]
+
+
+def _public_mix_for(mix_id: str, viewer: str = ""):
+    """`MIXES.get_public` for somebody: None for a mix they may not see,
+    which is the answer for one that does not exist."""
+    mix = MIXES.get_public(mix_id, viewer=viewer)
+    return mix if _mix_shown_to(mix, viewer) else None
+
+
 def _listening_shown(user_ids) -> list[str]:
     """These listeners, without anybody in private mode (§638): the ones
     whose plays may be shown to another person - a face on a card, a place
@@ -3915,7 +3954,7 @@ async def person_profile(request: Request,
         # Each mix and vibe wears the picture the player would draw, so a
         # friend's page is the same grid of tiles as your own (§345).
         "mixes": [dict(_public_mix(m, me, added_mixes), thumb=_mix_picture(m))
-                  for m in MIXES.public_for_user(target)],
+                  for m in _mixes_shown_to(MIXES.public_for_user(target), me)],
         # Each vibe carries its subject, read off its own words - the same
         # label a shared episode's chat preview uses.
         # Every vibe, for good (the owner's direction after §161): the 24
@@ -8147,7 +8186,7 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
         return "godeeper"
     query = plan.query
     if mix and _mix_plays(MIXES.get_editable(user, mix)
-                          or MIXES.get_public(mix, viewer=user), query):
+                          or _public_mix_for(mix, user), query):
         return "myfam"
     served = _served_tile_query(topic_id, user) if topic_id else ""
     if served and mixes_mod._plain(served) == mixes_mod._plain(query):
@@ -8177,7 +8216,7 @@ def _take_half_a_mix(request: Request, user: str, mix_id: str,
     tier_name = _tier(request)
     if entitlements.at_least(tier_name, billing.PAID_TIER):
         return
-    found = MIXES.get_editable(user, mix_id) or MIXES.get_public(mix_id, viewer=user)
+    found = MIXES.get_editable(user, mix_id) or _public_mix_for(mix_id, user)
     if found is None:
         return
     episodes = len([i for i in found.items if not getattr(i, "pending", False)])
@@ -9312,8 +9351,10 @@ async def follow_mix(request: Request) -> dict:
     """Make the listener's chosen topics their first mix (§696, the owner:
     "sign-up interests become a first personal mix in myFAM, ready to play
     daily"). Once: a listener who already has any mix keeps what they have.
-    Private - they chose topics, not to publish a list - and each topic is
-    titled by its own name, so no naming call is made. Its subjects are
+    Public, as every new mix is (§697) - but marked as made from what they
+    follow, so while they are in private mode only their followers see it
+    (`_mix_shown_to`). Each topic is titled by its own name, so no naming
+    call is made. Its subjects are
     written ahead as any saved mix's are (`_write_mix_ahead`)."""
     _read_limit(request)
     account = _require_account(request)
@@ -9331,9 +9372,16 @@ async def follow_mix(request: Request) -> dict:
         tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
                          + "-".join(subject.name.split()))
         if tile is not None:
-            entries.append({"query": tile.query, "title": subject.label})
+            # A public mix shows its titles to other people (§697).
+            entries.append({"query": tile.query,
+                            "title": content_filter.scrub(subject.label)})
     try:
-        mix = MIXES.create(account, FOLLOW_MIX_NAME, entries, "", public=False)
+        # A suspended account posts nothing that reaches anybody: theirs is
+        # made private (`_require_can_post`'s rule, without refusing a mix
+        # nobody but them will see).
+        mix = MIXES.create(account, FOLLOW_MIX_NAME, entries, "",
+                           public=not MODERATION.is_suspended(account),
+                           made_from=mixes_mod.FROM_FOLLOWS)
     except mixes_mod.MixError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _record_mix_adds(mix)
@@ -9618,7 +9666,8 @@ async def public_mixes(request: Request, q: str = Query("", max_length=80)) -> d
     # With nothing typed only the newest are shown, so only a few more than
     # that are read (an empty mix is skipped); a search reads the lot.
     scan = mixes_mod.PUBLIC_SCAN if q.strip() else mixes_mod.MAX_PUBLIC_RESULTS * 3
-    for position, mix in enumerate(MIXES.all_public(exclude_user=viewer, limit=scan)):
+    for position, mix in enumerate(_mixes_shown_to(
+            MIXES.all_public(exclude_user=viewer, limit=scan), viewer)):
         if not mix.items:
             continue
         if q.strip():
@@ -9646,7 +9695,7 @@ async def public_mix(mix_id: str, request: Request) -> dict:
     A private mix answers exactly like one that does not exist."""
     _read_limit(request)
     viewer = _listener(request)
-    mix = MIXES.get_public(mix_id, viewer=viewer)
+    mix = _public_mix_for(mix_id, viewer)
     if not mix:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9669,7 +9718,7 @@ async def add_public_mix(mix_id: str, request: Request) -> dict:
     _read_limit(request)
     user = _require_account(request)
     _require_feature(request, "mixes")
-    source = MIXES.get_public(mix_id)
+    source = _public_mix_for(mix_id, user)
     if not source:
         raise HTTPException(status_code=404,
                             detail="That mix is private or no longer exists.")
@@ -9735,7 +9784,7 @@ async def share_mix(mix_id: str, request: Request) -> dict:
 async def mix_card(mix_id: str, request: Request) -> Response:
     """The story image for a shared mix, as SVG - see `share_card`."""
     _read_limit(request)
-    mix = MIXES.get_public(mix_id)
+    mix = _public_mix_for(mix_id, _listener(request))
     if not mix:
         raise HTTPException(status_code=404, detail="That mix is private or no longer exists.")
     owner = SOCIAL.person(mix.user_id) or {}

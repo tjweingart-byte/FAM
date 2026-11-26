@@ -216,8 +216,48 @@ def test_the_choices_become_a_first_mix_once(client):
     made = client.post("/api/follow/mix").json()
     assert made["made"] and made["mix"]["name"] == appmod.FOLLOW_MIX_NAME
     assert [i["title"] for i in made["mix"]["items"]] == ["Boston Celtics", "Taylor Swift"]
-    assert made["mix"]["public"] is False
+    assert made["mix"]["public"] is True
     assert client.post("/api/follow/mix").json() == {"mix": None, "made": False}
+
+
+def test_my_topics_is_for_followers_while_its_owner_is_private(client, monkeypatch):
+    """§697, the owner: "make my topics public (but only visible to someone
+    who follows if someone is on private mode in settings)"."""
+    client.post("/api/preferences", json={"topics": ["Boston Celtics"]})
+    mix_id = client.post("/api/follow/mix").json()["mix"]["id"]
+    owner = client.get("/api/auth/me").json()["user_id"]
+    stored = appmod.MIXES.get(owner, mix_id)
+    assert stored.source_id == M.FROM_FOLLOWS
+
+    other = TestClient(appmod.app)
+    other.post("/api/auth/signup", json={"email": f"o{time.time_ns()}@fam.test",
+                                         "password": "a-long-enough-password"})
+    viewer = other.get("/api/auth/me").json()["user_id"]
+
+    def sees():
+        listed = [m["id"] for m in other.get("/api/mixes/public").json()["mixes"]]
+        opened = other.get(f"/api/mixes/public/{mix_id}").status_code
+        return mix_id in listed, opened
+
+    # Public, like every new mix.
+    assert sees() == (True, 200)
+    # Private mode: gone for a stranger, exactly as a mix that is not there.
+    client.post("/api/preferences", json={"private_mode": True})
+    assert sees() == (False, 404)
+    assert not appmod._mix_shown_to(stored, "")
+    # Following is the door; the owner always sees their own.
+    monkeypatch.setattr(appmod.SOCIAL, "is_following",
+                        lambda me, them: me == viewer and them == owner)
+    assert sees() == (True, 200)
+    assert appmod._mix_shown_to(stored, owner)
+    # Any other public mix of a private listener is as public as it was.
+    plain = appmod.MIXES.create(owner, "Another", [], "", public=True)
+    monkeypatch.setattr(appmod.SOCIAL, "is_following", lambda me, them: False)
+    assert appmod._mix_shown_to(plain, viewer)
+    # And a store that cannot say who is private hides it (fails closed).
+    client.post("/api/preferences", json={"private_mode": False})
+    monkeypatch.setattr(appmod.PREFS, "private_among", lambda ids: set(ids))
+    assert not appmod._mix_shown_to(stored, viewer)
 
 
 # --- the screen ------------------------------------------------------------
