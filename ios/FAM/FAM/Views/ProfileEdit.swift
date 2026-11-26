@@ -1537,7 +1537,11 @@ struct InterestsView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, 13)
-                .padding(.trailing, 34)
+                // The web's 34 px is room a browser lets a long word run
+                // into; Text would break "entertainment" by the letter
+                // (build 13's second audit). The tick is top right, the
+                // label bottom left.
+                .padding(.trailing, 13)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity, minHeight: 78, maxHeight: .infinity, alignment: .bottomLeading)
                 .background(FollowHues.world(world.id), in: RoundedRectangle(cornerRadius: 16))
@@ -1774,6 +1778,9 @@ struct InterestsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.press)
+                // Not while a save is on its way: Skip's empty save could
+                // land after it and undo what was just followed.
+                .disabled(saving)
             }
         }
     }
@@ -1807,7 +1814,14 @@ struct InterestsView: View {
         async let offered = try? await api.followTree()
         if let prefs = try? await api.preferences() {
             facets = prefs.interests ?? []
-            chosen = (prefs.topicsChosen ?? []).map { ChosenTopic(id: $0.id, label: $0.label ?? $0.id) }
+            var stored = (prefs.topicsChosen ?? []).map { ChosenTopic(id: $0.id, label: $0.label ?? $0.id) }
+            // Anything followed while the stored list was on its way is kept.
+            for topic in chosen where !stored.contains(where: {
+                $0.id.lowercased() == topic.id.lowercased() || $0.label.lowercased() == topic.label.lowercased()
+            }) {
+                stored.append(topic)
+            }
+            chosen = stored
             prefsRead = true
         }
         if let got = await offered, !(got.worlds ?? []).isEmpty {

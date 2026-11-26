@@ -690,3 +690,4 @@ and `limit` = Lines.
 | 41898 | 56 | 697. "My topics" is public, and for followers while its owner is private; the branch reviewed for Main (2026-11-26) |
 | 41954 | 99 | 698. The homepage: the waitlist page opens on the app in pictures (2026-11-26) |
 | 42053 | 25 | 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26) |
+| 42078 | 73 | 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26) |

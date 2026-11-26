@@ -72,3 +72,14 @@ def test_the_parity_table_says_what_the_swift_does():
     # Inside the table, not after the last heading.
     assert parity.index(row[0]) < parity.index("## Build 7's second audit")
     assert "`/api/sources` at the first word, +2 s, +6 s, +20 s" in parity
+
+
+def test_the_second_audits_three_fixes_are_in_the_follow_step():
+    step = _swift("Views/ProfileEdit.swift")
+    card = step[step.index("Button { toggleWorld(world.id) }"):][:900]
+    # "entertainment" is 110 pt wide at 16 pt; 34 pt of trailing room broke it.
+    assert ".padding(.trailing, 13)" in card and ".padding(.trailing, 34)" not in card
+    dock = step[step.index('Text(page == 2 ? "Back" : "Skip for now")'):][:700]
+    assert ".disabled(saving)" in dock
+    load = step[step.index("private func load() async"):][:1100]
+    assert "for topic in chosen where !stored.contains" in load and "chosen = stored" in load

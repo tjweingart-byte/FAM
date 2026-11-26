@@ -506,6 +506,7 @@
   A listener's own composed tile is a served tile (`_served_tile_query`).
 
 <!-- rule:follow-topics -->
+> **Current (PROBLEMS.md §700, iOS build 13):** all of this is on the iPhone as well - the two-page step (`InterestsView`), the preview row, "Follow this?", "Because you follow X", "Your teams" and the first mix - function for function after the web; the differences are in `ios/FAM/PARITY.md`'s row.
 - **"What topics do you want to follow", and following from inside the
   app** *(PROBLEMS.md §696, the owner 11.26, choosing from the ten designs:
   "We like the flow of number 3 and the instant creation of the made for you
