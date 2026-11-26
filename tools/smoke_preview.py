@@ -2720,13 +2720,13 @@ def main() -> int:
             assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
             page.wait_for_timeout(500)
             assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
-            # A chip: the X comes at once, the chip is the same element.
+            # A chip: lit on the tap, in the row that does not move (§693).
             if page.query_selector("#catChips .catchip[data-cat]"):
                 page.evaluate("document.querySelector('#catChips .catchip[data-cat]').click()")
-                assert page.query_selector("#catChips [data-chip=x]"), "the X did not come on the tap"
+                assert page.query_selector("#catChips .catchip.on[data-cat]"), "the chip did not light on the tap"
                 assert "Loading" not in (page.text_content("#catPanel") or ""), "the loading line flashed on the tap"
                 page.wait_for_timeout(900)
-                page.click("#catChips [data-chip=x]")
+                page.click("#catChips [data-chip=all]")
                 page.wait_for_timeout(500)
             page.click("#pfTabMixes")
             page.wait_for_timeout(500)
