@@ -1443,6 +1443,11 @@ class FamiliarWords(frozenset):
         self = super().__new__(cls, words)
         self.filed = dict(filed or {})
         self.names = tuple(names or ())
+        # Each name's words, split once, and what each tile was found to
+        # name: `followed_name` is asked several times a tile on every page
+        # (§697 - it re-split every name each time).
+        self.name_words = tuple((n, tuple(_WORD.findall(n))) for n in self.names)
+        self.named = {}
         return self
 
     def __or__(self, other):
@@ -1736,16 +1741,25 @@ def followed_name(topic: Topic, familiar) -> str:
     """The chosen subject this tile names, or "" (§695). Whole words, in
     order, in the title or the question - "boston celtics" is in "Boston
     Celtics vs New York Knicks" and "celtic" is in neither."""
-    names = getattr(familiar, "names", ())
+    names = getattr(familiar, "name_words", ())
     if not names:
         return ""
+    key = (topic.id, topic.title, topic.query)
+    found = familiar.named.get(key)
+    if found is not None:
+        return found
     have = _WORD.findall(f"{topic.title} {topic.query}".lower())
-    for name in names:
-        want = _WORD.findall(name)
+    said = set(have)
+    found = ""
+    for name, want in names:
         n = len(want)
-        if n and any(have[i:i + n] == want for i in range(len(have) - n + 1)):
-            return name
-    return ""
+        if (n and want[0] in said
+                and any(tuple(have[i:i + n]) == want
+                        for i in range(len(have) - n + 1))):
+            found = name
+            break
+    familiar.named[key] = found
+    return found
 
 
 def names_followed(topic: Topic, familiar) -> bool:
@@ -3717,6 +3731,12 @@ def follow_suggestion(query: str, interests: Iterable[str] = (),
     return ""
 
 
+#: `chosen_subjects` by (interests, tree): asked four times a page for the
+#: same listener, and the answer only changes when either does (§697).
+_CHOSEN_MEMO: dict = {}
+MAX_CHOSEN_MEMO = 2048
+
+
 @dataclass(frozen=True)
 class ChosenSubject:
     """One thing a listener chose, as the feed uses it (§695)."""
@@ -3737,12 +3757,21 @@ def chosen_subjects(interests: Iterable[str]) -> list:
     teams, one subject each.
     """
     tree = category_tree()
+    key = (tuple(str(i) for i in interests or ()),
+           getattr(tree, "_loaded_at", 0.0))
+    kept = _CHOSEN_MEMO.get(key)
+    if kept is not None:
+        return list(kept)
     out: list = []
     seen: set = set()
+    empty = FAMILIAR_STOPWORDS | _FAN_WORDS
 
     def add(interest: str, label: str, tags) -> None:
-        name = " ".join(_WORD.findall(label.lower()))
-        if not name or name in seen:
+        words = _WORD.findall(label.lower())
+        name = " ".join(words)
+        # Nothing made only of words that name nothing ("the", "fans"):
+        # as a followed name it would be said by nearly every tile (§697).
+        if not name or name in seen or all(w in empty for w in words):
             return
         seen.add(name)
         out.append(ChosenSubject(interest, label, name, tuple(tags)))
@@ -3763,7 +3792,8 @@ def chosen_subjects(interests: Iterable[str]) -> list:
         if teams:
             for full, node in teams.items():
                 held = node and tree.get(node) is not None
-                add(value, full.title(), (node,) if held else ("sports",))
+                add(value, follow_label(node) if held else full.title(),
+                    (node,) if held else ("sports",))
             continue
         try:
             node = tree.get(value)
@@ -3771,6 +3801,9 @@ def chosen_subjects(interests: Iterable[str]) -> list:
             node = None
         label = (getattr(node, "label", "") or value) if node else value
         add(value, label[:1].upper() + label[1:], _tags_for_interest(value))
+    if len(_CHOSEN_MEMO) >= MAX_CHOSEN_MEMO:
+        _CHOSEN_MEMO.clear()
+    _CHOSEN_MEMO[key] = tuple(out)
     return out
 
 
@@ -3841,7 +3874,8 @@ def followed_teams(interests: Iterable[str]) -> tuple:
     return tuple(s.name for s in chosen_subjects(interests) if s.name in teams)
 
 
-def team_scores(interests: Iterable[str], now: Optional[float] = None) -> list:
+def team_scores(interests: Iterable[str], now: Optional[float] = None,
+                held: Optional[list] = None) -> list:
     """The followed teams' games the live pool is holding, as tiles with
     their score lines (§696, the owner: "see updates of all boston sports
     scores consistently"). Every held game, whatever the pool's variety cap
@@ -3854,7 +3888,8 @@ def team_scores(interests: Iterable[str], now: Optional[float] = None) -> list:
     now = time.time() if now is None else now
     watch = FamiliarWords().naming(names)
     try:
-        held = topics_from_stories(stories.pool().held(now), now=now)
+        if held is None:
+            held = topics_from_stories(stories.pool().held(now), now=now)
     except Exception:  # noqa: BLE001 - a strip never takes the page away
         log.exception("could not read the pool for the score strip")
         return []
@@ -3868,7 +3903,9 @@ def lead_with_interests(picks: list, own: list, familiar, damp: dict,
                         lead: int = INTEREST_LEAD) -> tuple:
     """Made for you with what the listener chose in front (§695).
 
-    Returns `(rail, spare)`. First every ranked tile that names a chosen
+    Returns `(rail, spare, led)`. `led` is the ids this put in front: the
+    only tiles the variety cap may not drop (§697 - a name's sixth story is
+    capped like any other tile). First every ranked tile that names a chosen
     subject - a real story about it, at most `MAX_PER_FACET` to a name, so
     four Boston teams playing tonight are four tiles and one league is not
     the whole rail. Then composed interest tiles (`own`) for subjects no
@@ -3896,7 +3933,8 @@ def lead_with_interests(picks: list, own: list, familiar, damp: dict,
             composed.append(tile)
     taken = {t.id for t in composed}
     spare = [t for t in fresh if t.id not in taken]
-    return (led + composed + rest)[:max(limit, len(led))], spare
+    return ((led + composed + rest)[:max(limit, len(led))], spare,
+            {t.id for t in led} | taken)
 
 
 def interest_shares(interests: Iterable[str]) -> dict[str, float]:
@@ -4194,6 +4232,7 @@ def reset_topic_tags() -> None:
     """Drop the memo. For tests, and after a tree is cleared under us."""
     global _TAG_MEMO, _TAG_MEMO_GEN, _FIELD_MEMO, _FIELD_MEMO_KEY, _FOLLOW_MEMO
     _FOLLOW_MEMO = None
+    _CHOSEN_MEMO.clear()
     _TAG_MEMO = {}
     _TAG_MEMO_GEN = -1.0
     _FIELD_MEMO = {}
@@ -5608,8 +5647,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # hiding is still a tile this page can name, for Trending's own inventory
     # and for the no-repeats check below. ("What you missed" used to read it;
     # since §141 it reads nothing from the pool.)
-    live_held = trending_for(
-        topics_from_stories(stories.pool().held(now), now=now), heard, now)
+    held_all = topics_from_stories(stories.pool().held(now), now=now)
+    live_held = trending_for(held_all, heard, now)
     # **No repeats, part two.** Everything this listener has ever heard, from
     # every surface, checked against every tile this page could offer. What
     # comes back is excluded from every rail below; a startup question that
@@ -5700,9 +5739,12 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # `most_played` below for why the difference matters.
     unshelved_held: set[str] = set()
     own_spare: list = []
+    led_ids: set = set()
 
     def chosen(topic: Topic) -> bool:
-        return topic.id in own_ids or names_followed(topic, familiar)
+        # What `lead_with_interests` put in front, and a composed tile the
+        # top-up reaches for - never every tile that says a followed name.
+        return topic.id in led_ids or topic.id in own_ids
 
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
@@ -5779,7 +5821,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # hold nothing but cached episodes.
             picks = ready_first(picks, written)
             # And what they chose in front of both (§695).
-            picks, own_spare = lead_with_interests(
+            picks, own_spare, led_ids = lead_with_interests(
                 picks, own, familiar, damp, seen, reach,
                 lead=INTEREST_LEAD if played else SECTION_SIZE)
         if key not in RANKED_BY_LISTENS:
@@ -5872,7 +5914,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # declared order and a measured one look identical on a screen.
     return {"sections": sections, "personalised": bool(profile),
             # The followed teams' held games, for the strip above the rails.
-            "teams": [t.as_dict() for t in team_scores(interests, now)],
+            "teams": [t.as_dict() for t in team_scores(interests, now, held_all)],
             "live_stories": len(live),
             "taste_source": "startup" if cold else "taste",
             "startup_order": startup_source}
@@ -6167,17 +6209,15 @@ def build_section(store: EventStore, user_id: str, key: str,
     if key == "from_history":
         # The rail's own lead, at full length: every chosen subject's tile,
         # where the rail had room for `INTEREST_LEAD` (§695).
-        picks, spare = lead_with_interests(picks, own, familiar, damp, mine,
-                                           limit)
+        picks, spare, led_ids = lead_with_interests(
+            picks, own, familiar, damp, mine, limit)
         own_ids = {t.id for t in own}
-        led = [t for t in picks if t.id in own_ids
-               or names_followed(t, familiar)]
-        led_ids = {t.id for t in led}
+        led = [t for t in picks if t.id in led_ids]
         picks = (led + spare
                  + [t for t in picks if t.id not in led_ids])[:limit]
 
         def chosen(topic: Topic) -> bool:
-            return topic.id in own_ids or names_followed(topic, familiar)
+            return topic.id in led_ids or topic.id in own_ids
     if key != "world_trending" and key not in RANKED_BY_LISTENS:
         picks = diversify(picks, limit, max_per_facet=cap,
                           strict=key == "from_history", keep=chosen)

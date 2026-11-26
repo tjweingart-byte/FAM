@@ -143,6 +143,10 @@ HOME_OF = {
     "seahawks": "seattle",
 }
 
+#: A seeded nickname whose full name is not its city and the nickname: the
+#: fixture says "San Francisco 49ers" (§697).
+FULL_NAME = {"niners": "san francisco 49ers"}
+
 #: The other names a city's teams play under: Boston's football team is New
 #: England's. Only where the second name means that city's team and nobody
 #: else's (§695).
@@ -192,18 +196,41 @@ def all_teams() -> dict:
     for roster in (NFL_TEAMS, NBA_TEAMS, MLB_TEAMS, NHL_TEAMS):
         for node in roster:
             home = HOME_OF.get(node)
-            out[f"{home} {node}" if home else node] = node
+            out[FULL_NAME.get(node) or (f"{home} {node}" if home else node)] = node
     for name in LEFT_TO_GROW:
         out.setdefault(name, "")
     _ALL_TEAMS.update(out)
     return _ALL_TEAMS
 
 
+#: Nicknames of two words, so a team's city can be read off its name.
+_TWO_WORD_NICKNAMES = ("red sox", "white sox", "maple leafs", "blue jays",
+                       "trail blazers", "blue jackets", "red wings",
+                       "golden knights")
+_CITIES: set = set()
+
+
+def cities() -> set:
+    """Every place a major-league team is named for - "boston", "new york",
+    "golden state" - and the metro names in `METRO`. Built once."""
+    if not _CITIES:
+        found = set(METRO)
+        for name in all_teams():
+            words = name.split()
+            drop = 2 if name.endswith(_TWO_WORD_NICKNAMES) else 1
+            if len(words) > drop:
+                found.add(" ".join(words[:-drop]))
+        _CITIES.update(found)
+    return _CITIES
+
+
 def teams_of(place: str) -> dict:
     """The teams of one city, as `all_teams` rows: every team whose full
-    name opens with the place or with another name its teams play under."""
+    name opens with the place or with another name its teams play under.
+    **Only a place a team is named for** (§697): a prefix alone made "new
+    teams" eleven teams and "san fans" five."""
     place = " ".join(str(place or "").lower().split())
-    if not place:
+    if not place or place not in cities():
         return {}
     homes = (place,) + tuple(METRO.get(place, ()))
     return {name: node for name, node in all_teams().items()

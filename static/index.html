@@ -14246,6 +14246,8 @@
       localStorage.removeItem("famLastCircle");
       localStorage.removeItem("famStoriesSeen");
       localStorage.removeItem("famSignedIn");
+      // "Follow this?" names a search: never the next account's (§697).
+      localStorage.removeItem("fam.followAsk");
     } catch(e){}
     OfflineShelf.clear();
     savedTileQueries = {};
@@ -20174,12 +20176,17 @@
   // (`/api/follow/suggest`); it waits here, on this device, until it is
   // answered. Never for a private search or a guest, never one already
   // followed, never one they said "Not now" to.
+  // Kept with whose it is, as the remembered feed is: a second account on
+  // this device never sees the first one's search (§697).
   function followAskState(){
-    try{ return JSON.parse(localStorage.getItem("fam.followAsk") || "{}") || {}; }
-    catch(e){ return {}; }
+    try{
+      var kept = JSON.parse(localStorage.getItem("fam.followAsk") || "{}") || {};
+      return kept.who === (AUTH.user_id || "") ? (kept.data || {}) : {};
+    } catch(e){ return {}; }
   }
   function saveFollowAsk(state){
-    try{ localStorage.setItem("fam.followAsk", JSON.stringify(state)); }catch(e){}
+    try{ localStorage.setItem("fam.followAsk",
+           JSON.stringify({ who: AUTH.user_id || "", data: state })); }catch(e){}
   }
   var followAskTried = {};
   function maybeAskFollow(query, subject){
@@ -20230,7 +20237,9 @@
     fetch("/api/follow", { method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ topic: ask.topic }) })
       .then(function(r){ if(!r.ok) throw new Error(); return r.json(); })
-      .then(function(){
+      .then(function(d){
+        // The server says whether it was kept: a full list keeps nothing.
+        if(!d || !d.following){ toast("You follow as many topics as FAM keeps. Remove one in Settings first."); return; }
         if(!hasChosenTopic(ask.topic)) chosenTopics.push({ id: ask.topic, label: ask.topic, typed: true });
         toast("Following " + ask.topic);
         // The row is rebuilt around it at once.
@@ -24168,6 +24177,7 @@
   function openInterestsFromSettings(){
     introMode = "settings";
     followPage = 1;
+    followOpen = {}; followAll = {};
     introSnapshot = null;
     var here = document.querySelector(".screen.active");
     var from = here ? here.id.replace(/^screen-/, "") : "";
@@ -30482,8 +30492,18 @@
           && String(t.id).toLowerCase() !== want;
     });
     if(on) chosenTopics.push({ id: label, label: label, typed: false });
+    else closeFollowDrawer(label);
     catalogPicked = {};
     chosenTopics.forEach(function(t){ catalogPicked[t.id] = true; });
+  }
+
+  // An unfollowed subject's drawer shuts with it, wherever it was taken off
+  // (§697: its chip stayed "open", so the next tap did nothing to see).
+  function closeFollowDrawer(label){
+    var want = String(label || "").toLowerCase();
+    Object.keys(followOpen).forEach(function(w){
+      if(String(followOpen[w]).toLowerCase() === want) delete followOpen[w];
+    });
   }
 
   function followChipHTML(label, cls, attrs){
@@ -30738,6 +30758,7 @@
     }
     introSnapshot = null;
     followPage = 1;
+    followOpen = {}; followAll = {};
     closeIntroToSettings();
   }
 
@@ -30915,6 +30936,7 @@
   }
 
   function removeFollowed(id){
+    chosenTopics.forEach(function(t){ if(t.id === id) closeFollowDrawer(t.label || t.id); });
     chosenTopics = chosenTopics.filter(function(t){ return t.id !== id; });
     delete catalogPicked[id];
     renderTopicCatalog();

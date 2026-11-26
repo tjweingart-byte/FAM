@@ -41917,7 +41917,31 @@ one they make themselves never has it.
 the listener typed and are now public, so they are scrubbed
 (`content_filter.scrub`); a suspended account's is made private rather than
 published. `category_seed.all_teams()` was rebuilt for every chosen
-interest on every page load; it is built once. REVIEW_FINDINGS
+interest on every page load; it is built once.
+
+An independent read of the whole diff found ten more things; nine are
+fixed. (1) **The variety cap had a hole**: `diversify(keep=)` waved through
+every tile that said a followed name, so five stories naming one followed
+person were the whole rail. Only the tiles `lead_with_interests` actually
+led (at most `MAX_PER_FACET` a name) and composed tiles are kept now. (2)
+`followed_name` re-split every name for every tile several times a page -
+177 ms for a listener following 135 things over 300 stories; names are
+split once (`FamiliarWords.name_words`), the answer is kept per tile for
+the page, `chosen_subjects` is memoised by (interests, tree), and the pool
+is read once for the rail and the strip. (3) **"Follow this?" was kept on
+the device without whose it was**, so the next account to sign in saw the
+last one's search; it is stored with the listener's id, as the remembered
+feed is, and cleared on sign-out. (4) The 49ers were "san francisco
+niners" to `all_teams` and so matched no fixture (`FULL_NAME`). (5) "new
+teams" followed eleven teams and "the" was a followed name said by nearly
+every tile: a city must be one a team is named for (`cities()`), and a
+subject made only of stop words is not one. (6) `/api/follow/preview`
+answered 500 to an unknown heading; 400 now. (7) A subject unfollowed from
+the tray left its drawer "open", so the next tap did nothing visible. (8)
+The card said "Following X" when the list was full and nothing was kept.
+(9) `/admin` counted "My topics" as a copied mix. **Not changed** (10): a
+composed tile for anything typed is free on the free tier - §695's open
+question for the owner, with tiers off.
 
 **Verified:** `tests/test_follow_696.py` (the mix seen and not seen by a
 stranger, a follower and the owner, in the list and by id; another public

@@ -279,3 +279,57 @@ def test_the_row_is_built_as_topics_are_chosen():
 def test_a_private_search_is_never_asked_about():
     ask = _fn("maybeAskFollow")
     assert "privateSearch" in ask and 'currentPlaySurface !== "search"' in ask
+
+
+# --- §697: found reviewing the branch -------------------------------------
+
+def test_a_followed_names_extra_stories_are_capped_like_any_tile(tree, tmp_path):
+    scope, key, label = stories._geography(())
+    stories.seed([stories.Story(
+        subject=f"Taylor Swift story {n}", title=f"Taylor Swift story {n}",
+        angle="today", query=f"taylor swift story {n}", domain=stories.ATTENTION,
+        source="test", tags=("culture",), strength=0.8, first_seen=time.time(),
+        shelf_life=stories.DOMAIN_SHELF_LIFE[stories.ATTENTION], countries=(),
+        geo_scope=scope, geo_key=key, geo=label)
+        for n in ("one", "two", "three", "four", "five")])
+    log = T.EventStore(str(tmp_path / "e.db"))
+    made = next(s for s in T.build_feed(
+        log, "me", has_account=True, country="US",
+        interests=("Taylor Swift",))["sections"]
+        if s["key"] == "from_history")["topics"]
+    named = [t for t in made if "Taylor Swift story" in t["title"]]
+    assert 0 < len(named) <= T.MAX_PER_FACET, [t["title"] for t in named]
+    # View more scales the same cap to its length, as it always has.
+    more = T.build_section(log, "me", "from_history", has_account=True,
+                           country="US", interests=("Taylor Swift",))["topics"]
+    cap = T.MAX_PER_FACET * (T.FULL_SECTION_SIZE // T.SECTION_SIZE or 1)
+    assert sum("Taylor Swift story" in t["title"] for t in more) <= cap
+
+
+def test_only_a_teams_city_is_its_teams(tree):
+    for stray in ("new teams", "san fans", "los sports", "the fans"):
+        assert T._teams_named(stray) == {}, stray
+    assert len(T._teams_named("New York sports")) >= 6
+    assert "golden state warriors" in T._teams_named("San Francisco teams")
+
+
+def test_words_that_name_nothing_are_not_followed(tree):
+    assert T.chosen_subjects(["the", "fans", "The Fans"]) == []
+    assert T.followed_names(["the"]) == ()
+
+
+def test_the_49ers_are_followed_by_the_name_a_fixture_says(tree):
+    assert category_seed.all_teams()["san francisco 49ers"] == "niners"
+    assert T.followed_teams(["San Francisco 49ers"]) == ("san francisco 49ers",)
+    labels = [s.label for s in T.chosen_subjects(["San Francisco sports"])]
+    assert "San Francisco 49ers" in labels and "Golden State Warriors" in labels
+
+
+def test_a_preview_of_an_unknown_heading_is_refused_not_broken(client):
+    r = client.post("/api/follow/preview", json={"interests": ["not-a-heading"]})
+    assert r.status_code == 400
+
+
+def test_follow_this_is_kept_with_whose_it_is():
+    assert "kept.who === (AUTH.user_id" in _fn("followAskState")
+    assert 'localStorage.removeItem("fam.followAsk")' in _fn("forgetOfflineCopies")

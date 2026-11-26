@@ -10292,8 +10292,11 @@ async def follow_preview(req: FollowPreviewRequest, request: Request) -> dict:
     are saved (§696): `topics.interest_topics`, the same tiles the rail
     draws. Composed in code; nothing is written, logged or generated."""
     _read_limit(request)
-    chosen = (prefs_mod.clean_interests(req.interests)
-              + prefs_mod.clean_topics(req.topics))
+    try:
+        chosen = (prefs_mod.clean_interests(req.interests)
+                  + prefs_mod.clean_topics(req.topics))
+    except prefs_mod.PreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     tiles = [t.as_dict() for t in topics_mod.interest_topics(chosen)]
     return {"topics": tiles[:topics_mod.VIEW_MORE_PAGE]}
 
