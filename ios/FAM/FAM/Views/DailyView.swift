@@ -53,6 +53,9 @@ struct DailyView: View {
                                 })
                             LazyVStack(alignment: .leading, spacing: 0) {
                                 FreeMonthCard()
+                                // "Follow this?", after a search (§696,
+                                // `#followAsk`): until it is answered.
+                                FollowAskCard()
                                 FacesRow()
                                 PickUpBlock()
                                 // No connection: what still plays (`#offlineBar`),
@@ -114,6 +117,9 @@ struct DailyView: View {
             Skeleton(top: tight ? 0 : 18)
                 .tourFeedPart()
         } else {
+            // The followed teams' games, above the rails (§696,
+            // `teamStripHTML() + html`); nothing when none is held.
+            TeamStrip()
             ForEach(Array(model.rails.enumerated()), id: \.element.id) { n, rail in
                 RailRow(rail: rail, order: n, tight: n == 0 && tight)
                     .tourFeedPart()
@@ -643,6 +649,10 @@ struct TileCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
                 if !tile.liveLine.isEmpty { liveLine.padding(.top, 5) }
+                // Why it is here, when the answer is "you follow it" (§696,
+                // `seedBecauseHTML`): a line of its own; the hook stays the
+                // episode's.
+                if !tile.why.isEmpty { because.padding(.top, 5) }
                 hook.padding(.top, 6)
             }
             .padding(.horizontal, 11)
@@ -888,6 +898,16 @@ struct TileCard: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
+    }
+
+    /// `.seed-because`: Geist Mono 8.5, spaced 0.08em, upper case, copper;
+    /// it wraps, never cut.
+    private var because: some View {
+        Text("Because you follow " + tile.why)
+            .monoLabel(8.5, color: FAMColor.copper, tracking: 0.68)
+            .lineSpacing(1)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// The hook: the angle, else the subtitle, else the rail's own reason
