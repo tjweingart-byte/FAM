@@ -1232,6 +1232,29 @@ def _facet_strength(tree, matched, words, facet: str, sport: bool) -> tuple:
 #: lifts American football and sport by `ANCESTOR_SHARE` per level.
 INTEREST_WEIGHT = 2.0
 
+#: What a tile is worth for **saying a chosen interest by name** (§695), on
+#: top of whatever its tags match. The tag vocabulary knew nothing of
+#: "Taylor Swift", "Tesla" or "Boston sports" - 94 of 208 plausible typed
+#: interests reached the ranker as nothing at all - so a story naming one
+#: scored zero for the listener who had asked for exactly it.
+FOLLOWED_NAME_AFFINITY = INTEREST_WEIGHT
+
+#: The id every composed interest tile starts with (`interest_topics`).
+INTEREST_TILE_PREFIX = "int-"
+
+#: How many composed interest tiles lead Made for you once a listener has
+#: played something. Half the rail: the other half stays the ranking's, and
+#: the top-up reads the rest of them before anything generic. **Before the
+#: first play the whole rail may be theirs** (`build_feed`): what they chose
+#: is then all FAM knows, and the first open is the one being judged.
+INTEREST_LEAD = 2
+
+#: A composed tile offered this often and never taken stops leading.
+INTEREST_LEAD_DAMP = 0.5
+
+#: Words that turn a place into "that place's teams": "Boston sports".
+_FAN_WORDS = frozenset({"sports", "sport", "teams", "team", "fan", "fans"})
+
 #: How much of a signal on a subject reaches each heading above it (§202).
 #:
 #: "If I consistently listen to content about the Cincinnati Bengals, that
@@ -1411,16 +1434,26 @@ class FamiliarWords(frozenset):
     """
 
     filed: dict
+    #: The subjects this listener **chose**, as phrases (§695,
+    #: `followed_names`). A tile that says one in order is on subject in any
+    #: field: an interest is the one thing they told FAM on purpose.
+    names: tuple
 
-    def __new__(cls, words=(), filed=None):
+    def __new__(cls, words=(), filed=None, names=()):
         self = super().__new__(cls, words)
         self.filed = dict(filed or {})
+        self.names = tuple(names or ())
         return self
 
     def __or__(self, other):
         # The added words are unfiled-and-unscoped (a place counts
         # everywhere), so they join the set without joining `filed`.
-        return FamiliarWords(frozenset(self) | frozenset(other), self.filed)
+        return FamiliarWords(frozenset(self) | frozenset(other), self.filed,
+                             self.names)
+
+    def naming(self, names) -> "FamiliarWords":
+        """The same words, with the listener's chosen subjects beside them."""
+        return FamiliarWords(frozenset(self), self.filed, names)
 
     __ror__ = __or__
 
@@ -1683,6 +1716,8 @@ def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
     from the broad-match rule this check exists to refine. What is left is
     the words that name a thing: a team, a town, a company, a person.
     """
+    if names_followed(topic, familiar):
+        return True
     if not familiar:
         return False
     generic = _field_words()
@@ -1695,6 +1730,26 @@ def _subject_is_familiar(topic: Topic, familiar: frozenset[str]) -> bool:
         return bool(shared)
     fields = _tile_facets(topic)
     return any(_word_vouches(filed.get(w), fields) for w in shared)
+
+
+def followed_name(topic: Topic, familiar) -> str:
+    """The chosen subject this tile names, or "" (§695). Whole words, in
+    order, in the title or the question - "boston celtics" is in "Boston
+    Celtics vs New York Knicks" and "celtic" is in neither."""
+    names = getattr(familiar, "names", ())
+    if not names:
+        return ""
+    have = _WORD.findall(f"{topic.title} {topic.query}".lower())
+    for name in names:
+        want = _WORD.findall(name)
+        n = len(want)
+        if n and any(have[i:i + n] == want for i in range(len(have) - n + 1)):
+            return name
+    return ""
+
+
+def names_followed(topic: Topic, familiar) -> bool:
+    return bool(followed_name(topic, familiar))
 
 
 def _word_vouches(used_in, fields: set) -> bool:
@@ -3468,7 +3523,176 @@ def _tags_for_interest(value: str) -> tuple[str, ...]:
         except Exception:  # noqa: BLE001
             found = ()
         return tuple(entry.tags) + found
+    teams = _teams_named(value)
+    if teams:
+        # §695: "Boston sports" is the Celtics, Bruins, Red Sox and Patriots.
+        # A team the tree holds is its node; one it leaves out
+        # (`category_seed.LEFT_TO_GROW`) is followed by name alone
+        # (`followed_names`), and sport is the heading either way.
+        nodes = tuple(node for node in teams.values()
+                      if node and tree.get(node) is not None)
+        return nodes + ("sports",)
     return tags_for_text(value)
+
+
+def _teams_named(value: str) -> dict:
+    """The major-league teams one typed interest means, full name -> tree
+    node ("" when the tree leaves it out): a city with a fan word ("Boston
+    sports", "Philly teams" is not known and finds none), or one team's full
+    name."""
+    import category_seed
+
+    words = _WORD.findall(str(value or "").lower())
+    if not words:
+        return {}
+    phrase = " ".join(words)
+    every = category_seed.all_teams()
+    if phrase in every:
+        return {phrase: every[phrase]}
+    if not _FAN_WORDS & set(words):
+        return {}
+    place = " ".join(w for w in words if w not in _FAN_WORDS)
+    return category_seed.teams_of(place)
+
+
+@dataclass(frozen=True)
+class ChosenSubject:
+    """One thing a listener chose, as the feed uses it (§695)."""
+
+    #: The interest it came from: two teams of one "Boston sports" share it.
+    interest: str
+    label: str
+    #: The phrase a tile says when it is about this.
+    name: str
+    tags: tuple
+
+
+def chosen_subjects(interests: Iterable[str]) -> list:
+    """Every subject the chosen interests name, in the order chosen.
+
+    A whole heading ("Sports", "Technology") names no subject: it orders
+    the rail through `taste` and nothing more. A city's sports are its
+    teams, one subject each.
+    """
+    tree = category_tree()
+    out: list = []
+    seen: set = set()
+
+    def add(interest: str, label: str, tags) -> None:
+        name = " ".join(_WORD.findall(label.lower()))
+        if not name or name in seen:
+            return
+        seen.add(name)
+        out.append(ChosenSubject(interest, label, name, tuple(tags)))
+
+    for raw in interests or ():
+        value = " ".join(str(raw or "").split())
+        if not value or value.lower() in TAG_LABELS:
+            continue
+        entry = CATALOGUE_BY_ID.get(value)
+        if entry is not None:
+            if entry.label.lower() in {l.lower() for l in TAG_LABELS.values()}:
+                continue
+            add(value, entry.label, _tags_for_interest(value))
+            continue
+        if value in TAG_PARENT:
+            continue
+        teams = _teams_named(value)
+        if teams:
+            for full, node in teams.items():
+                held = node and tree.get(node) is not None
+                add(value, full.title(), (node,) if held else ("sports",))
+            continue
+        try:
+            node = tree.get(value)
+        except Exception:  # noqa: BLE001
+            node = None
+        label = (getattr(node, "label", "") or value) if node else value
+        add(value, label[:1].upper() + label[1:], _tags_for_interest(value))
+    return out
+
+
+def followed_names(interests: Iterable[str]) -> tuple:
+    """The phrases a tile says when it is about something this listener
+    chose (`FamiliarWords.names`). Never a field's own word: "sport" or
+    "music" on a tile says nothing about which story it is."""
+    generic = _field_words()
+    return tuple(s.name for s in chosen_subjects(interests)
+                 if not all(w in generic for w in s.name.split()))
+
+
+def interest_topics(interests: Iterable[str]) -> list:
+    """One tile per chosen subject: "Boston Celtics: What's New This Week".
+
+    **Why they exist** (§695, the owner: "This section should feel very
+    personalized as soon as someone opens the app"). Made for you could only
+    rank what three shared inventories happened to hold, so a listener who
+    chose Taylor Swift on a day the pool held nothing naming her was shown
+    the same generic questions as somebody who chose nothing. This is the
+    arrangement `local_startup_topic` already has with a listener's town: a
+    title and a question composed in code - no model, no network, nothing
+    claimed about today - researched on the tap like every other tile, and
+    cached under that question for everybody who chose the same thing.
+
+    Dealt round-robin across interests, so the four teams of "Boston
+    sports" do not stand in front of a second interest.
+    """
+    by_interest: dict = {}
+    for subject in chosen_subjects(interests):
+        by_interest.setdefault(subject.interest, []).append(subject)
+    queues = list(by_interest.values())
+    order: list = []
+    while any(queues):
+        for queue in queues:
+            if queue:
+                order.append(queue.pop(0))
+    tiles = []
+    for subject in order:
+        slug = "-".join(subject.name.split())
+        tags = tuple(dict.fromkeys(subject.tags))
+        tiles.append(Topic(
+            id=INTEREST_TILE_PREFIX + slug,
+            title=f"{subject.label}: What's New This Week",
+            subtitle="The latest, and why it matters",
+            query=f"what is the latest news on {subject.label} this week",
+            tags=tags, icon=_icon_for_tags(tags)))
+    return tiles
+
+
+def lead_with_interests(picks: list, own: list, familiar, damp: dict,
+                        exclude: set, limit: int,
+                        lead: int = INTEREST_LEAD) -> tuple:
+    """Made for you with what the listener chose in front (§695).
+
+    Returns `(rail, spare)`. First every ranked tile that names a chosen
+    subject - a real story about it, at most `MAX_PER_FACET` to a name, so
+    four Boston teams playing tonight are four tiles and one league is not
+    the whole rail. Then composed interest tiles (`own`) for subjects no
+    ranked tile covered, until `INTEREST_LEAD` tiles lead. Then the ranking
+    as it was. `spare` is the composed tiles left over, which the top-up
+    reads before anything generic.
+    """
+    per_name: dict = {}
+    led, rest = [], []
+    for topic in picks:
+        name = followed_name(topic, familiar)
+        if name and per_name.get(name, 0) < MAX_PER_FACET:
+            per_name[name] = per_name.get(name, 0) + 1
+            led.append(topic)
+        else:
+            rest.append(topic)
+    have = {t.id for t in picks} | set(exclude)
+    fresh = [t for t in own if t.id not in have
+             and not per_name.get(followed_name(t, familiar))]
+    composed = []
+    for tile in fresh:
+        if len(led) + len(composed) >= lead:
+            break
+        if (damp or {}).get(tile.id, 1.0) >= INTEREST_LEAD_DAMP:
+            composed.append(tile)
+    taken = {t.id for t in composed}
+    spare = [t for t in fresh if t.id not in taken]
+    return (led + composed + rest)[:max(limit, len(led))], spare
 
 
 def interest_shares(interests: Iterable[str]) -> dict[str, float]:
@@ -3889,7 +4113,8 @@ def answer_moves(topic: "Topic") -> bool:
     `trending_for` instead: a follow-up with a question and a card of its
     own, or nothing.
     """
-    return topic.id in STARTUP_BY_ID or topic.id == LOCAL_STARTUP.id
+    return (topic.id in STARTUP_BY_ID or topic.id == LOCAL_STARTUP.id
+            or topic.id.startswith(INTEREST_TILE_PREFIX))
 
 
 def is_repeat(topic: "Topic", heard: Heard, now: float,
@@ -4465,7 +4690,9 @@ def rank_from_history(profile: dict[str, float], exclude: set[str],
             continue
         if _far_minor_league(topic, profile, continent):
             continue
-        score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0))
+        score = ((_affinity(topic, profile) + semantic.get(topic.id, 0.0)
+                  + (FOLLOWED_NAME_AFFINITY
+                     if names_followed(topic, familiar) else 0.0))
                  * damp.get(topic.id, 1.0)
                  * (1.0 + FRESHNESS_BOOST * topic.freshness))
         # A live story is one specific thing that happened, and one this
@@ -5130,6 +5357,10 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     circle = [u for u in circle if u]
     events = store.for_user(user_id) if user_id else []
     profile = taste(events, now, interests)
+    # What they chose, as tiles of their own and as names a story can say
+    # (§695). An interest the vocabulary cannot place is still an interest.
+    own = interest_topics(interests)
+    own_ids = {t.id for t in own}
     # **The cold start, decided by measurement rather than by a flag.**
     #
     # An empty `taste` is exactly the listener `startup.py` exists for: no
@@ -5139,7 +5370,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # object - and it is strictly better than a flag, because a flag cannot
     # say whether behaviour has since arrived. One play, one search or one
     # chosen interest and this is False again for good.
-    cold = not profile
+    cold = not profile and not own
     startup_source = ""
     prior: dict[str, float] = {}
     if cold:
@@ -5181,7 +5412,8 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # it replaced the played-ids set every rail already excluded.
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
-                + list(live_held) + ([local_topic] if local_topic else []))
+                + list(live_held) + ([local_topic] if local_topic else [])
+                + own)
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # And every tile they said "not interested" to (11.3 #2), the same way.
     waved_off = (not_wanted(universe, store.not_interested(user_id))
@@ -5190,7 +5422,7 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # What this listener has actually said, for `rank_from_history`'s broad
     # match check. Read once for the page, like the fatigue table, and off
     # the events already in hand.
-    familiar = familiar_words(events)
+    familiar = familiar_words(events).naming(followed_names(interests))
     # Where they say they are, folded straight into the familiar set. This is
     # the free half of the location change and the better half: living
     # somewhere is a complete answer to "has this listener ever been near this
@@ -5262,6 +5494,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
     # What an UNSHELVED rail claimed, kept apart from `used`. See the note on
     # `most_played` below for why the difference matters.
     unshelved_held: set[str] = set()
+    own_spare: list = []
+
+    def chosen(topic: Topic) -> bool:
+        return topic.id in own_ids or names_followed(topic, familiar)
+
     for key in FILL_ORDER:
         # Nothing they have already played, in any section. The feed's job is
         # to hand them the next episode; the crowd rows stay globally *ranked*,
@@ -5336,9 +5573,14 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
             # Cached first, inside what the ranking chose. The crowd rails
             # hold nothing but cached episodes.
             picks = ready_first(picks, written)
+            # And what they chose in front of both (§695).
+            picks, own_spare = lead_with_interests(
+                picks, own, familiar, damp, seen, reach,
+                lead=INTEREST_LEAD if played else SECTION_SIZE)
         if key not in RANKED_BY_LISTENS:
             picks = diversify(picks, SECTION_SIZE,
-                              strict=key == "from_history")
+                              strict=key == "from_history",
+                              keep=(chosen if key == "from_history" else None))
         picked[key] = picks
         if key in UNSHELVED:
             unshelved_held |= {t.id for t in picks}
@@ -5369,8 +5611,11 @@ def build_feed(store: EventStore, user_id: str, now: Optional[float] = None,
         # it on every short rail is a cost nothing on the page would repay.
         fallback = (ready_first(fallback[:READY_REACH], written)
                     + fallback[READY_REACH:])
+        # Their own subjects before anything chosen for nobody (§695).
+        fallback = own_spare + fallback
         extra = _fill_to_minimum(picked[key], floors[key], fallback,
-                                 on_page | mine, max_per_facet=MAX_PER_FACET)
+                                 on_page | mine, max_per_facet=MAX_PER_FACET,
+                                 keep=chosen)
         picked[key] = picked[key] + extra
         used |= {t.id for t in extra}
     # **Exactly `SECTION_SIZE` on the page, never more** (§134). Every ranker
@@ -5609,12 +5854,14 @@ def build_section(store: EventStore, user_id: str, key: str,
     # object - and it is strictly better than a flag, because a flag cannot
     # say whether behaviour has since arrived. One play, one search or one
     # chosen interest and this is False again for good.
-    cold = not profile
+    own = interest_topics(interests) if key == "from_history" else []
+    cold = not profile and not own
     damp = (fatigue(store.impression_occasions(user_id), _played_ids(events))
             if user_id else {})
     # The same two reads the rail does, for the same two thumbs. See the note
     # in the docstring about why their absence here was invisible.
-    familiar = familiar_words(events) | frozenset(w for w in place if w)
+    familiar = (familiar_words(events).naming(followed_names(interests))
+                | frozenset(w for w in place if w))
     place = frozenset(w for w in place if w)
     engage = engagement_for(store, now)
     limit = FULL_SECTION_SIZE
@@ -5631,7 +5878,8 @@ def build_section(store: EventStore, user_id: str, key: str,
         topics_from_stories(stories.pool().held(now), now=now), heard, now)
     local_topic = local_startup_topic(place_name)
     universe = (list(known_topics(now).values()) + list(inventory)
-                + list(live_held) + ([local_topic] if local_topic else []))
+                + list(live_held) + ([local_topic] if local_topic else [])
+                + own)
     mine = repeats(universe, heard, now, written_at) if heard else set()
     # And every tile they said "not interested" to (11.3 #2), the same way.
     waved_off = (not_wanted(universe, store.not_interested(user_id))
@@ -5696,9 +5944,24 @@ def build_section(store: EventStore, user_id: str, key: str,
     # cap that did not scale would make "view more" a different ranking from
     # the rail it opened - which is the one thing this screen must not be.
     cap = MAX_PER_FACET * (limit // SECTION_SIZE or 1)
+    chosen = None
+    if key == "from_history":
+        # The rail's own lead, at full length: every chosen subject's tile,
+        # where the rail had room for `INTEREST_LEAD` (§695).
+        picks, spare = lead_with_interests(picks, own, familiar, damp, mine,
+                                           limit)
+        own_ids = {t.id for t in own}
+        led = [t for t in picks if t.id in own_ids
+               or names_followed(t, familiar)]
+        led_ids = {t.id for t in led}
+        picks = (led + spare
+                 + [t for t in picks if t.id not in led_ids])[:limit]
+
+        def chosen(topic: Topic) -> bool:
+            return topic.id in own_ids or names_followed(topic, familiar)
     if key != "world_trending" and key not in RANKED_BY_LISTENS:
         picks = diversify(picks, limit, max_per_facet=cap,
-                          strict=key == "from_history")
+                          strict=key == "from_history", keep=chosen)
     # "View more" never shows fewer than the rail it opened (§127).
     floors = RAIL_MINIMUM if floors is None else floors
     if floors.get(key):
@@ -6121,7 +6384,7 @@ def _rail_fallback(key: str, profile: dict, live: list, live_held: list,
 
 
 def _fill_to_minimum(picked: list, minimum: int, candidates: list,
-                     exclude: set, max_per_facet: int = 0) -> list:
+                     exclude: set, max_per_facet: int = 0, keep=None) -> list:
     """The tiles to append so `picked` reaches `minimum`, and no more.
 
     Never a tile already on the rail, already on another rail (`exclude`
@@ -6143,8 +6406,8 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
         facets = _tile_variety_facets(topic)
         # `max_per_facet` is the rail's own variety cap (§187): a top-up
         # that broke it would put back exactly the sameness it exists for.
-        if max_per_facet and any(counts.get(f, 0) >= max_per_facet
-                                 for f in facets):
+        if (max_per_facet and not (keep is not None and keep(topic))
+                and any(counts.get(f, 0) >= max_per_facet for f in facets)):
             continue
         have.add(topic.id)
         for facet in facets:
@@ -6156,7 +6419,8 @@ def _fill_to_minimum(picked: list, minimum: int, candidates: list,
 
 
 def diversify(topics: list, limit: int = SECTION_SIZE,
-              max_per_facet: int = MAX_PER_FACET, strict: bool = False) -> list:
+              max_per_facet: int = MAX_PER_FACET, strict: bool = False,
+              keep=None) -> list:
     """Cap how much of one rail one subject may have. The variety rule.
 
     Facets rather than tags, because the thing a listener notices is four
@@ -6175,11 +6439,23 @@ def diversify(topics: list, limit: int = SECTION_SIZE,
     made for you"). What it passes over is dropped, and the rail's floor
     tops it up from other headings instead (`_fill_to_minimum` with the same
     cap) - so a rail of four can never be four tiles of one subject.
+
+    `keep` says which tiles the cap never drops (§695): the ones about a
+    subject the listener **chose**, which `lead_with_interests` has already
+    held to its own cap per subject. They still count against their
+    heading, so nothing unchosen rides in behind them.
     """
     kept: list = []
     spare: list = []
     counts: dict[str, int] = {}
     for topic in topics:
+        if keep is not None and keep(topic):
+            for facet in _tile_variety_facets(topic):
+                counts[facet] = counts.get(facet, 0) + 1
+            kept.append(topic)
+            if len(kept) >= limit:
+                return kept
+            continue
         # **`topic.tags` and deliberately not `topic_tags`.** This caps how
         # many tiles of one *heading* a rail shows, and `facet_of` returns an
         # unknown tag unchanged - so a grown category would come through as a

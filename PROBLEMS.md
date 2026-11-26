@@ -41735,3 +41735,85 @@ screenshots of Explore, a category and a playlist from the fixture preview.
 `ios.yml` compiles) - above all the composer fix, which is a best reading of
 a UIKit behaviour; the new order against a real deployment's cache; What's
 next after an Explore play end to end with real audio.
+
+## 695. A chosen interest that reached the ranker as nothing: "Boston sports", and 94 of 208 others (2026-11-26)
+
+**The report** (the owner, relaying a first-week listener): the interest
+step "was just random and poorly laid out", and "the recommended episodes
+have nothing to do with the topics of interest that he put in ... He's a
+diehard Boston sports fan and hasn't gotten a single Boston sports episode
+recommended for him." The owner: Made for you "should feel very personalized
+as soon as someone opens the app", then "investigate how this bug works with
+all topics, not just boston sports", and "the list of topics should also be
+pretty expansive, and people should be able to type in any topic".
+
+**What was happening.** The interests page has stored anything typed since
+§142, and `taste` resolves it on the way out through `tags_for_text` - a
+keyword map and the category tree. Reproduced with the seed applied, an
+account, and a pool holding a Celtics, a Bruins, a Red Sox and a Patriots
+game:
+
+| chosen | what `taste` held | the rail |
+|---|---|---|
+| "Boston sports" (typed) | nothing | the four "Start here" questions, headed as such |
+| "Sports" (listed) | `sports` | one generic sports question; no game (a heading alone never admits a live story, §155) |
+| Celtics, Red Sox, Bruins | three teams | two games - the variety cap dropped the third |
+| "New England Patriots" | nothing | Start here (`LEFT_TO_GROW`) |
+
+**Every topic, measured.** Of the 73 listed interests, 19 resolve to a bare
+heading (Formula 1 and Motorcycles are `sports`, Cars is `tech`, Crime and
+Politics are `world`, Beauty and Design are `culture`). Of 208 typed
+interests a listener plausibly enters, 94 resolve to **nothing** (Taylor
+Swift, Tesla, Nvidia, Bitcoin, Arsenal, Donald Trump, China, running, dogs,
+Netflix, Patriots, Celtics) and 5 to a bare heading; "Kansas City Chiefs"
+is filed under `cities`. An interest that is nothing leaves `taste` empty,
+and an empty `taste` is the cold start - the listener who typed five things
+was treated exactly as one who skipped the step. The list is the
+scratchpad audit's, not a sample of what listeners typed: no deployment's
+stored topics were read.
+
+**Fixed** (`rule:chosen-subjects`, all in `topics.py` but two helpers):
+
+1. `category_seed.teams_of`: a city with "sports", "teams" or "fans" is its
+   major-league teams, through `HOME_OF` (the six teams seeded by nickname)
+   and `METRO` (Boston's football team is New England's). A team
+   `LEFT_TO_GROW` keeps out of the tree stays out of it and is followed by
+   its full name only.
+2. `followed_names` / `FamiliarWords.names`: a tile that says a chosen
+   subject as whole words in order is on subject in any field, and is
+   scored `FOLLOWED_NAME_AFFINITY` on top of its tags.
+3. `interest_topics`: one composed tile per chosen subject ("Boston
+   Celtics: What's New This Week"), built the way `local_startup_topic`
+   is. `lead_with_interests` leads the rail with real stories naming a
+   chosen subject, then composed tiles: the whole rail before a first
+   play, two after; View more leads with all of them.
+4. The variety cap never drops a chosen subject's tile; it still counts
+   them, so nothing unchosen rides in behind.
+5. `app._served_tile_query` knows a listener's own composed tile, so on a
+   metered tier it is a tile and not their weekly search.
+
+After: "Boston sports" with the four games on shows the four games; with
+none on, the four teams' own tiles; "Taylor Swift" leads with a story
+naming her when the pool holds one and her own tile when it does not.
+
+**The interest step itself** is not changed here. Ten designs for it, with
+the current screen beside them, are a slide deck for the owner to choose
+from; every one assumes a list far larger than 73 (the tree's subjects and
+every team) and typing anything.
+
+**For the owner to decide.** (1) Seeding the 31 `LEFT_TO_GROW` teams as
+full-name-only nodes now that nodes match as in-order phrases - today
+"Patriots" alone still follows nothing. (2) A composed tile is free on the
+free tier like any tile, so changing interests is a way to free episodes
+once quotas are on. (3) Writing the composed tiles ahead at the edition,
+most-chosen first, so the first tap is instant.
+
+**Verified:** `tests/test_chosen_subjects_695.py` (20), and the eleven
+Made-for-you, taste, startup and preferences test files; the table above
+is the simulation's output before and after. **Not verified:** nothing was
+run against a real pool - whether a Boston final from last night is still
+held when the fan opens the app the next morning depends on the sports
+sweep's demand rule and was not measured; no episode was written from a
+composed tile's question (no key here), so how "what is the latest news on
+X this week" reads as an episode is unheard; `learned_rank` with a trained
+model was not exercised with followed names.

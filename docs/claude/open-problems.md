@@ -477,6 +477,34 @@
   nature, a place or the news (`category_seed.LEFT_TO_GROW`), because a node
   matches any text holding all its words and the deepest match wins.
 
+<!-- rule:chosen-subjects -->
+- **What a listener chose reaches Made for you, whatever they chose**
+  *(PROBLEMS.md §695, the owner 11.26, relaying a first-week listener: "He's
+  a diehard Boston sports fan and hasn't gotten a single Boston sports
+  episode recommended for him ... This section should feel very personalized
+  as soon as someone opens the app"; then "investigate how this bug works
+  with all topics")*. "Boston sports" reached `taste` as no tags, so the
+  rail was the Start here set; so did 94 of 208 plausible typed interests,
+  and 19 of the 73 listed ones were a bare heading. Now:
+  `topics.chosen_subjects` reads every chosen interest as subjects - a city
+  with "sports"/"teams" is its major-league teams (`category_seed.teams_of`,
+  `HOME_OF`, `METRO`), one the tree leaves out (`LEFT_TO_GROW`) included, by
+  full name only and never as a node. A tile that **says a chosen subject in
+  order** (`followed_names`, `FamiliarWords.names`) is on subject in any
+  field and scored `FOLLOWED_NAME_AFFINITY`. Every chosen subject has a
+  composed tile (`interest_topics`: a title and a question built in code as
+  `local_startup_topic` is, no model, no digits, researched on the tap,
+  cached under the question for everyone who chose it, back after
+  `REMAKE_AFTER` like a startup question). `lead_with_interests` puts real
+  stories naming a chosen subject first (≤`MAX_PER_FACET` per name), then
+  composed tiles - the whole rail before a first play, `INTEREST_LEAD` (2)
+  after, never one damped under `INTEREST_LEAD_DAMP` - and the top-up reads
+  the rest before anything generic. **This narrows two rules for chosen
+  subjects only**: the variety cap never drops one (`diversify(keep=)`, so
+  four Boston games are four tiles; everything unchosen is still capped),
+  and they stand ahead of `ready_first`. A whole heading names no subject.
+  A listener's own composed tile is a served tile (`_served_tile_query`).
+
 <!-- rule:interests-constant -->
 - **Chosen interests never fade** *(PROBLEMS.md §202, at the owner's
   direction: "A person's selected interests SHOULD NOT fade in weight at any

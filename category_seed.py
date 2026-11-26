@@ -135,6 +135,56 @@ LEFT_TO_GROW = (
     "chicago bulls", "chicago bears", "buffalo bills", "orlando magic",
 )
 
+#: Where a team seeded by its nickname alone plays, so "Cincinnati sports"
+#: finds the Bengals (PROBLEMS.md §695).
+HOME_OF = {
+    "bengals": "cincinnati", "steelers": "pittsburgh", "broncos": "denver",
+    "buccaneers": "tampa bay", "niners": "san francisco",
+    "seahawks": "seattle",
+}
+
+#: The other names a city's teams play under: Boston's football team is New
+#: England's. Only where the second name means that city's team and nobody
+#: else's (§695).
+METRO = {
+    "boston": ("new england",),
+    "san francisco": ("golden state",),
+    "minneapolis": ("minnesota",),
+    "denver": ("colorado",),
+    "phoenix": ("arizona",),
+    "indianapolis": ("indiana",),
+    "salt lake city": ("utah",),
+    "nashville": ("tennessee",),
+    "charlotte": ("carolina",),
+    "new york": ("brooklyn",),
+    "los angeles": ("anaheim",),
+}
+
+
+def all_teams() -> dict:
+    """Every major-league team by its full name -> the tree node that holds
+    it, or "" for one `LEFT_TO_GROW` keeps out of the tree."""
+    out: dict = {}
+    for roster in (NFL_TEAMS, NBA_TEAMS, MLB_TEAMS, NHL_TEAMS):
+        for node in roster:
+            home = HOME_OF.get(node)
+            out[f"{home} {node}" if home else node] = node
+    for name in LEFT_TO_GROW:
+        out.setdefault(name, "")
+    return out
+
+
+def teams_of(place: str) -> dict:
+    """The teams of one city, as `all_teams` rows: every team whose full
+    name opens with the place or with another name its teams play under."""
+    place = " ".join(str(place or "").lower().split())
+    if not place:
+        return {}
+    homes = (place,) + tuple(METRO.get(place, ()))
+    return {name: node for name, node in all_teams().items()
+            if any(name.startswith(home + " ") for home in homes)}
+
+
 #: Words that are a subject only inside a longer phrase (the owner 11.9,
 #: "Rock Lead Theory", PROBLEMS.md §511). "lead" is the metal, and it is
 #: also who is winning: grown alone and filed under science, every golf

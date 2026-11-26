@@ -8093,7 +8093,7 @@ def _surface(cached_only: bool, topic_id: str, context: str) -> str:
     return "search"
 
 
-def _served_tile_query(topic_id: str) -> str:
+def _served_tile_query(topic_id: str, user: str = "") -> str:
     """The question a DailyFAM tile with this id asks, if the server serves
     one (§656 review): the evergreen bank, Start here, the live story pool or
     the Trending edition - so a tile is free whether or not its episode is
@@ -8105,6 +8105,14 @@ def _served_tile_query(topic_id: str) -> str:
             return tile.query
     now = time.time()
     try:
+        if user and topic_id.startswith(topics_mod.INTEREST_TILE_PREFIX):
+            # A tile composed from this listener's own chosen interests
+            # (§695) - theirs only, so a made-up id still buys nothing.
+            prefs = PREFS.get(user)
+            for tile in topics_mod.interest_topics(
+                    tuple(prefs.interests) + tuple(prefs.topics)):
+                if tile.id == topic_id:
+                    return tile.query
         for tile in topics_mod.live_topics(now):
             if tile.id == topic_id:
                 return tile.query
@@ -8141,7 +8149,7 @@ def _spend_surface(user: str, plan, where: str, topic_id: str, context: str,
     if mix and _mix_plays(MIXES.get_editable(user, mix)
                           or MIXES.get_public(mix, viewer=user), query):
         return "myfam"
-    served = _served_tile_query(topic_id) if topic_id else ""
+    served = _served_tile_query(topic_id, user) if topic_id else ""
     if served and mixes_mod._plain(served) == mixes_mod._plain(query):
         return "myfam"
     # A shared link, a history replay, a tile: off the search bar, an
