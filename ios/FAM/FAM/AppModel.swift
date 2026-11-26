@@ -2425,31 +2425,49 @@ extension AppModel {
         return nowPlaying.episode?.mixDetour == list.key
     }
 
-    /// A category's episode: replay only, never written anew, with the rest
-    /// of the list queued after it (`playCategoryList`).
+    /// A category's episode as the player takes it: replay only, never
+    /// written anew. No surface: a category replay is not a DailyFAM
+    /// edition (`categoryQueueEntry`, `surface: ""`). When the row names
+    /// the heard episode (11.25 packet, `episode`) it is replayed by that
+    /// id, as a history row is - one the cache has since moved past still
+    /// plays; a 409 (no longer kept) asks again by the question, still a
+    /// replay (`refused`).
+    private func categoryEpisode(_ e: CategoryEpisode, queued: Bool) -> Episode {
+        var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
+                           title: e.title.isEmpty ? e.query : e.title, surface: "",
+                           picture: api.picture(e.thumb ?? ""))
+        made.cachedOnly = true
+        made.episodeID = e.episode ?? ""
+        // Only Play all's: the rest of its list stays queued behind it.
+        made.fromCategory = queued
+        return made
+    }
+
+    /// **One Explore card's play** (11.25 packet #1): that one episode and
+    /// nothing queued behind it, so it ends on What's next. Until then a
+    /// tap queued the rest of the page after it, the next story started by
+    /// itself, and the card the owner asked to see never came. What an
+    /// earlier Play all queued goes (`startPlaying` → `dropCategoryQueue`);
+    /// what the listener queued themselves stays.
+    func playExplore(_ episode: CategoryEpisode) {
+        startPlaying(categoryEpisode(episode, queued: false), cachedOnly: true)
+    }
+
+    /// **Play all** inside a category: the first plays and the rest of the
+    /// list is queued after it (`playCategoryList`).
     func playCategory(_ list: [CategoryEpisode], from index: Int) {
         guard index < list.count else {
             nowPlaying.say("Nothing has been made in this category today yet")
             return
         }
-        // No surface: a category replay is not a DailyFAM edition
-        // (`categoryQueueEntry`, `surface: ""`).
-        func ep(_ e: CategoryEpisode) -> Episode {
-            var made = Episode(key: EpisodeKey(query: e.query, minutes: e.minutes ?? FAMAPI.browseMinutes),
-                               title: e.title.isEmpty ? e.query : e.title, surface: "",
-                               picture: api.picture(e.thumb ?? ""))
-            made.cachedOnly = true
-            made.fromCategory = true
-            return made
-        }
-        // The rest of the category after the one tapped, never the ones
+        // The rest of the category after the one played, never the ones
         // above it (`list.slice(1)` of what was played from).
         var rest: [Episode] = []
         if index + 1 < list.count {
-            for e in list[(index + 1)...] { rest.append(ep(e)) }
+            for e in list[(index + 1)...] { rest.append(categoryEpisode(e, queued: true)) }
         }
         nowPlaying.replaceCategoryQueue(rest)
-        startPlaying(ep(list[index]), cachedOnly: true)
+        startPlaying(categoryEpisode(list[index], queued: true), cachedOnly: true)
     }
 }
 

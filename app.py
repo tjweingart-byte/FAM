@@ -11230,6 +11230,67 @@ EXPLORE_ALL_LIMIT = 60
 #: and every "Your categories" count. A filing is one category read per row.
 CATEGORY_MEMO_SECONDS = 30.0
 _CATEGORY_MEMO: dict = {"at": 0.0}
+#: **Explore's shelf** (the 11.25 packet, §694): today's episodes and, from
+#: the days before, the ones still *current* - what `ttl_for` says a new
+#: request would still be served, so a settled story stays and yesterday's
+#: score does not. As far back as every episode's audio is kept.
+EXPLORE_PAST_DAYS = 6
+#: After this many of today's stories, one from the days before.
+EXPLORE_FRESH_RUN = 3
+#: What leads a category's page, in this order, one story each in turn:
+#: the major leagues on Sport (the owner: "all the top stories in the major
+#: sports leagues"). Tree node ids; one the tree does not hold is skipped.
+EXPLORE_LEADING = {
+    "sports": ("nfl", "nba", "mlb", "nhl", "college football",
+               "college basketball", "premier league", "champions league",
+               "major league soccer", "wnba", "formula one", "golf",
+               "tennis", "ufc"),
+}
+
+
+#: A bucket this many kept rows share is a cold question's, whatever the
+#: settings were when they were written (`_cold_buckets`).
+COLD_BUCKET_ROWS = 5
+
+
+def _cold_buckets(entries: list[dict]) -> set:
+    """The buckets (`cache.key_bucket`: everything in the key but the
+    question) that belong to questions asked cold, among `entries`.
+
+    Today's settings' own, and any bucket `COLD_BUCKET_ROWS` rows share. The
+    second half is why a change of `MODEL`, pace or embedding space does not
+    empty the page (review, §694): a bucket holds those settings as they were
+    at the write, so every row from before the change matches neither of
+    today's - but they still share one bucket with each other, where a Go
+    Deeper's bucket carries the one episode it follows."""
+    cold: set = set()
+    held: dict = {}
+    for entry in entries:
+        bucket = entry.get("bucket") or ""
+        if not bucket:
+            continue
+        held[bucket] = held.get(bucket, 0) + 1
+        try:
+            minutes = entry["minutes"]
+            cold.add(cache_mod.key_bucket(minutes, "", True))
+            cold.add(cache_mod.key_bucket(minutes, "", False))
+        except Exception:  # noqa: BLE001 - a filing is never worth a failure
+            continue
+    cold.update(b for b, n in held.items() if n >= COLD_BUCKET_ROWS)
+    return cold
+
+
+def _is_follow_up(entry: dict, cold: set) -> bool:
+    """Whether a cached row is a Go Deeper's episode: written for somebody
+    who has just heard the one before it, and kept under a key that carries
+    that episode - so a card's own words never found it ("That episode is no
+    longer in the cache", the 11.25 packet). Read off the bucket stored with
+    it: one that is not a cold question's (`_cold_buckets`).
+
+    **False when no bucket was kept** (`CACHE_VECTOR=0`, the memory cache):
+    such a follow-up is still a card, and still plays - by its `episode`."""
+    bucket = entry.get("bucket") or ""
+    return bool(bucket) and bucket not in cold
 
 
 def _category_label(node: str) -> str:
@@ -11344,8 +11405,9 @@ def _day_start() -> float:
         hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
-def _todays_filed() -> list[dict]:
-    """Every episode cached since the start of the listener's day, filed.
+def _filed_rows() -> list[dict]:
+    """Every kept episode of the last `EXPLORE_PAST_DAYS` days and today,
+    filed: what `_todays_filed` and `_explore_filed` both choose from.
 
     **A read of the shared cache and nothing else** (§229): nothing here
     writes, prefetches or asks a model. What is in it is what is already
@@ -11365,11 +11427,15 @@ def _todays_filed() -> list[dict]:
         return []
     entries = store.recent(CATEGORY_SCAN)
     mixed = _mix_counts()
+    since = day_start - EXPLORE_PAST_DAYS * 86400.0
+    cold = _cold_buckets(entries)
     rows = []
     for entry in entries:
         made = float(entry.get("created") or entry.get("sourced_at") or 0.0)
-        if made < day_start:
+        if made < since:
             continue
+        if _is_follow_up(entry, cold):
+            continue  # never a card: it presumes another episode was heard
         query = entry.get("query") or ""
         title = (entry.get("title") or (query[:1].upper() + query[1:])).strip()
         if not title:
@@ -11379,6 +11445,7 @@ def _todays_filed() -> list[dict]:
             continue
         plays = int(entry.get("plays") or 0)
         in_mixes = int(mixed.get(query, 0))
+        sourced = float(entry.get("sourced_at") or made)
         rows.append({
             "query": query,
             "title": title,
@@ -11391,10 +11458,14 @@ def _todays_filed() -> list[dict]:
             "mixes": in_mixes,
             "popularity": plays + in_mixes,
             "created": made,
-            "sourced_at": float(entry.get("sourced_at") or made),
+            "sourced_at": sourced,
             "explicit": bool(entry.get("explicit")),
             "node": node,
             "chain": chain,
+            # Made today (the listener's day), and whether a new request
+            # would still be served it (§143) - Explore's shelf reads both.
+            "today": made >= day_start,
+            "current": bool(entry.get("current", True)),
             # For `_visible_episodes` only; never sent (`_category_row`).
             "author": entry.get("author") or "",
         })
@@ -11402,18 +11473,105 @@ def _todays_filed() -> list[dict]:
     return rows
 
 
-def _todays_for(viewer: str) -> list[dict]:
+def _todays_filed() -> list[dict]:
+    """Every episode cached since the start of the listener's day, filed."""
+    return [row for row in _filed_rows() if row["today"]]
+
+
+def _explore_filed() -> list[dict]:
+    """Explore's shelf: today's episodes, and those of the days before that
+    are still current (`EXPLORE_PAST_DAYS`)."""
+    return [row for row in _filed_rows() if row["today"] or row["current"]]
+
+
+def _todays_for(viewer: str, explore: bool = False) -> list[dict]:
     """Today's filed episodes as `viewer` may see them: screened as every
     shelf of other people's episodes is (`_visible_episodes`: nothing taken
     down, reported by them, or from somebody blocked or suspended), then one
-    row per title, the most popular, as the A to Z catalogue does."""
+    row per title, the most popular, as the A to Z catalogue does.
+    `explore`: Explore's wider shelf (`_explore_filed`), today's copy of a
+    title ahead of an older one."""
     best: dict[str, dict] = {}
-    for row in _visible_episodes(viewer, _todays_filed()):
+    rank = lambda r: (r["today"], r["popularity"], r["created"])  # noqa: E731
+    for row in _visible_episodes(
+            viewer, _explore_filed() if explore else _todays_filed()):
         held = best.get(row["title"].casefold())
-        if held is None or (row["popularity"], row["created"]) > (
-                held["popularity"], held["created"]):
+        if held is None or rank(row) > rank(held):
             best[row["title"].casefold()] = row
     return list(best.values())
+
+
+def _explore_group(row: dict, node: str, leading: tuple, parents: dict) -> str:
+    """Which strand of a page a story belongs to: the leading subject it is
+    under (a league), else the category one level below the page's own that
+    holds it, else the page's own."""
+    chain = row["chain"]
+    for name in leading:
+        if name in chain:
+            return name
+    for name in chain:
+        if name != node and parents.get(name, "") == node:
+            return name
+    return node
+
+
+def _explore_order(rows: list[dict], node: str, trending: dict) -> list[dict]:
+    """Explore's order for one page (§694, the owner: "all the top stories
+    in the major sports leagues as well as a mixture of interesting stories
+    from the past").
+
+    1. The Trending edition's stories, in the edition's order (§691).
+    2. Then the page **dealt in turn from its strands** - the leading
+       subjects first (`EXPLORE_LEADING`: the major leagues on Sport), then
+       the page's other categories, the busiest first - each strand's most
+       played first. Sorted by popularity alone the page was whichever
+       league had been played most, ten cards deep.
+    3. Today's stories and the still-current ones from the days before are
+       dealt separately and woven: `EXPLORE_FRESH_RUN` of today's, then one
+       from before.
+
+    `node` is "" for All, whose strands are the facets. Pure: rows in, the
+    same rows out in a new order; nothing is read or asked."""
+    try:
+        parents = {n: r.parent_id for n, r in topics_mod.category_tree().nodes().items()}
+    except Exception:  # noqa: BLE001 - an order is never worth a failure
+        parents = {}
+    facet = topics_mod._root_facet(node) if node else ""
+    leading = EXPLORE_LEADING.get(facet or node, ()) if node else ()
+    by_heat = lambda r: (-r["popularity"], -r["created"])  # noqa: E731
+
+    def strand_of(row: dict) -> str:
+        if not node:
+            return topics_mod._root_facet(row["node"]) or row["node"]
+        return _explore_group(row, node, leading, parents)
+
+    def deal(some: list[dict]) -> list[dict]:
+        strands: dict[str, list[dict]] = {}
+        for row in sorted(some, key=by_heat):
+            strands.setdefault(strand_of(row), []).append(row)
+        first = [name for name in leading if name in strands]
+        rest = sorted((name for name in strands if name not in first),
+                      key=lambda name: (by_heat(strands[name][0]), name))
+        out: list[dict] = []
+        order = first + rest
+        while order:
+            for name in order:
+                out.append(strands[name].pop(0))
+            order = [name for name in order if strands[name]]
+        return out
+
+    place = lambda r: trending.get(r.get("key") or "")  # noqa: E731
+    lead = sorted((r for r in rows if place(r) is not None), key=place)
+    others = [r for r in rows if place(r) is None]
+    fresh = deal([r for r in others if r["today"]])
+    past = deal([r for r in others if not r["today"]])
+    woven: list[dict] = []
+    while fresh or past:
+        woven.extend(fresh[:EXPLORE_FRESH_RUN])
+        del fresh[:EXPLORE_FRESH_RUN]
+        if past:
+            woven.append(past.pop(0))
+    return lead + woven
 
 
 def _category_row(row: dict, now: float) -> dict:
@@ -11422,6 +11580,10 @@ def _category_row(row: dict, now: float) -> dict:
         "query": row["query"], "title": row["title"],
         "minutes": row["minutes"], "plays": row["plays"],
         "key": row.get("key", ""),
+        # Which kept episode this is (`cache.episode_id`): a card replays it
+        # by this, as the history does (§173), so it plays whatever key it
+        # was written under. New field (`old-clients`).
+        "episode": cache_mod.episode_id(row.get("key", ""), row["sourced_at"]),
         "mixes": row["mixes"], "popularity": row["popularity"],
         "made_age_seconds": max(0.0, now - row["created"]),
         "sourced_age_seconds": max(0.0, now - row["sourced_at"]),
@@ -11592,7 +11754,10 @@ async def category_episodes(
         raise HTTPException(status_code=404, detail="There is no such category.")
     order = sort if sort in CATEGORY_SORTS else CATEGORY_SORTS[0]
     try:
-        filed = await asyncio.to_thread(_todays_for, _listener(request))
+        # Explore (`trending`) reads its wider shelf (§694); the other
+        # orders are today's only, as installed clients have them.
+        filed = await asyncio.to_thread(_todays_for, _listener(request),
+                                        order == "trending")
     except Exception:  # noqa: BLE001 - a category page is never worth a 500
         log.exception("could not file today's episodes")
         raise HTTPException(status_code=503,
@@ -11620,8 +11785,9 @@ async def category_episodes(
     now = time.time()
     leading = _trending_keys(now)
     if order == "trending":
-        # Stable: the edition's stories in its order, the rest as sorted.
-        inside.sort(key=lambda r: leading.get(r.get("key") or "", len(leading)))
+        # The edition's stories in its order, then the page dealt from its
+        # strands, today's woven with the days before (`_explore_order`).
+        inside = _explore_order(inside, "" if everything else node, leading)
     if everything:
         inside = inside[:EXPLORE_ALL_LIMIT]
     episodes = [_category_row(row, now) for row in inside]

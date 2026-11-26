@@ -500,45 +500,63 @@ struct ChatScreen: View {
             }
             .buttonStyle(.press)
             .accessibilityLabel("Share an episode")
-            TextField("", text: $chat.draft, prompt: Text(placeholder).foregroundColor(FAMColor.textMuted),
-                      axis: .vertical)
+            // **The box is sized by a hidden mirror of the draft, never by
+            // the field itself** (11.25 packet; the owner: "once you delete
+            // it, the text bubble stays as big as the previous text was and
+            // only resizes once the next text starts to be typed"). A
+            // vertical `TextField` keeps the height of what it last held
+            // when its binding is cleared from outside - a send - until the
+            // next keystroke lays it out again. A `Text` has no such
+            // memory: it holds the draft (one space when empty, so an empty
+            // box is always exactly one line), wraps one line to five as
+            // the field does, and the field is laid over it filling that
+            // size. Never seen and never read out.
+            Text(Self.mirror(chat.draft))
                 .font(FAMFont.body(12.5))
-                .foregroundStyle(FAMColor.text)
                 .lineLimit(1...5)
-                .textInputAutocapitalization(.sentences)
-                .focused($typing)
-                .accessibilityLabel("Message")
-                // As tall as what is typed, one line to five, and no taller
-                // (the owner's 11.14 notes: "the box of where you type in
-                // the message is too big"). A vertical field with a line
-                // range is flexible: given the height the bottom inset
-                // offers it, some phones drew it at all five lines, empty.
-                // Pinned to its own height, nothing above can stretch it.
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(0)
+                .accessibilityHidden(true)
+                .overlay(alignment: .topLeading) {
+                    TextField("", text: $chat.draft, prompt: Text(placeholder).foregroundColor(FAMColor.textMuted),
+                              axis: .vertical)
+                        .font(FAMFont.body(12.5))
+                        .foregroundStyle(FAMColor.text)
+                        // One line to five, and no taller (the owner's
+                        // 11.14 notes: "the box of where you type in the
+                        // message is too big"); past five it scrolls.
+                        .lineLimit(1...5)
+                        .textInputAutocapitalization(.sentences)
+                        .focused($typing)
+                        .accessibilityLabel("Message")
+                        .submitLabel(.send)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .onChange(of: chat.draft) { old, now in
+                            // Return sends (the owner's 11.12 notes, reversing
+                            // §142's new line): a vertical field takes Return as a
+                            // newline and never calls `onSubmit`, so one typed "\n"
+                            // - one character more, nothing else changed - is taken
+                            // back out and the message sent. A pasted block keeps
+                            // its lines.
+                            if let typed = Self.returnPressed(old, now) {
+                                chat.draft = typed
+                                send()
+                                return
+                            }
+                            chat.noteTyping()
+                            let box = chat
+                            corrector?.changed(from: old, to: now, read: { box.draft }, write: { box.draft = $0 })
+                        }
+                        .onAppear { if corrector == nil { corrector = LiveCorrector(speller: model.speller) } }
+                }
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .frame(minHeight: 36)
                 .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(FAMColor.borderStrong))
-                .submitLabel(.send)
-                .onChange(of: chat.draft) { old, now in
-                    // Return sends (the owner's 11.12 notes, reversing
-                    // §142's new line): a vertical field takes Return as a
-                    // newline and never calls `onSubmit`, so one typed "\n"
-                    // - one character more, nothing else changed - is taken
-                    // back out and the message sent. A pasted block keeps
-                    // its lines.
-                    if let typed = Self.returnPressed(old, now) {
-                        chat.draft = typed
-                        chat.sendText()
-                        return
-                    }
-                    chat.noteTyping()
-                    let box = chat
-                    corrector?.changed(from: old, to: now, read: { box.draft }, write: { box.draft = $0 })
-                }
-                .onAppear { if corrector == nil { corrector = LiveCorrector(speller: model.speller) } }
-            Button { chat.sendText() } label: {
+            Button { send() } label: {
                 RoundIcon(gold: true) { WebIcon(path: Icons.arrow, size: 16, line: 2.4) }
             }
             .buttonStyle(.press)
@@ -550,6 +568,23 @@ struct ChatScreen: View {
         .padding(.bottom, 14)
         .background(FAMColor.background.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) { Rectangle().fill(FAMColor.border).frame(height: 1) }
+    }
+
+    /// Send, from Return or the arrow. The corrector forgets the box it
+    /// was watching first (11.25 packet): a fix still on its way for the
+    /// last word must not be written into the cleared box, and its undo
+    /// must not be offered against the next message.
+    private func send() {
+        corrector?.reset()
+        chat.sendText()
+    }
+
+    /// What the hidden mirror holds: the draft, or one space when it is
+    /// empty so the box is one line tall. A `Text` gives a trailing new
+    /// line no height, so one gets a space after it.
+    static func mirror(_ draft: String) -> String {
+        if draft.isEmpty { return " " }
+        return draft.hasSuffix("\n") ? draft + " " : draft
     }
 
     /// The draft as it was if `now` is `old` with one Return typed into

@@ -72,7 +72,8 @@ def test_the_tabs_are_explore_then_playlists_and_an_arrival_opens_on_explore():
 def test_all_is_the_first_chip_and_the_panel_draws_cards():
     views = _swift("Views/CategoryViews.swift")
     chips = _struct(views, "CategoryChipsRow")
-    assert chips.index('CategoryChip(label: "All", on: true)') < chips.index("ForEach(page.mine)")
+    # The 11.25 packet: All is lit only at rest, and the row is the facets.
+    assert chips.index('CategoryChip(label: "All", on: state.atRest)') < chips.index("ForEach(page.facets)")
     panel = _struct(views, "CategoryPanel")
     assert "node.isEmpty ? FAMAPI.exploreAll : node" in panel
     assert "ExploreCard(episode: e" in panel and "AddToMixSheet(query: e.query" in panel
@@ -86,7 +87,8 @@ def test_all_is_the_first_chip_and_the_panel_draws_cards():
 
 def test_an_explore_card_has_the_webs_two_buttons_and_no_invented_line():
     card = _struct(_swift("Views/Playlists.swift"), "ExploreCard")
-    assert 'Text("Add to playlist")' in card and "FAMLetters(" in card
+    # The 11.25 packet: the play is a round button, the FAM letters gone.
+    assert 'Text("Add to playlist")' in card and "FAMLetters(" not in card
     assert "if let hook = episode.hook, !hook.isEmpty" in card
     api = _swift("API.swift")
     episode = _struct(api, "CategoryEpisode")
@@ -112,7 +114,8 @@ def test_a_playlist_is_a_row_card_and_new_playlist_is_under_them():
 
 def test_a_playlists_page_follows_the_player():
     page = _swift("Views/MixView.swift")
-    assert "PlaylistHead(name:" in page and "PlaylistIcons.sliders" in page
+    # The 11.25 packet: the header's sub line went, and its name with it.
+    assert "PlaylistHead(back:" in page and "PlaylistIcons.sliders" in page
     body = page[page.index("var body: some View"):page.index(".background(FAMColor.background)")]
     playing = body[body.index("playSection(mix)"):]
     # What plays first, the playlist's own details under it.

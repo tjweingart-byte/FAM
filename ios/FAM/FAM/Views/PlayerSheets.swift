@@ -992,6 +992,13 @@ struct NextUpOverlay: View {
         let still = shown || reduceMotion
         ZStack {
             Color(red: 10 / 255, green: 9 / 255, blue: 15 / 255).opacity(0.62).ignoresSafeArea()
+                // Tapping out of the card puts it away and leaves the
+                // player where it is (11.25 packet #1): with a tile, the
+                // search box and Back, the only ways it goes - nothing
+                // closes it by itself.
+                .contentShape(Rectangle())
+                .onTapGesture { now.stopNextUp() }
+                .accessibilityHidden(true)
             card
                 .opacity(still ? 1 : 0)
                 .offset(y: still ? 0 : 8)

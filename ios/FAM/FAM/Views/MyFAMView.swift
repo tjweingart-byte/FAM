@@ -48,17 +48,12 @@ struct MyFAMView: View {
                       // three, §642 `playfam-tabs` B); Explore is on the
                       // left, so it comes from that side.
                       VStack(alignment: .leading, spacing: 0) {
-                        CategoryChipsRow(state: $mixes.categoryState, subs: mixes.categorySubs)
+                        CategoryChipsRow(state: $mixes.categoryState)
                             .padding(.top, 4)
-                        if mixes.categoryState.finding {
-                            CategoryFind(state: $mixes.categoryState)
-                        } else {
-                            // One panel kept across All and every node: the
-                            // last one stays, inert, while the next loads
-                            // (§642, §646).
-                            CategoryPanel(node: mixes.categoryState.node ?? "", subs: $mixes.categorySubs,
-                                          root: mixes.categoryState.root ?? "")
-                        }
+                        // One panel kept across All and every category:
+                        // the last one stays, inert, while the next loads
+                        // (§642, §646).
+                        CategoryPanel(node: mixes.categoryState.node ?? "")
                       }
                       .padding(.bottom, 24)
                       .transition(.tabSwap(forward: mixes.playfamTab == .mixes))
@@ -85,12 +80,8 @@ struct MyFAMView: View {
                 }
                 .refreshable { await mixes.load() }
                 .onChange(of: mixes.categoryState) { old, new in
-                    // A new category goes to the top (`pickCategory`); a sub
-                    // chosen inside it does not.
-                    if old.root != new.root {
-                        mixes.categorySubs = []
-                        proxy.scrollTo("top")
-                    }
+                    // A new category goes to the top (`pickCategory`).
+                    if old.root != new.root { proxy.scrollTo("top") }
                     // Picking a category from anywhere opens its tab.
                     if !new.atRest && mixes.playfamTab != .categories {
                         mixes.playfamTab = .categories

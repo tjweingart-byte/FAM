@@ -829,6 +829,14 @@ final class NowPlayingModel: ObservableObject {
     // owner's direction): the lead used to start a Go Deeper after 15 s,
     // which ended on this same card, so a player left alone chained new
     // episodes for as long as it was left. Every tile waits for a tap.
+    //
+    // **And only the listener takes it away** (11.25 packet #1): a tile, the
+    // search box, Back, or a tap outside the card. No timer closes it. It is
+    // offered with even one tile (the "fewer than two shows nothing" rule
+    // went, as on the web), and after an Explore card's episode like any
+    // other - a replay (`cachedOnly`) is not left out. Still not offered:
+    // while a playlist or the Queue plays through (`carryOn`), under an open
+    // Go Deeper (`ended`), or off the full player.
 
     private func offerNextUp(_ mine: Int) async {
         guard let ep = episode else { return }
@@ -855,7 +863,7 @@ final class NowPlayingModel: ObservableObject {
                                topicID: t.id, picture: api.picture(t.thumb))
             tiles.append(NextUpTile(title: t.title, sub: sub, deeper: false, episode: next))
         }
-        guard mine == run, tiles.count >= 2 else { return }
+        guard mine == run, !tiles.isEmpty else { return }
         nextUp = tiles
     }
 
