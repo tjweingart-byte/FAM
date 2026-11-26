@@ -544,46 +544,24 @@ struct SourcesSheet: View {
 
 // MARK: - Playback (`openSpeedLengthModal`)
 
-/// "Playback": Speed - and, for a search, Length and Voice - each a white
-/// row that opens its choices as an action sheet; Done.
+/// "Playback": Speed, a white row that opens its choices as an action
+/// sheet; Done. No Length or Voice row (the owner, 11.24 and 11.25, §693):
+/// both are picked before a search, on the search page (the voice in
+/// Settings too); picked here, either threw away the episode playing and
+/// made it again from the start.
 struct PlaybackSheet: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: StreamPlayer
     @EnvironmentObject private var now: NowPlayingModel
     let close: () -> Void
-    /// The action sheet a row opens (speed, length, voice).
+    /// The action sheet a row opens (speed).
     let open: (PlayerSheet) -> Void
 
     var body: some View {
         ModalTitle(text: "Playback")
         field("Speed", "\(FAMAPI.minutes(player.rate))x") { open(.speed) }
-        // Length and voice only for a search (§147): everything else is the
-        // browse length, in the bank voice it was given.
-        if let ep = now.episode, ep.surface == "search" {
-            field("Length", "\(FAMAPI.minutes(ep.key.minutes)) min") { open(.length) }
-            field("Voice", voiceLabel) { openVoice() }
-        }
         ModalButton(label: "Done", primary: true, wide: true) { close() }
             .padding(.top, 4)
-            .task { if model.voices == nil { await model.loadSearchSettings() } }
-    }
-
-    /// `voiceLabel(selectedVoice)`: the chosen voice's name, else the
-    /// bank's first, else "Ian" (the web's fallback).
-    private var voiceLabel: String {
-        let bank = model.voices?.voices ?? []
-        let selected = model.voices?.selected ?? ""
-        if let chosen = bank.first(where: { $0.id == selected }) { return chosen.label }
-        return bank.first?.label ?? "Ian"
-    }
-
-    /// `openVoiceMenu`: with no voices reported, the web's sentence instead.
-    private func openVoice() {
-        if let page = model.voices, !page.voices.isEmpty {
-            open(.voice)
-        } else {
-            now.say("No voices reported by the server")
-        }
     }
 
     private func field(_ label: String, _ value: String, action: @escaping () -> Void) -> some View {

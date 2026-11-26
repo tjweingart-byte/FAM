@@ -272,7 +272,7 @@ def test_categories_are_a_row_of_chips_above_the_mixes():
 
 def test_followed_categories_lead_the_chips_with_a_star():
     draw = _fn("paintCategoryChips")
-    # §693 (the 11.25 packet): All, then the main categories in the
+    # §694 (the 11.25 packet): All, then the main categories in the
     # server's order, always - a followed one keeps its star and its place.
     # The followed sub-categories and More left the row.
     assert draw.index('data-chip="all"') < draw.index("catData.facets.map(")
@@ -285,7 +285,7 @@ def test_a_chip_filters_the_page_in_place():
     assert "showCategoryPanel()" in pick and "navigate(" not in pick
     shown = _fn("showCategoryPanel")
     assert '"catPanel").hidden = !cats' in shown and '"mixesPane").hidden = cats' in shown
-    # Inside a category the row is the same row with that chip lit (§693):
+    # Inside a category the row is the same row with that chip lit (§694):
     # no X, no level below. The lit chip, or All, goes back.
     draw = _fn("paintCategoryChips")
     assert "catPage.subs.map(" not in draw and "on === f.id" in draw
@@ -315,7 +315,7 @@ def test_a_tap_plays_what_is_cached_and_nothing_else():
     # replay only, as the catalogue plays one - and the rest of the page
     # follows in the ordinary queue.
     play = _fn("playCategoryEpisode")
-    # That story alone since §693, so What's next follows it.
+    # That story alone since §694, so What's next follows it.
     assert "playCategoryList([eps[i]])" in play
     listed = _fn("playCategoryList")
     assert "cachedOnly: true" in listed and 'generate("_category")' in listed

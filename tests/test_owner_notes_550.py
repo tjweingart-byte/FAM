@@ -105,7 +105,7 @@ def test_explore_lists_followed_then_the_rest_as_chips():
     """§550's landing list of category rows went with §691: before a chip
     is picked the tab shows All's stories. The order it kept is the chips'."""
     chips = _fn("paintCategoryChips")
-    # §693: the main categories in the server's order, a followed one
+    # §694: the main categories in the server's order, a followed one
     # starred where it stands - it no longer moves to the front.
     assert "catData.facets.map(" in chips and "!!followed[f.id]" in chips
     assert "function renderCategoryHome" not in INDEX and 'id="catHome"' not in INDEX

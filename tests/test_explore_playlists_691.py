@@ -192,7 +192,7 @@ def test_new_playlist_is_a_dashed_row_hidden_without_an_account():
 def test_the_playlists_page_says_what_plays():
     head = HTML.split('id="screen-mixdetail"', 1)[1].split('id="mixBody"', 1)[0]
     assert 'aria-label="myFAM Playlist"' in head
-    # The line under it went with the 11.25 packet (§693).
+    # The line under it went with the 11.25 packet (§694).
     assert "pl-head-sub" not in head and 'id="mixHeadMeta"' not in head
     assert 'onclick="openMixMenu()"' in head
     body = _fn("renderMixBody")

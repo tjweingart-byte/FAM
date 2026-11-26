@@ -329,4 +329,5 @@ def test_a_playlist_entry_is_removed_once_and_by_id():
 def test_coming_back_keeps_the_playing_episodes_length():
     block = INDEX.split("var DEFAULT_LENGTH_MINUTES = 1.5;", 1)[1].split("});", 1)[0]
     assert "playing.exploreMinutes = currentPlayMinutes" in block
-    assert "TOPICS[key].exploreMinutes = selectedLengthMinutes;" in _fn("regenerateAtNewLength")
+    # §693: the player no longer changes a playing episode's length at all.
+    assert "function regenerateAtNewLength" not in INDEX

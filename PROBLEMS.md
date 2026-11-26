@@ -41520,7 +41520,104 @@ playlist page following a playing playlist, the hearts, and the mini
 player's two new buttons all want a device. Left for later (PARITY.md):
 Explore's cards rising in, the chips' slide, a guest's example playlist.
 
-## 693. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25)
+## 693. A tester's five reports: Go Deeper round and round, a Go Deeper that rephrased, sources popping in, the voice switch, an ending mid-sentence (2026-11-24)
+
+**Reported** (TestFlight feedback from Tommy, sent on by Ian; the owner:
+"Some bugs to work on. Think of solutions and implement them"):
+
+1. "On the go deeper - it's suggesting the episode that I just watched in
+   an endless cycle."
+2. "The sources pop up midway through the episode which is kind of clunky."
+3. "The go deeper is also not going deeper. Just kind of rephrasing what it
+   said in the previous episode."
+4. "When you want to switch voices mid fam it just recreates the whole
+   episode and trashes what you were just listening to." The owner: "You
+   shouldn't even have the option to switch voices mid episode."
+5. "Most recent episode I listened to also ended in the middle of a
+   sentence."
+
+**1 and 3 are one cause.** A follow-up was told only the *title* of the
+episode it follows (`plan.context`, 300 characters): the brief searched for
+"what is new relative to" a title, the writer was told to "treat that as
+known" without knowing what that was, and it wrote the same ground again.
+Its `<<NEXT:>>` line then often named the parent, and when it wrote none the
+clients build "What's the bigger story behind {title}?" - a request for the
+episode just heard. Either way the next tap wrote it a third time.
+
+- `EpisodePlan.heard`: the parent's script. `app._heard_before` reads it
+  from the cache - by the id the player was given (`heard=`, a new optional
+  parameter the web and the iPhone now send), else from the listener's own
+  history by title, which is what an installed build gets with no update.
+  Never writes, never calls a model, "" on any failure. Never in the cache
+  key, as `covered` is not: `context` already names the parent.
+- The writer is shown it (`<already_said>`) and told the episode is made of
+  what is not in it, and to stop early if the evidence holds nothing more.
+  The brief is shown it too, so the search is aimed past it.
+- `script_generator.circles_back`: a `<<NEXT:>>` line whose subject words
+  are (nearly) all in the request or the parent's title is dropped in code,
+  and a follow-up's writer is told the line "leads somewhere neither
+  briefing has been".
+
+**2.** The server has published who an episode read before its first
+sentence since §288 (`_publish_sources`), but the web first asked six
+seconds after the first word and the iPhone the same, then at 20 s, then
+every 8 s. So the strip appeared beside the title mid-episode and the title
+re-wrapped. Both now ask at the first word (then 2 s, 6 s, 20 s, every 8 s),
+and the strip fades in (150 ms, opacity only).
+
+**4.** The Voice row is gone from the player's Playback modal on the web and
+the iPhone; `voiceItem` no longer calls `generate` on the playing episode,
+and `AppModel.revoice` is deleted. A voice is picked on the search page or
+in Settings. Length is still on the player for a search and still rebuilds
+the episode ("Rebuilding at N min") - the owner spoke only of the voice;
+say the word and it goes the same way.
+
+**5. One cause found and fixed; not proven to be his.** The sentence
+splitter cut at "the U.S. | Supreme Court", "7 p.m. | Eastern", "Apple Inc.
+| said", "i.e. | a lot" (§288 had covered only a lower-case word after
+initials). A length cut is at a "sentence" boundary ([duration-ceiling]),
+so an episode could stop on "The U.S." - and every such cut also put a
+sentence gap inside a sentence. Now: a terminator before a lower-case word
+never ends a sentence; initials and a.m./p.m. before a capital end one only
+when the word is one sentences open on (`_OPENERS`); a stream waits for the
+word that decides. Wrongly joining two sentences costs nothing (they are
+voiced together). And an episode stopped at its length with script unsaid
+is now a notice on /admin's errors (`pipeline._note_cut_at_length`: the last
+sentence said and the first not said), because nothing counted how often
+that happens and it is the other way an episode ends before its own ending.
+
+Tests: `tests/test_tester_feedback_693.py` (14).
+
+**Not verified.** No paid run was made, so whether follow-ups now read as
+deeper is unheard: one Go Deeper pair through `writing.yml` would say. The
+`circles_back` thresholds (80% of the line's words, or 60% overlap) are
+chosen on six hand-made lines, not on logged threads. The c3p0 search half
+(`contextualizer.search_half`) is not shown `heard`. The Swift was not
+compiled here (no Xcode on this machine); the iPhone changes reach testers
+only in a new build, though the server half of 1, 3 and 5 reaches build 12
+as it is. Which ending Tommy heard is unknown: his Report a problem
+playback log (§653) would say whether the stream broke or the script was
+cut.
+
+**The full check (§693).** 8,195 passed, 1 failed:
+`tests/test_push_562.py::test_the_prefs_endpoints` (`KeyError: 'prefs'`
+after a sign-up), which passes alone and touches nothing changed here - an
+order-dependent failure, not looked into further. That failure stopped
+`dev.sh check` before its browser runs, so they were run by hand: landing,
+Opus, activation and reconnect passed; both preview smokes failed one
+check, "Search picks its voice from the bank", which still expected the
+lock's old aria-label ("Private search") where §690 put the word "Private"
+on it. The expectation is corrected; both then end `all checks passed`.
+
+**Length too (the owner, 11.25: "take length off the player too").** The
+Playback modal is Speed alone on the web and the iPhone. Gone:
+`#lengthModalVal`, `regenerateAtNewLength` ("Rebuilding at N min"), the
+length menu's rebuild when opened from the player, the iPhone's
+`lengthItems` and `PlayerSheet.length`. The search page's Length bubble is
+unchanged, and the pill on the player still shows the episode's length.
+Three checks that read the removed row now assert it is gone
+(`test_search_length_and_mix_gate`, `test_packet_1001`, the preview smoke).
+## 694. The owner's 11.25 packet: What's next back after an episode, Explore's selection, cards that would not play, the chips, the play button (2026-11-25)
 
 **The owner's ten notes** (a PDF of annotated screenshots from the iPhone
 app), and what each turned out to be in this repo's terms.

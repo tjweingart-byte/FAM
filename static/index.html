@@ -630,7 +630,7 @@
   .pf-tab:active{ opacity:0.7; }
   /* **Explore's cards** (§691, the owner's 11.24 mock): a story to a card -
      picture and category, title, one line, then play and Add to playlist.
-     The 11.25 packet (§693): the day it was made at the end of the top
+     The 11.25 packet (§694): the day it was made at the end of the top
      line, and the play is a round play button, no wordmark in it. */
   .xp-card{ margin:0 0 12px; padding:14px 14px 15px; background:var(--surface);
     border:1px solid var(--border); border-radius:18px; }
@@ -1810,6 +1810,11 @@
      [hidden] means, or the attribute stops working. Deleting CSS from this
      file has broken the app twice; the checker is not optional. */
   .src-panel[hidden]{ display:none; }
+  /* It arrives, never pops (a tester, 11.24). Opacity only, so nothing
+     beside it moves twice. */
+  .src-panel{ animation:srcIn var(--dur-colour) var(--ease-out) backwards; }
+  @keyframes srcIn{ from{ opacity:0; } }
+  @media (prefers-reduced-motion: reduce){ .src-panel{ animation:none; } }
   /* The strip: who this episode drew on, as marks, under the player. Small
      on purpose - it is provenance, not a bibliography, and the list is one
      tap away. */
@@ -5511,7 +5516,7 @@
           <span class="back" onclick="closeMixPage()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6l-6 6 6 6"/><path d="M10 6l-6 6 6 6"/></svg></span>
           <!-- "myFAM Playlist" (§691, the owner's 11.24 mock); the line under
                it - "MORNING · NOV 25 · 7 STORIES" - went at the owner's
-               direction (the 11.25 packet, §693): the pill under it names
+               direction (the 11.25 packet, §694): the pill under it names
                the playlist and counts its stories. The sliders open the
                playlist's menu, as the three dots did. -->
           <div class="pl-head">
@@ -5915,7 +5920,7 @@
         </div>
       </div>
 
-      <!-- It stays until the listener leaves it (the 11.25 packet, §693):
+      <!-- It stays until the listener leaves it (the 11.25 packet, §694):
            a tile, a search, Back, or a tap outside the card. -->
       <div class="modal-overlay" id="nextUpOverlay" onclick="if(event.target === this) closeNextUp()">
         <div class="nextup-card">
@@ -5986,14 +5991,10 @@
             <div class="gc-label">Speed</div>
             <div class="gc-val" id="speedModalVal" onclick="openSpeedMenu()">1x</div>
           </div>
-          <div class="gc-field">
-            <div class="gc-label">Length</div>
-            <div class="gc-val" id="lengthModalVal" onclick="openLengthMenu()">1.5 min</div>
-          </div>
-          <div class="gc-field">
-            <div class="gc-label">Voice</div>
-            <div class="gc-val" id="voiceModalVal" onclick="openVoiceMenu()">Default</div>
-          </div>
+          <!-- No Length or Voice row (the owner, 11.24 and 11.25): both
+               are picked before a search, on the search page (the voice in
+               Settings too). Picked here, either threw away the episode
+               playing and made it again from the start. -->
           <div class="modal-btns">
             <button class="modal-btn primary" style="flex:1;" onclick="closeSpeedLengthModal()">Done</button>
           </div>
@@ -12099,16 +12100,6 @@
     FamAudio.setRate(parseSpeed(selectedSpeed));
   }
 
-  // Changing length is not a playback setting - it needs a different episode.
-  function regenerateAtNewLength(){
-    var key = currentPlayingTopicKey;
-    if(!key || !TOPICS[key]){ return; }
-    toast("Rebuilding at " + selectedLengthMinutes + " min");
-    // The length just chosen wins over any pinned on the topic (§190).
-    TOPICS[key].exploreMinutes = selectedLengthMinutes;
-    generate(key);
-  }
-
   // ---------------- The thread this episode left open ----------------
   // The script ends pointed at one specific unresolved thing, and names it in
   // a trailing line the server strips before synthesis. Offering that as a
@@ -14324,10 +14315,16 @@
         // This is why the strip was never on screen: it was fetched in
         // `onEnd` and when Go Deeper opened, and nowhere else - so the one
         // moment it is actually for, somebody listening and wondering where
-        // this came from, was the one moment it was never asked for. Tried
-        // twice, because provenance lands with the finished script and a
-        // 10-minute episode's script takes longer to write than a 2-minute
-        // one's.
+        // this came from, was the one moment it was never asked for.
+        //
+        // **At the first word, not six seconds in** (a tester, 11.24: "the
+        // sources pop up midway through the episode"). The research is done
+        // before a word is written and the server has published who it read
+        // by then (`_publish_sources`), and a replay's are in the cache - so
+        // the strip is on the player as it opens, and the later tries are
+        // only for an episode whose sources really do land late.
+        fetchEpisodeSources();
+        setTimeout(fetchEpisodeSources, 2000);
         setTimeout(fetchEpisodeSources, 6000);
         setTimeout(fetchEpisodeSources, 20000);
         // And on, until there is something to show (§288): a Trending story
@@ -14427,7 +14424,7 @@
         voicePicked: surface === "search" && voicePickedForSearch,
         own: !!opts.own, private: !!opts.private,
         askReading: !!opts.askReading, reading: opts.reading || "",
-        mix: opts.mix || ""
+        mix: opts.mix || "", heard: opts.heard || ""
       });
       // One pick, one search (§447): the next search starts from "left as it was".
       if(surface === "search") voicePickedForSearch = false;
@@ -14520,6 +14517,7 @@
                      attach: t.attach || "", surface: where,
                      own: !!t.own, private: !!t.private,
                      episode: t.episode || "", queueable: true,
+                     heard: t.heard || "",
                      // Which thing a shared name means (§426): asked on any
                      // tap that may write an episode - a tile written ahead
                      // was left unwritten for exactly this (review, §432) -
@@ -15029,10 +15027,6 @@
     // A text node beside the chevron SVG, so the text node is what changes -
     // textContent on the span would take the chevron with it.
     if(homeVal && homeVal.firstChild) homeVal.firstChild.textContent = selectedLengthMinutes + " min";
-    ["lengthModalVal"].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) el.textContent = selectedLengthMinutes + " min";
-    });
     updateSpeedLenPillText();
   }
   function updateSpeedLenPillText(){
@@ -15069,11 +15063,9 @@
             // The stopwatch says it took (bubble-ack: B, §643) - on
             // searchFAM, and only for a change.
             if(changed) ackSearchBubble("lengthBubble");
-            // Length is a property of the script, not of playback, so a change
-            // made while listening means a different episode.
-            var onPlayer = document.querySelector(".screen.active")
-                        && document.querySelector(".screen.active").id === "screen-player";
-            if(changed && onPlayer){ regenerateAtNewLength(); }
+            // **Never the episode playing** (the owner, 11.25, §693): a
+            // length is for the next search. A change made on the player
+            // used to rebuild the episode from its start.
           }
         });
       })(m);
@@ -15172,8 +15164,6 @@
   // choice, so this reads it back rather than opening on the default.
   function paintVoiceControls(){
     var name = voiceLabel(selectedVoice);
-    var el = document.getElementById("voiceModalVal");
-    if(el) el.textContent = name;
     var home = document.getElementById("homeVoiceName");
     if(home) home.textContent = name;
     updateSpeedLenPillText();
@@ -15695,7 +15685,7 @@
   // listener picks a voice, and it governs their searches alone: myFAM,
   // DailyFAM and everything else is spoken in a voice drawn from the bank per
   // episode, so the heading says so.
-  // §447: a voice picked on the search page or in the player is a choice for
+  // §447: a voice picked on the search page is a choice for
   // the next search, and only then is a cached episode voiced again in it.
   // Left as it was - the default, or the voice last picked - a cached search
   // plays in the voice its audio is already kept in. A pick in Settings is a
@@ -15726,35 +15716,19 @@
           method: "POST", headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ voice: v.id })
         }).catch(function(){});
-        // The voice changes the audio but not the script, so re-generating
-        // reuses the cached script: no model call, no cost, near-instant.
-        // A searched episode only - nothing else takes a chosen voice.
-        // After the choice is kept (§294): a listener who never chose hears
-        // whatever voice is already kept, so a switch to the default sent
-        // before the server knew would play the old voice again.
-        var onPlayer = document.querySelector(".screen.active")
-                    && document.querySelector(".screen.active").id === "screen-player";
-        if(onPlayer && currentPlayingTopicKey && currentPlaySurface === "search"){
-          toast("Switching to " + v.label);
-          var key = currentPlayingTopicKey;
-          kept.then(function(){ generate(key); });
-        }
+        // **Never the episode playing** (the owner, 11.24, on a tester's
+        // report): a pick used to start the playing search again in the new
+        // voice - "recreates the whole episode and trashes what you were
+        // just listening to". A voice is for the next search.
+        void kept;
       }
     };
   }
 
   function openSpeedLengthModal(){
     document.getElementById("speedModalVal").textContent = selectedSpeed;
-    document.getElementById("lengthModalVal").textContent = selectedLengthMinutes + " min";
-    document.getElementById("voiceModalVal").textContent = voiceLabel(selectedVoice);
-    // Length and voice are a search's to choose (§147). On anything else the
-    // episode is `BROWSE_MINUTES` in the bank voice it was given, so the rows are
-    // not offered rather than offered and ignored.
-    var searched = currentPlaySurface === "search";
-    ["lengthModalVal", "voiceModalVal"].forEach(function(id){
-      var row = document.getElementById(id);
-      if(row && row.parentNode) row.parentNode.style.display = searched ? "" : "none";
-    });
+    // Speed only. Length and voice are chosen before a search, never in
+    // the middle of an episode (the owner, 11.24 and 11.25, §693).
     document.getElementById("speedLengthOverlay").classList.add("active");
   }
   function closeSpeedLengthModal(){
@@ -15889,7 +15863,12 @@
       exploreMinutes: offeredMinutes(minutes),
       surface: (stack[0] === "home") ? "search" : "other",
       titleOverridden: false,
-      private: hush
+      private: hush,
+      // Which episode this follows, when it is the one on the player: the
+      // server reads what that one said, so this one goes past it instead
+      // of rewording it (a tester, 11.24).
+      heard: (baseKey && baseKey === currentPlayingTopicKey && window.FamAudio
+              && FamAudio.episode) ? (FamAudio.episode() || "") : ""
     };
     // Going deeper on a myFAM playlist's episode is a detour, never the end
     // of the playlist (11.9 packet, §519): the follow-up plays, and when it
@@ -16475,7 +16454,7 @@
       + ' onclick="' + action + '(this.dataset.cat)">'
       + (followed ? CAT_STAR : '') + escapeHtml(label) + '</button>';
   }
-  // The row: All and the main categories, the one picked lit (§693).
+  // The row: All and the main categories, the one picked lit (§694).
   // `anim` (category-chips: B, §642): a tap redrew the row, so the chip
   // tapped slides to its new place and the rest fade out and in; with
   // `together` (the X) the others fade in as it slides back.
@@ -16488,7 +16467,7 @@
     if(before) Motion.chips(el, before, together);
   }
   // **Only the main categories, and always all of them** (the 11.25
-  // packet, §693, the owner: "I don't want the sub categories to appear. I
+  // packet, §694, the owner: "I don't want the sub categories to appear. I
   // only want the main categories and I don't want them to ever
   // disappear"). All, then the facets in the server's order - the same row
   // whether or not one is picked; the one picked is lit, and a followed one
@@ -16577,7 +16556,7 @@
     // A new category: nothing of the last one's list stays under it.
     var panel = document.getElementById("catPanel");
     if(panel) panel.innerHTML = "";
-    // The row does not move (§693): only which chip is lit changes.
+    // The row does not move (§694): only which chip is lit changes.
     renderCategoryChips();
     var scroller = document.querySelector("#screen-playfam .scroll");
     if(scroller) scroller.scrollTop = 0;
@@ -16701,7 +16680,7 @@
         landed(function(){
           catPage.loading = false;
           catPage.episodes = d.episodes || [];
-          // The level below is not drawn (§693); kept for what reads it.
+          // The level below is not drawn (§694); kept for what reads it.
           if(node && node === catPage.root) catPage.subs = d.subcategories || [];
           drawCategoryPanel();
         });
@@ -16723,7 +16702,7 @@
   // **Explore's cards** (§691, the owner's 11.24 mock): each story is a
   // card - its picture small beside its category and the day it was made,
   // its title, its one line, then a **play button** (plays that story,
-  // replay only, and nothing after it - §693) and **Add to playlist** (the
+  // replay only, and nothing after it - §694) and **Add to playlist** (the
   // player's own sheet, for this story's topic). "All" is every category with the
   // Trending edition's stories first; inside a category the same cards sit
   // under Play all and Follow. The server's order is the order drawn.
@@ -16741,7 +16720,7 @@
       + '<div class="xp-top"><span class="xp-thumb ' + categoryTone(categoryFacetOf(ep.node)) + '">'
       + (ep.thumb ? '<img src="' + escapeHtml(ep.thumb) + '" alt="" loading="lazy" decoding="async" onerror="this.remove()">' : '')
       + '</span><span class="xp-kick">' + escapeHtml(exploreKicker(ep)) + '</span>'
-      // The day it was made, as a catalogue row says it (§693).
+      // The day it was made, as a catalogue row says it (§694).
       + '<span class="xp-when">' + escapeHtml(episodeDayLabel(ep.made_age_seconds)) + '</span></div>'
       + '<div class="xp-title' + (ep.explicit ? ' is-explicit' : '') + '">' + escapeHtml(name) + '</div>'
       + (ep.hook ? '<div class="xp-hook">' + escapeHtml(ep.hook) + '</div>' : '')
@@ -16827,7 +16806,7 @@
   // **A category plays in the player** (the 11.3 packet, with exploreFAM
   // gone; it opened exploreFAM's reel since §253). A tap plays that episode
   // the way the catalogue plays one - replay only, never written - **and
-  // nothing after it** (the 11.25 packet, §693): it used to queue the rest
+  // nothing after it** (the 11.25 packet, §694): it used to queue the rest
   // of the page behind it, so the episode never ended on What's next - the
   // next card's simply began - and the owner asked for that screen back.
   // Play all still queues the category from the top through the ordinary
@@ -16861,7 +16840,7 @@
   function playCategoryEpisode(i){
     var eps = catPage.episodes;
     if(!eps[i]) return;
-    // That story alone (§693): What's next follows it.
+    // That story alone (§694): What's next follows it.
     playCategoryList([eps[i]]);
   }
   function playCategoryAll(){
@@ -17133,7 +17112,7 @@
       html += '<div class="mix-empty" data-flip="empty">Nothing in this playlist yet. Add the topics you want a fresh briefing on every day.</div>';
     }
     // A playlist with nothing in it yet opens on its picture and name, and
-    // Add topics comes under them (the 11.25 packet, §693) - it used to sit
+    // Add topics comes under them (the 11.25 packet, §694) - it used to sit
     // above, where today's stories will be.
     if(!items.length && !editing){
       html = details + html + addTopics;
@@ -17210,7 +17189,7 @@
   }
   // "MORNING · NOV 23 · 7 STORIES" under the wordmark.
   function paintMixHead(m){
-    // The header is "myFAM Playlist" and nothing under it (§693): the
+    // The header is "myFAM Playlist" and nothing under it (§694): the
     // name, the date and the count that sat there went at the owner's
     // direction. The pill and the details block name the playlist.
     var head = document.querySelector("#screen-mixdetail .pl-wordmark");
@@ -24248,7 +24227,7 @@
 
   function showFollowerPopup(person){
     // Never two overlays deep, and What's next goes only when the listener
-    // leaves it (§693): this used to close it. It waits its turn instead.
+    // leaves it (§694): this used to close it. It waits its turn instead.
     if(document.getElementById("nextUpOverlay").classList.contains("active")){
       setTimeout(function(){ showFollowerPopup(person); }, 3000);
       return;
@@ -31167,7 +31146,7 @@
     if(!AUTH.authenticated
        && (currentPlaySurface === "myfam" || currentPlaySurface === "dailyfam")) return;
     buildNextUpTiles(query, topicId, function(tiles){
-      // **Shown after every episode** (the 11.25 packet, §693, the owner:
+      // **Shown after every episode** (the 11.25 packet, §694, the owner:
       // "I still want that screen to display after the episode"). One tile
       // used to show nothing; the lead is Go Deeper's suggestion and the
       // card has its own search, so one is enough. Only none shows nothing.

@@ -273,9 +273,10 @@ def test_an_abbreviation_does_not_end_a_sentence():
     said, held = _sentences("Dr. Patel said it on Oct. 14 in Nature. The U.S. "
                             "economy grew. It came from the U.S. Then it fell. ")
     assert said == ["Dr. Patel said it on Oct. 14 in Nature.",
-                    "The U.S. economy grew.", "It came from the U.S.",
-                    "Then it fell."]
-    assert held == ""
+                    "The U.S. economy grew.", "It came from the U.S."]
+    # §693: every ending waits for the word after it ("Apple Inc. said",
+    # "7 p.m. on Friday"), so the last sentence is held for `finish`.
+    assert held == "Then it fell. "
     # What decides it has not arrived: wait for the next word.
     assert _sentences("He went to the U.S. ") == ([], "He went to the U.S. ")
 

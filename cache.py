@@ -2832,7 +2832,7 @@ class SqliteScriptCache:
              "sourced_at": float(r[8] or 0.0), "current": float(r[9]) >= now,
              "origin": r[10] or "", "voice": r[11] or "",
              # Everything in the key but the question (`key_bucket`), "" when
-             # none was stored: how Explore tells a follow-up (§693).
+             # none was stored: how Explore tells a follow-up (§694).
              "bucket": r[13] or ""}
             for r in rows
         ]

@@ -188,6 +188,10 @@ def test_the_app_sends_a_pick_once_and_never_from_settings():
     assert 'if(voiceMenuFrom !== "settings") voicePickedForSearch = true;' in html
 
 
-def test_switching_voice_on_the_player_waits_for_the_choice():
+def test_a_voice_pick_never_restarts_the_episode_playing():
+    """§693, at the owner's direction: the player's Voice row is gone, and
+    a pick is for the next search. It used to wait for the choice to be kept
+    and then voice the playing episode again from its start."""
     html = open(os.path.join(ROOT, "static", "index.html")).read()
-    assert "kept.then(function(){ generate(key); });" in html
+    assert "kept.then(function(){ generate(key); });" not in html
+    assert 'id="voiceModalVal"' not in html

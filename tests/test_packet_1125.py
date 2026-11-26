@@ -1,4 +1,4 @@
-"""§693, the owner's 11.25 packet, on the server and the web.
+"""§694, the owner's 11.25 packet, on the server and the web.
 
 What's next is shown after every episode again and leaves only when the
 listener leaves it; an Explore card plays that one story, by the id of the

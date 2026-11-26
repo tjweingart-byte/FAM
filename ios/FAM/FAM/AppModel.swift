@@ -1703,32 +1703,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// The Playback modal's Voice row (`voiceItem` from the player): a pick
-    /// for the next search (`voice_picked`), kept on the server first; then,
-    /// for a searched episode on the player, "Switching to …" and the same
-    /// episode asked again in that voice - the cached script reused, only
-    /// the audio new (§447).
-    func revoice(_ id: String, label: String) {
-        voicePicked = true
-        guard let page = voices, id != (page.selected ?? "") else { return }
-        voices = VoicesPage(selected: id, voices: page.voices)
-        // `generate(key)`: asked again, never the kept episode replayed by
-        // its id (that would be the old voice).
-        var asked: Episode?
-        if showPlayer, var ep = nowPlaying.episode, ep.surface == "search" {
-            ep.episodeID = ""
-            ep.cachedOnly = false
-            asked = ep
-        }
-        let again = asked
-        if again != nil { nowPlaying.say("Switching to " + label) }
-        Task {
-            try? await api.chooseVoice(id)
-            await you.loadSettings()
-            if let again { play(again) }
-        }
-    }
-
     /// The voice a search is sent in: the listener's choice, else none (the
     /// server's own default).
     var searchVoice: String { voices?.selected ?? "" }
@@ -1927,7 +1901,7 @@ final class AppModel: ObservableObject {
                                 reading: ep.key.reading, askReading: askReading,
                                 voice: voice, voicePicked: picked,
                                 isPrivate: ep.isPrivate, attach: ep.attach,
-                                mix: ep.mixID)
+                                mix: ep.mixID, heard: ep.heardID)
         let api = self.api
         let go = { [weak self] in
             guard let self else { return }

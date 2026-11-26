@@ -11230,7 +11230,7 @@ EXPLORE_ALL_LIMIT = 60
 #: and every "Your categories" count. A filing is one category read per row.
 CATEGORY_MEMO_SECONDS = 30.0
 _CATEGORY_MEMO: dict = {"at": 0.0}
-#: **Explore's shelf** (the 11.25 packet, §693): today's episodes and, from
+#: **Explore's shelf** (the 11.25 packet, §694): today's episodes and, from
 #: the days before, the ones still *current* - what `ttl_for` says a new
 #: request would still be served, so a settled story stays and yesterday's
 #: score does not. As far back as every episode's audio is kept.
@@ -11488,7 +11488,7 @@ def _explore_group(row: dict, node: str, leading: tuple, parents: dict) -> str:
 
 
 def _explore_order(rows: list[dict], node: str, trending: dict) -> list[dict]:
-    """Explore's order for one page (§693, the owner: "all the top stories
+    """Explore's order for one page (§694, the owner: "all the top stories
     in the major sports leagues as well as a mixture of interesting stories
     from the past").
 
@@ -11726,7 +11726,7 @@ async def category_episodes(
         raise HTTPException(status_code=404, detail="There is no such category.")
     order = sort if sort in CATEGORY_SORTS else CATEGORY_SORTS[0]
     try:
-        # Explore (`trending`) reads its wider shelf (§693); the other
+        # Explore (`trending`) reads its wider shelf (§694); the other
         # orders are today's only, as installed clients have them.
         filed = await asyncio.to_thread(_todays_for, _listener(request),
                                         order == "trending")
@@ -13885,6 +13885,49 @@ def _voice_wait() -> float | None:
     return float(settings.remote_voice_timeout)
 
 
+#: The most of an earlier episode's script a follow-up's writer is shown:
+#: all of a five-minute episode, with room.
+HEARD_CHARS = 7000
+
+
+def _heard_before(user: str, context: str, episode: str = "") -> str:
+    """What the episode a Go Deeper follows said, or "".
+
+    A follow-up used to be told only the *title* of what the listener had
+    just heard, so it researched and wrote the same ground again - "not
+    going deeper, just rephrasing what it said in the previous episode".
+    This reads that episode's script from the cache (never writes, never
+    calls a model): by the id the player was given for it (`heard=`), else
+    - an installed client sends none - from the listener's own history, the
+    most recent row carrying that title. "" when neither finds it, and the
+    follow-up is written from the title alone, as before.
+    """
+    try:
+        key = ""
+        if episode and parse_episode_id(episode) is not None:
+            key = SCRIPT_CACHE.resolve_episode(episode)
+        if not key and user and context:
+            wanted = " ".join(context.split()).casefold()
+            for row in SAVED.history(user, limit=40):
+                if wanted not in (row["title"].casefold(), row["query"].casefold()):
+                    continue
+                if row["episode"]:
+                    key = SCRIPT_CACHE.resolve_episode(row["episode"])
+                if not key:
+                    key = _episode_key(_validated_plan(
+                        row["query"], row["minutes"], row["context"])) or ""
+                break
+        if not key:
+            return ""
+        return " ".join(SCRIPT_CACHE.script(key))[:HEARD_CHARS].strip()
+    except HTTPException:
+        return ""
+    except Exception:  # noqa: BLE001 - never worth the follow-up itself
+        log.exception("could not read what a follow-up follows; writing it "
+                      "from the title alone")
+        return ""
+
+
 @app.get("/api/next")
 async def next_thread(
     request: Request,
@@ -13992,6 +14035,11 @@ async def audio(
     # §656: the myFAM mix this episode is played from, so a free listener's
     # half of it can be counted. An older client never sends it.
     mix: str = Query("", max_length=64, description="The mix this is played from"),
+    # The episode a Go Deeper follows, by its id (`X-FAM-Episode`), so the
+    # follow-up is written knowing what that one said. An older client
+    # never sends it; the listener's history is asked by title instead.
+    heard: str = Query("", max_length=80, description="The id of the episode "
+                                                      "this follow-up follows"),
 ):
     """Stream the episode.
 
@@ -14023,6 +14071,12 @@ async def audio(
                            _attachments_for(user, attach), reading=reading)
     if ask_reading:
         plan = dataclasses.replace(plan, ask_reading=True)
+    # A Go Deeper is written knowing what the episode it follows said, so
+    # it goes past it rather than rewording it. Never for a replay.
+    if plan.context and not (cached_only or episode):
+        said = _heard_before(user, plan.context, heard)
+        if said:
+            plan = dataclasses.replace(plan, heard=said)
     # A reviewer took this episode down (moderation.py, §226): it plays for
     # nobody - not from a share, a rail, a replay, or written again.
     if _episode_target(q, minutes) in MODERATION.hidden_episodes():

@@ -2720,7 +2720,7 @@ def main() -> int:
             assert moved["cats"] and moved["copy"] == 1, f"the tab did not slide its underline and nudge: {moved}"
             page.wait_for_timeout(500)
             assert page.evaluate("document.querySelectorAll('.motion-panel').length") == 0, "the old tab's copy was left"
-            # A chip: lit on the tap, in the row that does not move (§693).
+            # A chip: lit on the tap, in the row that does not move (§694).
             if page.query_selector("#catChips .catchip[data-cat]"):
                 page.evaluate("document.querySelector('#catChips .catchip[data-cat]').click()")
                 assert page.query_selector("#catChips .catchip.on[data-cat]"), "the chip did not light on the tap"
@@ -3772,10 +3772,9 @@ def main() -> int:
             chip = page.text_content("#lengthBubble").strip()
             assert chip == "Length", f"the length bubble reads {chip!r}"
             assert want == 1.5, f"the search page opened on {want} min, not 1.5"
-            for element_id in ("lengthModalVal",):
-                shown = page.text_content("#" + element_id).strip()
-                assert shown == "%g min" % want, \
-                    f"#{element_id} reads {shown!r}, the setting is {want} min"
+            # The player's Length row went with §693.
+            assert not page.query_selector("#lengthModalVal"), \
+                "the player offers a length again"
             # And the menu ticks the one the chip names, which is the pair
             # that disagreed.
             page.evaluate("openLengthMenu()")
@@ -3874,7 +3873,7 @@ def main() -> int:
             body = page.inner_text("#mixBody")
             assert "Add topics to playlist" in body and "Change" in body, body[:300]
             assert "Nothing in this playlist yet" in body, body[:300]
-            # §693: on an empty playlist Add topics is under the picture and
+            # §694: on an empty playlist Add topics is under the picture and
             # the name, not above them.
             assert page.evaluate("""() => {
               var hero = document.querySelector('#mixBody .mix-hero').getBoundingClientRect();
@@ -3902,7 +3901,7 @@ def main() -> int:
                 "#mixBody .pl-rows > .pl-row .pl-row-title",
                 "els => els.map(e => e.textContent)")
             assert rows == ["NFL · Eagles"], rows
-            # §693: the header's "NAME · NOV 24 · 1 STORY" line is gone.
+            # §694: the header's "NAME · NOV 24 · 1 STORY" line is gone.
             assert not page.query_selector("#screen-mixdetail .pl-head-sub"), \
                 "the line under myFAM Playlist is back"
 
@@ -5085,7 +5084,7 @@ def main() -> int:
             page.wait_for_selector("#catChips .catchip[data-cat]", timeout=10000)
             chips = page.eval_on_selector_all("#catChips .catchip",
                                               "e => e.map(x => x.textContent.trim())")
-            # §693: All and the main categories only - no More, no X.
+            # §694: All and the main categories only - no More, no X.
             assert chips[0] == "All" and "More" not in chips and len(chips) >= 5, f"the chip row reads {chips}"
             assert page.query_selector("#catChips .catchip.on[data-chip=all]"), "All is not the chip that is on"
             page.wait_for_selector("#catPanel:not([hidden]) .xp-card", timeout=5000)
@@ -5100,7 +5099,7 @@ def main() -> int:
                 add: e.querySelector('.xp-add').textContent.trim() })""")
             assert card["title"] and card["kick"] and card["play"] and card["add"] == "Add to playlist", \
                 f"an Explore card is missing a part: {card}"
-            # §693: the play is a round play button with no wordmark in it,
+            # §694: the play is a round play button with no wordmark in it,
             # and the card says the day its episode was made.
             assert card["playText"] == "" and card["playWide"] == card["playTall"] >= 44, \
                 f"the play button is not a round play button: {card}"
@@ -5111,7 +5110,7 @@ def main() -> int:
             page.click(f'#catChips .catchip[data-cat="{target}"]')
             page.wait_for_selector("#catPanel:not([hidden]) .catp-play, #catPanel:not([hidden]) .sv-empty",
                                    timeout=5000)
-            # §693: the row is the same row with that chip lit - every main
+            # §694: the row is the same row with that chip lit - every main
             # category still there, no X and nothing from the level below.
             inside = page.eval_on_selector_all("#catChips .catchip",
                                                "e => e.map(x => x.textContent.trim())")
