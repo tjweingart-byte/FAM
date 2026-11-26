@@ -42049,3 +42049,28 @@ video's picture did not load here (no access to YouTube's image host), so
 that section was seen empty; the four people have not been asked.
 **For the owner:** the profile's counts, interests and vibes and the two
 messages are the demo account's, under real names and faces.
+
+## 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26)
+
+**What failed.** CI on the last commit of §697's branch: "Follow this? after
+a search, a reason on a card, the teams strip" timed out on the live-database
+preview (`preview/fam-live.html`), after the branch had been merged (PR 344
+was merged while its run was still going).
+
+**Why.** §697's review made the card read `following` from `POST /api/follow`
+before saying "Following X". The fixture preview's stand-in returned it; the
+live preview's stand-in turned the request into a preferences save and
+answered with the preferences body, which has no `following`. So in that
+build the card said the list was full and followed nothing. The server
+itself always returned it (`tests/test_follow_696.py`); only the preview's
+copy of the endpoint was wrong.
+
+**Why it was not caught.** After the review fixes the smoke run was started
+by hand on the fixture build only; `dev.sh check` drives both, and the full
+check was not re-run on the final commit. The earlier runs on that build
+passed because the card did not yet read the field.
+
+**Fixed.** The live preview answers `/api/follow` with `{topics, following}`.
+
+**Verified:** `tools/smoke_preview.py` on both builds, all checks passed.
+**Not verified:** the full `./dev.sh check` on this commit - CI is that run.
