@@ -207,7 +207,20 @@ def _ask(client, q, voice="", picked=False):
         **({"voice_picked": 1} if picked else {})})
 
 
-def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served):
+def _near_match(served, monkeypatch, asked, reworded):
+    """Make `reworded` a near match for the episode kept under `asked`. The
+    match is stubbed, not scored: what the two wordings score depends on the
+    embedder a full run leaves loaded, and this file is about the voice."""
+    plan = appmod._validated_plan(asked, 3)
+    key = appmod._episode_key(plan)
+    assert appmod._episode_key(appmod._validated_plan(reworded, 3)) != key
+    monkeypatch.setattr(
+        served, "nearest",
+        lambda bucket, query: (key, 0.9) if bucket == appmod.bucket_for(plan) else None)
+    return key
+
+
+def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served, monkeypatch):
     """A search answered by a near match plays the neighbour's script, whose
     audio is kept under the neighbour's key. Looking only under the search's
     own key found nothing and voiced the cached episode again in the
@@ -216,12 +229,8 @@ def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served):
     first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
     asked = "how do volcanoes form and erupt"
     assert _ask(first, asked, voice="chatterbox:nova", picked=True).status_code == 200
-    plan = appmod._validated_plan(asked, 3)
-    key = appmod._episode_key(plan)
-    reworded = "how volcanoes form and why they erupt"
-    near = served.nearest(appmod.bucket_for(plan), reworded)
-    assert near and near[0] == key, "the two wordings must be a near match for this test"
-    assert appmod._episode_key(appmod._validated_plan(reworded, 3)) != key
+    reworded = "what makes a volcano blow its top"
+    _near_match(served, monkeypatch, asked, reworded)
 
     BankEngine.spoken = []
     other = TestClient(appmod.app)
@@ -232,12 +241,14 @@ def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served):
     assert BankEngine.spoken == [], "a near-matched cached episode was voiced again"
 
 
-def test_a_voice_picked_for_a_reworded_search_is_still_honoured(served):
+def test_a_voice_picked_for_a_reworded_search_is_still_honoured(served, monkeypatch):
     first = TestClient(appmod.app)
-    _ask(first, "how do volcanoes form and erupt", voice="chatterbox:nova", picked=True)
+    asked = "how do volcanoes form and erupt"
+    _ask(first, asked, voice="chatterbox:nova", picked=True)
+    reworded = "what makes a volcano blow its top"
+    _near_match(served, monkeypatch, asked, reworded)
     BankEngine.spoken = []
-    _ask(TestClient(appmod.app), "how volcanoes form and why they erupt",
-         voice="chatterbox:ellis", picked=True)
+    _ask(TestClient(appmod.app), reworded, voice="chatterbox:ellis", picked=True)
     assert set(BankEngine.spoken) == {"chatterbox:ellis"}
 
 
