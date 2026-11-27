@@ -2986,6 +2986,13 @@ extension FAMAPI {
         try await send("POST", "api/v1/preferences", body: body, as: MyPreferences.self)
     }
 
+    /// The places a few typed letters could mean, for "Where you are"'s
+    /// one box: each a city, its region and country and the line to show.
+    /// At most six; none when the catalogue cannot be asked or knows none.
+    func placeSuggestions(_ words: String) async throws -> [PlaceInfo] {
+        try await get("api/v1/places/suggest", [URLQueryItem(name: "q", value: words)], as: PlacesPage.self).places
+    }
+
     /// The account's own details (`POST /api/account`): the first run's name.
     func updateAccount(_ body: [String: Any]) async throws {
         _ = try await send("POST", "api/v1/account", body: body, as: Ignored.self)
@@ -3244,6 +3251,11 @@ struct PlaceInfo: Decodable, Equatable {
     let region: String?
     let country: String?
     let label: String?
+}
+
+/// `/api/places/suggest`.
+struct PlacesPage: Decodable {
+    let places: [PlaceInfo]
 }
 
 /// An id and its name: a facet (`interests_all`) or a chosen subject.

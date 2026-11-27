@@ -27,9 +27,7 @@ struct PersonView: View {
     @State private var unflipped = false
     @State private var followedHandles: Set<String> = []
     @State private var addedMixes: [String: Bool] = [:]
-    /// Find your friends (§665-§672): the row under Follow, "Followed by",
-    /// and their QR code.
-    @ObservedObject private var find = FindFriendsModel.shared
+    /// Find your friends (§666-§672): "Followed by" and their QR code.
     @State private var mutualsOpen = false
     @State private var qr: QRSubject?
     /// A mix of theirs already in your myFAM, asked about before it goes.
@@ -79,7 +77,6 @@ struct PersonView: View {
                         }
                         actions.padding(.top, 14)
                         mutuals
-                        afterFollow
                         interests
                         tabs.id("tabs")
                         grid
@@ -148,26 +145,6 @@ struct PersonView: View {
         if let m = page?.mutuals, (m.count ?? 0) > 0, !(m.people ?? []).isEmpty {
             MutualsLine(mutuals: m) { mutualsOpen = true }
                 .padding(.top, 12)
-        }
-    }
-
-    /// Suggested for you, sliding open under Follow once you follow them
-    /// (§665): the people they follow, which the server gives only then.
-    @ViewBuilder private var afterFollow: some View {
-        if !handle.isEmpty, find.aroundHandle == handle, !find.visible(find.around).isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Suggested for you").monoLabel(10, color: FAMColor.copper, tracking: 1.3)
-                    Spacer()
-                    Button { social.open(.friends) } label: {
-                        Text("See all").font(FAMFont.body(12, .semibold)).foregroundStyle(FAMColor.text)
-                    }
-                    .buttonStyle(.press)
-                }
-                SuggestCards(people: find.around, via: "after_follow")
-            }
-            .padding(.top, 16)
-            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -627,10 +604,8 @@ struct PersonView: View {
         Task {
             await social.follow(userID: id, handle: id.isEmpty ? h : "",
                                 via: open.via.isEmpty ? "profile" : open.via)
-            // Their vibes and interests open with the follow (§638), and
-            // the people they follow slide open under it (§665).
+            // Their vibes and interests open with the follow (§638).
             await load()
-            await find.loadAround(api: model.api, handle: h.isEmpty ? handle : h)
             flipped = false
             working = false
         }

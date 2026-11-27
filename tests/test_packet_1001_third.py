@@ -274,9 +274,13 @@ def test_the_env_example_documents_the_push_settings():
 # --- 2a. Invite new users from the friends page ----------------------------
 
 def test_the_friends_page_invites_new_users():
+    # Drawn at the foot of the page, under the listener's own list and
+    # the suggestions (§704), by the function that paints that block.
     screen = INDEX.split('id="screen-friends"', 1)[1].split("</section>", 1)[0]
-    assert 'onclick="inviteFriends()"' in screen
-    assert "Invite new users" in screen
+    assert 'id="friendsFind"' in screen
+    foot = _fn("paintFindFriends")
+    assert 'onclick="inviteFriends()"' in foot
+    assert "Invite new users" in foot
     # Both "Find new friends" pills open this page.
     assert "openFriends()" in _fn("renderProfile")
     # myFAM's is painted into the rail's slot (§669).

@@ -4045,6 +4045,22 @@ def _person_friends(me: str, target: str) -> dict:
     return out
 
 
+@app.get("/api/places/suggest")
+async def places_suggest(request: Request,
+                         q: str = Query("", max_length=80)) -> dict:
+    """The places a half-typed "Where you are" could mean (§704).
+
+    One box in place of three: the listener types a town and picks it with
+    its region and country. An account's own editor, so an account is
+    asked for; nothing typed here is stored against the listener.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    import places
+
+    return {"places": await places.suggest(q, user)}
+
+
 @app.get("/api/people")
 async def people_search(request: Request,
                         q: str = Query("", max_length=64)) -> dict:

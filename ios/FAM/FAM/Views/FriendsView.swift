@@ -1,8 +1,12 @@
 import SwiftUI
 
-/// Friends (`#screen-friends`, shots 28-32): find someone by handle,
-/// Invite new users +, then two tabs, Friends | Following (11.16 notes, the
-/// owner's sketch; `renderFriends`). Friends are mutual follows
+/// Friends (`#screen-friends`), laid out as Instagram's: a search pill,
+/// then two tabs, Friends | Following (11.16 notes, the owner's sketch;
+/// `renderFriends`), then the rows. Under the listener's own people:
+/// Suggested for you as a list of rows (never the sideways cards, which
+/// the testers' note took out of every screen), your contacts on FAM, your
+/// profile link and the invite. A search shows its results and nothing
+/// else. Friends are mutual follows
 /// (`op-follow-graph`); Following is everyone followed, friends included,
 /// as Instagram's is. Somebody who follows this listener and is not
 /// followed back sits under Friends in a FOLLOWS YOU group, where following
@@ -29,34 +33,15 @@ struct FriendsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // `.back-row`: the double chevron (stroke 2.6, .85) and "Friends".
             YouBackRow(title: "Friends") { social.back() }
-            // It always searched names too (§665).
-            ModalField(placeholder: "Search by name or @handle", text: $search, plain: true)
+            searchPill
                 .padding(.horizontal, 18)
                 .task(id: search) { await lookUp() }
-            Button { inviteNewUsers() } label: {
-                HStack(spacing: 5) {
-                    Text("Invite new users").font(FAMFont.body(12, .bold))
-                    WebIcon(path: Icons.plus, size: 12, line: 2.6)
-                }
-                .foregroundStyle(FAMColor.ink)
-                .padding(.leading, 13)
-                .padding(.trailing, 12)
-                .frame(minHeight: 30)
-                .background(FAMColor.copper, in: Capsule())
-            }
-            .buttonStyle(.press)
-            .padding(.horizontal, 18)
-            .padding(.top, 10)
             ScrollView {
-                // Your profile link, your contacts on FAM and Discover
-                // people above the tabs (§665, `friendsFind`), and the tabs
-                // pinned once they reach the top (`.fr-tabs{ position:sticky }`);
-                // none of it over a search.
+                // The tabs pinned once they reach the top
+                // (`.fr-tabs{ position:sticky }`), the listener's people,
+                // then what finds more of them (`friendsFind`); over a
+                // search, the results alone.
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    if found == nil {
-                        findSection
-                            .padding(.horizontal, 18)
-                    }
                     Section {
                         VStack(alignment: .leading, spacing: 0) {
                             if let found {
@@ -75,8 +60,14 @@ struct FriendsView: View {
                                 .background(FAMColor.background)
                         }
                     }
+                    if found == nil {
+                        findSection
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 24)
+                    }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             // A tab opens at its top (`showFriendsTab`: `scrollTop = 0`).
             .id(tab)
             .refreshable { await social.loadGraph() }
@@ -100,21 +91,69 @@ struct FriendsView: View {
         }
     }
 
+    // MARK: The search pill
+
+    /// Instagram's: a filled, rounded field with the magnifier in it and
+    /// an X that empties it. It searches names as well as handles (§665).
+    private var searchPill: some View {
+        HStack(spacing: 8) {
+            WebIcon(path: Icons.search, size: 15, line: 2.2).foregroundStyle(FAMColor.textMuted)
+            TextField("", text: $search, prompt: Text("Search").foregroundColor(FAMColor.textMuted))
+                .font(FAMFont.body(13.5))
+                .foregroundStyle(FAMColor.text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .accessibilityLabel("Search by name or @handle")
+            if !search.isEmpty {
+                Button {
+                    search = ""
+                    found = nil
+                } label: {
+                    WebIcon(path: Icons.close, size: 11, line: 2.6)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .accessibilityLabel("Clear the search")
+            }
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, search.isEmpty ? 12 : 4)
+        .frame(minHeight: 38)
+        .background(FAMColor.surface2, in: RoundedRectangle(cornerRadius: 11))
+    }
+
     // MARK: Finding friends (§665, §669, §670)
 
+    /// Under the listener's own people: Suggested for you, a row a person;
+    /// your contacts on FAM; your profile link; the invite.
     @ViewBuilder private var findSection: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if !find.visible(find.discover).isEmpty {
+                FindRail(title: "Suggested for you")
+                SuggestedList(people: find.discover, via: "suggested")
+            }
+            ContactsBlock()
             if !social.myHandle.isEmpty {
                 ProfileLinkRow(handle: social.myHandle,
                                showQR: { qr = QRSubject(handle: social.myHandle) },
                                share: { invite = model.profileLinkItems(QRSubject(handle: social.myHandle)) })
-                    .padding(.top, 12)
+                    .padding(.top, 18)
             }
-            ContactsBlock()
-            if !find.visible(find.discover).isEmpty {
-                FindRail(title: "Discover people")
-                SuggestCards(people: find.discover, via: "suggested")
+            Button { inviteNewUsers() } label: {
+                HStack(spacing: 6) {
+                    Text("Invite new users").font(FAMFont.body(12.5, .semibold))
+                    WebIcon(path: Icons.plus, size: 12, line: 2.6)
+                }
+                .foregroundStyle(FAMColor.text)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .overlay(Capsule().stroke(FAMColor.borderStrong))
+                .contentShape(Capsule())
             }
+            .buttonStyle(.press)
+            .padding(.top, 12)
         }
     }
 
@@ -184,7 +223,7 @@ struct FriendsView: View {
 
     @ViewBuilder private func results(_ people: [FollowPerson]) -> some View {
         if people.isEmpty {
-            SocialNote(text: "No one with that handle.")
+            SocialNote(text: "No one by that name or handle.")
         } else {
             ForEach(people) { p in row(p) }
         }

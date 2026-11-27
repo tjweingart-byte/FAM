@@ -61,39 +61,76 @@ def test_a_follow_says_where_it_was_tapped():
         "Views/PersonView.swift", "Views/FriendsView.swift"))
     used = set(re.findall(r'via: "([a-z_]+)"', sources))
     used |= set(re.findall(r'via: [^\n]*\? "([a-z_]+)" : ', sources))
-    used |= set(re.findall(r'"([a-z_]+)" : "search"', sources))
+    # Both sides of `found == nil ? "friends_page" : "search"`.
+    used |= set(re.findall(r'via: [^\n]*\? "[a-z_]+" : "([a-z_]+)"', sources))
     used |= {"contacts", "contacts_all"}          # built from a prefix
     assert used, "no via found"
     for via in used:
         assert follow_via(via) == via, via
         assert follow_via("signup_" + via.removeprefix("signup_")) != "", via
-    assert {"suggested", "after_follow", "profile", "profile_link", "their_friends",
-            "joined", "friends_page", "search"} <= {v.removeprefix("signup_") for v in used}
-    assert {v.removeprefix("signup_") for v in used} <= FOLLOW_VIA
+    # `after_follow` went with the row under Follow, and `signup_` with the
+    # sign-up step (the testers' note): suggestions are followed from the
+    # Friends page's list alone.
+    assert {"suggested", "profile", "profile_link", "their_friends",
+            "joined", "friends_page", "search"} <= used
+    assert "after_follow" not in used and not any(v.startswith("signup_") for v in used)
+    assert used <= FOLLOW_VIA
 
 
-def test_sign_up_has_four_steps_with_find_your_friends_third():
-    assert "static let count = 4" in swift("Views/YouParts.swift")
-    assert "StepMarks(step: 2)" in swift("Views/ProfileEdit.swift")
-    assert "StepMarks(step: 3)" in swift("FindFriends.swift")
-    assert "StepMarks(step: 4)" in swift("Views/ProfileEdit.swift")
-    assert "case findFriends" in swift("YourFAM.swift")
-    assert "FindFriendsView()" in swift("FAMApp.swift")
-    # Only an account let in is sent to it; Next and Skip go on to the interests.
-    you = swift("YourFAM.swift")
-    assert "stage == .ready && listener?.authenticated == true ? .findFriends : .interests" in you
+def test_sign_up_has_three_steps_and_find_your_friends_is_not_one():
+    # It was the third of four (§665); the testers' note took it out of the
+    # first run. Who you are goes straight on to the interests.
+    assert "static let count = 3" in swift("Views/YouParts.swift")
     edit = swift("Views/ProfileEdit.swift")
-    assert "model.entry = .interests" not in edit
-    assert edit.count("model.entry = model.afterIdentity") == 2
+    assert "StepMarks(step: 2)" in edit and "StepMarks(step: 3)" in edit
+    assert "StepMarks(step: 4)" not in edit
+    assert "StepMarks(" not in swift("FindFriends.swift")
+    assert "findFriends" not in swift("YourFAM.swift")
+    assert "FindFriendsView" not in swift("FAMApp.swift") + swift("FindFriends.swift")
+    assert "afterIdentity :" not in swift("YourFAM.swift")
+    assert edit.count("model.entry = .interests") == 2
 
 
-def test_profiles_carry_mutuals_the_row_after_follow_and_a_qr():
+def test_suggestions_are_a_list_on_the_friends_page_and_nowhere_else():
+    find = swift("FindFriends.swift")
+    assert "struct SuggestedList: View" in find
+    # No sideways row of cards anywhere in the app.
+    everything = "".join(p.read_text() for p in SRC.rglob("*.swift"))
+    for gone in ("SuggestCards", "DiscoverPeopleSection", "loadAround(", "find.around"):
+        assert gone not in everything, gone
+    assert everything.count("SuggestedList(") == 1
+    friends = swift("Views/FriendsView.swift")
+    assert 'SuggestedList(people: find.discover, via: "suggested")' in friends
+    # Instagram's order: the search, the tabs and the listener's own people,
+    # then who to add; over a search, the results alone.
+    assert friends.index("searchPill\n") < friends.index("FriendsTabs(tab:") < friends.index("findSection\n")
+    body = friends[friends.index("@ViewBuilder private var findSection"):friends.index("// MARK: The graph")]
+    assert (body.index("SuggestedList(") < body.index("ContactsBlock()")
+            < body.index("ProfileLinkRow(") < body.index("Invite new users"))
+    assert "if found == nil {\n                        findSection" in friends
+
+
+def test_where_you_are_is_one_box_with_the_servers_options():
+    api = swift("API.swift")
+    assert '"api/v1/places/suggest"' in api
+    edit = swift("Views/ProfileEdit.swift")
+    assert edit.count("PlaceField(place: $place)") == 2      # the step and the editor
+    for gone in ('Text("State or region")', 'Text("Country")', ".addressState", ".countryName"):
+        assert gone not in edit, gone
+    # A place nobody offered is still saved: the typed line cut at commas.
+    assert 'typed.split(separator: ",")' in edit
+    assert 'if typed.isEmpty { return ["city": "", "region": "", "country": ""] }' in edit
+    assert "words.count >= 2, !place.settled" in edit
+    assert "250_000_000" in edit
+
+
+def test_profiles_carry_mutuals_and_a_qr():
     api = swift("API.swift")
     assert "let mutuals: PersonMutuals?" in api
     person = swift("Views/PersonView.swift")
     assert "MutualsLine(mutuals: m)" in person
-    assert 'SuggestCards(people: find.around, via: "after_follow")' in person
-    assert "find.loadAround(" in person
+    # The row of cards under Follow went (the testers' note).
+    assert "Suggested for you" not in person
     assert "QRSubject(handle: handle, name:" in person
     find = swift("FindFriends.swift")
     # The web's words for one, two and more names.

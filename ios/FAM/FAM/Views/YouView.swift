@@ -111,10 +111,8 @@ struct YouView: View {
             stats(p, proxy: proxy).modifier(Self.arrive(1))
             buttons(p).modifier(Self.arrive(2))
             interests(p).modifier(Self.arrive(3))
-            // Discover people with See all (§665, `hubDiscoverHTML`).
-            DiscoverPeopleSection().modifier(Self.arrive(4))
-            tabs.id("shelf").modifier(Self.arrive(5))
-            grid(p).modifier(Self.arrive(6))
+            tabs.id("shelf").modifier(Self.arrive(4))
+            grid(p).modifier(Self.arrive(5))
         } else if you.profileState == .failed {
             // The web clears the header and offers nothing (Q2): here the
             // gear stays and the page can be asked again.

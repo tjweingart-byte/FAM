@@ -60,7 +60,9 @@ extension AppModel {
         return h
     }
 
-    /// The handle a profile link left for after sign-up (`famLinkedPerson`).
+    /// The handle an earlier build kept for sign-up's Find your friends
+    /// step (`famLinkedPerson`); nothing writes it now, and opening the
+    /// profile clears what an older build left.
     static let linkedHandleKey = "fam.linkedPerson"
 
     static func sharedLink(_ url: URL) -> AppLink? {
@@ -105,11 +107,9 @@ extension AppModel {
         if let last = lastLink, last.link == link, Date().timeIntervalSince(last.at) < 2 { return }
         lastLink = (link: link, at: Date())
         pendingLink = url
-        // A profile link is kept for the sign-up's Find your friends step
-        // too, where it is the first person shown (§669).
-        if case let .person(handle) = link, stage != .ready || entry != nil {
-            UserDefaults.standard.set(handle, forKey: Self.linkedHandleKey)
-        }
+        // A profile link that arrives before the app is on its tabs is
+        // held like any other (`pendingLink`), and opens that profile once
+        // sign-up is done - there is no Find your friends step to show it.
         if stage == .ready && entry == nil {
             openPendingLink()
             return
@@ -160,18 +160,6 @@ extension AppModel {
     func openLinkedPerson(_ handle: String) {
         UserDefaults.standard.removeObject(forKey: Self.linkedHandleKey)
         social.openPerson(handle: handle, via: "profile_link")
-    }
-
-    /// The person a held profile link names, for Find your friends: found
-    /// by the search a handle would find (the same people discovery shows),
-    /// or nobody.
-    func loadLinkedPerson() async {
-        guard linkedPerson == nil,
-              let held = UserDefaults.standard.string(forKey: Self.linkedHandleKey),
-              let handle = Self.linkHandle(held) else { return }
-        let found = (try? await api.people(handle)) ?? []
-        linkedPerson = found.first { ($0.handle ?? "").lowercased() == handle }
-        if linkedPerson != nil { UserDefaults.standard.removeObject(forKey: Self.linkedHandleKey) }
     }
 
     /// `/s/<id>`: the episode the listen page plays - the question at its

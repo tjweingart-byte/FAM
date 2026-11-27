@@ -42310,3 +42310,78 @@ none of this was heard. Which voice is the bank's oldest in production - the
 one every unpicked search now starts in - was not looked up; it is the first
 row on /admin. The Swift change is one string literal and was not compiled
 here (`ios.yml` builds it on push).
+
+## 704. Where you are is one box; Find your friends is out of sign-up; the Friends page is Instagram's (2026-11-27)
+
+**The notes** (two testers', passed on by the owner as pictures). On the
+"Step 2 of 4" screen: "Is there a way to have 'where are you' be one box?
+Like you start typing in 'Huntington beach' and then all the options appear
+below. So you don't have to type in three boxes." On paper: "1. Remove 'add
+friends' from the initial set up. 2. Change the layout of 'search/add'
+friends, make it more like Instagram. I don't want to see those recommended
+tiles EVERYWHERE."
+
+**1. One box.** City / State or region / Country were three fields because
+`preferences.Location` keeps three values and the ranker reads two of them.
+That is a reason to store three, not to ask three.
+
+* `places.suggest(text, user)` and `GET /api/places/suggest?q=` (account
+  required, read-paced): the Open-Meteo catalogue `places.geocode` already
+  asks, through one shared `_ask_catalogue`. Towns only (`PPL*`), each
+  offered once, at most `SUGGEST_MAX` (6), from `SUGGEST_MIN` (2) letters.
+  What follows a comma narrows by region or country ("Huntington, Eng").
+* Each answer is kept `SUGGEST_LIFE` (a month) by its typed letters
+  (`place_suggestions`, beside the resolved places), so the same letters are
+  asked once for everybody. A failed call is not kept as "no such place".
+  One account may cause `SUGGEST_PER_DAY` (400) catalogue calls; held
+  answers are not counted.
+* With no catalogue to ask - staging, where the key is removed
+  (`zero-spend-staging`), a failed call, the day's ceiling - the outlet
+  registry's towns answer, which may be nothing. The box does not depend on
+  the list: with nothing picked, what was typed is saved split on its
+  commas (`placeValue`), so "Huntington Beach, California, USA" and a bare
+  "Huntington Beach" both save.
+* Web: `identityPlace` and `locPlace`, one set of functions (`setPlaceBox`,
+  `placeTyped`, `pickPlace`, `placeValue`), asked 250 ms after typing
+  stops, an answer for letters since typed over dropped. The save is the
+  same `city`/`region`/`country` to `/api/preferences`; nothing about an
+  installed client's three fields changes.
+
+**2. Sign-up is three steps.** Account, who you are, interests. §665 put
+Find your friends between the last two at the owner's ask; this takes it
+out again at a tester's. The screen, its search and its "People you may
+know" are deleted, not hidden. A profile link opened before the account
+(§669: "first on Find your friends") now opens that profile when sign-up
+ends (`finishIntro` -> `openLinkedPerson`). The `signup_` follow sources
+stay in `social.FOLLOW_VIA` for the rows already written; nothing writes
+them now.
+
+**3. The Friends page, and the cards.** The page is a search pill, the
+Friends | Following tabs, the people, and then - under the listener's own
+list - "Suggested for you" as rows (face, name, handle, the server's reason,
+Follow, an X kept on the device), their contacts, their profile link and
+Invite new users. A search shows only its results. The sideways row of
+cards is deleted, and suggestions are drawn nowhere else: not on YourFAM
+("Discover people"), not under Follow on a profile, not in dailyFAM's
+friends card, which keeps its count of three and its Find friends button
+and lists nobody. `/api/friends/suggested` is unchanged, `?handle=`
+included, for installed clients.
+
+**Found on the way.** The Friends page's tab underline sat under the tab
+that was *not* showing (`cats` was added on Following, and `cats` means the
+first tab) since §645. One word.
+
+**The iPhone** takes the same three changes in `ios/` (the one box in
+`ProfileEdit.swift`, three steps, `FriendsView.swift`).
+
+**Tests.** `tests/test_one_box_friends_704.py` (the suggestions, their
+cache, ceiling and failure; the three steps; the page's order; the cards
+gone). The smoke run's sign-up no longer passes through the step and its
+location round trip types one box.
+
+**Not verified.** No catalogue call was made from here: the suggestions
+are tested against a stand-in for Open-Meteo's answer, and what its real
+answer for a half-typed name looks like in production - its ordering above
+all - is unseen until somebody types on a deployment with
+`OPEN_METEO_API_KEY`. The Swift was not compiled on this machine; the iOS
+workflow builds it on push.
