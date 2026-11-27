@@ -16655,7 +16655,7 @@ def _waitlist_page() -> HTMLResponse:
                         headers={"Cache-Control": "no-store"})
 
 
-@app.get("/waitlist", include_in_schema=False)
+@app.api_route("/waitlist", methods=["GET", "HEAD"], include_in_schema=False)
 async def waitlist_landing(request: Request):
     """The waitlist's front door. A signed-in waitlisted account goes straight
     to its status page; an active one to the app."""

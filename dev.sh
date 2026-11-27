@@ -136,10 +136,10 @@ PYEOF
 
 step "Server"
 if [ -n "$LAN" ]; then
-  printf '  On this machine   http://localhost:%s\n' "$PORT"
-  printf '  \033[1mOn your phone     http://%s:%s\033[0m   (same wifi)\n' "$LAN" "$PORT"
+  printf '  On this machine   http://localhost:%s/app\n' "$PORT"
+  printf '  \033[1mOn your phone     http://%s:%s/app\033[0m   (same wifi)\n' "$LAN" "$PORT"
 else
-  printf '  http://localhost:%s   (could not work out this machine'"'"'s LAN address)\n' "$PORT"
+  printf '  http://localhost:%s/app   (could not work out this machine'"'"'s LAN address)\n' "$PORT"
 fi
 printf '  Preview file      preview/fam-preview.html   (open anywhere, no server)\n\n'
 
