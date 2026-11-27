@@ -576,7 +576,7 @@ class ChatterboxEngine(TTSEngine):
     @classmethod
     def voices(cls) -> list:
         """Every voice in the bank (§147); the built-in recording only while
-        the bank is empty (§702)."""
+        the bank is empty (§703)."""
         if not cls.available():
             return []
         import voice_bank
@@ -598,7 +598,7 @@ class ChatterboxEngine(TTSEngine):
         """
         import voice_bank
 
-        # No voice named is the house voice (§702). A worker's own bank is
+        # No voice named is the house voice (§703). A worker's own bank is
         # empty - it is sent recordings, it stores none - so there this is
         # still the recording it was built with, which the app only asks
         # for while its bank is empty too.

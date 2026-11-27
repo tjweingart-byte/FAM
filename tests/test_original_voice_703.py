@@ -1,4 +1,4 @@
-"""§702: the original voice is no longer part of the app.
+"""§703: the original voice is no longer part of the app.
 
 The bank listed the recording every worker is built with first, without it
 being a row, so /admin showed one voice with no Remove button. The owner:

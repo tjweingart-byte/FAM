@@ -455,7 +455,7 @@ class RemoteChatterboxEngine(TTSEngine):
         # Every voice in the bank (§147). The bank lives in the app's
         # database and the worker is sent a recording it lacks, so the list
         # is the app's. The recording the worker is built with is listed only
-        # while the bank is empty (§702), by the id it has always had.
+        # while the bank is empty (§703), by the id it has always had.
         voices = []
         for v in voice_bank.catalogue():
             if v.default:
@@ -472,7 +472,7 @@ class RemoteChatterboxEngine(TTSEngine):
     def default_voice_id(cls) -> str:
         """`voices()`'s id without its availability check - see the base.
 
-        The house voice (§702): what a request naming no voice is spoken in
+        The house voice (§703): what a request naming no voice is spoken in
         and its audio kept under. The worker's own recording only while the
         bank is empty."""
         import voice_bank
@@ -546,7 +546,7 @@ class RemoteChatterboxEngine(TTSEngine):
                  with_recording: bool = False) -> dict:
         """One request's body. `voice` is a bank voice (§147). None, the
         built-in recording's name, or a voice that has left the bank is the
-        house voice (§702); the worker's own recording - `REMOTE_VOICE_ID`
+        house voice (§703); the worker's own recording - `REMOTE_VOICE_ID`
         when set - is asked for only while the bank is empty."""
         import voice_bank
 

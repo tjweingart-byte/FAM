@@ -100,7 +100,7 @@ from live_facts import report as live_facts_report
 from research import NoEvidence, ResearchUnavailable, report as research_report
 import local_news as local_news_mod
 import weather as weather_mod
-from pipeline import GenerationStats, NotCached, PodcastPipeline
+from pipeline import GenerationStats, NotCached, PodcastPipeline, bucket_for
 from script_generator import ReadingNeeded, ScriptGenerator, ScriptNotes, plan_episode, writer_for
 import attachments as attachments_mod
 import autocorrect as autocorrect_mod
@@ -6117,7 +6117,7 @@ async def choose_voice(req: VoiceChoice, request: Request) -> dict:
     """
     _read_limit(request)
     # The built-in voice's old name is still accepted from an installed
-    # client that listed it (§702): it is kept as "no choice", the house voice.
+    # client that listed it (§703): it is kept as "no choice", the house voice.
     if not (voice_bank.is_default(req.voice) or voice_bank.known(req.voice)):
         raise HTTPException(status_code=400, detail="That voice is not in the bank.")
     slug = voice_bank.slug_of(req.voice)
@@ -6196,7 +6196,7 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     kept audio; a play that needs it voiced again draws another (§147)."""
     _require_admin(request)
     bank = voice_bank.bank()
-    # The last voice stays (§702): an empty bank is spoken in the recording
+    # The last voice stays (§703): an empty bank is spoken in the recording
     # the workers are built with, which is no longer a voice of the app.
     if bank.get(slug) is not None and len(bank.voices()) == 1:
         raise HTTPException(
@@ -8350,20 +8350,51 @@ def _chosen_voice(user: str) -> str:
     return chosen if chosen and voice_bank.known(chosen) else ""
 
 
-def _kept_voice(plan, engine: str) -> str:
-    """The bank slug this episode's audio is already kept in on `engine`, or
-    "" (§294). Last played first; a voice that has left the bank is skipped."""
+def _served_keys(plan) -> list[str]:
+    """The cache keys whose episode a search for `plan` would be answered
+    from, the one the pipeline will serve first (§702). The exact key while
+    its script is current; otherwise the near match (`CACHE_VECTOR`) the
+    serving path swaps to - the same local scan, no model call - and then the
+    exact key, whose kept audio still names a voice."""
     key = _episode_key(plan)
-    lookup = getattr(SCRIPT_CACHE, "audio_voices", None)
-    if not key or lookup is None:
-        return ""
+    store = SCRIPT_CACHE
+    if not key or store is None:
+        return []
+    keys = [key]
     try:
-        kept = lookup(key)
-    except Exception:  # noqa: BLE001
-        return ""
-    for voice in kept:
-        if voice.split(":", 1)[0] == engine and voice_bank.known(voice):
-            return voice_bank.slug_of(voice)
+        if not _cache_holds(key):
+            bucket = bucket_for(plan)
+            near = store.nearest(bucket, plan.query) if bucket else None
+            if near and near[0] != key and _cache_holds(near[0]):
+                keys.insert(0, near[0])
+    except Exception:  # noqa: BLE001 - the exact key still answers
+        log.exception("near-match probe failed while choosing a voice")
+    return keys
+
+
+def _kept_voice(plan, engine: str) -> str:
+    """The bank slug the episode this search will be answered from was
+    already made in on `engine`, or "" (§294, §702). Its kept audio first,
+    last played first, so the search is a replay; then the voice kept beside
+    its script. A near match answers for the neighbour it will play. A voice
+    that has left the bank is skipped."""
+    lookup = getattr(SCRIPT_CACHE, "audio_voices", None)
+    # Key by key, the served one first: a near match's own voice comes before
+    # audio left under the exact key by a script that is no longer current.
+    for key in _served_keys(plan):
+        try:
+            kept = lookup(key) if lookup is not None else []
+        except Exception:  # noqa: BLE001
+            kept = []
+        for voice in kept:
+            if voice.split(":", 1)[0] == engine and voice_bank.known(voice):
+                return voice_bank.slug_of(voice)
+        try:
+            slug = SCRIPT_CACHE.voice_of(key) if _cache_holds(key) else ""
+        except Exception:  # noqa: BLE001
+            slug = ""
+        if slug and voice_bank.known(slug):
+            return voice_bank.slug_of(slug)
     return ""
 
 

@@ -2618,7 +2618,7 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   }
   // The voice bank (§147): list, add, remove. Removing never touches an
   // episode's kept audio. The recording the workers are built with is not in
-  // the bank (§702): it is listed, marked, only while the bank is empty, and
+  // the bank (§703): it is listed, marked, only while the bank is empty, and
   // the last voice cannot be removed - the server says why.
   function loadVoices() {
     return api("/api/admin/voices").then(function (v) {

@@ -28,7 +28,7 @@ copy under `~/.fam/voices/bank/`. When it has never heard of one it says so
 record, on the retry - one upload per voice per worker, never per sentence.
 
 The original voice - the reference recording every worker is built with -
-is **not part of the bank** (PROBLEMS.md §702, at the owner's direction). It
+is **not part of the bank** (PROBLEMS.md §703, at the owner's direction). It
 was once listed first, without being a row, so /admin could not remove it.
 Now the bank is its rows and nothing else: a request that names no voice is
 spoken in the house voice (`house_slug`, the bank's oldest), and the built-in
@@ -137,13 +137,13 @@ def default_slug() -> str:
 
 def is_default(voice: Optional[str]) -> bool:
     """Whether `voice` names no bank voice: nothing, or the built-in
-    recording. What that is spoken in is `house_slug`'s to say (§702)."""
+    recording. What that is spoken in is `house_slug`'s to say (§703)."""
     slug = slug_of(voice)
     return not slug or slug == "default" or slug == default_slug()
 
 
 def house_slug() -> str:
-    """The bank voice that speaks when none is named (§702): the oldest in
+    """The bank voice that speaks when none is named (§703): the oldest in
     the bank, so it only moves when that voice is removed. "" while the bank
     is empty - then, and only then, the built-in recording speaks. Never
     raises: a bank that cannot be read is an empty one here, and the caller
@@ -726,7 +726,7 @@ def reset(store: Optional[VoiceBank] = None) -> None:
 def catalogue() -> list[BankVoice]:
     """Every voice in the bank, oldest first. Never raises.
 
-    The built-in recording is not one of them (§702). It is the whole list
+    The built-in recording is not one of them (§703). It is the whole list
     only while the bank is empty, marked `default`, so that every surface
     still has a voice to name and /admin can say what is speaking.
     """
@@ -744,7 +744,7 @@ def catalogue() -> list[BankVoice]:
 
 def known(voice: Optional[str]) -> bool:
     """Whether `voice` is one a listener can hear: in the catalogue. The
-    built-in recording is known only while it is the catalogue (§702), so a
+    built-in recording is known only while it is the catalogue (§703), so a
     choice or a kept draw naming it is a voice that has left the bank."""
     slug = slug_of(voice)
     listed = catalogue()
@@ -836,7 +836,7 @@ def wire_fields(slug: str, with_recording: bool = False) -> dict:
     The fingerprint always; the recording only on the retry after a worker
     said it had none (`MISSING_MARKER`). Empty for the built-in recording,
     which every worker already has - the caller resolves "no voice named" to
-    `house_slug` first (§702).
+    `house_slug` first (§703).
     """
     if is_default(slug):
         return {}

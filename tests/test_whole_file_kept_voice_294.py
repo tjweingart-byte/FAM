@@ -195,3 +195,97 @@ def test_a_voice_pick_never_restarts_the_episode_playing():
     html = open(os.path.join(ROOT, "static", "index.html")).read()
     assert "kept.then(function(){ generate(key); });" not in html
     assert 'id="voiceModalVal"' not in html
+
+
+# --- §702: the episode a search is answered from, not only its exact key -------
+
+
+def _ask(client, q, voice="", picked=False):
+    return client.get("/api/audio", params={
+        "q": q, "minutes": 3, "fmt": "pcm", "surface": "search",
+        **({"voice": voice} if voice else {}),
+        **({"voice_picked": 1} if picked else {})})
+
+
+@pytest.fixture
+def near_matching():
+    """Near matching on, whatever an earlier test left: `test_vector_cache.py`
+    turns it off behind itself, and with it off there is no near match to
+    follow. Set where the code reads it - the pipeline's bucket and the
+    cache's scan - because in a full run those modules do not always hold
+    the settings object `config` does."""
+    import cache as cache_mod
+    import pipeline as pipeline_mod
+    held = {id(m.settings): m.settings for m in (pipeline_mod, cache_mod)}
+    was = {i: obj.cache_vector for i, obj in held.items()}
+    for obj in held.values():
+        object.__setattr__(obj, "cache_vector", True)
+    try:
+        yield
+    finally:
+        for i, obj in held.items():
+            object.__setattr__(obj, "cache_vector", was[i])
+
+
+def _near_match(served, monkeypatch, asked, reworded):
+    """Make `reworded` a near match for the episode kept under `asked`. The
+    match is stubbed, not scored: what the two wordings score depends on the
+    embedder a full run leaves loaded, and this file is about the voice."""
+    plan = appmod._validated_plan(asked, 3)
+    key = appmod._episode_key(plan)
+    assert appmod._episode_key(appmod._validated_plan(reworded, 3)) != key
+    monkeypatch.setattr(
+        served, "nearest",
+        lambda bucket, query: (key, 0.9) if bucket == appmod.bucket_for(plan) else None)
+    return key
+
+
+def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served, monkeypatch, near_matching):
+    """A search answered by a near match plays the neighbour's script, whose
+    audio is kept under the neighbour's key. Looking only under the search's
+    own key found nothing and voiced the cached episode again in the
+    listener's standing voice."""
+    first = TestClient(appmod.app)
+    first.post("/api/voices/choice", json={"voice": "chatterbox:nova"})
+    asked = "how do volcanoes form and erupt"
+    assert _ask(first, asked, voice="chatterbox:nova", picked=True).status_code == 200
+    reworded = "what makes a volcano blow its top"
+    _near_match(served, monkeypatch, asked, reworded)
+
+    BankEngine.spoken = []
+    other = TestClient(appmod.app)
+    other.post("/api/voices/choice", json={"voice": "chatterbox:ellis"})
+    res = _ask(other, reworded, voice="chatterbox:ellis")
+    assert res.status_code == 200
+    assert res.headers["x-fam-cache"] == "hit"
+    assert BankEngine.spoken == [], "a near-matched cached episode was voiced again"
+
+
+def test_a_voice_picked_for_a_reworded_search_is_still_honoured(served, monkeypatch, near_matching):
+    first = TestClient(appmod.app)
+    asked = "how do volcanoes form and erupt"
+    _ask(first, asked, voice="chatterbox:nova", picked=True)
+    reworded = "what makes a volcano blow its top"
+    _near_match(served, monkeypatch, asked, reworded)
+    BankEngine.spoken = []
+    _ask(TestClient(appmod.app), reworded, voice="chatterbox:ellis", picked=True)
+    assert set(BankEngine.spoken) == {"chatterbox:ellis"}
+
+
+def test_a_cached_episode_with_no_audio_kept_is_voiced_in_the_voice_beside_its_script(served):
+    """The episode was made in a voice but its audio is gone: a search is
+    voiced in that voice, not the listener's standing one."""
+    first = TestClient(appmod.app)
+    asked = "how do volcanoes form and erupt"
+    _ask(first, asked, voice="chatterbox:nova", picked=True)
+    key = appmod._episode_key(appmod._validated_plan(asked, 3))
+    assert served.set_voice(key, "nova") == "nova"
+    served._forget_audio("key = ?", (key,))
+    served._conn().commit()
+    assert not served.audio_voices(key)
+
+    BankEngine.spoken = []
+    other = TestClient(appmod.app)
+    other.post("/api/voices/choice", json={"voice": "chatterbox:ellis"})
+    _ask(other, asked, voice="chatterbox:ellis")
+    assert set(BankEngine.spoken) == {"chatterbox:nova"}

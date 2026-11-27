@@ -152,7 +152,7 @@ struct SettingsView: View {
     }
 
     /// `voiceLabel(selectedVoice)`: the chosen voice, else the bank's
-    /// first, else nothing before the bank has loaded (§702).
+    /// first, else nothing before the bank has loaded (§703).
     private var voiceValue: String {
         guard let page = you.voices, !page.voices.isEmpty else { return "" }
         let chosen = voiceLabel(page)
