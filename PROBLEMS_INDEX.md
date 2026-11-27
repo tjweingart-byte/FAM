@@ -691,3 +691,4 @@ and `limit` = Lines.
 | 41954 | 99 | 698. The homepage: the waitlist page opens on the app in pictures (2026-11-26) |
 | 42053 | 25 | 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26) |
 | 42078 | 73 | 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26) |
+| 42151 | 32 | 701. A reworded search re-voiced a cached episode in the searcher's voice (2026-11-27) |
