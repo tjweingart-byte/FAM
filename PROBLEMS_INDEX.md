@@ -692,4 +692,4 @@ and `limit` = Lines.
 | 42053 | 25 | 699. The live preview's follow endpoint answered as a preferences save, and CI's second smoke run failed on it (2026-11-26) |
 | 42078 | 73 | 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26) |
 | 42151 | 72 | 701. familiarize.net is the website; the web app is at /app (2026-11-27) |
-| 42223 | 57 | 702. The original voice is out of the app (2026-11-27) |
+| 42223 | 59 | 702. The original voice is out of the app (2026-11-27) |

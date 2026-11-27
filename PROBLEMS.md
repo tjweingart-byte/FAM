@@ -42245,10 +42245,12 @@ it out, because there was nothing stored to delete.
   in the in-process engine (`ChatterboxEngine.reference_for`) and in the
   name audio is kept under (`default_voice_id`), so what is spoken and what
   it is filed as agree.
-* `known()` no longer knows the original, so it is treated exactly as a
-  voice removed on /admin always was: an episode's kept draw naming it is
-  forgotten and drawn again, a search does not replay audio kept in it, and
-  `redeal_signature` changes, so unheard episodes are dealt again at boot.
+* `known()` no longer knows the original, so it is treated as a voice
+  removed on /admin always was: a search does not replay audio kept in it,
+  and `redeal_signature` changes, so episodes nobody has heard are dealt a
+  bank voice again at boot. An episode already heard in the original keeps
+  that name beside its script (`set_voice` is first-one-wins) and is spoken
+  in the house voice from then on, not in a fresh random draw.
 * **The last voice cannot be removed** (`DELETE /api/admin/voices/<slug>`
   answers 400 and the page shows the sentence). An empty bank is the one
   case where the built-in recording still speaks - something has to, and a

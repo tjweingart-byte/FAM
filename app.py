@@ -3651,7 +3651,7 @@ def _follows(me: str, other: str) -> bool:
 
 
 def _mix_shown_to(mix, viewer: str, private: Optional[set] = None) -> bool:
-    """Whether a public mix may be shown to `viewer` (§702, the owner
+    """Whether a public mix may be shown to `viewer` (§697, the owner
     11.26: "make my topics public (but only visible to someone who follows
     if someone is on private mode in settings)").
 
@@ -9408,7 +9408,7 @@ async def follow_mix(request: Request) -> dict:
     """Make the listener's chosen topics their first mix (§696, the owner:
     "sign-up interests become a first personal mix in myFAM, ready to play
     daily"). Once: a listener who already has any mix keeps what they have.
-    Public, as every new mix is (§702) - but marked as made from what they
+    Public, as every new mix is (§697) - but marked as made from what they
     follow, so while they are in private mode only their followers see it
     (`_mix_shown_to`). Each topic is titled by its own name, so no naming
     call is made. Its subjects are
@@ -9429,7 +9429,7 @@ async def follow_mix(request: Request) -> dict:
         tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
                          + "-".join(subject.name.split()))
         if tile is not None:
-            # A public mix shows its titles to other people (§702).
+            # A public mix shows its titles to other people (§697).
             entries.append({"query": tile.query,
                             "title": content_filter.scrub(subject.label)})
     try:
