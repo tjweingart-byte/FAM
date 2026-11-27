@@ -241,11 +241,15 @@ def _join(email, code="", password=PASSWORD):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
-    # Typing the address opens the app's front door, to sign in or sign up
-    # (§217, restored in §231): a guest is never sent to the waitlist.
-    for page_path in ("/", "/index.html", "/index.html/", "//"):
+    # Typing the address leads to the website, not the web app (§701,
+    # reversing §231): a guest is sent to the homepage under every spelling.
+    for page_path in ("/", "/index.html", "/index.html/", "//", "/m/abc",
+                      "/v/1.0/"):
         r = guest.get(page_path, follow_redirects=False)
-        assert r.status_code == 200, page_path
+        assert r.status_code == 302, page_path
+        assert r.headers["location"] == "/waitlist", page_path
+    assert guest.get("/?person=a", follow_redirects=False).headers[
+        "location"] == "/waitlist?person=a"
     r = guest.get("/?referralCode=abc", follow_redirects=False)
     assert r.headers["location"] == "/waitlist?referralCode=abc"
     r = guest.get("/api/friends")
@@ -255,8 +259,9 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     assert guest.get("/waitlist").status_code == 200
     page = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     assert 'd.status === "waitlisted"' in page
-    assert 'if(go === "/waitlist/me") location.replace(go);' in page
-    assert 'location.replace("/waitlist");' not in page
+    # The shell kept offline (`sw.js`) sends a guest there too.
+    assert 'if(go === "/waitlist/me" || go === "/waitlist") location.replace(go);' in page
+    assert 'location.replace("/waitlist");' in page
     # Sign Up is the one door from the app to the waitlist.
     assert 'location.href = "/waitlist";' in page
 
@@ -278,14 +283,15 @@ def test_granted_accounts_get_in(world):
 
 
 def test_the_apps_sign_in_sends_each_account_where_it_belongs(world):
-    """§231: a guest on the front door signs in with the app's own form. An
-    account still in line is sent to its status page; one let in is in."""
+    """Signing in sends each account where it belongs: one still in line to
+    its status page, one let in to the app. A guest is on the website first
+    (§701), whose sign-in is this same `/api/auth/login`."""
     waiting, _ = _join("wait@fam.test")
     let_in, _ = _join("in@fam.test")
     appmod.WAITLIST.grant([let_in.get("/api/auth/me").json()["user_id"]])
 
     door = TestClient(appmod.app)
-    assert door.get("/", follow_redirects=False).status_code == 200
+    assert door.get("/", follow_redirects=False).headers["location"] == "/waitlist"
     r = door.post("/api/auth/login", json={"email": "wait@fam.test",
                                            "password": PASSWORD})
     assert r.status_code == 200, r.text
@@ -597,8 +603,8 @@ def test_waitlisted_can_delete_their_account(world):
 
 
 def test_the_shell_is_closed_under_every_spelling(world):
-    # A guest is let onto the front door (§217); a waitlisted account is not,
-    # under any spelling of it.
+    # A waitlisted account is kept out of the shell under any spelling of it
+    # (a guest too, to the website: §701).
     member, _ = _join("s@fam.test")
     for path in ("/", "/index.html", "/index.html/", "//"):
         r = member.get(path, follow_redirects=False)

@@ -42147,3 +42147,50 @@ up, the dock's height with the preview row in it, VoiceOver, and §694's
 message box all want a device. The fixes made after the green compile
 (three small edits in `ProfileEdit.swift`) are compiled by `ios.yml` on the
 push that carries them.
+
+## 701. familiarize.net leads to the website, not the web app (2026-11-27)
+
+**The owner:** "familiarize.net should lead to the website, not the web app
+change that". The website is §698's homepage, served at `/waitlist`; typing
+the address opened the app's own sign-in and sign-up instead, because §231
+had restored §217's "a guest is never moved off the front door".
+
+**What changed.** This is the fourth turn of the same switch (§217, §219,
+§231), now back on §219's side. While `WAITLIST=1` runs (production):
+
+- **Server** (`app._waitlist_refusal`): the guest exemption is gone, so a
+  guest asking for `/`, `/index.html`, `/v/*` or `/m/*` - under any spelling
+  - is answered 302 to `/waitlist`, query string kept (a `?referralCode=`
+  link, which already went there, is now the general case).
+- **Shell** (`static/index.html`): a copy of the app that opens without
+  asking the server - `sw.js` keeps the shell - sends a guest there too,
+  from `/api/auth/me` (`waitlist` on, not signed in) and from a 403 whose
+  `X-FAM-Waitlist` is `/waitlist`. It follows only those two values, never
+  whatever the header says.
+
+A signed-in `active` account and an admin are served the app at the address
+as before; a waitlisted account still goes to `/waitlist/me`. §217's problem
+- a member signed out on this browser with no way in - is answered by the
+homepage's **Sign in** (header and foot), the same `/api/auth/login`, which
+sends an `active` account on to `/`, including one let in with no password
+yet (§619). The web app offers no way to sign in that the website lacks
+(neither draws Google or Apple).
+
+**Not changed.** With `WAITLIST=0` (staging, and launch day) nobody is
+redirected: a guest at the address gets the app, as §231 describes. What
+the address should open after launch is a decision for then. The iPhone app
+is untouched - it never loads the page. Shared episodes (`/s/<id>`), `/reset`
+and `/claim/<code>` are as they were.
+
+**Tests.** `tests/test_waitlist.py`:
+`test_guests_and_waitlisted_are_kept_out_of_the_app` now pins the redirect
+for six spellings and the kept query string, and the shell's two lines;
+`test_the_apps_sign_in_sends_each_account_where_it_belongs` starts from the
+redirect.
+
+**Verified:** the 79 waitlist tests pass; `./dev.sh check`. **Not
+verified:** not exercised against production (the redirect needs
+`WAITLIST=1`, which is set in the Render dashboard, and reaches
+familiarize.net only when this branch reaches `Main`); the offline shell's
+redirect was read and pinned as text, not run in a browser with a service
+worker.
