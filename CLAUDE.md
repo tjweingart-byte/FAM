@@ -433,7 +433,7 @@ Accounts, tiers, sharing
   friends and the status page's search; a shared episode plays for anyone (only it); the landing
   page plays the three sign-up samples as replays, own picture only; a `/waitlist` join is
   always waitlisted (never an admin account, which previews it, §216) and the app's Sign Up goes there;
-  a guest at the address gets the app's sign-in/sign-up, not `/waitlist`. [waitlist-gate]
+  `/` is the website when signed out, `/app` the web app (§701). [waitlist-gate]
 - **Tiers built, off** (`ENFORCE_QUOTAS=0`); admins `unlimited` [tiers-off];
   every account's free month from launch [free-month];
 - **Paid by Stripe on the web, Apple IAP on iPhone** (`billing.py`, `apple_iap.py`):

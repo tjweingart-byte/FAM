@@ -893,7 +893,7 @@
   <!-- An admin is never in line: what they see is a member's page, labelled. -->
   <div class="admin-note hidden" id="adminNote" role="note">
     <span>Admin preview: this is what a member joining now sees. You are not on the waitlist.</span>
-    <a href="/">Open FAM</a>
+    <a href="/app">Open FAM</a>
   </div>
 
   <!-- The landing page's "What is FAM", for somebody already on the list. -->
@@ -938,7 +938,7 @@
   <section class="card granted hidden" id="grantedCard">
     <div class="big">You’re in.</div>
     <p>Your profile and your friends are already there.</p>
-    <button class="cta label" type="button" onclick="location.href='/'">Open FAM</button>
+    <button class="cta label" type="button" onclick="location.href='/app'">Open FAM</button>
   </section>
 
   <section class="card" id="shareCard">
@@ -1575,7 +1575,7 @@
       $("loginBtn").disabled = true;
       api("/api/auth/login", { email: $("loginEmail").value.trim(), password: $("loginPassword").value })
         // An admin goes to the status page to see it, never into the line.
-        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/"); })
+        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/app"); })
         .catch(function(e){ $("loginBtn").disabled = false; note.className = "form-note err"; note.textContent = e.message; });
     });
 
@@ -1627,7 +1627,7 @@
       if(pw.length < 8) return fail("Use at least 8 characters for your password.");
       btn.disabled = true;
       api("/api/auth/reset/finish", { email: email, code: code, "new": pw })
-        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/"); })
+        .then(function(d){ location.replace(d.admin || d.status !== "active" ? "/waitlist/me" : "/app"); })
         .catch(function(e){ fail(e.message); });
     });
   }
@@ -1653,7 +1653,7 @@
       api("/api/ambassador", { code: code })
         .then(function(d){
           note.textContent = "You\u2019re a FAM Ambassador. Opening FAM\u2026";
-          location.replace((d && d.redirect) || "/");
+          location.replace((d && d.redirect) || "/app");
         })
         .catch(function(e){
           $("ambBtn").disabled = false;

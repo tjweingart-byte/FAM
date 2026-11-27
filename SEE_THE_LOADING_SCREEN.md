@@ -51,7 +51,7 @@ This is the only one that shows a real wait, because the wait is real.
     pip install -r requirements-chatterbox.txt   # GPU only; without it, a tone
     ./run.sh
 
-Then <http://localhost:8000>, and:
+Then <http://localhost:8000/app>, and:
 
 * Search something evergreen — *"how does a heat pump work"*. The screen shows
   **Writing your episode…** and clears in about half a second.

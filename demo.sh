@@ -155,9 +155,9 @@ PYEOF
 )
 
 printf '\n\033[1m== Demo\033[0m\n'
-printf '  On this machine   http://localhost:%s\n' "$PORT"
+printf '  On this machine   http://localhost:%s/app\n' "$PORT"
 if [ -n "$LAN" ]; then
-  printf '  \033[1mOn your phone     http://%s:%s\033[0m   (same wifi)\n' "$LAN" "$PORT"
+  printf '  \033[1mOn your phone     http://%s:%s/app\033[0m   (same wifi)\n' "$LAN" "$PORT"
 fi
 cat <<'TOUR'
 

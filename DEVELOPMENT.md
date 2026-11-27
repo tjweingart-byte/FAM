@@ -13,8 +13,8 @@ smoke-tests it in a real browser, then serves the app and prints **the address
 to open on your phone** — same wifi, real audio, real generation.
 
 ```
-  On this machine   http://localhost:8000
-  On your phone     http://192.168.1.24:8000   (same wifi)
+  On this machine   http://localhost:8000/app
+  On your phone     http://192.168.1.24:8000/app   (same wifi)
 ```
 
 Two shorter forms:
@@ -147,7 +147,7 @@ Once, to get a URL that works off your wifi and stays up:
 ```sh
 # 1. Check the image builds (this repo has no other build step)
 docker build -t fam .
-docker run --rm -p 8000:8000 -e DEMO_MODE=1 fam        # then open localhost:8000
+docker run --rm -p 8000:8000 -e DEMO_MODE=1 fam        # then open localhost:8000/app
 
 # 2. Deploy. render.yaml is committed, so this is the whole thing:
 render blueprint launch          # or: point Render at the repo in the dashboard

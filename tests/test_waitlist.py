@@ -241,11 +241,21 @@ def _join(email, code="", password=PASSWORD):
 
 def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
     guest = TestClient(appmod.app)
-    # Typing the address opens the app's front door, to sign in or sign up
-    # (§217, restored in §231): a guest is never sent to the waitlist.
-    for page_path in ("/", "/index.html", "/index.html/", "//"):
+    # The bare address is the website, served in place, and `/app` the web
+    # app (§701): a guest at either is never sent anywhere, and the app's
+    # front door is its own sign-in and sign-up (§217, §231).
+    website = (ROOT / "static" / "waitlist.html").read_text(encoding="utf-8")
+    shell = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    for page_path in ("/", "//"):
         r = guest.get(page_path, follow_redirects=False)
-        assert r.status_code == 200, page_path
+        assert r.status_code == 200 and r.text == website, page_path
+    for page_path in ("/app", "/app/", "/index.html", "/index.html/"):
+        r = guest.get(page_path, follow_redirects=False)
+        assert r.status_code == 200 and r.text == shell, page_path
+    # A link into the app written while the app lived at the address.
+    assert guest.get("/?person=a", follow_redirects=False).headers[
+        "location"] == "/app?person=a"
+    assert guest.get("/?utm_source=x", follow_redirects=False).status_code == 200
     r = guest.get("/?referralCode=abc", follow_redirects=False)
     assert r.headers["location"] == "/waitlist?referralCode=abc"
     r = guest.get("/api/friends")
@@ -262,8 +272,9 @@ def test_guests_and_waitlisted_are_kept_out_of_the_app(world):
 
     member, body = _join("w@fam.test")
     assert body["status"] == "waitlisted" and body["redirect"] == "/waitlist/me"
-    r = member.get("/", follow_redirects=False)
-    assert r.headers["location"] == "/waitlist/me"
+    for page_path in ("/", "/app"):
+        r = member.get(page_path, follow_redirects=False)
+        assert r.headers["location"] == "/waitlist/me", page_path
     assert member.get("/api/audio?q=x").status_code == 403
     assert member.get("/m/abc", follow_redirects=False).status_code == 302
     assert member.get("/api/waitlist/me").status_code == 200
@@ -273,30 +284,34 @@ def test_granted_accounts_get_in(world):
     member, _ = _join("w@fam.test")
     user = member.get("/api/auth/me").json()["user_id"]
     appmod.WAITLIST.grant([user])
-    assert member.get("/", follow_redirects=False).status_code == 200
+    # Let in, the address sends them on to the app (§701).
+    assert member.get("/", follow_redirects=False).headers["location"] == "/app"
+    assert member.get("/app", follow_redirects=False).status_code == 200
     assert member.get("/api/friends").status_code == 200
 
 
 def test_the_apps_sign_in_sends_each_account_where_it_belongs(world):
-    """§231: a guest on the front door signs in with the app's own form. An
-    account still in line is sent to its status page; one let in is in."""
+    """§231: a guest on the app's front door (`/app`, §701) signs in with
+    the app's own form. An account still in line is sent to its status page;
+    one let in is in."""
     waiting, _ = _join("wait@fam.test")
     let_in, _ = _join("in@fam.test")
     appmod.WAITLIST.grant([let_in.get("/api/auth/me").json()["user_id"]])
 
     door = TestClient(appmod.app)
-    assert door.get("/", follow_redirects=False).status_code == 200
+    assert door.get("/app", follow_redirects=False).status_code == 200
     r = door.post("/api/auth/login", json={"email": "wait@fam.test",
                                            "password": PASSWORD})
     assert r.status_code == 200, r.text
     assert door.get("/api/auth/me").json()["status"] == "waitlisted"
-    assert door.get("/", follow_redirects=False).headers["location"] == "/waitlist/me"
+    assert door.get("/app", follow_redirects=False).headers["location"] == "/waitlist/me"
 
     door = TestClient(appmod.app)
     r = door.post("/api/auth/login", json={"email": "in@fam.test",
                                            "password": PASSWORD})
     assert r.status_code == 200, r.text
-    assert door.get("/", follow_redirects=False).status_code == 200
+    assert door.get("/app", follow_redirects=False).status_code == 200
+    assert door.get("/", follow_redirects=False).headers["location"] == "/app"
     assert door.get("/api/friends").status_code == 200
 
 
@@ -351,7 +366,7 @@ def test_an_admin_joining_the_waitlist_is_never_put_in_line(world, monkeypatch):
     # Viral Loops was never told about them, so nothing is queued.
     assert not appmod.WAITLIST.has_action(user, "register")
     assert not appmod.WAITLIST.has_action(user, "flag")
-    assert admin.get("/", follow_redirects=False).status_code == 200
+    assert admin.get("/app", follow_redirects=False).status_code == 200
     me = admin.get("/api/waitlist/me").json()
     assert me["admin"] is True and me["place"] is None
     assert me["preview"]["place"] == 2  # where the next joiner would land
@@ -379,7 +394,7 @@ def test_an_admin_already_in_line_is_let_out_at_sign_in(world, monkeypatch):
 def test_the_status_page_draws_an_admins_preview():
     page = (ROOT / "static" / "waitlist.html").read_text()
     assert 'id="adminNote"' in page and "d.preview" in page
-    assert 'd.admin || d.status !== "active" ? "/waitlist/me" : "/"' in page
+    assert 'd.admin || d.status !== "active" ? "/waitlist/me" : "/app"' in page
 
 
 def test_admin_lets_in_the_ticked_people_and_the_first_n_in_line(world):
@@ -585,7 +600,7 @@ def test_launch_lifts_the_waitlist_rules(world, monkeypatch):
     assert other.get("/api/person?handle=wes").status_code == 200
     assert other.post("/api/messages", json={"to": wes, "text": "hi"}).status_code == 200
     # And the app itself is open to them.
-    assert waiting.get("/", follow_redirects=False).status_code == 200
+    assert waiting.get("/app", follow_redirects=False).status_code == 200
 
 
 def test_waitlisted_can_delete_their_account(world):
@@ -597,10 +612,10 @@ def test_waitlisted_can_delete_their_account(world):
 
 
 def test_the_shell_is_closed_under_every_spelling(world):
-    # A guest is let onto the front door (§217); a waitlisted account is not,
-    # under any spelling of it.
+    # A guest is let onto the app's front door (§217); a waitlisted account
+    # is not, under any spelling of it.
     member, _ = _join("s@fam.test")
-    for path in ("/", "/index.html", "/index.html/", "//"):
+    for path in ("/", "/app", "/app/", "/index.html", "/index.html/", "//"):
         r = member.get(path, follow_redirects=False)
         assert r.status_code == 302 and r.headers["location"] == "/waitlist/me", path
 
