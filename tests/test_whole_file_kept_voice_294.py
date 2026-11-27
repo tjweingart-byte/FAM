@@ -207,6 +207,26 @@ def _ask(client, q, voice="", picked=False):
         **({"voice_picked": 1} if picked else {})})
 
 
+@pytest.fixture
+def near_matching():
+    """Near matching on, whatever an earlier test left: `test_vector_cache.py`
+    turns it off behind itself, and with it off there is no near match to
+    follow. Set where the code reads it - the pipeline's bucket and the
+    cache's scan - because in a full run those modules do not always hold
+    the settings object `config` does."""
+    import cache as cache_mod
+    import pipeline as pipeline_mod
+    held = {id(m.settings): m.settings for m in (pipeline_mod, cache_mod)}
+    was = {i: obj.cache_vector for i, obj in held.items()}
+    for obj in held.values():
+        object.__setattr__(obj, "cache_vector", True)
+    try:
+        yield
+    finally:
+        for i, obj in held.items():
+            object.__setattr__(obj, "cache_vector", was[i])
+
+
 def _near_match(served, monkeypatch, asked, reworded):
     """Make `reworded` a near match for the episode kept under `asked`. The
     match is stubbed, not scored: what the two wordings score depends on the
@@ -220,7 +240,7 @@ def _near_match(served, monkeypatch, asked, reworded):
     return key
 
 
-def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served, monkeypatch):
+def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served, monkeypatch, near_matching):
     """A search answered by a near match plays the neighbour's script, whose
     audio is kept under the neighbour's key. Looking only under the search's
     own key found nothing and voiced the cached episode again in the
@@ -241,7 +261,7 @@ def test_a_reworded_search_replays_the_voice_its_near_match_was_made_in(served, 
     assert BankEngine.spoken == [], "a near-matched cached episode was voiced again"
 
 
-def test_a_voice_picked_for_a_reworded_search_is_still_honoured(served, monkeypatch):
+def test_a_voice_picked_for_a_reworded_search_is_still_honoured(served, monkeypatch, near_matching):
     first = TestClient(appmod.app)
     asked = "how do volcanoes form and erupt"
     _ask(first, asked, voice="chatterbox:nova", picked=True)
