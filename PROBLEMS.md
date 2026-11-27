@@ -42219,3 +42219,35 @@ return).
 **For the owner:** tell people familiarize.net for the website and
 familiarize.net/app for the web version. The App Store listing's Marketing
 URL (`https://familiarize.net`) now shows the website to a reviewer.
+
+## 702. A reworded search re-voiced a cached episode in the searcher's voice (2026-11-27)
+
+**The owner:** "If someone searches and gets a cached episode it should not
+be made in a new voice. Unless someone picks a voice on that search, they
+should get the voice that it was already made in."
+
+That has been the rule since §447, and it held only for a search in the
+same words. `_kept_voice` asked `cache.audio_voices` under the search's own
+cache key. A search answered by a **near match** (`CACHE_VECTOR`, on by
+default since §107) plays the neighbour's script, and the neighbour's audio
+is kept under the neighbour's key - so the lookup found nothing, the
+listener's standing voice was used, and a cached episode was voiced a
+second time on the GPU. The pipeline already knew better
+(`_stored_audio_key` follows the near match); the voice was chosen before
+the pipeline, from a narrower question.
+
+**The fix** (`app._served_keys`, `app._kept_voice`): the voice is looked up
+under the key the serving path will play - the exact key while its script
+is current, else the near match (the same local scan, no model call), then
+the exact key. And a second rung: a cached episode whose audio is no longer
+kept in any voice is voiced in the voice kept beside its script
+(`voice_of`), the one it was made in, before the listener's standing
+choice. A voice picked for this search (`voice_picked=1`) is still honoured
+exactly, the default included.
+
+**Not changed:** a search's own voice is still not written beside its
+script - with its audio kept, the audio names it; a search whose audio was
+never kept has no voice to return to.
+
+Tests: `tests/test_whole_file_kept_voice_294.py` (three added; the near
+match and the script-voice ones fail on the old code).

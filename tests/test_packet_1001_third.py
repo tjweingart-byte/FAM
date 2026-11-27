@@ -384,7 +384,9 @@ def test_an_empty_time_field_never_clears_the_listen_time():
 
 
 def test_a_notification_tap_only_hands_off_to_the_app_itself():
-    assert 'at.pathname === "/"' in SW
+    # The web app is at /app since §701; the bare address is the website.
+    assert 'var APP = "/app"' in SW
+    assert "at.pathname === APP" in SW
 
 
 def test_invites_carry_the_referral_link_while_the_waitlist_runs():
