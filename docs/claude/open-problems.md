@@ -120,6 +120,7 @@
    > edit a pronunciation is the `pronunciation` skill**
    > (`.claude/skills/pronunciation/SKILL.md`) - read it first.
 <!-- rule:op-voice-bank -->
+> **Current (PROBLEMS.md §702, at the owner's direction, 11.27):** the original voice - the recording every worker is built with, shown as "Ian" - is **not part of the bank** ("That was the original voice and should no longer be a part of the app"). The bank is its stored voices only: nothing lists, offers or draws the original. No voice named means the **house voice** (`voice_bank.house_slug`, the bank's oldest), under whose name that audio is kept. The last voice cannot be removed; the built-in recording speaks only while the bank is empty. Wherever "the default voice" is written below, read the house voice.
 > **Current (PROBLEMS.md §693, at the owner's direction, 11.24):** the player has no Voice row, on the web or the iPhone ("You shouldn't even have the option to switch voices mid episode"). A pick there re-made the searched episode playing from its start. A voice is picked on the search page or in Settings, for the next search; wherever "or in the player" is written below, it is history. **And Length, 11.25** ("take length off the player too"): the Playback modal is Speed alone; `regenerateAtNewLength` and the iPhone's `lengthItems` are deleted, and a length picked on the search page is for the next search.
 > **Current (PROBLEMS.md §447, at the owner's direction, 11.04):** every
 > search whose voice was not picked *for that search* - left at the default

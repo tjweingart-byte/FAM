@@ -177,8 +177,8 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   captions, cache and titles keep the spelling. Chunks are seeded from
   voice + words; workers are refused on `VOICE_REFERENCE_FINGERPRINT`;
   `verify_voice.py --fingerprint` measures drift. [op-voice]
-- **Voice bank**: searchFAM alone picks (length too), never the player (§693); others draw
-  one each; a search plays its kept voice unless picked for it; audio keyed on voice. [op-voice-bank]
+- **Voice bank**: searchFAM alone picks (length too), never the player (§693); others
+  draw; search plays its kept voice unless picked; audio keyed on voice; no original §702. [op-voice-bank]
 - The cold open is deleted, not disabled; the interface shows an honest wait. [op-cold-open-gone]
 - **myFAM**: a tile is a title and an angle, scripted on tap; rails are Made
   for you / Trending / Most played episodes today (24h, §181) / friends. Every choosing

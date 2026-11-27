@@ -2617,14 +2617,15 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
     });
   }
   // The voice bank (§147): list, add, remove. Removing never touches an
-  // episode's kept audio; the default voice has no remove button because it
-  // is not a row - it lives on every worker.
+  // episode's kept audio. The recording the workers are built with is not in
+  // the bank (§702): it is listed, marked, only while the bank is empty, and
+  // the last voice cannot be removed - the server says why.
   function loadVoices() {
     return api("/api/admin/voices").then(function (v) {
       $("voiceList").innerHTML = (v.voices || []).map(function (x) {
         return '<div class="vrow"><b>' + esc(x.label) + '</b> <code>' + esc(x.slug) + '</code> ' +
           '<span class="sub">' + esc(x.description || "") + '</span>' +
-          (x["default"] ? ' <span class="sub">default</span>'
+          (x["default"] ? ' <span class="sub">not in the bank</span>'
                         : ' <button class="ghost" type="button" data-rm="' + esc(x.slug) + '">Remove</button>') +
           '</div>';
       }).join("");
@@ -2633,7 +2634,8 @@ FROM accounts.accounts ORDER BY created DESC LIMIT 50</textarea>
   $("voiceList").addEventListener("click", function (ev) {
     var slug = ev.target && ev.target.getAttribute("data-rm");
     if (!slug || !confirm("Remove the voice " + slug + " from the bank?")) return;
-    api("/api/admin/voices/" + encodeURIComponent(slug), null, "DELETE").then(loadVoices);
+    api("/api/admin/voices/" + encodeURIComponent(slug), null, "DELETE").then(loadVoices)
+      .catch(function (e) { alert(e.message); });
   });
   $("vLabel").addEventListener("input", function () {
     if (!$("vSlug").dataset.touched)

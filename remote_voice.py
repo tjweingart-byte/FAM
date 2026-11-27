@@ -452,14 +452,17 @@ class RemoteChatterboxEngine(TTSEngine):
         config = cls.config()
         import voice_bank
 
-        # The default voice first, by the id it has always had, then every
-        # voice in the bank (§147). The bank lives in the app's database and
-        # the worker is sent a recording it lacks, so the list is the app's.
-        voices = [Voice(id=cls.default_voice_id(), label=voice_bank.default_label(),
-                        engine=cls.name,
-                        detail=f"Chatterbox via {config.transport}")]
+        # Every voice in the bank (§147). The bank lives in the app's
+        # database and the worker is sent a recording it lacks, so the list
+        # is the app's. The recording the worker is built with is listed only
+        # while the bank is empty (§702), by the id it has always had.
+        voices = []
         for v in voice_bank.catalogue():
-            if not v.default:
+            if v.default:
+                voices.append(Voice(id=cls.default_voice_id(), label=v.label,
+                                    engine=cls.name,
+                                    detail=f"Chatterbox via {config.transport}"))
+            else:
                 voices.append(Voice(id=f"remote:{v.slug}", label=v.label,
                                     engine=cls.name,
                                     detail=v.description or "Chatterbox"))
@@ -467,7 +470,16 @@ class RemoteChatterboxEngine(TTSEngine):
 
     @classmethod
     def default_voice_id(cls) -> str:
-        """`voices()`'s id without its availability check - see the base."""
+        """`voices()`'s id without its availability check - see the base.
+
+        The house voice (§702): what a request naming no voice is spoken in
+        and its audio kept under. The worker's own recording only while the
+        bank is empty."""
+        import voice_bank
+
+        house = voice_bank.house_slug()
+        if house:
+            return f"remote:{house}"
         return f"remote:{cls.config().voice or 'reference_3'}"
 
     @property
@@ -532,8 +544,10 @@ class RemoteChatterboxEngine(TTSEngine):
     @staticmethod
     def _payload(text: str, config: RemoteConfig, voice: str | None = None,
                  with_recording: bool = False) -> dict:
-        """One request's body. `voice` is a bank voice (§147), or None for the
-        default - which is `REMOTE_VOICE_ID` when set, exactly as before."""
+        """One request's body. `voice` is a bank voice (§147). None, the
+        built-in recording's name, or a voice that has left the bank is the
+        house voice (§702); the worker's own recording - `REMOTE_VOICE_ID`
+        when set - is asked for only while the bank is empty."""
         import voice_bank
 
         payload = {
@@ -542,18 +556,20 @@ class RemoteChatterboxEngine(TTSEngine):
             "sample_rate": config.sample_rate,
             "format": WIRE_FORMAT,
         }
-        if voice and not voice_bank.is_default(voice):
-            slug = voice_bank.slug_of(voice)
-            try:
-                fields = voice_bank.wire_fields(slug, with_recording)
-            except Exception as exc:  # noqa: BLE001 - phrased for the listener
-                raise RemoteVoiceError(
-                    f"voice {slug!r} could not be read from the bank: {exc}") from exc
-            # A voice that has left the bank is a stale choice, and is spoken
-            # in the default voice rather than refused - as it always was.
-            if fields:
-                payload["voice"] = slug
-                payload.update(fields)
+        slug = voice_bank.slug_of(voice) if voice else ""
+        try:
+            fields = ({} if voice_bank.is_default(slug)
+                      else voice_bank.wire_fields(slug, with_recording))
+            if not fields:
+                slug = voice_bank.house_slug()
+                fields = (voice_bank.wire_fields(slug, with_recording)
+                          if slug else {})
+        except Exception as exc:  # noqa: BLE001 - phrased for the listener
+            raise RemoteVoiceError(
+                f"voice {slug!r} could not be read from the bank: {exc}") from exc
+        if fields:
+            payload["voice"] = slug
+            payload.update(fields)
         return payload
 
     @staticmethod

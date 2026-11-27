@@ -575,7 +575,8 @@ class ChatterboxEngine(TTSEngine):
 
     @classmethod
     def voices(cls) -> list:
-        """The default voice, then every voice in the bank (§147)."""
+        """Every voice in the bank (§147); the built-in recording only while
+        the bank is empty (§702)."""
         if not cls.available():
             return []
         import voice_bank
@@ -597,13 +598,24 @@ class ChatterboxEngine(TTSEngine):
         """
         import voice_bank
 
+        # No voice named is the house voice (§702). A worker's own bank is
+        # empty - it is sent recordings, it stores none - so there this is
+        # still the recording it was built with, which the app only asks
+        # for while its bank is empty too.
+        house = voice_bank.house_slug()
         if voice_bank.is_default(voice):
-            return cls.reference_path()
+            if not house:
+                return cls.reference_path()
+            voice, sha = house, ""
         slug = voice_bank.slug_of(voice)
         found = (voice_bank.local_reference(slug, sha)
                  or voice_bank.reference_from_bank(slug))
         if found is None and not sha:
-            log.warning("voice %r is not in the bank; speaking the default", slug)
+            if house and house != slug:
+                log.warning("voice %r is not in the bank; speaking %r", slug, house)
+                return cls.reference_for(house)
+            log.warning("voice %r is not in the bank; speaking the built-in "
+                        "recording", slug)
             return cls.reference_path()
         if found is None:
             raise TTSUnavailable(
@@ -616,7 +628,10 @@ class ChatterboxEngine(TTSEngine):
 
     @classmethod
     def default_voice_id(cls) -> str:
-        return f"chatterbox:{cls.reference_path().stem}"
+        import voice_bank
+
+        house = voice_bank.house_slug()
+        return f"chatterbox:{house or cls.reference_path().stem}"
 
     # -- synthesis ---------------------------------------------------------
 

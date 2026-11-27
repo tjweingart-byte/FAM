@@ -74,7 +74,7 @@ def main() -> int:
         else:
             voices = [v.as_dict() for v in voice_bank.catalogue()]
         for v in voices:
-            mark = " (default)" if v.get("default") else ""
+            mark = " (built in, not in the bank)" if v.get("default") else ""
             print(f"  {v['slug']:<20} {v['label']}{mark}"
                   + (f"  - {v['description']}" if v.get("description") else ""))
         return 0

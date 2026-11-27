@@ -3651,7 +3651,7 @@ def _follows(me: str, other: str) -> bool:
 
 
 def _mix_shown_to(mix, viewer: str, private: Optional[set] = None) -> bool:
-    """Whether a public mix may be shown to `viewer` (§697, the owner
+    """Whether a public mix may be shown to `viewer` (§702, the owner
     11.26: "make my topics public (but only visible to someone who follows
     if someone is on private mode in settings)").
 
@@ -6116,7 +6116,9 @@ async def choose_voice(req: VoiceChoice, request: Request) -> dict:
     about how search sounds, not something the ranker learns from.
     """
     _read_limit(request)
-    if not voice_bank.known(req.voice):
+    # The built-in voice's old name is still accepted from an installed
+    # client that listed it (§702): it is kept as "no choice", the house voice.
+    if not (voice_bank.is_default(req.voice) or voice_bank.known(req.voice)):
         raise HTTPException(status_code=400, detail="That voice is not in the bank.")
     slug = voice_bank.slug_of(req.voice)
     voice_bank.bank().choose(_listener(request),
@@ -6193,7 +6195,15 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     """Take a voice out of the bank. Episodes already given it keep their
     kept audio; a play that needs it voiced again draws another (§147)."""
     _require_admin(request)
-    removed = voice_bank.bank().remove(slug)
+    bank = voice_bank.bank()
+    # The last voice stays (§702): an empty bank is spoken in the recording
+    # the workers are built with, which is no longer a voice of the app.
+    if bank.get(slug) is not None and len(bank.voices()) == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="This is the only voice in the bank. Add another before "
+                   "removing it - FAM has to speak in something.")
+    removed = bank.remove(slug)
     _redeal_voices()
     return {"ok": removed}
 
@@ -9351,7 +9361,7 @@ async def follow_mix(request: Request) -> dict:
     """Make the listener's chosen topics their first mix (§696, the owner:
     "sign-up interests become a first personal mix in myFAM, ready to play
     daily"). Once: a listener who already has any mix keeps what they have.
-    Public, as every new mix is (§697) - but marked as made from what they
+    Public, as every new mix is (§702) - but marked as made from what they
     follow, so while they are in private mode only their followers see it
     (`_mix_shown_to`). Each topic is titled by its own name, so no naming
     call is made. Its subjects are
@@ -9372,7 +9382,7 @@ async def follow_mix(request: Request) -> dict:
         tile = tiles.get(topics_mod.INTEREST_TILE_PREFIX
                          + "-".join(subject.name.split()))
         if tile is not None:
-            # A public mix shows its titles to other people (§697).
+            # A public mix shows its titles to other people (§702).
             entries.append({"query": tile.query,
                             "title": content_filter.scrub(subject.label)})
     try:

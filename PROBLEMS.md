@@ -42147,3 +42147,60 @@ up, the dock's height with the preview row in it, VoiceOver, and §694's
 message box all want a device. The fixes made after the green compile
 (three small edits in `ProfileEdit.swift`) are compiled by `ios.yml` on the
 push that carries them.
+
+## 702. The original voice is out of the app (2026-11-27)
+
+**The owner:** "There is one voice in the admin page that can't be removed.
+That was the original voice and should no longer be a part of the app."
+
+**What it was.** The recording every worker is built with (`reference_3`,
+shown as "Ian") was "part of the bank without being a row in it" (§147):
+`voice_bank.catalogue()` put it first, /admin drew it with the word
+"default" where the others have Remove, the search page offered it, and
+every myFAM, DailyFAM and Trending episode could draw it. Nothing could take
+it out, because there was nothing stored to delete.
+
+**What changed.** The bank is its rows and nothing else.
+
+* `voice_bank.catalogue()` is the stored voices, oldest first. So the
+  picker (`/api/voices`), the random draw (`random_slug`) and /admin all
+  stopped holding the original at once.
+* **The house voice** (`voice_bank.house_slug`) is what speaks when no
+  voice is named: the bank's oldest. A listener who never picked, a shared
+  link, the admin's Hear, an installed client still sending
+  `remote:reference_3`, and a choice whose voice left the bank all resolve
+  to it - in the request to the worker (`RemoteChatterboxEngine._payload`),
+  in the in-process engine (`ChatterboxEngine.reference_for`) and in the
+  name audio is kept under (`default_voice_id`), so what is spoken and what
+  it is filed as agree.
+* `known()` no longer knows the original, so it is treated exactly as a
+  voice removed on /admin always was: an episode's kept draw naming it is
+  forgotten and drawn again, a search does not replay audio kept in it, and
+  `redeal_signature` changes, so unheard episodes are dealt again at boot.
+* **The last voice cannot be removed** (`DELETE /api/admin/voices/<slug>`
+  answers 400 and the page shows the sentence). An empty bank is the one
+  case where the built-in recording still speaks - something has to, and a
+  new deployment or a test has no bank - and /admin then lists it as
+  "not in the bank". It is the recording inside the worker image, so it
+  stays on disk there; nothing asks for it while the bank holds a voice.
+* `POST /api/voices/choice` still accepts the original's id from an
+  installed client (`old-clients`) and keeps it as no choice at all.
+* The web and iPhone Settings rows said "Ian" before the list loaded; they
+  say nothing until it has. The preview fixture lists the bank only.
+
+**What it costs, once.** Audio kept in the original voice is not replayed:
+the first play of each such episode is voiced again in a bank voice, on the
+GPU, as after any removal. A guest's tap and the landing page's samples play
+kept audio only, so each is refused until somebody signed in has played it
+in a bank voice. Episodes are kept a week, so this is bounded by a week of
+plays.
+
+Tests: `tests/test_original_voice_702.py`; two tests in
+`tests/test_voice_bank_147.py` that pinned "the default first" were
+rewritten.
+
+**Not verified here:** no worker and no production bank were reachable, so
+none of this was heard. Which voice is the bank's oldest in production - the
+one every unpicked search now starts in - was not looked up; it is the first
+row on /admin. The Swift change is one string literal and was not compiled
+here (`ios.yml` builds it on push).
