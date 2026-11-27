@@ -120,7 +120,7 @@ def whole_file(browser, base: str, check) -> None:
 
     page.route("**/api/audio?*", link)
     page.route(BUCKET_FILE, bucket)
-    page.goto(base + "/")
+    page.goto(base + "/app")
     page.wait_for_function("window.FamAudio !== undefined")
     played = page.evaluate("""(q) => new Promise((resolve) => {
         FamAudio.play(q, 1, {
@@ -183,7 +183,7 @@ def main() -> int:
                 asked = []
                 page.on("request", lambda r: asked.append(r.url)
                         if "/api/audio" in r.url else None)
-                page.goto(base + "/")
+                page.goto(base + "/app")
                 page.wait_for_function("window.FamAudio !== undefined")
                 supported = page.evaluate(
                     "typeof AudioDecoder === 'function' ? AudioDecoder.isConfigSupported("

@@ -1,7 +1,7 @@
 {
   "name": "FAM",
   "short_name": "FAM",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#1E1B27",
   "theme_color": "#1E1B27",

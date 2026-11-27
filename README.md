@@ -35,7 +35,7 @@ pip install -r requirements.txt
 python3 -m uvicorn app:app --port 8000     # no .env needed
 ```
 
-Open http://localhost:8000, press Listen, and change the length slider. If audio
+Open http://localhost:8000/app, press Listen, and change the length slider. If audio
 starts within a second or two and a 3-minute selection produces 3 minutes of
 audio, the approach is working and the interface can be built against it.
 `/api/health` reports `"mode": "demo"` so nothing is mistaken for real output.
@@ -48,7 +48,7 @@ On macOS the built-in `say` voice is used automatically — nothing to install.
 pip install -r requirements.txt
 
 python setup_key.py                   # the Anthropic key, once per machine
-./run.sh                              # http://localhost:8000
+./run.sh                              # http://localhost:8000/app
 ```
 
 That runs everything except the voice. FAM's production voice is

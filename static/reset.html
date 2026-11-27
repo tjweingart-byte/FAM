@@ -63,13 +63,13 @@
     <button class="cta" type="submit" id="resetBtn">Email me a code</button>
     <div class="note" id="resetNote" role="status" aria-live="polite"></div>
   </form>
-  <a class="back" id="backLink" href="/">Remembered it? Sign in</a>
+  <a class="back" id="backLink" href="/app">Remembered it? Sign in</a>
 </main>
 <script>
 (function(){
   function $(id){ return document.getElementById(id); }
   // Where to go afterwards: a path on this server, never `//elsewhere`.
-  var next = new URLSearchParams(location.search).get("next") || "/";
+  var next = new URLSearchParams(location.search).get("next") || "/app";
   if(!/^\/(?![\/\\])/.test(next)) next = "/";
   $("backLink").href = next;
   var email = new URLSearchParams(location.search).get("email");

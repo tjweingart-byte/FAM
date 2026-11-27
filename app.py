@@ -7658,7 +7658,8 @@ def carry_the_session(app):
         db_mod.for_request()
         request = Request(scope, receive)
         path = request.url.path
-        wants_identity = path == "/" or (
+        page = "/" + path.strip("/")
+        wants_identity = page == APP_PATH or (
             path.startswith("/api/") and path not in MACHINE_PATHS
         )
         # The listener's clock, from their device (10.1): what "today", "tonight"
@@ -7681,6 +7682,20 @@ def carry_the_session(app):
         if closed is not None:
             await closed(scope, receive, send)
             return
+        # The bare address is the website and `/app` the web app (§701).
+        # Rewrites, as `version_prefix` is: the website is `/waitlist`'s own
+        # handler and the app the static mount's shell, each in one place.
+        if request.method in ("GET", "HEAD"):
+            if page == "/":
+                onward = _front_door(request, listener)
+                if onward is not None:
+                    await onward(scope, receive, send)
+                    return
+                scope["path"] = "/waitlist"
+                scope.pop("raw_path", None)
+            elif page == APP_PATH:
+                scope["path"] = "/"
+                scope.pop("raw_path", None)
 
         def cookies(headers):
             new_token = getattr(request.state, "set_session", None)
@@ -7761,7 +7776,7 @@ WAITLIST_OPEN_PATHS = frozenset({
 #: link is a list of episodes to browse, which is the app. A shared *episode*
 #: (`/s/<id>`) is not here: anyone may listen to one, waitlist or not (the
 #: owner, 01/10) - see `_shared_episode_request` for the audio it needs.
-WAITLIST_CLOSED_PAGES = ("/", "/index.html")
+WAITLIST_CLOSED_PAGES = ("/", "/app", "/index.html")
 WAITLIST_CLOSED_PAGE_PREFIXES = ("/v/", "/m/")
 
 
@@ -7837,6 +7852,38 @@ def _welcome_sample_request(request: Request) -> bool:
     return _audio_is_kept(q, BROWSE_MINUTES)
 
 
+#: Where the web app lives (§701). The bare address is the website.
+APP_PATH = "/app"
+#: Query parameters the website itself reads; anything else on the bare
+#: address is a link into the app, written before the app moved.
+_WEBSITE_PARAMS = (waitlist_mod.REFERRAL_PARAM,)
+
+
+def _front_door(request: Request, listener):
+    """What the bare address (`/`) is for this visitor (§701, the owner:
+    "make the website be on familiarize.net and make the web version on
+    familiarize.net/app").
+
+    The website, served in place, for anybody not signed in. Somebody signed
+    in to an account the app is open to is sent on to `/app`, and so is any
+    link that carries something for the app (`/?person=`, `/?mix=`,
+    `/?billing=`, a notification's `/?listen=`): every link made while the
+    app lived here keeps working. Returns the redirect, or None for the
+    website.
+    """
+    query = request.url.query
+    for key in request.query_params.keys():
+        if key not in _WEBSITE_PARAMS and not key.startswith("utm_"):
+            return RedirectResponse(APP_PATH + "?" + query, status_code=302)
+    signed_in = listener is not None and listener.is_authenticated
+    if signed_in and (not settings.waitlist
+                      or listener.status == waitlist_mod.ACTIVE
+                      or _allowed_admin(listener)):
+        return RedirectResponse(APP_PATH + ("?" + query if query else ""),
+                                status_code=302)
+    return None
+
+
 def _waitlist_page_for(listener) -> str:
     if listener is not None and listener.status == waitlist_mod.WAITLISTED:
         return "/waitlist/me"
@@ -7878,13 +7925,13 @@ def _waitlist_refusal(request: Request, listener):
     # and `//` too, and a gate that matches only the spellings it thought of
     # is a gate with a side door.
     page = "/" + path.strip("/")
-    # A guest is never moved off the front door (§217, restored at the
-    # owner's direction in §231, reversing the 10.7 packet): typing the
-    # address opens the app on its own sign-in and sign-up. Sign Up goes to
-    # the waitlist; Sign In signs a member into the app and sends anyone
-    # still in line to their status page. The app stays closed all the same -
-    # every API call above still refuses a guest - and only a referral link,
-    # which is an invitation to join, still goes to the waitlist.
+    # A guest is never moved off a page (§217, §231). The bare address is
+    # the website for them (§701, `_front_door`); `/app` is the web app,
+    # which opens on its own sign-in and sign-up - Sign Up goes to the
+    # waitlist, Sign In signs a member in and sends anyone still in line to
+    # their status page. The app stays closed all the same - every API call
+    # above still refuses a guest - and only a referral link, which is an
+    # invitation to join, goes to the waitlist page itself.
     if target == "/waitlist" and not request.query_params.get(
             waitlist_mod.REFERRAL_PARAM):
         return None
@@ -16608,7 +16655,7 @@ def _waitlist_page() -> HTMLResponse:
                         headers={"Cache-Control": "no-store"})
 
 
-@app.get("/waitlist", include_in_schema=False)
+@app.api_route("/waitlist", methods=["GET", "HEAD"], include_in_schema=False)
 async def waitlist_landing(request: Request):
     """The waitlist's front door. A signed-in waitlisted account goes straight
     to its status page; an active one to the app."""

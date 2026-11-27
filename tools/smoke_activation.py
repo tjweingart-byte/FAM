@@ -93,7 +93,7 @@ def main() -> int:
                 # --- a new account: held through sign-up, then the step ---
                 page = browser.new_page(viewport={"width": 390, "height": 844})
                 page.on("pageerror", lambda e: errors.append(str(e)))
-                page.goto(base + "/")
+                page.goto(base + "/app")
                 page.wait_for_timeout(1200)
                 check("a sign-up is accepted", page.evaluate(SIGN_UP, "adult@fam.test") == 200)
                 page.evaluate("identityMode = 'first-run'; showScreen('identity');")
@@ -160,7 +160,7 @@ def main() -> int:
                 # --- under 13: asked first, then deleted ---
                 page = browser.new_page(viewport={"width": 390, "height": 844})
                 page.on("pageerror", lambda e: errors.append(str(e)))
-                page.goto(base + "/")
+                page.goto(base + "/app")
                 page.wait_for_timeout(1200)
                 page.evaluate(SIGN_UP, "young@fam.test")
                 page.evaluate("refreshAuth().then(checkActivation)")
