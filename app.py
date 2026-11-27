@@ -8321,9 +8321,10 @@ def _kept_voice(plan, engine: str) -> str:
     last played first, so the search is a replay; then the voice kept beside
     its script. A near match answers for the neighbour it will play. A voice
     that has left the bank is skipped."""
-    keys = _served_keys(plan)
     lookup = getattr(SCRIPT_CACHE, "audio_voices", None)
-    for key in keys:
+    # Key by key, the served one first: a near match's own voice comes before
+    # audio left under the exact key by a script that is no longer current.
+    for key in _served_keys(plan):
         try:
             kept = lookup(key) if lookup is not None else []
         except Exception:  # noqa: BLE001
@@ -8331,11 +8332,8 @@ def _kept_voice(plan, engine: str) -> str:
         for voice in kept:
             if voice.split(":", 1)[0] == engine and voice_bank.known(voice):
                 return voice_bank.slug_of(voice)
-    for key in keys:
         try:
-            if not _cache_holds(key):
-                continue
-            slug = SCRIPT_CACHE.voice_of(key)
+            slug = SCRIPT_CACHE.voice_of(key) if _cache_holds(key) else ""
         except Exception:  # noqa: BLE001
             slug = ""
         if slug and voice_bank.known(slug):
