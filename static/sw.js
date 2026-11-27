@@ -7,8 +7,11 @@
    stay the server's - and neither is audio: episodes kept for offline
    listening live in the page's own IndexedDB (see `OfflineShelf`).
 */
-var SHELL = "fam-shell-v1";
-var FILES = ["/", "/index.html", "/fam-audio.js"];
+/* The app is at /app (§701); the bare address is the website, which is
+   never kept here - offline, it is the server's to answer or not. */
+var SHELL = "fam-shell-v2";
+var APP = "/app";
+var FILES = [APP, "/fam-audio.js"];
 
 self.addEventListener("install", function (event) {
   event.waitUntil(
@@ -32,8 +35,8 @@ self.addEventListener("fetch", function (event) {
   if (req.method !== "GET") return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  var shell = req.mode === "navigate" && url.pathname === "/"
-    ? "/" : (FILES.indexOf(url.pathname) >= 0 ? url.pathname : "");
+  var shell = req.mode === "navigate" && url.pathname === APP
+    ? APP : (FILES.indexOf(url.pathname) >= 0 ? url.pathname : "");
   if (!shell) return;
   event.respondWith(
     fetch(req).then(function (res) {
@@ -44,7 +47,7 @@ self.addEventListener("fetch", function (event) {
       return res;
     }).catch(function () {
       return caches.match(shell).then(function (hit) {
-        return hit || caches.match("/");
+        return hit || caches.match(APP);
       });
     })
   );
@@ -61,20 +64,20 @@ self.addEventListener("push", function (event) {
   event.waitUntil(self.registration.showNotification(title, {
     body: data.body || "",
     tag: data.tag || "fam",
-    data: { url: data.url || "/" }
+    data: { url: data.url || APP }
   }));
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || "/";
+  var url = (event.notification.data && event.notification.data.url) || APP;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
-      // Only the app itself (served at "/") understands "open-url"; an open
+      // Only the app itself (served at /app) understands "open-url"; an open
       // share page, waitlist page or /admin is left alone and a window opens.
       for (var i = 0; i < list.length; i++) {
         var c = list[i], at = new URL(c.url);
-        if (at.origin === self.location.origin && at.pathname === "/" && "focus" in c) {
+        if (at.origin === self.location.origin && at.pathname === APP && "focus" in c) {
           c.postMessage({ type: "open-url", url: url });
           return c.focus();
         }

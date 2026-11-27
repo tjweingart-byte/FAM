@@ -39,18 +39,18 @@ def test_no_request_runs_through_base_http_middleware():
 
 def test_the_shell_is_compressed_and_unchanged_when_unpacked():
     client = TestClient(appmod.app)
-    resp = client.get("/", headers={"Accept-Encoding": "gzip"})
+    resp = client.get("/app", headers={"Accept-Encoding": "gzip"})
     assert resp.status_code == 200
     assert resp.headers["content-encoding"] == "gzip"
     assert "Accept-Encoding" in resp.headers.get("vary", "")
     assert int(resp.headers["content-length"]) < len(_shell()) / 2
     assert resp.content == _shell()  # the client unpacked it
-    # The session step still ran on the page (it mints identity for "/").
+    # The session step still ran on the page (it mints identity for "/app").
     assert "set-cookie" in resp.headers
 
 
 def test_a_client_that_did_not_ask_gets_it_plain():
-    resp = TestClient(appmod.app).get("/", headers={"Accept-Encoding": "identity"})
+    resp = TestClient(appmod.app).get("/app", headers={"Accept-Encoding": "identity"})
     assert "content-encoding" not in resp.headers
     assert resp.content == _shell()
 
@@ -84,8 +84,8 @@ def test_the_api_and_pictures_are_never_compressed():
 
 def test_an_unchanged_page_is_still_a_304():
     client = TestClient(appmod.app)
-    first = client.get("/", headers={"Accept-Encoding": "gzip"})
-    again = client.get("/", headers={"Accept-Encoding": "gzip",
+    first = client.get("/app", headers={"Accept-Encoding": "gzip"})
+    again = client.get("/app", headers={"Accept-Encoding": "gzip",
                                      "If-None-Match": first.headers["etag"]})
     assert again.status_code == 304
 

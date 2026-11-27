@@ -197,7 +197,7 @@ def test_a_voice_pick_never_restarts_the_episode_playing():
     assert 'id="voiceModalVal"' not in html
 
 
-# --- §701: the episode a search is answered from, not only its exact key -------
+# --- §702: the episode a search is answered from, not only its exact key -------
 
 
 def _ask(client, q, voice="", picked=False):

@@ -6673,7 +6673,7 @@
         try {
           var go = res && res.status === 403 && res.headers.get("X-FAM-Waitlist");
           // Only a waitlisted account is moved: a guest refused here stays
-          // on the front door to sign in or sign up (§217, §231).
+          // on the app's front door to sign in or sign up (§217, §231).
           if(go === "/waitlist/me") location.replace(go);
         } catch(e){}
         // An old kept release (§172) hears about it (§208): `deprecated` is
@@ -6689,7 +6689,7 @@
     if(!res || !res.headers) return;
     var status = res.headers.get("X-FAM-Client-Status");
     if(res.status === 426 || status === "retired"){
-      if(location.pathname !== "/") location.replace("/");
+      if(location.pathname !== "/app") location.replace("/app");
       return;
     }
     if(status === "deprecated" && !clientStatusSaid){
@@ -6698,7 +6698,7 @@
         // Only a kept /v/<version>/ page can hear this (`web/live` is never
         // in the registry), and reloading it serves the same old page - so
         // the toast says where the current one is.
-        toast("A newer version of FAM is available at " + location.origin + "/");
+        toast("A newer version of FAM is available at " + location.origin + "/app");
     }
   }
   var TOPICS = {

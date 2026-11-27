@@ -44,8 +44,8 @@ create a `.venv`, install into it, download a voice model, and take your API
 key — then it tells you what it is about to do and starts the server:
 
 ```
-  On this machine   http://localhost:8000
-  On your phone     http://192.168.1.24:8000   (same wifi)
+  On this machine   http://localhost:8000/app
+  On your phone     http://192.168.1.24:8000/app   (same wifi)
 ```
 
 Open the phone address. Same wifi, real generation, real audio.
