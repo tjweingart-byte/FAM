@@ -6116,7 +6116,9 @@ async def choose_voice(req: VoiceChoice, request: Request) -> dict:
     about how search sounds, not something the ranker learns from.
     """
     _read_limit(request)
-    if not voice_bank.known(req.voice):
+    # The built-in voice's old name is still accepted from an installed
+    # client that listed it (§703): it is kept as "no choice", the house voice.
+    if not (voice_bank.is_default(req.voice) or voice_bank.known(req.voice)):
         raise HTTPException(status_code=400, detail="That voice is not in the bank.")
     slug = voice_bank.slug_of(req.voice)
     voice_bank.bank().choose(_listener(request),
@@ -6193,7 +6195,15 @@ async def admin_remove_voice(slug: str, request: Request) -> dict:
     """Take a voice out of the bank. Episodes already given it keep their
     kept audio; a play that needs it voiced again draws another (§147)."""
     _require_admin(request)
-    removed = voice_bank.bank().remove(slug)
+    bank = voice_bank.bank()
+    # The last voice stays (§703): an empty bank is spoken in the recording
+    # the workers are built with, which is no longer a voice of the app.
+    if bank.get(slug) is not None and len(bank.voices()) == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="This is the only voice in the bank. Add another before "
+                   "removing it - FAM has to speak in something.")
+    removed = bank.remove(slug)
     _redeal_voices()
     return {"ok": removed}
 

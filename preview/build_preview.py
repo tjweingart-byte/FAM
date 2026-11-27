@@ -583,20 +583,19 @@ def load_fixtures() -> dict:
             ],
             "similar": [],
         },
-        # A deployment with a bank of voices (§147): the default FAM voice
-        # first, then the bank. A search is spoken in the one chosen; every
+        # A deployment with a bank of voices (§147, §703: the bank and
+        # nothing else, its oldest the one a search starts on). A search is
+        # spoken in the one chosen; every
         # other surface draws one per episode, so this is the only list a
         # listener sees.
         "/api/voices": {"voices": [
-            {"id": "remote:reference_3", "label": "Ian", "engine": "remote",
-             "detail": "Chatterbox via http"},
             {"id": "remote:nova", "label": "Nova", "engine": "remote",
              "detail": "Warm, unhurried"},
             {"id": "remote:ellis", "label": "Ellis", "engine": "remote",
              "detail": "Bright, quick"},
             {"id": "remote:maya", "label": "Maya", "engine": "remote",
              "detail": "Low and steady"},
-        ], "default": "remote:reference_3", "selected": "remote:reference_3"},
+        ], "default": "remote:nova", "selected": "remote:nova"},
         "/api/voices/choice": {"ok": True},
         # The preview shows a signed-in listener, because that is the state
         # with something to look at - the signed-out one is two buttons.

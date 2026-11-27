@@ -27,9 +27,13 @@ copy under `~/.fam/voices/bank/`. When it has never heard of one it says so
 (`MISSING_MARKER`) and the app sends the recording once, with its rights
 record, on the retry - one upload per voice per worker, never per sentence.
 
-The default voice - the reference recording FAM has always cloned - is part
-of the bank without being a row in it: it is already on every worker, and it
-is the voice every request that names none has always been spoken in.
+The original voice - the reference recording every worker is built with -
+is **not part of the bank** (PROBLEMS.md §703, at the owner's direction). It
+was once listed first, without being a row, so /admin could not remove it.
+Now the bank is its rows and nothing else: a request that names no voice is
+spoken in the house voice (`house_slug`, the bank's oldest), and the built-in
+recording speaks only while the bank holds no voice at all, because something
+has to.
 
 ## Rights
 
@@ -132,8 +136,24 @@ def default_slug() -> str:
 
 
 def is_default(voice: Optional[str]) -> bool:
+    """Whether `voice` names no bank voice: nothing, or the built-in
+    recording. What that is spoken in is `house_slug`'s to say (§703)."""
     slug = slug_of(voice)
     return not slug or slug == "default" or slug == default_slug()
+
+
+def house_slug() -> str:
+    """The bank voice that speaks when none is named (§703): the oldest in
+    the bank, so it only moves when that voice is removed. "" while the bank
+    is empty - then, and only then, the built-in recording speaks. Never
+    raises: a bank that cannot be read is an empty one here, and the caller
+    falls back to the recording every worker has."""
+    try:
+        voices = bank().voices()
+    except Exception:  # noqa: BLE001 - the built-in recording still speaks
+        log.exception("voice bank: could not read the bank")
+        return ""
+    return voices[0].slug if voices else ""
 
 
 def check_rights(record: dict) -> None:
@@ -704,19 +724,33 @@ def reset(store: Optional[VoiceBank] = None) -> None:
 # The catalogue every surface reads
 # ---------------------------------------------------------------------------
 def catalogue() -> list[BankVoice]:
-    """Every voice in the bank, the default first. Never raises."""
-    voices = [BankVoice(default_slug(), default_label(), "The FAM voice",
-                        default=True)]
+    """Every voice in the bank, oldest first. Never raises.
+
+    The built-in recording is not one of them (§703). It is the whole list
+    only while the bank is empty, marked `default`, so that every surface
+    still has a voice to name and /admin can say what is speaking.
+    """
+    voices: list[BankVoice] = []
     try:
-        voices.extend(bank().voices())
-    except Exception:  # noqa: BLE001 - the default voice still speaks
+        voices = bank().voices()
+    except Exception:  # noqa: BLE001 - the built-in recording still speaks
         log.exception("voice bank: could not read the bank")
+    if not voices:
+        voices = [BankVoice(default_slug(), default_label(),
+                            "Built in - speaks until a voice is added",
+                            default=True)]
     return voices
 
 
 def known(voice: Optional[str]) -> bool:
+    """Whether `voice` is one a listener can hear: in the catalogue. The
+    built-in recording is known only while it is the catalogue (§703), so a
+    choice or a kept draw naming it is a voice that has left the bank."""
     slug = slug_of(voice)
-    return is_default(slug) or any(v.slug == slug for v in catalogue())
+    listed = catalogue()
+    if any(v.slug == slug for v in listed):
+        return True
+    return is_default(slug) and all(v.default for v in listed)
 
 
 def random_slug(rng: random.Random | None = None) -> str:
@@ -800,8 +834,9 @@ def wire_fields(slug: str, with_recording: bool = False) -> dict:
     """What a request to a worker carries about a bank voice.
 
     The fingerprint always; the recording only on the retry after a worker
-    said it had none (`MISSING_MARKER`). Empty for the default voice, which
-    every worker already has.
+    said it had none (`MISSING_MARKER`). Empty for the built-in recording,
+    which every worker already has - the caller resolves "no voice named" to
+    `house_slug` first (§703).
     """
     if is_default(slug):
         return {}

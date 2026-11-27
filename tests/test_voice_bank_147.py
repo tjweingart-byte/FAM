@@ -119,12 +119,13 @@ def test_a_voice_needs_its_rights_and_a_real_recording(bank):
         bank.add("nova", "Nova again", wav(5), RIGHTS)
 
 
-def test_the_catalogue_is_the_default_voice_then_the_bank(bank):
+def test_the_catalogue_is_the_bank(bank):
+    """It was "the default voice, then the bank" until §703 took the
+    original voice out of the app (`tests/test_original_voice_703.py`)."""
     bank.add("nova", "Nova", wav(), RIGHTS)
     bank.add("ellis", "Ellis", wav(), RIGHTS)
     slugs = [v.slug for v in voice_bank.catalogue()]
-    assert slugs[0] == voice_bank.default_slug()
-    assert set(slugs[1:]) == {"nova", "ellis"}
+    assert slugs == ["nova", "ellis"]
     assert voice_bank.known("remote:nova") and voice_bank.known("nova")
     assert not voice_bank.known("remote:nobody")
     draws = {voice_bank.random_slug() for _ in range(200)}
@@ -181,8 +182,10 @@ def test_the_remote_payload_sends_the_recording_only_on_the_retry(bank):
     retry = RemoteChatterboxEngine._payload("Hello.", config, "remote:nova",
                                             with_recording=True)
     assert retry["rights"] == RIGHTS and retry["reference"]
-    default = RemoteChatterboxEngine._payload("Hello.", config, None)
-    assert "voice_sha" not in default
+    # No voice named is the house voice, by fingerprint like any other (§703).
+    unnamed = RemoteChatterboxEngine._payload("Hello.", config, None)
+    assert unnamed["voice"] == "nova" and unnamed["voice_sha"] == first["voice_sha"]
+    assert "reference" not in unnamed
 
 
 def test_the_remote_engine_retries_a_missing_voice_with_its_recording(bank, monkeypatch):

@@ -693,3 +693,4 @@ and `limit` = Lines.
 | 42078 | 73 | 700. iOS build 13: the audit of Main since build 12, and following topics on the iPhone (2026-11-26) |
 | 42151 | 72 | 701. familiarize.net is the website; the web app is at /app (2026-11-27) |
 | 42223 | 32 | 702. A reworded search re-voiced a cached episode in the searcher's voice (2026-11-27) |
+| 42255 | 59 | 703. The original voice is out of the app (2026-11-27) |
