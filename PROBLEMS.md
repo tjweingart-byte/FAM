@@ -42148,49 +42148,74 @@ message box all want a device. The fixes made after the green compile
 (three small edits in `ProfileEdit.swift`) are compiled by `ios.yml` on the
 push that carries them.
 
-## 701. familiarize.net leads to the website, not the web app (2026-11-27)
+## 701. familiarize.net is the website; the web app is at /app (2026-11-27)
 
 **The owner:** "familiarize.net should lead to the website, not the web app
-change that". The website is §698's homepage, served at `/waitlist`; typing
-the address opened the app's own sign-in and sign-up instead, because §231
-had restored §217's "a guest is never moved off the front door".
+change that", and then a co-founder's message, forwarded with "This too": "I
+think we should make the website be on familiarize.net and make the web
+version on familiarize.net/app. So if people ask if we have a website, then
+we just tell them 'familiarize.net' instead of 'familiarize.net/waitlist'".
+The website is §698's homepage, until now only at `/waitlist`; typing the
+address opened the app's own sign-in (§231).
 
-**What changed.** This is the fourth turn of the same switch (§217, §219,
-§231), now back on §219's side. While `WAITLIST=1` runs (production):
+**What a visitor gets.**
 
-- **Server** (`app._waitlist_refusal`): the guest exemption is gone, so a
-  guest asking for `/`, `/index.html`, `/v/*` or `/m/*` - under any spelling
-  - is answered 302 to `/waitlist`, query string kept (a `?referralCode=`
-  link, which already went there, is now the general case).
-- **Shell** (`static/index.html`): a copy of the app that opens without
-  asking the server - `sw.js` keeps the shell - sends a guest there too,
-  from `/api/auth/me` (`waitlist` on, not signed in) and from a 403 whose
-  `X-FAM-Waitlist` is `/waitlist`. It follows only those two values, never
-  whatever the header says.
+- **`/` is the website, served in place** - the address bar keeps
+  familiarize.net - for anybody not signed in, waitlist on or off.
+- **`/app` is the web app.** A guest there gets the app's own sign-in and
+  sign-up, exactly what §231 gave them at `/`; a waitlisted account is sent
+  to `/waitlist/me`; a member gets the app.
+- **Nothing made while the app lived at the address breaks.** Somebody
+  signed in to an account the app is open to (`active`, an admin, or anyone
+  once `WAITLIST=0`) who types the address is sent on to `/app`; so is any
+  `/` link that carries something for the app - `/?person=`, `/?mix=`,
+  `/?join=`, `/?billing=`, a notification's `/?listen=` and `/?mixes=1` -
+  query kept. Only `referralCode` and `utm_*` are the website's own.
+  `/index.html` still serves the shell, and `/waitlist` still serves the
+  website.
 
-A signed-in `active` account and an admin are served the app at the address
-as before; a waitlisted account still goes to `/waitlist/me`. §217's problem
-- a member signed out on this browser with no way in - is answered by the
-homepage's **Sign in** (header and foot), the same `/api/auth/login`, which
-sends an `active` account on to `/`, including one let in with no password
-yet (§619). The web app offers no way to sign in that the website lacks
-(neither draws Google or Apple).
+**How** (`app.py`). `_front_door` decides the bare address; the session
+middleware (`carry_the_session`) then rewrites the path the way
+`version_prefix` does - `/` to `/waitlist`'s handler, `/app` to the static
+mount's shell - so each page is still served from one place, with the
+shell's compression and ETag untouched. `/app` joins `WAITLIST_CLOSED_PAGES`.
+A session is minted for `/app` and no longer for `/`: the website is read by
+crawlers and passers-by, and each would have become a listener row.
 
-**Not changed.** With `WAITLIST=0` (staging, and launch day) nobody is
-redirected: a guest at the address gets the app, as §231 describes. What
-the address should open after launch is a decision for then. The iPhone app
-is untouched - it never loads the page. Shared episodes (`/s/<id>`), `/reset`
-and `/claim/<code>` are as they were.
+**The pages.** The website's Open FAM and its sign-in go to `/app`; so do
+`/reset`'s way back and a retired web release's "go to the current page".
+`sw.js` keeps `/app` as the offline shell (cache `fam-shell-v2`, so the old
+copy of `/` is dropped) and never the website; the manifest's `start_url` is
+`/app`. Server-made links (`/?person=` and the rest) were left as they are
+and ride the redirect, because installed clients and sent notifications
+carry the old form anyway.
 
-**Tests.** `tests/test_waitlist.py`:
-`test_guests_and_waitlisted_are_kept_out_of_the_app` now pins the redirect
-for six spellings and the kept query string, and the shell's two lines;
-`test_the_apps_sign_in_sends_each_account_where_it_belongs` starts from the
-redirect.
+**Decisions.** (1) This first went in as a redirect of every guest to
+`/waitlist`, §219's shape; the second message replaced it the same day, and
+§231's "a guest is never moved off the app's front door" stands again, at
+`/app`. (2) A signed-in member typing the address gets the app, not the
+website - an installed home-screen icon or a bookmark of `/` must keep
+opening FAM. They can read the website at `/waitlist`. (3) It applies with
+the waitlist off too, which changes local use: `./dev.sh` and `./demo.sh`
+serve the app at `/app` now, and `/` shows the website to a browser with no
+account. `tools/smoke_activation.py` and `tools/smoke_opus.py` open `/app`.
+(4) Invite links are still `/waitlist?referralCode=`.
 
-**Verified:** the 79 waitlist tests pass; `./dev.sh check`. **Not
-verified:** not exercised against production (the redirect needs
-`WAITLIST=1`, which is set in the Render dashboard, and reaches
-familiarize.net only when this branch reaches `Main`); the offline shell's
-redirect was read and pinned as text, not run in a browser with a service
-worker.
+**Tests.** `tests/test_waitlist.py`
+(`test_guests_and_waitlisted_are_kept_out_of_the_app` pins the website's
+bytes at `/`, the shell's at `/app` and `/index.html`, the deep-link
+redirect and that `utm_` stays; `test_granted_accounts_get_in`,
+`test_the_apps_sign_in_sends_each_account_where_it_belongs`,
+`test_the_shell_is_closed_under_every_spelling`);
+`tests/test_throughput_241.py` reads the shell at `/app`.
+
+**Verified:** those tests; `./dev.sh check`. **Not verified:** not run
+against production, and nothing changes there until this branch reaches
+`Main`; the service worker's move from the old cache to the new one, and an
+installed home-screen app opening on `/app`, were read and not tried in a
+browser; whether Google's, Apple's and Stripe's dashboards hold a return
+address of bare `/` was not checked (the redirect covers a signed-in
+return).
+**For the owner:** tell people familiarize.net for the website and
+familiarize.net/app for the web version. The App Store listing's Marketing
+URL (`https://familiarize.net`) now shows the website to a reviewer.
