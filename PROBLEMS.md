@@ -42374,6 +42374,11 @@ first tab) since §645. One word.
 **The iPhone** takes the same three changes in `ios/` (the one box in
 `ProfileEdit.swift`, three steps, `FriendsView.swift`).
 
+**The privacy policy** says it (the branch's second look, 11.28): the
+letters typed into the box go to Open-Meteo to list the places, with no
+name or account - a new thing a processor receives, so the Open-Meteo row
+and `PRIVACY_UPDATED` changed.
+
 **Tests.** `tests/test_one_box_friends_704.py` (the suggestions, their
 cache, ceiling and failure; the three steps; the page's order; the cards
 gone). The smoke run's sign-up no longer passes through the step and its

@@ -122,9 +122,22 @@ def test_no_catalogue_is_an_empty_list_never_an_error(monkeypatch, tmp_path):
     places.reset_store()
 
 
-def test_the_endpoint_needs_an_account():
-    client = TestClient(appmod.app)
-    assert client.get("/api/places/suggest?q=Hunt").status_code in (401, 403)
+def test_the_endpoint_needs_an_account_and_answers_one(catalogue):
+    with TestClient(appmod.app) as client:
+        assert client.get("/api/places/suggest?q=Hunt").status_code in (401, 403)
+        client.post("/api/auth/signup",
+                    json={"email": "place704@example.com", "password": "password12"})
+        reply = client.get("/api/places/suggest?q=Hunt")
+        assert reply.status_code == 200
+        assert reply.json()["places"][0]["label"] == \
+            "Huntington Beach, California, United States"
+        # The iPhone's address for it.
+        assert client.get("/api/v1/places/suggest?q=Hunt").json() == reply.json()
+
+
+def test_the_privacy_policy_says_where_the_typed_letters_go():
+    page = (ROOT / "pages" / "privacy.html").read_text(encoding="utf-8")
+    assert 'letters you type into "Where you are"' in page
 
 
 def test_the_web_asks_where_you_are_in_one_box():
