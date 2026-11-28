@@ -38,7 +38,7 @@ def test_the_place_says_optional_wherever_it_is_asked():
     assert re.search(r'for="actPlace">Where you live <span class="auth-opt">optional</span>', INDEX)
     assert re.search(r'class="act-label">Gender <span class="auth-opt">optional</span>', INDEX)
     assert re.search(r'Where you are <span class="auth-opt">optional</span></div>\s*'
-                     r'<input class="modal-input" id="identityCity"', INDEX)
+                     r'<input class="modal-input" id="identityPlace"', INDEX)
     settings_view = swift("SettingsView.swift")
     assert 'FieldLabel(text: "Where you live", optional: true)' in settings_view
     assert 'FieldLabel(text: "Gender", optional: true)' in settings_view

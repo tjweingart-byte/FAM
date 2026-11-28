@@ -194,7 +194,7 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   `first_seen` is the clock, variety caps are caps not quotas. [op-myfam]
 - **Taste model**: share, vibe and save are signals;
   `ENGAGEMENT_WEIGHT` is global per tile, bounded, never on `rank_most_played`
-  or `rank_missed`; location joins `familiar_words` and `LOCAL_BOOST`, country
+  or `rank_missed`; location (one box) joins `familiar_words` and `LOCAL_BOOST`, country
   never ranks; `categories.py` grows the vocabulary (multi-wording and
   subsumption filters against n-gram explosion); `category_seed.py` is a floor
   never a ceiling; `topics.topic_tags` and `_is_specific` are shared by
@@ -243,10 +243,10 @@ ends in an ID; `grep -n 'rule:ID' docs/claude/*.md` jumps to the full text.
   Go Deeper prompts, from the **last 24 hours** only; fewer than four is honest. [pick-up-rail]
 - Follows asymmetric; friend = mutual, derived; cards show the
   friends' faces. [op-follow-graph] [friends-listened]
-- **Find your friends**: sign-up's third step; contacts matched, never kept
-  (a newcomer's match leaves one "just joined" notice, §669); Suggested for
-  you cards, after a follow its people; doors on both tabs, dailyFAM; follows record
-  where they were tapped (`via`). [find-friends]
+- **Find your friends** is the Friends page, never a sign-up step (§704):
+  search, tabs, people, then Suggested for you as rows - there only;
+  contacts matched, never kept (a newcomer's match leaves one "just
+  joined" notice, §669); follows record `via`. [find-friends]
 - A friend's profile is its own screen (`screen-person`); `/api/person` returns
   only what they published: place, friend count, friends to friends (a handle resolves for anyone, a bare id only within
   the asker's follows; the response carries no id); new followers announced once (`social.announced`),

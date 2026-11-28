@@ -1955,6 +1955,24 @@ __WRITING_SIM__
       return json({ error: "There is nobody else in this preview's database." }, 404);
     }
     if (path === "/api/people") return json({ people: [] });
+    // Where you are, one box (§704): a few places, so the list can be seen.
+    if (path === "/api/places/suggest") {
+      const typed = (qs.get("q") || "").trim().toLowerCase();
+      const known = [["Huntington Beach", "California", "United States"],
+                     ["Huntington", "West Virginia", "United States"],
+                     ["Huntington", "New York", "United States"],
+                     ["Huntsville", "Alabama", "United States"],
+                     ["Houston", "Texas", "United States"],
+                     ["New York", "New York", "United States"],
+                     ["Los Angeles", "California", "United States"],
+                     ["Chicago", "Illinois", "United States"],
+                     ["London", "England", "United Kingdom"],
+                     ["Toronto", "Ontario", "Canada"]];
+      return json({ places: typed.length < 2 ? [] : known
+        .filter(p => p[0].toLowerCase().startsWith(typed.split(",")[0].trim()))
+        .slice(0, 6)
+        .map(p => ({ city: p[0], region: p[1], country: p[2], label: p.join(", ") })) });
+    }
     if (path === "/api/friends/follow") {
       return json({ error: "There is nobody else in this preview's database." }, 404);
     }

@@ -27,6 +27,7 @@ question names, so the episode is shared with everybody who asks it.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
@@ -158,6 +159,9 @@ class PlaceStore:
                 " key TEXT PRIMARY KEY, name TEXT, county TEXT, region TEXT,"
                 " country TEXT, latitude REAL, longitude REAL, source TEXT,"
                 " resolved_at REAL)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS place_suggestions ("
+                " key TEXT PRIMARY KEY, body TEXT, asked_at REAL)")
 
     def _connect(self) -> sqlite3.Connection:
         return store_db.connect(self.path, timeout=10)
@@ -178,6 +182,27 @@ class PlaceStore:
                 "INSERT OR REPLACE INTO places VALUES (?,?,?,?,?,?,?,?,?)",
                 (key, place.name, place.county, place.region, place.country,
                  place.latitude, place.longitude, place.source, time.time()))
+
+
+    def suggestions(self, key: str, life: float) -> Optional[list]:
+        """What the catalogue last offered for these typed letters."""
+        with closing(self._connect()) as db:
+            row = db.execute(
+                "SELECT body, asked_at FROM place_suggestions WHERE key = ?",
+                (key,)).fetchone()
+        if row is None or time.time() - float(row[1] or 0) > life:
+            return None
+        try:
+            held = json.loads(row[0])
+        except ValueError:
+            return None
+        return held if isinstance(held, list) else None
+
+    def keep_suggestions(self, key: str, found: list) -> None:
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute(
+                "INSERT OR REPLACE INTO place_suggestions VALUES (?,?,?)",
+                (key, json.dumps(found), time.time()))
 
 
 _STORE: list = [None]
@@ -230,17 +255,21 @@ def _pick(results: list, region: str, country: str) -> Optional[dict]:
     return max(places[:5], key=lambda r: int(r.get("population") or 0))
 
 
-async def geocode(town: str, region: str = "", country: str = "",
-                  timeout: float = 4.0) -> Optional[Place]:
-    """Ask Open-Meteo where `town` is. `None` when it does not know or failed."""
+async def _ask_catalogue(name: str, count: int = 10,
+                         timeout: float = 4.0) -> Optional[list]:
+    """Open-Meteo's answers for `name`, or `None` when it could not be asked.
+
+    `None` and `[]` are different facts: the first is a lookup that failed
+    or was not allowed, the second a name the catalogue does not hold.
+    """
     ok, why = geocoder_available()
     if not ok:
-        log.info("places: cannot look up %r - %s", town, why)
+        log.info("places: cannot look up %r - %s", name, why)
         return None
     import provider_usage
 
     key = credentials.active("OPEN_METEO_API_KEY")
-    params = {"name": town, "count": 10, "language": "en", "format": "json"}
+    params = {"name": name, "count": count, "language": "en", "format": "json"}
     url = GEOCODE_URL
     if key:
         params["apikey"] = key
@@ -252,10 +281,18 @@ async def geocode(town: str, region: str = "", country: str = "",
             reply = await client.get(url, params=params)
         provider_usage.record("open_meteo", ok=reply.is_success)
         reply.raise_for_status()
-        results = list((reply.json() or {}).get("results") or [])
+        return list((reply.json() or {}).get("results") or [])
     except Exception as exc:  # noqa: BLE001 - a lookup that fails is a miss
         provider_usage.record("open_meteo", ok=False)
-        log.warning("places: Open-Meteo lookup failed for %r: %s", town, exc)
+        log.warning("places: Open-Meteo lookup failed for %r: %s", name, exc)
+        return None
+
+
+async def geocode(town: str, region: str = "", country: str = "",
+                  timeout: float = 4.0) -> Optional[Place]:
+    """Ask Open-Meteo where `town` is. `None` when it does not know or failed."""
+    results = await _ask_catalogue(town, 10, timeout)
+    if results is None:
         return None
     best = _pick(results, region, country)
     if best is None:
@@ -331,3 +368,104 @@ def _merge(*candidates: Optional[Place]) -> Optional[Place]:
         region=first("region") or "", country=first("country") or "",
         latitude=first("latitude"), longitude=first("longitude"),
         source="+".join(dict.fromkeys(c.source for c in present if c.source)))
+
+
+# --------------------------------------------------------------------------
+# "Where you are", as one box (§704)
+# --------------------------------------------------------------------------
+#: Letters typed before anything is offered, and how many places are.
+SUGGEST_MIN = 2
+SUGGEST_MAX = 6
+#: How long the catalogue's answer for some typed letters is reused. A town
+#: does not move; a month only lets a corrected catalogue through.
+SUGGEST_LIFE = 30 * 24 * 3600.0
+#: Catalogue lookups one account may cause in a day. Answers already held
+#: cost nothing and are not counted: this bounds a script, not a typist.
+SUGGEST_PER_DAY = 400
+
+_COUNTRY_NAMES = {"US": "United States", "USA": "United States",
+                  "GB": "United Kingdom", "UK": "United Kingdom"}
+_asked_today: dict = {}
+
+
+def _may_ask(user: str) -> bool:
+    day = int(time.time() // 86400)
+    if _asked_today.get("day") != day:
+        _asked_today.clear()
+        _asked_today["day"] = day
+    count = _asked_today.get(user, 0)
+    if count >= SUGGEST_PER_DAY:
+        return False
+    _asked_today[user] = count + 1
+    return True
+
+
+def _option(city: str, region: str, country: str) -> dict:
+    country = _COUNTRY_NAMES.get(country.upper(), country)
+    return {"city": city, "region": region, "country": country,
+            "label": ", ".join(p for p in (city, region, country) if p)}
+
+
+def _registry_options(town: str) -> list:
+    """Towns the outlet registry holds that start with what was typed."""
+    import local_news
+
+    try:
+        held = local_news.store().outlets(
+            "lower(town) LIKE ? ESCAPE '!'",
+            (re.sub(r"([%_!])", r"!\1", town.lower()) + "%",))
+    except sqlite3.Error:
+        return []
+    return [_option(o.town, o.region or "", o.country or "")
+            for o in held if o.town]
+
+
+async def suggest(text: str, user: str = "") -> list:
+    """The places `text` could be the start of, most likely first.
+
+    For the one "Where you are" box: a listener types "Hunt" and picks
+    "Huntington Beach, California, United States", which fills the city,
+    region and country `preferences.Location` keeps. Never raises: with no
+    catalogue to ask (staging, a failed call, the day's ceiling) the answer
+    is what the outlet registry holds, which may be nothing - and the box
+    still saves what was typed.
+    """
+    typed = " ".join((text or "").split())[:80]
+    town, region, _country = split_name(typed)
+    if len(town) < SUGGEST_MIN:
+        return []
+    key = normalise(town)
+    try:
+        held = store().suggestions(key, SUGGEST_LIFE)
+    except sqlite3.Error:
+        held = None
+    if held is None:
+        results = None
+        if geocoder_available()[0] and _may_ask(user or "-"):
+            results = await _ask_catalogue(town, 20, timeout=3.0)
+        if results is not None:
+            held = [_option(str(r.get("name") or ""), str(r.get("admin1") or ""),
+                            str(r.get("country") or r.get("country_code") or ""))
+                    for r in results
+                    if str(r.get("feature_code", "")).startswith("PPL")
+                    and r.get("name")]
+            try:
+                store().keep_suggestions(key, held)
+            except sqlite3.Error:
+                log.warning("places: could not keep suggestions", exc_info=True)
+        else:
+            held = _registry_options(town)
+    out, seen = [], set()
+    wanted = region.lower()
+    for option in held:
+        if wanted and not (option["region"].lower().startswith(wanted)
+                           or option["country"].lower().startswith(wanted)):
+            continue
+        mark = option["label"].lower()
+        if mark in seen:
+            continue
+        seen.add(mark)
+        out.append(option)
+        if len(out) >= SUGGEST_MAX:
+            break
+    return out

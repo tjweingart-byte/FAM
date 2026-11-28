@@ -153,7 +153,11 @@ def test_the_iphone_fields_press_their_buttons():
     auth = swift("Views/AuthView.swift")
     assert auth.count(".onSubmit { if !working { Task { await go() } } }") == 2
     profile = swift("Views/ProfileEdit.swift")
-    assert profile.count(".onSubmit { if !saving { save() } }") >= 5
+    # The name, the handle and the code; and where you are, which became
+    # one box (`PlaceField`) that presses the same button on Return.
+    assert profile.count(".onSubmit { if !saving { save() } }") >= 2
+    assert profile.count("PlaceField(place: $place) { if !saving { save() } }") == 2
+    assert ".onSubmit(onReturn)" in profile
     assert ".onSubmit { if dateSet && !working { submit(confirmed: false) } }" in \
         swift("Views/SettingsView.swift")
     # The story reply already sent on Return; it still does.

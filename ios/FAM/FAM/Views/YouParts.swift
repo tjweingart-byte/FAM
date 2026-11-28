@@ -466,18 +466,18 @@ extension View {
     }
 }
 
-/// The sign-up steps (`firstRunStep`): four marks - the account, who you
-/// are, Find your friends (§665), your interests - copper up to this one.
+/// The sign-up steps (`firstRunStep`): three marks - the account, who you
+/// are, your interests - copper up to this one.
 struct StepMarks: View {
     let step: Int
-    static let count = 4
+    static let count = 3
     /// The unfilled marks (`--border-strong` on the page): light's measured
     /// grey, or dark's border over the dark page.
     private static let track = Color(light: 0xD6D2CB, dark: 0x524F56)
     /// The bar this step fills grows in from 0 over 260 ms on
     /// `--ease-in-out` (round three, §640 `signup-steps` B).
     @State private var grown = false
-    /// The number "Step n of 4" shows: the one before, rolled up to this
+    /// The number "Step n of 3" shows: the one before, rolled up to this
     /// one as the step arrives (300 ms on `--ease-in-out`).
     @State private var shownStep: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

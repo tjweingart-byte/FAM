@@ -3,10 +3,12 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import UIKit
 
-// Finding friends (§665-§672, `find-friends`), as the web draws it:
-// sign-up's Find your friends step (the third of four), Your contacts on
-// FAM, Suggested for you / Discover people cards, the row that slides open
-// under Follow on a profile, "Followed by …" on every profile (§667),
+// Finding friends (§665-§672, `find-friends`), as the web draws it: the
+// Friends page's Suggested for you list (a list of rows under the
+// listener's own people, and nowhere else: the sideways cards, sign-up's
+// Find your friends step, YourFAM's Discover people and the row under
+// Follow on a profile all went at the testers' note), Your contacts on
+// FAM, "Followed by …" on every profile (§667),
 // "just joined FAM" (§669), where a follow was tapped (`via`, §669), the
 // `/@handle` profile link and its QR code (§670-§672).
 //
@@ -88,9 +90,9 @@ enum ContactsReader {
 
 // MARK: - What the find-friends surfaces share
 
-/// One copy for every screen that draws these (the step, Friends, YourFAM,
-/// a profile), as the web keeps `suggestLists` and `contactMatches` once:
-/// a card dismissed on one is gone from all, and a follow flips everywhere.
+/// One copy of what the Friends page found, as the web keeps
+/// `suggestLists` and `contactMatches` once: a suggestion dismissed stays
+/// dismissed, and a follow flips everywhere.
 @MainActor
 final class FindFriendsModel: ObservableObject {
     static let shared = FindFriendsModel()
@@ -102,10 +104,7 @@ final class FindFriendsModel: ObservableObject {
     @Published private(set) var contactsDenied = false
     /// Discover people (`suggestLists.discover`).
     @Published private(set) var discover: [FollowPerson] = []
-    /// The row under Follow on a profile, and whose it is.
-    @Published private(set) var around: [FollowPerson] = []
-    @Published private(set) var aroundHandle = ""
-    /// Cards X'd away, kept on the device (`famSuggestHidden`).
+    /// Suggestions X'd away, kept on the device (`famSuggestHidden`).
     @Published private(set) var hidden: Set<String>
     /// Follows tapped and not yet answered: "✓ Following" at once.
     @Published private(set) var flipping: Set<String> = []
@@ -128,8 +127,6 @@ final class FindFriendsModel: ObservableObject {
         contactMatches = nil
         contactsDenied = false
         discover = []
-        around = []
-        aroundHandle = ""
         discoverAt = nil
     }
 
@@ -142,15 +139,6 @@ final class FindFriendsModel: ObservableObject {
         if !force, let at = discoverAt, Date().timeIntervalSince(at) < 60 { return }
         discoverAt = Date()
         if let found = try? await api.suggested() { discover = found }
-    }
-
-    /// Who this person follows, once you follow them (the server answers an
-    /// empty list before); drawn under their Follow.
-    func loadAround(api: FAMAPI, handle: String) async {
-        guard !handle.isEmpty else { return }
-        let found = (try? await api.suggested(handle: handle)) ?? []
-        aroundHandle = handle
-        withAnimation(.easeOut(duration: 0.26)) { around = found }
     }
 
     func dismiss(_ id: String) {
@@ -229,21 +217,17 @@ final class FindFriendsModel: ObservableObject {
 
 // MARK: - Pieces
 
-/// The Follow / Following pill of these rows and cards: `FollowPill`, the
-/// one look round three gave every Follow (§645), the tick drawing in on
-/// the tap; a card's is narrower and fills its width.
+/// The Follow / Following pill of these rows: `FollowPill`, the one look
+/// round three gave every Follow (§645), the tick drawing in on the tap.
 struct FindFollowButton: View {
     let on: Bool
     let ticking: Bool
     let name: String
-    var compact = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            FollowPill(following: on, justFollowed: ticking, size: 12,
-                       height: compact ? 30 : 34, padding: compact ? 12 : 16)
-                .frame(maxWidth: compact ? .infinity : nil)
+            FollowPill(following: on, justFollowed: ticking, size: 12, height: 34, padding: 16)
         }
         .buttonStyle(.press)
         .accessibilityLabel(on ? "Following \(name), tap to unfollow" : "Follow \(name)")
@@ -275,15 +259,15 @@ extension FindRail where Trailing == EmptyView {
     }
 }
 
-/// `personRow`: face, name, @handle and a note, with Follow. `opens` is
-/// false on the sign-up step, where no profile can be opened yet.
+/// `personRow`: face, name, @handle and a note, with Follow - and, for a
+/// suggestion, a small X after it that takes the row away (`dismiss`).
 struct FindPersonRow: View {
     @EnvironmentObject private var social: SocialModel
     @ObservedObject private var find = FindFriendsModel.shared
     let person: FollowPerson
     var note = ""
     let via: String
-    var opens = true
+    var dismiss: (() -> Void)? = nil
 
     private var name: String {
         let n = person.name ?? ""
@@ -293,7 +277,6 @@ struct FindPersonRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                guard opens else { return }
                 social.openPerson(handle: person.handle ?? "", userID: person.userId,
                                   name: person.name ?? "", avatar: person.avatar ?? "")
             } label: {
@@ -324,109 +307,39 @@ struct FindPersonRow: View {
                              ticking: find.flipping.contains(person.userId), name: name) {
                 find.toggle(person, via: via, social: social)
             }
+            if let dismiss {
+                Button(action: dismiss) {
+                    WebIcon(path: Icons.close, size: 12, line: 2.6)
+                        .foregroundStyle(FAMColor.textMuted)
+                        .frame(width: 30, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press)
+                .padding(.leading, -6)
+                .accessibilityLabel("Remove \(name) from suggestions")
+            }
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 2)
     }
 }
 
-/// Suggested for you cards (`suggestCardsHTML`): a sideways row, each a
-/// face, a name, why, Follow and an X that hides it on this phone.
-struct SuggestCards: View {
-    @EnvironmentObject private var social: SocialModel
+/// Suggested for you (`suggestRowsHTML`), as Instagram lists it: a row a
+/// person - face, name, @handle, why (the server's words), Follow and an X
+/// that hides them on this phone. Drawn on the Friends page under the
+/// listener's own people, and nowhere else.
+struct SuggestedList: View {
     @ObservedObject private var find = FindFriendsModel.shared
     let people: [FollowPerson]
     let via: String
-    var opens = true
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(find.visible(people)) { p in card(p) }
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(find.visible(people)) { p in
+                FindPersonRow(person: p, note: p.reason ?? "Suggested for you", via: via,
+                              dismiss: { find.dismiss(p.userId) })
+                    .transition(.opacity)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 2)
-        }
-        .padding(.horizontal, -18)
-    }
-
-    private func card(_ p: FollowPerson) -> some View {
-        let name = (p.name ?? "").isEmpty ? "@" + (p.handle ?? "") : (p.name ?? "")
-        let first = name.split(separator: " ").first.map(String.init) ?? name
-        return VStack(spacing: 0) {
-            Face(name: p.name ?? "", handle: p.handle ?? "", avatar: p.avatar ?? "", size: 64, initialsSize: 22)
-                .padding(.top, 16)
-            HStack(spacing: 4) {
-                Text(name)
-                    .font(FAMFont.body(12.5, .semibold))
-                    .foregroundStyle(FAMColor.text)
-                    .lineLimit(1)
-                if p.explicit == true { ExplicitBadge() }
-            }
-            .padding(.top, 9)
-            Text(p.reason ?? "Suggested for you")
-                .font(FAMFont.body(10.5))
-                .foregroundStyle(FAMColor.textMuted)
-                .lineLimit(1)
-                .padding(.top, 3)
-            FindFollowButton(on: find.isFollowing(p, social: social), ticking: find.flipping.contains(p.userId),
-                             name: name, compact: true) {
-                find.toggle(p, via: via, social: social)
-            }
-            .padding(.top, 10)
-            .padding(.bottom, 12)
-        }
-        .padding(.horizontal, 10)
-        .frame(width: 140)
-        .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(FAMColor.border))
-        .overlay(alignment: .topTrailing) {
-            Button { find.dismiss(p.userId) } label: {
-                WebIcon(path: Icons.close, size: 12, line: 2.6)
-                    .foregroundStyle(FAMColor.textMuted)
-                    .frame(width: 30, height: 30)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.press)
-            .accessibilityLabel("Remove \(first) from suggestions")
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 14))
-        .onTapGesture {
-            guard opens else { return }
-            social.openPerson(handle: p.handle ?? "", userID: p.userId, name: p.name ?? "", avatar: p.avatar ?? "")
-        }
-        .transition(.scale(scale: 0.92).combined(with: .opacity))
-    }
-}
-
-/// "Discover people" with See all, as YourFAM draws it (`hubDiscoverHTML`).
-struct DiscoverPeopleSection: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var social: SocialModel
-    @ObservedObject private var find = FindFriendsModel.shared
-    var title = "Discover people"
-    var via = "suggested"
-
-    var body: some View {
-        Group {
-            if !find.visible(find.discover).isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(title).monoLabel(10, color: FAMColor.copper, tracking: 1.3)
-                        Spacer()
-                        Button { social.open(.friends) } label: {
-                            Text("See all").font(FAMFont.body(12, .semibold)).foregroundStyle(FAMColor.text)
-                        }
-                        .buttonStyle(.press)
-                    }
-                    SuggestCards(people: find.discover, via: via)
-                }
-                .padding(.top, 20)
-            }
-        }
-        .task(id: model.listener?.userId) {
-            find.prepare(for: model.listener?.userId)
-            await find.loadDiscover(api: model.api)
         }
     }
 }
@@ -437,10 +350,6 @@ struct ContactsBlock: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var social: SocialModel
     @ObservedObject private var find = FindFriendsModel.shared
-    /// "" on the Friends page, "signup_" on the step (§669).
-    var viaPrefix = ""
-    var opens = true
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let matches = find.contactMatches {
@@ -449,7 +358,7 @@ struct ContactsBlock: View {
                     if unfollowed.count > 1 {
                         Button {
                             Task { await find.followAllContacts(api: model.api, social: social,
-                                                                via: viaPrefix + "contacts_all") }
+                                                                via: "contacts_all") }
                         } label: {
                             Text("Follow all")
                                 .font(FAMFont.body(12, .bold))
@@ -468,7 +377,7 @@ struct ContactsBlock: View {
                     ForEach(matches) { p in
                         FindPersonRow(person: p,
                                       note: (p.contactName ?? "").isEmpty ? "" : "In your contacts as " + (p.contactName ?? ""),
-                                      via: viaPrefix + "contacts", opens: opens)
+                                      via: "contacts")
                     }
                 }
             } else {
@@ -719,7 +628,7 @@ struct ProfileQRCard: View {
     }
 }
 
-/// "Your profile link" with QR and Share, atop the Friends page.
+/// "Your profile link" with QR and Share, at the foot of the Friends page.
 struct ProfileLinkRow: View {
     @EnvironmentObject private var model: AppModel
     let handle: String
@@ -764,129 +673,5 @@ struct ProfileLinkRow: View {
             .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(FAMColor.border))
         }
-    }
-}
-
-// MARK: - Sign-up's third step (`#screen-findfriends`)
-
-/// Find your friends: after the handle, so the people found can find you
-/// back, before the interests. Contacts, a search by name or handle,
-/// People you may know, Share your profile link and Invite; Next and Skip
-/// both go on to the interests (`afterFindFriends`). Follows made here
-/// carry `signup_` before where they were tapped (§669).
-struct FindFriendsView: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var social: SocialModel
-    @ObservedObject private var find = FindFriendsModel.shared
-    @State private var search = ""
-    @State private var found: [FollowPerson]?
-    @State private var sharing: [Any]?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            StepMarks(step: 3)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Find your friends")
-                        .font(FAMFont.heading(20, .semibold))
-                        .foregroundStyle(FAMColor.text)
-                    Text("Follow the people you know to hear what they\u{2019}re listening to, see their vibes and send each other episodes.")
-                        .font(FAMFont.body(12))
-                        .foregroundStyle(FAMColor.textMuted)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 8)
-                    if let linked = model.linkedPerson {
-                        FindRail(title: "Shared their profile with you")
-                        FindPersonRow(person: linked, via: "signup_profile_link", opens: false)
-                    }
-                    ContactsBlock(viaPrefix: "signup_", opens: false)
-                    ModalField(placeholder: "Search by name or @handle", text: $search, plain: true)
-                        .padding(.top, 14)
-                        .task(id: search) { await lookUp() }
-                    if let found {
-                        if found.isEmpty {
-                            SocialNote(text: "No one by that name or handle.")
-                        } else {
-                            ForEach(found) { p in FindPersonRow(person: p, via: "signup_search", opens: false) }
-                        }
-                    }
-                    if !find.visible(find.discover).isEmpty {
-                        FindRail(title: "People you may know")
-                        SuggestCards(people: find.discover, via: "signup_suggested", opens: false)
-                    }
-                    if !social.myHandle.isEmpty {
-                        Button { sharing = model.profileLinkItems(QRSubject(handle: social.myHandle)) } label: {
-                            Text("Share your profile link")
-                                .font(FAMFont.body(12.5, .semibold))
-                                .foregroundStyle(FAMColor.text)
-                                .frame(maxWidth: .infinity, minHeight: 40)
-                                .overlay(Capsule().stroke(FAMColor.borderStrong))
-                        }
-                        .buttonStyle(.press)
-                        .padding(.top, 22)
-                    }
-                    Button { sharing = model.inviteItems(handle: social.myHandle) } label: {
-                        HStack(spacing: 5) {
-                            Text("Invite friends to FAM").font(FAMFont.body(12, .bold))
-                            WebIcon(path: Icons.plus, size: 12, line: 2.6)
-                        }
-                        .foregroundStyle(FAMColor.ink)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 32)
-                        .background(FAMColor.copper, in: Capsule())
-                    }
-                    .buttonStyle(.press)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 12)
-                }
-                .padding(.horizontal, 32)
-                .padding(.top, 30)
-                .padding(.bottom, 24)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            EntryDock {
-                EntryButton(label: "Next") { next() }
-                Button { next() } label: {
-                    Text("Skip for now")
-                        .monoLabel(10.5, color: FAMColor.textMuted, tracking: 0.63)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 14)
-                        .padding(.bottom, 2)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.press)
-            }
-        }
-        .background(FAMColor.background.ignoresSafeArea())
-        .overlay(alignment: .bottom) { ToastView().padding(.bottom, 96) }
-        .sheet(isPresented: Binding(get: { sharing != nil }, set: { if !$0 { sharing = nil } })) {
-            ActivityView(items: sharing ?? []) { sharing = nil }
-        }
-        .task {
-            find.prepare(for: model.listener?.userId)
-            await social.loadGraph()
-            await social.loadMe()
-            await find.loadDiscover(api: model.api, force: true)
-            if model.inviteLink == nil { await model.loadInviteLink() }
-            await model.loadLinkedPerson()
-        }
-    }
-
-    private func next() {
-        model.entry = .interests
-    }
-
-    private func lookUp() async {
-        var q = search.trimmingCharacters(in: .whitespaces)
-        if q.hasPrefix("@") { q = String(q.dropFirst()) }
-        guard q.count >= 2 else {
-            found = nil
-            return
-        }
-        try? await Task.sleep(nanoseconds: 260_000_000)
-        if Task.isCancelled { return }
-        guard let answer = try? await model.api.people(q), !Task.isCancelled else { return }
-        found = answer
     }
 }

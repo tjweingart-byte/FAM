@@ -225,7 +225,7 @@ def test_the_privacy_policy_says_what_the_step_does():
                   "Count me in FAM's totals", "we delete their account",
                   "Your date of birth and gender are sent to none of these companies"):
         assert words in page, words
-    assert appmod.PRIVACY_UPDATED == "3 November 2026"
+    assert appmod.PRIVACY_UPDATED == "28 November 2026"
     assert consent_mod.TERMS_VERSION == 2            # decision 6
 
 

@@ -4045,6 +4045,22 @@ def _person_friends(me: str, target: str) -> dict:
     return out
 
 
+@app.get("/api/places/suggest")
+async def places_suggest(request: Request,
+                         q: str = Query("", max_length=80)) -> dict:
+    """The places a half-typed "Where you are" could mean (§704).
+
+    One box in place of three: the listener types a town and picks it with
+    its region and country. An account's own editor, so an account is
+    asked for; nothing typed here is stored against the listener.
+    """
+    _read_limit(request)
+    user = _require_account(request)
+    import places
+
+    return {"places": await places.suggest(q, user)}
+
+
 @app.get("/api/people")
 async def people_search(request: Request,
                         q: str = Query("", max_length=64)) -> dict:
@@ -6992,7 +7008,7 @@ LEGAL_PAGES = ("terms", "privacy", "support")
 _LEGAL_TEMPLATES = {name: (PROJECT_ROOT / "pages" / f"{name}.html").read_text(encoding="utf-8")
                     for name in LEGAL_PAGES}
 #: The privacy policy's date. Change it whenever pages/privacy.html changes.
-PRIVACY_UPDATED = "3 November 2026"
+PRIVACY_UPDATED = "28 November 2026"
 #: The terms' effective date. Change it with `consent.TERMS_VERSION` whenever
 #: pages/terms.html changes in a way people must agree to again.
 TERMS_UPDATED = "21 October 2026"

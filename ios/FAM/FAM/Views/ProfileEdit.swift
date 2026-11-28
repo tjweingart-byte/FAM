@@ -327,9 +327,7 @@ struct IdentityView: View {
 
     @State private var name = ""
     @State private var handle = ""
-    @State private var city = ""
-    @State private var region = ""
-    @State private var country = ""
+    @State private var place = PlaceDraft()
     @State private var handleNote = IdentityView.handleHelp
     @State private var handleBad = false
     /// A new photo shown at once on this device while the image check runs
@@ -644,21 +642,9 @@ struct IdentityView: View {
     private var placeBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
             FieldLabel(text: "Where you are", optional: true)
-            TextField("", text: $city, prompt: Text("City").foregroundColor(FAMColor.textFaint))
-                .textContentType(.addressCity)
-                .onSubmit { if !saving { save() } }
-                .youInput()
-                .padding(.bottom, 8)
-            HStack(spacing: 8) {
-                TextField("", text: $region, prompt: Text("State or region").foregroundColor(FAMColor.textFaint))
-                    .textContentType(.addressState)
-                    .onSubmit { if !saving { save() } }
-                    .youInput()
-                TextField("", text: $country, prompt: Text("Country").foregroundColor(FAMColor.textFaint))
-                    .textContentType(.countryName)
-                    .onSubmit { if !saving { save() } }
-                    .youInput()
-            }
+            // One box, not three (the testers' note): type the town and
+            // pick it from the options that come up under it.
+            PlaceField(place: $place) { if !saving { save() } }
             Text("Optional. For local episodes \u{2014} and it shows on your profile.")
                 .font(FAMFont.body(10.5))
                 .foregroundStyle(FAMColor.textFaint)
@@ -746,10 +732,7 @@ struct IdentityView: View {
         let p = you.profile
         name = p?.name ?? ""
         handle = p?.handle ?? ""
-        let place = you.prefs?.location
-        city = place?.city ?? ""
-        region = place?.region ?? ""
-        country = place?.country ?? ""
+        place = PlaceDraft(saved: you.prefs?.location)
         if !editing && name.isEmpty {
             await you.loadAccount()
             name = you.account?.displayName ?? ""
@@ -794,11 +777,7 @@ struct IdentityView: View {
             return
         }
         saving = true
-        let place: [String: Any] = [
-            "city": city.trimmingCharacters(in: .whitespacesAndNewlines),
-            "region": region.trimmingCharacters(in: .whitespacesAndNewlines),
-            "country": country.trimmingCharacters(in: .whitespacesAndNewlines),
-        ]
+        let place = self.place.fields
         // The place beside the name, never in its way (`saveIdentity` sends
         // both at once); its failure is said here, not swallowed (Q12).
         let prefs = you
@@ -834,7 +813,7 @@ struct IdentityView: View {
             if editing {
                 dismiss()
             } else {
-                model.entry = model.afterIdentity
+                model.entry = .interests
             }
         }
     }
@@ -874,7 +853,7 @@ struct IdentityView: View {
                 return
             }
             // "Skip for now" skips the code too: a wrong one never blocks it.
-            model.entry = model.afterIdentity
+            model.entry = .interests
         }
     }
 
@@ -1055,18 +1034,160 @@ enum PasswordChange {
     }
 }
 
+// MARK: - Where you are, in one box
+
+/// What "Where you are"'s one box holds: the words in it, and the place
+/// they stand for when they came from the saved place or from an option.
+/// The server still keeps a city, a region and a country (`preferences
+/// .Location`: the ranker reads the first two and ignores the third), so
+/// this is what turns one line back into the three.
+struct PlaceDraft: Equatable {
+    var text = ""
+    /// The place `heldText` was written from: the saved one, or an option
+    /// picked. It is what gets saved while the words are still those.
+    private var held: PlaceInfo?
+    private var heldText = ""
+
+    init() {}
+
+    init(saved: PlaceInfo?) {
+        guard let saved else { return }
+        let line = Self.line(saved)
+        guard !line.isEmpty else { return }
+        text = line
+        held = saved
+        heldText = line
+    }
+
+    /// "Huntington Beach, California, United States"; empty parts drop out.
+    static func line(_ p: PlaceInfo) -> String {
+        [p.city, p.region, p.country].compactMap { $0 }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+    }
+
+    private var typed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// The words are still the place they were filled from, so there is
+    /// nothing to look up.
+    var settled: Bool { held != nil && typed == heldText }
+
+    mutating func pick(_ option: PlaceInfo) {
+        let line = Self.line(option)
+        text = line
+        held = option
+        heldText = line
+    }
+
+    /// The three fields the server saves. A place picked or left as it was
+    /// goes as it is held; anything else typed is cut at its commas - town,
+    /// region, country - so a place the list did not offer is still saved
+    /// (a plain "Huntington Beach" is the city); an empty box clears it.
+    var fields: [String: Any] {
+        if typed.isEmpty { return ["city": "", "region": "", "country": ""] }
+        if settled, let held {
+            return ["city": (held.city ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+                    "region": (held.region ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+                    "country": (held.country ?? "").trimmingCharacters(in: .whitespacesAndNewlines)]
+        }
+        let parts = typed.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return ["city": parts.first ?? "",
+                "region": parts.count > 1 ? parts[1] : "",
+                "country": parts.count > 2 ? parts[2...].joined(separator: ", ") : ""]
+    }
+}
+
+/// The box and its options: from two letters, 250 ms after the last one,
+/// the places the server's catalogue offers for them (`/api/places/suggest`)
+/// are listed under the box, and a tap fills it. No options is not an
+/// error: the words typed are what is saved.
+struct PlaceField: View {
+    @EnvironmentObject private var model: AppModel
+    @Binding var place: PlaceDraft
+    /// Return, as every field on these screens: the screen's own button.
+    let onReturn: () -> Void
+    @State private var options: [PlaceInfo] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("", text: $place.text, prompt: Text("City or town").foregroundColor(FAMColor.textFaint))
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .onSubmit(onReturn)
+                .youInput()
+                .task(id: place.text) { await lookUp() }
+            if !options.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(options.enumerated()), id: \.offset) { n, option in
+                        if n > 0 { Rectangle().fill(FAMColor.border).frame(height: 1) }
+                        Button {
+                            place.pick(option)
+                            options = []
+                        } label: {
+                            row(option)
+                        }
+                        .buttonStyle(.press)
+                    }
+                }
+                .background(FAMColor.surface, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(FAMColor.border))
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Places")
+            }
+        }
+    }
+
+    /// The town, then where it is, smaller: "Huntington Beach" over
+    /// "California, United States".
+    private func row(_ option: PlaceInfo) -> some View {
+        let town = (option.city ?? "").isEmpty ? PlaceDraft.line(option) : (option.city ?? "")
+        let rest = [option.region, option.country].compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: ", ")
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(town)
+                .font(FAMFont.body(13, .semibold))
+                .foregroundStyle(FAMColor.text)
+            if !rest.isEmpty && !(option.city ?? "").isEmpty {
+                Text(rest)
+                    .font(FAMFont.body(11))
+                    .foregroundStyle(FAMColor.textMuted)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, minHeight: 42, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+    }
+
+    private func lookUp() async {
+        let words = place.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard words.count >= 2, !place.settled else {
+            options = []
+            return
+        }
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+        let found = (try? await model.api.placeSuggestions(words)) ?? []
+        // An answer to letters since typed over is not shown.
+        if Task.isCancelled { return }
+        options = found
+    }
+}
+
 // MARK: - Where you are (`screen-location`)
 
 /// Its own screen with an X and Save, opened from Settings, going back to
-/// where it was opened from. The web's words, the note under Country
+/// where it was opened from. The web's words, the note under the box
 /// included (the owner's call over Q6).
 struct LocationView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var you: YouModel
     @Environment(\.dismiss) private var dismiss
-    @State private var city = ""
-    @State private var region = ""
-    @State private var country = ""
+    @State private var place = PlaceDraft()
     @State private var saving = false
 
     var body: some View {
@@ -1089,9 +1210,11 @@ struct LocationView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 14)
                         .padding(.bottom, 26)
-                    field("City", "City", $city, .addressCity)
-                    field("State or region", "State or region", $region, .addressState)
-                    field("Country", "Country", $country, .countryName)
+                    // One box (the testers' note): type the town, pick it
+                    // from the options under it.
+                    FieldLabel(text: "City or town")
+                    PlaceField(place: $place) { if !saving { save() } }
+                        .padding(.bottom, 13)
                     // The web's note, word for word (`#locNote`, the owner's call).
                     Text("Only you can see this.")
                         .font(FAMFont.body(10.5))
@@ -1110,33 +1233,13 @@ struct LocationView: View {
         .overlay(alignment: .bottom) { ToastView().padding(.bottom, 96) }
         .task {
             await you.loadPrefs()
-            let place = you.prefs?.location
-            city = place?.city ?? ""
-            region = place?.region ?? ""
-            country = place?.country ?? ""
+            place = PlaceDraft(saved: you.prefs?.location)
         }
-    }
-
-    private func field(_ label: String, _ hint: String, _ text: Binding<String>,
-                       _ kind: UITextContentType) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            FieldLabel(text: label)
-            TextField("", text: text, prompt: Text(hint).foregroundColor(FAMColor.textFaint))
-                .textContentType(kind)
-                // Return presses Save (the owner's 11.14 notes).
-                .onSubmit { if !saving { save() } }
-                .youInput()
-        }
-        .padding(.bottom, 13)
     }
 
     private func save() {
         saving = true
-        let body: [String: Any] = [
-            "city": city.trimmingCharacters(in: .whitespacesAndNewlines),
-            "region": region.trimmingCharacters(in: .whitespacesAndNewlines),
-            "country": country.trimmingCharacters(in: .whitespacesAndNewlines),
-        ]
+        let body = place.fields
         Task {
             let ok = await you.savePreference(body)
             saving = false
@@ -1227,7 +1330,7 @@ struct InterestsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
             } else {
-                StepMarks(step: 4)
+                StepMarks(step: 3)
             }
             ScrollViewReader { proxy in
                 ScrollView {

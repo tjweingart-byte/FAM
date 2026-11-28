@@ -117,8 +117,9 @@ def test_the_step_is_the_webs_two_pages():
     # The A to Z list (§142) went, as on the web.
     assert 'Text("Your interests")' not in step and 'topics chosen"' not in step
     assert "prefs.catalogue" not in step
-    # It is still sign-up's fourth step, and still what Settings opens.
-    assert "StepMarks(step: 4)" in step
+    # It is still sign-up's last step (the third, now Find your friends is
+    # not one), and still what Settings opens.
+    assert "StepMarks(step: 3)" in step
     assert "InterestsView(mode: .firstRun)" in _swift("FAMApp.swift")
     assert "InterestsView(mode: .settings)" in _swift("Views/SettingsView.swift")
 

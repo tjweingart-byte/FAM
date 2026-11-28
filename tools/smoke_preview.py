@@ -167,13 +167,10 @@ def main() -> int:
                 "the handle field did not clean what was typed into it"
             page.evaluate("saveIdentity()")
 
-            # Find your friends comes between who you are and what you like
-            # (§665): skippable, and never a dead end.
-            page.wait_for_selector("#screen-findfriends.active", timeout=10000)
-            assert page.query_selector("#screen-findfriends .entry-skip, "
-                                       "#screen-findfriends [onclick*='afterFindFriends']"), \
-                "Find your friends has no way past it"
-            page.evaluate("afterFindFriends()")
+            # Straight on to the interests: Find your friends was a step
+            # between the two (§665) until §704 took it out of sign-up.
+            assert not page.query_selector("#screen-findfriends"), \
+                "sign-up still carries the Find your friends step"
 
             page.wait_for_selector("#screen-intro.active .fw-world",
                                    timeout=10000, state="attached")
@@ -4186,9 +4183,11 @@ def main() -> int:
             # 1. The first run's identity step asks for it.
             page.evaluate("openIdentity('first-run', 'settings')")
             page.wait_for_selector("#screen-identity.active", timeout=10000)
-            for field in ("identityCity", "identityRegion", "identityCountry"):
-                assert page.query_selector(f"#{field}"), \
-                    f"the sign-up step is missing {field}"
+            # One box (§704), where there were three.
+            assert page.query_selector("#identityPlace"), \
+                "the sign-up step is missing its place box"
+            assert not page.query_selector("#identityRegion, #identityCountry"), \
+                "the sign-up step still asks for a region and a country"
 
             # 2. Settings has a row for it, and it opens its own screen -
             #    not Edit profile, which would be the row asking one thing
@@ -4212,9 +4211,8 @@ def main() -> int:
                     f"the location row went to {active}"
                 return
 
-            page.fill("#locCity", "Cincinnati")
-            page.fill("#locRegion", "Ohio")
-            page.fill("#locCountry", "United States")
+            # Typed and not picked: saved by its commas (§704).
+            page.fill("#locPlace", "Cincinnati, Ohio, United States")
             page.evaluate("saveLocation()")
             page.wait_for_timeout(900)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
@@ -4223,8 +4221,9 @@ def main() -> int:
             # It came back, which is the whole point of an editor.
             page.evaluate("openLocationFromSettings()")
             page.wait_for_timeout(700)
-            assert page.eval_on_selector("#locCity", "e => e.value") \
-                == "Cincinnati", "the city did not survive the round trip"
+            assert page.eval_on_selector("#locPlace", "e => e.value") \
+                == "Cincinnati, Ohio, United States", \
+                "the place did not survive the round trip"
             page.evaluate("closeLocation()")
             page.wait_for_timeout(400)
             assert page.eval_on_selector(".screen.active", "e => e.id") \
